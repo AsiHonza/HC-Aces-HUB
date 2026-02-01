@@ -104,6 +104,7 @@ function RegisterForm() {
         role: email === 'janmlcak6@gmail.com' ? 'admin' : 'classic',
         playerType,
         dob: null,
+        photoURL: null,
       });
 
       if (playerType === 'player') {
@@ -276,5 +277,3 @@ export function AuthPage() {
     </>
   )
 }
-
-    

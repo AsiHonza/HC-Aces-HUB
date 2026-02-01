@@ -16,6 +16,7 @@ export interface Player {
   name: string;
   email: string;
   jerseyNumber?: number;
+  photoURL?: string | null;
 }
 
 export interface Lineup {
@@ -73,7 +74,7 @@ const PlayerCard = ({ player, isDragging, isGhost }: { player: Player, isDraggin
         isGhost && "opacity-50"
     )}>
         <Avatar className="h-8 w-8">
-            <AvatarImage src={`https://picsum.photos/seed/${player.email}/100/100`} data-ai-hint="player portrait" alt={player.name} />
+            <AvatarImage src={player.photoURL ?? `https://picsum.photos/seed/${player.email}/100/100`} data-ai-hint="player portrait" alt={player.name} />
             <AvatarFallback>{player.name.split(' ').map(n=>n[0]).join('')}</AvatarFallback>
         </Avatar>
         <div>
@@ -293,7 +294,7 @@ export function LineupBuilder({ players, initialData, onSave, onCancel }: { play
                         {availablePlayers.map(p => (
                             <div key={p.id} className="flex items-center gap-2 p-2 bg-muted rounded-md">
                                 <Avatar className="h-8 w-8">
-                                    <AvatarImage src={`https://picsum.photos/seed/${p.email}/100/100`} data-ai-hint="player portrait" alt={p.name} />
+                                    <AvatarImage src={p.photoURL ?? `https://picsum.photos/seed/${p.email}/100/100`} data-ai-hint="player portrait" alt={p.name} />
                                     <AvatarFallback>{p.name.split(' ').map(n=>n[0]).join('')}</AvatarFallback>
                                 </Avatar>
                                 <div>

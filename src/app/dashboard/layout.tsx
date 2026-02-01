@@ -12,6 +12,14 @@ import { signOut } from 'firebase/auth'
 import { useRouter } from 'next/navigation'
 import { doc } from 'firebase/firestore'
 
+interface UserProfile {
+    id: string;
+    name: string;
+    email: string;
+    photoURL?: string | null;
+    role?: 'admin' | 'classic';
+}
+
 function UserNav() {
   const { user, isUserLoading } = useUser()
   const auth = useAuth()
@@ -19,7 +27,7 @@ function UserNav() {
   const router = useRouter()
 
   const userDocRef = useMemoFirebase(() => (user ? doc(firestore, 'users', user.uid) : null), [firestore, user]);
-  const { data: userProfile, isLoading: isUserProfileLoading } = useDoc(userDocRef);
+  const { data: userProfile, isLoading: isUserProfileLoading } = useDoc<UserProfile>(userDocRef);
 
   const handleLogout = async () => {
     if (auth) {
@@ -36,6 +44,7 @@ function UserNav() {
   const email = user?.email || ''
   const fallback = name.split(' ').map(n => n[0]).join('').toUpperCase()
   const role = userProfile?.role || 'classic';
+  const photoURL = userProfile?.photoURL ?? `https://picsum.photos/seed/${email}/100/100`;
 
 
   return (
@@ -43,7 +52,7 @@ function UserNav() {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-10 w-10 rounded-full">
           <Avatar className="h-10 w-10 border-2 border-primary">
-            <AvatarImage src={`https://picsum.photos/seed/${email}/100/100`} data-ai-hint="player portrait" alt={name} />
+            <AvatarImage src={photoURL} data-ai-hint="player portrait" alt={name} />
             <AvatarFallback>{fallback}</AvatarFallback>
           </Avatar>
         </Button>

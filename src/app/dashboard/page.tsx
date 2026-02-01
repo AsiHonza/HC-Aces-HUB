@@ -36,6 +36,7 @@ interface UserProfile {
   phoneNumber?: string;
   role: 'admin' | 'classic';
   playerType: 'player' | 'goalie' | 'member';
+  photoURL?: string | null;
 }
 
 interface SkaterStats {
@@ -273,10 +274,7 @@ function DashboardPageContent() {
 
     const leagueSettingsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'league') : null, [firestore]);
     const { data: leagueSettings, isLoading: leagueSettingsLoading } = useDoc<AppSettings>(leagueSettingsRef);
-
-  const leagueStandings = useMemo(() => leagueSettings?.leagueStandings ?? [], [leagueSettings]);
-  
-  const myStatsToDisplay = useMemo(() => {
+    const myStatsToDisplay = useMemo(() => {
     if (userProfile?.playerType === 'player' && skaterStatsData?.[0]) {
         const stats = skaterStatsData[0];
         switch(myStatsView) {
@@ -304,6 +302,10 @@ function DashboardPageContent() {
     return { gamesPlayed: 0, wins: 0, savePct: 0 };
   }, [myStatsView, goalieStatsData, userProfile]);
 
+
+  const leagueStandings = useMemo(() => leagueSettings?.leagueStandings ?? [], [leagueSettings]);
+  
+  
 
   const teamScoring = useMemo(() => {
     if (!allUsers || !allSkaterStats) return [];
@@ -1098,7 +1100,7 @@ function DashboardPageContent() {
                                                     )}
                                                 >
                                                     <Avatar>
-                                                        <AvatarImage src={`https://picsum.photos/seed/${attendeeProfile.email}/100/100`} data-ai-hint="player portrait" alt={attendeeProfile.name} />
+                                                        <AvatarImage src={attendeeProfile.photoURL ?? `https://picsum.photos/seed/${attendeeProfile.email}/100/100`} data-ai-hint="player portrait" alt={attendeeProfile.name} />
                                                         <AvatarFallback>{attendeeProfile.name.split(' ').map(n=>n[0]).join('')}</AvatarFallback>
                                                     </Avatar>
                                                     <div className="flex-1">
@@ -1130,7 +1132,7 @@ function DashboardPageContent() {
         
         <Card className="lg:col-span-1 flex flex-col items-center justify-center p-6 text-center">
             <Avatar className="h-24 w-24 md:h-32 md:w-32 mb-4 border-4 border-primary shadow-lg">
-              <AvatarImage src={`https://picsum.photos/seed/${userProfile?.email}/400/400`} alt={userProfile?.name ?? ''} data-ai-hint="player portrait" />
+              <AvatarImage src={userProfile?.photoURL ?? `https://picsum.photos/seed/${userProfile?.email}/400/400`} alt={userProfile?.name ?? ''} data-ai-hint="player portrait" />
               <AvatarFallback className="text-4xl">{fallback}</AvatarFallback>
             </Avatar>
             <CardTitle className="text-2xl md:text-3xl font-headline">{userProfile?.name}</CardTitle>
@@ -1673,5 +1675,3 @@ export default function DashboardPage() {
     </Suspense>
   )
 }
-
-    
