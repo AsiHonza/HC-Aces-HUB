@@ -69,6 +69,11 @@ service cloud.firestore {
       return request.resource.data.userProfileId == resource.data.userProfileId;
     }
 
+    match /settings/{settingId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
       // Allow any signed-in user to list users for leaderboard purposes

@@ -72,6 +72,11 @@ interface PlayoffSeries {
   losses: number;
 }
 
+interface AppSettings {
+  isPlayoffEnabled: boolean;
+  playoffSeries: PlayoffSeries[];
+}
+
 function RecordResultForm({ match, allUsers, onSave, onCancel }: { match: Match, allUsers: UserProfile[], onSave: (e: React.FormEvent<HTMLFormElement>) => Promise<void>, onCancel: () => void }) {
     const [goalCount, setGoalCount] = useState(0)
 
@@ -149,11 +154,8 @@ function DashboardPageContent() {
   const [openAccordionValue, setOpenAccordionValue] = useState('');
 
   const [leagueView, setLeagueView] = useState<'regular' | 'playoff'>('regular');
-  const [isPlayoffEnabled, setIsPlayoffEnabled] = useState(false);
-  const [playoffSeries, setPlayoffSeries] = useState<PlayoffSeries[]>([
-      { round: 'Čtvrtfinále', opponent: 'HC Draci', wins: 0, losses: 0 }
-  ]);
   const [editablePlayoffSeries, setEditablePlayoffSeries] = useState<PlayoffSeries[]>([]);
+  const [editableIsPlayoffEnabled, setEditableIsPlayoffEnabled] = useState(false);
 
   // Fetch current user's profile and stats
   const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
@@ -193,6 +195,50 @@ function DashboardPageContent() {
     }, [firestore, user]);
     const { data: allAttendances, isLoading: attendancesLoading } = useCollection<Attendance>(attendancesQuery);
 
+    const leagueSettingsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'league') : null, [firestore]);
+    const { data: leagueSettings, isLoading: leagueSettingsLoading } = useDoc<AppSettings>(leagueSettingsRef);
+
+    const isPlayoffEnabled = leagueSettings?.isPlayoffEnabled ?? false;
+    const playoffSeries = leagueSettings?.playoffSeries ?? [];
+
+  const teamScoring = useMemo(() => {
+    if (!allUsers || !allStats) return [];
+    
+    const statsMap = new Map<string, PlayerStats>();
+    allStats.forEach(stat => statsMap.set(stat.userProfileId, stat));
+
+    return allUsers.map(u => {
+      const stats = statsMap.get(u.id);
+      return {
+        id: u.id,
+        name: u.name,
+        goals: stats?.goals ?? 0,
+        assists: stats?.assists ?? 0,
+        points: (stats?.goals ?? 0) + (stats?.assists ?? 0),
+      };
+    });
+  }, [allUsers, allStats]);
+  
+  const [leagueStandings, setLeagueStandings] = useState([
+    { rank: 1, name: 'Aces', points: 45, gf: 120, ga: 85 },
+    { rank: 2, name: 'HC Draci', points: 42, gf: 115, ga: 90 },
+    { rank: 3, name: 'Rytíři', points: 38, gf: 100, ga: 95 },
+    { rank: 4, name: 'Kometa', points: 35, gf: 95, ga: 105 },
+    { rank: 5, name: 'Lvi', points: 30, gf: 90, ga: 110 },
+  ]);
+  const [editableLeagueStandings, setEditableLeagueStandings] = useState(leagueStandings);
+
+  const scoringData = isScoringEditMode ? editableScoring : teamScoring;
+  const sortedTeamScoring = useMemo(() => [...scoringData]
+    .sort((a, b) => b.points - a.points)
+    .map((player, index) => ({ ...player, rank: index + 1 })), [scoringData]);
+  
+  const leagueData = isLeagueEditMode ? editableLeagueStandings : leagueStandings;
+  const sortedLeagueStandings = useMemo(() => [...leagueData]
+    .sort((a, b) => b.points - a.points)
+    .map((team, index) => ({ ...team, rank: index + 1 })), [leagueData]);
+
+  const [editableScoring, setEditableScoring] = useState(teamScoring);
 
   const attendancesByMatch = useMemo(() => {
     if (!allAttendances) return new Map<string, Attendance[]>();
@@ -270,46 +316,8 @@ function DashboardPageContent() {
     return new Map(allUsers.map(u => [u.id, u]));
   }, [allUsers]);
   
-  const teamScoring = useMemo(() => {
-    if (!allUsers || !allStats) return [];
-    
-    const statsMap = new Map<string, PlayerStats>();
-    allStats.forEach(stat => statsMap.set(stat.userProfileId, stat));
 
-    return allUsers.map(u => {
-      const stats = statsMap.get(u.id);
-      return {
-        id: u.id,
-        name: u.name,
-        goals: stats?.goals ?? 0,
-        assists: stats?.assists ?? 0,
-        points: (stats?.goals ?? 0) + (stats?.assists ?? 0),
-      };
-    });
-  }, [allUsers, allStats]);
-
-  const [editableScoring, setEditableScoring] = useState(teamScoring);
-  
-  const [leagueStandings, setLeagueStandings] = useState([
-    { rank: 1, name: 'Aces', points: 45, gf: 120, ga: 85 },
-    { rank: 2, name: 'HC Draci', points: 42, gf: 115, ga: 90 },
-    { rank: 3, name: 'Rytíři', points: 38, gf: 100, ga: 95 },
-    { rank: 4, name: 'Kometa', points: 35, gf: 95, ga: 105 },
-    { rank: 5, name: 'Lvi', points: 30, gf: 90, ga: 110 },
-  ]);
-  const [editableLeagueStandings, setEditableLeagueStandings] = useState(leagueStandings);
-
-  const scoringData = isScoringEditMode ? editableScoring : teamScoring;
-  const sortedTeamScoring = useMemo(() => [...scoringData]
-    .sort((a, b) => b.points - a.points)
-    .map((player, index) => ({ ...player, rank: index + 1 })), [scoringData]);
-  
-  const leagueData = isLeagueEditMode ? editableLeagueStandings : leagueStandings;
-  const sortedLeagueStandings = useMemo(() => [...leagueData]
-    .sort((a, b) => b.points - a.points)
-    .map((team, index) => ({ ...team, rank: index + 1 })), [leagueData]);
-
-  const isLoading = isUserLoading || isUserProfileLoading || isPlayerStatsLoading || areMatchesLoading || areUsersLoading || areStatsLoading || attendancesLoading;
+  const isLoading = isUserLoading || isUserProfileLoading || isPlayerStatsLoading || areMatchesLoading || areUsersLoading || areStatsLoading || attendancesLoading || leagueSettingsLoading;
 
   const handleShareMatch = (matchId: string) => {
     const url = new URL(window.location.origin + window.location.pathname);
@@ -588,14 +596,38 @@ function DashboardPageContent() {
 
   const handleEditLeagueClick = () => {
     setEditableLeagueStandings(leagueStandings.map(t => ({...t})));
+    setEditableIsPlayoffEnabled(isPlayoffEnabled);
     setEditablePlayoffSeries(playoffSeries.map(s => ({...s})));
     setIsLeagueEditMode(true);
   };
 
   const handleSaveLeague = () => {
-    setLeagueStandings(editableLeagueStandings);
-    setPlayoffSeries(editablePlayoffSeries);
+    if (!firestore) return;
     setIsLeagueEditMode(false);
+    setLeagueStandings(editableLeagueStandings);
+    
+    const settingsRef = doc(firestore, 'settings', 'league');
+    
+    let seriesToSave = editablePlayoffSeries;
+    if (editableIsPlayoffEnabled && seriesToSave.length === 0) {
+        seriesToSave = [{ round: 'Čtvrtfinále', opponent: 'TBD', wins: 0, losses: 0 }];
+    }
+
+    const updatedSettings = {
+        isPlayoffEnabled: editableIsPlayoffEnabled,
+        playoffSeries: seriesToSave,
+    };
+
+    setDoc(settingsRef, updatedSettings, { merge: true })
+        .then(() => {
+            toast({ title: 'Nastavení ligy uloženo.' });
+        })
+        .catch((error) => {
+            toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se uložit nastavení ligy.' });
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                operation: 'write', path: settingsRef.path, requestResourceData: updatedSettings,
+            }));
+        });
   };
 
   const handleCancelLeague = () => {
@@ -683,126 +715,127 @@ function DashboardPageContent() {
     ];
 
     return (
-        <Card>
-            <CardHeader className="flex-row items-center justify-between pb-2">
-                 <CardTitle className="text-xl break-words pr-2">{opponent}</CardTitle>
-                <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => handleShareMatch(match.id)}>
-                        <Share2 className="h-4 w-4" />
-                    </Button>
-                    {userProfile?.role === 'admin' && (
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-                                    <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => handleRecordResult(match)}>
-                                    <ClipboardEdit className="mr-2 h-4 w-4" /> Zapsat výsledek
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleEditMatch(match)}>
-                                    <Pencil className="mr-2 h-4 w-4" /> Upravit
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleDeleteMatch(match)} className="text-destructive">
-                                    <Trash2 className="mr-2 h-4 w-4" /> Smazat
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                    )}
-                </div>
-            </CardHeader>
-            <CardContent className="flex-grow space-y-2">
-                <div className="text-sm text-muted-foreground flex items-center gap-2">
-                    <CalendarIcon className="h-4 w-4 shrink-0"/> 
-                    <span className="truncate">{format(match.dateTime.toDate(), "EEEE, d. M. yyyy, HH:mm", { locale: cs })}</span>
-                </div>
-                <div className="text-sm text-muted-foreground flex items-center gap-2">
-                    <MapPin className="h-4 w-4 shrink-0"/>
-                    <span className="truncate">{match.location}</span>
-                </div>
-            </CardContent>
-            <CardFooter className="flex-col items-start gap-4">
-                <div className="flex w-full flex-wrap items-center justify-between gap-2">
-                    <div className="flex gap-2">
-                        <Button
-                            variant={attendance === 'going' ? 'default' : 'outline'}
-                            size="sm"
-                            onClick={() => {
-                                setAttendanceData({ matchId: match.id, status: 'going' });
-                                const currentNote = userAttendances.get(match.id)?.note || '';
-                                setAttendanceNote(currentNote);
-                                setIsAttendanceDialogOpen(true);
-                            }}
-                            className={cn('text-xs sm:text-sm', attendance === 'going' && "bg-green-500/10 border-green-500 text-green-600 dark:text-green-400 dark:border-green-400 hover:bg-green-500/20 hover:text-green-600")}
-                        >
-                            <Check className="h-4 w-4 mr-1 sm:mr-2" /> Jdu
-                        </Button>
-                        <Button
-                            variant={attendance === 'not-going' ? 'destructive' : 'outline'}
-                            size="sm"
-                            onClick={() => {
-                                setAttendanceData({ matchId: match.id, status: 'not-going' });
-                                const currentNote = userAttendances.get(match.id)?.note || '';
-                                setAttendanceNote(currentNote);
-                                setIsAttendanceDialogOpen(true);
-                            }}
-                            className={cn('text-xs sm:text-sm', attendance === 'not-going' && "bg-destructive/10 border-destructive text-destructive hover:bg-destructive/20 hover:text-destructive")}
-                        >
-                            <X className="h-4 w-4 mr-1 sm:mr-2" /> Nejdu
-                        </Button>
+        <CarouselItem key={match.id} id={`match-${match.id}`} className={cn("basis-full relative", highlightedMatchId === match.id && 'animate-highlight-card')}>
+            <Card>
+                <CardHeader className="flex-row items-start justify-between pb-2">
+                    <div className="space-y-1">
+                        <CardTitle className="text-xl break-words pr-2">{opponent}</CardTitle>
+                        <CardDescription className="text-xs">{format(match.dateTime.toDate(), "EEEE, d. M. yyyy, HH:mm", { locale: cs })}</CardDescription>
                     </div>
-                    <Dialog>
-                        <DialogTrigger asChild>
-                            <Button variant="outline" size="sm" className="text-xs sm:text-sm">
-                                <Users className="mr-1 sm:mr-2" />
-                                Účast: {attendeeCount}
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                                <MoreHorizontal className="h-4 w-4" />
                             </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                            <DialogHeader>
-                                <DialogTitle>Přihlášení na zápas</DialogTitle>
-                                <DialogDescription>
-                                    {match.team1} vs {match.team2} - {format(match.dateTime.toDate(), "d. MMMM yyyy", { locale: cs })}
-                                </DialogDescription>
-                            </DialogHeader>
-                            <div className="max-h-[400px] overflow-y-auto pr-4 space-y-4">
-                                {sortedAttendees.length > 0 ? sortedAttendees.map(att => {
-                                    const attendeeProfile = usersMap.get(att.userId);
-                                    if (!attendeeProfile) return null;
-                                    const isGoing = att.status === 'going';
-                                    return (
-                                        <div 
-                                            key={att.userId} 
-                                            className={cn(
-                                                "flex items-center gap-4 p-2 rounded-lg border-2 transition-colors",
-                                                isGoing 
-                                                    ? "border-green-500 bg-green-500/10" 
-                                                    : "border-destructive bg-destructive/10"
-                                            )}
-                                        >
-                                            <Avatar>
-                                                <AvatarImage src={`https://picsum.photos/seed/${attendeeProfile.email}/100/100`} data-ai-hint="player portrait" alt={attendeeProfile.name} />
-                                                <AvatarFallback>{attendeeProfile.name.split(' ').map(n=>n[0]).join('')}</AvatarFallback>
-                                            </Avatar>
-                                            <div className="flex-1">
-                                                <p className="font-medium">{attendeeProfile.name}</p>
-                                                {attendeeProfile.jerseyNumber && <p className="text-sm text-muted-foreground">#{attendeeProfile.jerseyNumber}</p>}
-                                                {att.note && <p className="text-sm text-muted-foreground italic mt-1">"{att.note}"</p>}
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                             <DropdownMenuItem onClick={() => handleShareMatch(match.id)}>
+                                <Share2 className="mr-2 h-4 w-4" /> Sdílet
+                            </DropdownMenuItem>
+                            {userProfile?.role === 'admin' && (
+                                <>
+                                    <DropdownMenuItem onClick={() => handleRecordResult(match)}>
+                                        <ClipboardEdit className="mr-2 h-4 w-4" /> Zapsat výsledek
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleEditMatch(match)}>
+                                        <Pencil className="mr-2 h-4 w-4" /> Upravit
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleDeleteMatch(match)} className="text-destructive">
+                                        <Trash2 className="mr-2 h-4 w-4" /> Smazat
+                                    </DropdownMenuItem>
+                                </>
+                            )}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </CardHeader>
+                <CardContent className="space-y-2 text-sm">
+                    <div className="text-muted-foreground flex items-center gap-2">
+                        <MapPin className="h-4 w-4 shrink-0"/>
+                        <span className="truncate">{match.location}</span>
+                    </div>
+                </CardContent>
+                <CardFooter className="flex-col items-start gap-4">
+                    <div className="flex w-full flex-wrap items-center justify-between gap-2">
+                        <div className="flex gap-2">
+                            <Button
+                                variant={attendance === 'going' ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={() => {
+                                    setAttendanceData({ matchId: match.id, status: 'going' });
+                                    const currentNote = userAttendances.get(match.id)?.note || '';
+                                    setAttendanceNote(currentNote);
+                                    setIsAttendanceDialogOpen(true);
+                                }}
+                                className={cn('text-xs sm:text-sm', attendance === 'going' && "bg-green-500/10 border-green-500 text-green-600 dark:text-green-400 dark:border-green-400 hover:bg-green-500/20 hover:text-green-600")}
+                            >
+                                <Check className="h-4 w-4 mr-1 sm:mr-2" /> Jdu
+                            </Button>
+                            <Button
+                                variant={attendance === 'not-going' ? 'destructive' : 'outline'}
+                                size="sm"
+                                onClick={() => {
+                                    setAttendanceData({ matchId: match.id, status: 'not-going' });
+                                    const currentNote = userAttendances.get(match.id)?.note || '';
+                                    setAttendanceNote(currentNote);
+                                    setIsAttendanceDialogOpen(true);
+                                }}
+                                className={cn('text-xs sm:text-sm', attendance === 'not-going' && "bg-destructive/10 border-destructive text-destructive hover:bg-destructive/20 hover:text-destructive")}
+                            >
+                                <X className="h-4 w-4 mr-1 sm:mr-2" /> Nejdu
+                            </Button>
+                        </div>
+                        <Dialog>
+                            <DialogTrigger asChild>
+                                <Button variant="outline" size="sm" className="text-xs sm:text-sm">
+                                    <Users className="mr-1 sm:mr-2" />
+                                    Účast: {attendeeCount}
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>Přihlášení na zápas</DialogTitle>
+                                    <DialogDescription>
+                                        {match.team1} vs {match.team2} - {format(match.dateTime.toDate(), "d. MMMM yyyy", { locale: cs })}
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <div className="max-h-[400px] overflow-y-auto pr-4 space-y-4">
+                                    {sortedAttendees.length > 0 ? sortedAttendees.map(att => {
+                                        const attendeeProfile = usersMap.get(att.userId);
+                                        if (!attendeeProfile) return null;
+                                        const isGoing = att.status === 'going';
+                                        return (
+                                            <div 
+                                                key={att.userId} 
+                                                className={cn(
+                                                    "flex items-center gap-4 p-2 rounded-lg border-2 transition-colors",
+                                                    isGoing 
+                                                        ? "border-green-500 bg-green-500/10" 
+                                                        : "border-destructive bg-destructive/10"
+                                                )}
+                                            >
+                                                <Avatar>
+                                                    <AvatarImage src={`https://picsum.photos/seed/${attendeeProfile.email}/100/100`} data-ai-hint="player portrait" alt={attendeeProfile.name} />
+                                                    <AvatarFallback>{attendeeProfile.name.split(' ').map(n=>n[0]).join('')}</AvatarFallback>
+                                                </Avatar>
+                                                <div className="flex-1">
+                                                    <p className="font-medium">{attendeeProfile.name}</p>
+                                                    {attendeeProfile.jerseyNumber && <p className="text-sm text-muted-foreground">#{attendeeProfile.jerseyNumber}</p>}
+                                                    {att.note && <p className="text-sm text-muted-foreground italic mt-1">"{att.note}"</p>}
+                                                </div>
+                                                {isGoing 
+                                                    ? <Check className="h-6 w-6 text-green-500" /> 
+                                                    : <X className="h-6 w-6 text-destructive" />
+                                                }
                                             </div>
-                                            {isGoing 
-                                                ? <Check className="h-6 w-6 text-green-500" /> 
-                                                : <X className="h-6 w-6 text-destructive" />
-                                            }
-                                        </div>
-                                    )
-                                }) : <p className="text-muted-foreground">Zatím nikdo neodpověděl.</p>}
-                            </div>
-                        </DialogContent>
-                    </Dialog>
-                </div>
-            </CardFooter>
-        </Card>
+                                        )
+                                    }) : <p className="text-muted-foreground">Zatím nikdo neodpověděl.</p>}
+                                </div>
+                            </DialogContent>
+                        </Dialog>
+                    </div>
+                </CardFooter>
+            </Card>
+        </CarouselItem>
     );
   };
 
@@ -885,7 +918,7 @@ function DashboardPageContent() {
           </div>
           
             {nextMatch ? (
-                <div id={`match-${nextMatch.id}`} className={cn('relative', highlightedMatchId === nextMatch.id && 'animate-highlight-card')}>
+                 <div id={`match-${nextMatch.id}`} className={cn('relative', highlightedMatchId === nextMatch.id && 'animate-highlight-card')}>
                     {renderMatchCard(nextMatch)}
                 </div>
             ) : (
@@ -1007,8 +1040,13 @@ function DashboardPageContent() {
                             <div className="flex items-center space-x-2 mt-4">
                                 <Switch
                                     id="playoff-switch"
-                                    checked={isPlayoffEnabled}
-                                    onCheckedChange={setIsPlayoffEnabled}
+                                    checked={editableIsPlayoffEnabled}
+                                    onCheckedChange={(checked) => {
+                                        setEditableIsPlayoffEnabled(checked);
+                                        if (checked && editablePlayoffSeries.length === 0) {
+                                            setEditablePlayoffSeries([{ round: 'Čtvrtfinále', opponent: 'TBD', wins: 0, losses: 0 }]);
+                                        }
+                                    }}
                                 />
                                 <Label htmlFor="playoff-switch">Povolit zobrazení Play-off</Label>
                             </div>
@@ -1244,4 +1282,3 @@ export default function DashboardPage() {
     </Suspense>
   )
 }
-

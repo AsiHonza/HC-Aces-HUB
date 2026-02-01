@@ -171,6 +171,54 @@
         "matchId",
         "status"
       ]
+    },
+    "AppSettings": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "AppSettings",
+      "type": "object",
+      "description": "Stores global application settings for the league.",
+      "properties": {
+        "isPlayoffEnabled": {
+          "type": "boolean",
+          "description": "Controls whether the playoff view is enabled for all users."
+        },
+        "playoffSeries": {
+          "type": "array",
+          "description": "An array of objects representing playoff series.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "round": {
+                "type": "string",
+                "enum": [
+                  "Čtvrtfinále",
+                  "Semifinále",
+                  "Finále",
+                  "Vítěz"
+                ]
+              },
+              "opponent": {
+                "type": "string"
+              },
+              "wins": {
+                "type": "number"
+              },
+              "losses": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "round",
+              "opponent",
+              "wins",
+              "losses"
+            ]
+          }
+        }
+      },
+      "required": [
+        "isPlayoffEnabled"
+      ]
     }
   },
   "auth": {
@@ -249,6 +297,22 @@
             {
               "name": "userId",
               "description": "The unique identifier of the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/settings/{settingId}",
+        "definition": {
+          "entityName": "AppSettings",
+          "schema": {
+            "$ref": "#/backend/entities/AppSettings"
+          },
+          "description": "Stores global application settings. Read is public for authenticated users, write is restricted to admins.",
+          "params": [
+            {
+              "name": "settingId",
+              "description": "The unique identifier for the setting document (e.g., 'league')."
             }
           ]
         }
