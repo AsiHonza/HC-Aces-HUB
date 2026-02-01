@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar, MapPin, Users, Trophy, BarChart, Sword, Pencil, Check, X, Flame, Shield, Plus, Minus, Loader2, Trash2, ClipboardEdit, History } from "lucide-react"
 import { cn } from '@/lib/utils'
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase'
-import { doc, collection, collectionGroup, updateDoc, query, Timestamp, addDoc, deleteDoc, writeBatch } from 'firebase/firestore'
+import { doc, collection, collectionGroup, updateDoc, query, Timestamp, addDoc, deleteDoc, writeBatch, orderBy, where, limit } from 'firebase/firestore'
 import { format } from 'date-fns'
 import { cs } from 'date-fns/locale'
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel'
@@ -125,7 +125,10 @@ function DashboardPageContent() {
   const playerStats = useMemo(() => playerStatsData?.[0], [playerStatsData]);
 
   // Fetch matches
-  const matchesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'matches') : null, [firestore]);
+  const matchesQuery = useMemoFirebase(() => {
+      if (!firestore) return null;
+      return collection(firestore, 'matches');
+  }, [firestore]);
   const { data: allMatches, isLoading: areMatchesLoading } = useCollection<Match>(matchesQuery);
   
   const upcomingMatches = useMemo(() => {
@@ -137,10 +140,10 @@ function DashboardPageContent() {
   }, [allMatches]);
   
   // Fetch all users and stats for leaderboard
-  const usersRef = useMemoFirebase(() => collection(firestore, 'users'), [firestore]);
+  const usersRef = useMemoFirebase(() => firestore ? collection(firestore, 'users'): null, [firestore]);
   const { data: allUsers, isLoading: areUsersLoading } = useCollection<UserProfile>(usersRef);
 
-  const allStatsRef = useMemoFirebase(() => collectionGroup(firestore, 'playerStats'), [firestore]);
+  const allStatsRef = useMemoFirebase(() => firestore ? collectionGroup(firestore, 'playerStats'): null, [firestore]);
   const { data: allStats, isLoading: areStatsLoading } = useCollection<PlayerStats>(allStatsRef);
   
   const teamScoring = useMemo(() => {
@@ -222,7 +225,7 @@ function DashboardPageContent() {
     const dateStr = formData.get('date') as string;
     const timeStr = formData.get('time') as string;
     
-    const [day, month, year] = dateStr.split('. ').map(Number);
+    const [day, month, year] = dateStr.split('.').map(Number);
     const [hours, minutes] = timeStr.split(':').map(Number);
     const newDateTime = new Date(year, month - 1, day, hours, minutes);
 
@@ -246,7 +249,7 @@ function DashboardPageContent() {
     const dateStr = formData.get('date') as string;
     const timeStr = formData.get('time') as string;
     
-    const [day, month, year] = dateStr.split('. ').map(Number);
+    const [day, month, year] = dateStr.split('.').map(Number);
     const [hours, minutes] = timeStr.split(':').map(Number);
     const newDateTime = new Date(year, month - 1, day, hours, minutes);
 
@@ -474,7 +477,7 @@ function DashboardPageContent() {
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                           <Label htmlFor="date-add" className="text-right">Datum</Label>
-                          <Input id="date-add" name="date" defaultValue={format(new Date(), 'd. M. yyyy')} className="col-span-3" required />
+                          <Input id="date-add" name="date" defaultValue={format(new Date(), 'dd.MM.yyyy')} className="col-span-3" required />
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                           <Label htmlFor="time-add" className="text-right">Čas</Label>
@@ -771,7 +774,7 @@ function DashboardPageContent() {
                       </div>
                       <div className="grid grid-cols-4 items-center gap-4">
                           <Label htmlFor="date" className="text-right">Datum</Label>
-                          <Input id="date" name="date" defaultValue={format(selectedMatch.dateTime.toDate(), 'd. M. yyyy')} className="col-span-3" />
+                          <Input id="date" name="date" defaultValue={format(selectedMatch.dateTime.toDate(), 'dd.MM.yyyy')} className="col-span-3" />
                       </div>
                       <div className="grid grid-cols-4 items-center gap-4">
                           <Label htmlFor="time" className="text-right">Čas</Label>
