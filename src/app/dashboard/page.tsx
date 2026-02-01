@@ -424,6 +424,7 @@ function DashboardPageContent() {
 
   const handleViewLineup = (match: Match) => {
     if (match.lineup) {
+      setLineupMatch(match);
       setViewLineupData(match.lineup);
       setIsLineupViewOpen(true);
     }
@@ -1327,9 +1328,14 @@ function DashboardPageContent() {
           </DialogContent>
       </Dialog>
 
-        <Dialog open={isLineupBuilderOpen} onOpenChange={setIsLineupBuilderOpen}>
+        <Dialog open={isLineupBuilderOpen} onOpenChange={(isOpen) => {
+            setIsLineupBuilderOpen(isOpen);
+            if (!isOpen) {
+                setLineupMatch(null);
+            }
+        }}>
             <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
-                 {lineupMatch && allUsers && (
+                 {lineupMatch && allUsers ? (
                     <>
                         <DialogHeader>
                             <DialogTitle>Tvorba sestavy: {lineupMatch.team1} vs {lineupMatch.team2}</DialogTitle>
@@ -1344,21 +1350,31 @@ function DashboardPageContent() {
                             onCancel={() => setIsLineupBuilderOpen(false)}
                         />
                     </>
+                ) : (
+                    <div className="flex-1 flex items-center justify-center">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    </div>
                 )}
             </DialogContent>
         </Dialog>
-        <Dialog open={isLineupViewOpen} onOpenChange={setIsLineupViewOpen}>
+        <Dialog open={isLineupViewOpen} onOpenChange={(isOpen) => {
+            setIsLineupViewOpen(isOpen);
+            if (!isOpen) {
+                setViewLineupData(null);
+                setLineupMatch(null);
+            }
+        }}>
             <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
-                 {viewLineupData && lineupMatch && (
-                    <>
-                        <DialogHeader>
-                            <DialogTitle>Sestava: {lineupMatch.team1} vs {lineupMatch.team2}</DialogTitle>
-                             <DialogDescription>
-                                Uložená sestava pro nadcházející zápas.
-                            </DialogDescription>
-                        </DialogHeader>
-                        <LineupDisplay lineup={viewLineupData} />
-                    </>
+                 <DialogHeader>
+                    <DialogTitle>{lineupMatch ? `Sestava: ${lineupMatch.team1} vs ${lineupMatch.team2}` : 'Načítání sestavy...'}</DialogTitle>
+                    {lineupMatch && <DialogDescription>Uložená sestava pro nadcházející zápas.</DialogDescription>}
+                </DialogHeader>
+                {viewLineupData ? (
+                    <LineupDisplay lineup={viewLineupData} />
+                ) : (
+                    <div className="flex-1 flex items-center justify-center">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    </div>
                 )}
             </DialogContent>
         </Dialog>
