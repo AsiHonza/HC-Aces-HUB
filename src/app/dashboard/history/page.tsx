@@ -10,7 +10,7 @@ import { cs } from 'date-fns/locale'
 import { Loader2, Trophy, Users, Pencil, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -308,10 +308,10 @@ function HistoryPageContent() {
                                         <div className="flex justify-between items-center w-full pr-4">
                                             <div className="flex flex-col text-left">
                                                 <span className="text-sm text-muted-foreground">{format(match.dateTime.toDate(), "EEEE, d. MMMM yyyy", { locale: cs })}</span>
-                                                <span className="text-lg font-semibold">{match.team1} vs {match.team2}</span>
+                                                <span className="text-base md:text-lg font-semibold">{match.team1} vs {match.team2}</span>
                                             </div>
-                                            <div className="flex items-center gap-4">
-                                                <span className="text-2xl font-bold font-mono">{match.team1Score} : {match.team2Score}</span>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xl md:text-2xl font-bold font-mono">{match.team1Score} : {match.team2Score}</span>
                                                 <Badge variant={getResultBadgeVariant(match.team1Score, match.team2Score)}>{getResultText(match.team1Score, match.team2Score)}</Badge>
                                                 {userProfile?.role === 'admin' && (
                                                     <div className="flex gap-2">
