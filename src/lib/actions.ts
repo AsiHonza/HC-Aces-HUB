@@ -98,3 +98,47 @@ export async function login(prevState: any, formData: FormData) {
 
   redirect(`/welcome?${params.toString()}`)
 }
+
+
+const profileSchema = z.object({
+  name: z.string().min(2, { message: 'Jméno musí mít alespoň 2 znaky.' }),
+  jerseyNumber: z.string().optional(),
+  dob: z.string().optional(),
+});
+
+export async function updateProfile(currentParams: {[key: string]: string}, prevState: any, formData: FormData) {
+  const validatedFields = profileSchema.safeParse(
+    Object.fromEntries(formData.entries())
+  );
+
+  if (!validatedFields.success) {
+    return {
+      errors: validatedFields.error.flatten().fieldErrors,
+      message: 'Prosím, opravte chyby ve formuláři.',
+      success: false,
+    };
+  }
+
+  // Simulate database operation
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+
+  const { name, jerseyNumber, dob } = validatedFields.data;
+  
+  const params = new URLSearchParams(currentParams);
+  params.set('name', name);
+  if (jerseyNumber) {
+    params.set('jerseyNumber', jerseyNumber);
+  } else {
+    params.delete('jerseyNumber');
+  }
+
+  if (dob) {
+    params.set('dob', dob);
+  } else {
+    params.delete('dob');
+  }
+
+  params.set('updated', 'true');
+  
+  redirect(`/dashboard/settings?${params.toString()}`);
+}

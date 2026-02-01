@@ -14,6 +14,7 @@ function UserNav() {
   const name = searchParams.get('name') || 'Adam Hráč'
   const email = searchParams.get('email') || 'adam.hrac@email.com'
   const fallback = name.split(' ').map(n => n[0]).join('').toUpperCase()
+  const params = new URLSearchParams(Array.from(searchParams.entries()))
 
   return (
     <DropdownMenu>
@@ -33,9 +34,11 @@ function UserNav() {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem>
-          <User className="mr-2 h-4 w-4" />
-          <span>Profil</span>
+        <DropdownMenuItem asChild>
+          <Link href={`/dashboard/settings?${params.toString()}`}>
+            <User className="mr-2 h-4 w-4" />
+            <span>Nastavení</span>
+          </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
