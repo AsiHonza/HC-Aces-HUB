@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useState, useMemo, useEffect } from 'react'
+import { Suspense, useState, useMemo, useEffect, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -133,6 +133,10 @@ function DashboardPageContent() {
   const [isAttendanceDialogOpen, setIsAttendanceDialogOpen] = useState(false);
   const [attendanceData, setAttendanceData] = useState<{ matchId: string; status: 'going' | 'not-going' } | null>(null);
   const [attendanceNote, setAttendanceNote] = useState('');
+  
+  const upcomingMatchesRef = useRef<HTMLDivElement>(null);
+  const [highlightedMatchId, setHighlightedMatchId] = useState<string | null>(null);
+
 
   // Fetch current user's profile and stats
   const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
@@ -222,6 +226,18 @@ function DashboardPageContent() {
         const matchIndex = upcomingMatches.findIndex(m => m.id === matchId);
         if (matchIndex !== -1) {
             api.scrollTo(matchIndex);
+            
+            upcomingMatchesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            setHighlightedMatchId(matchId);
+
+            const timer = setTimeout(() => {
+                setHighlightedMatchId(null);
+                const newUrl = new URL(window.location.href);
+                newUrl.searchParams.delete('matchId');
+                window.history.replaceState({}, '', newUrl);
+            }, 2500);
+
+            return () => clearTimeout(timer);
         }
     }
   }, [api, upcomingMatches, searchParams]);
@@ -354,7 +370,7 @@ function DashboardPageContent() {
 
   if (isLoading) {
     return (
-      <div className="px-4 sm:px-6 py-8 flex justify-center items-center">
+      <div className="flex justify-center items-center h-64">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
       </div>
     )
@@ -595,7 +611,7 @@ function DashboardPageContent() {
     .map((team, index) => ({ ...team, rank: index + 1 }));
 
   return (
-    <div className="px-4 sm:px-6 py-8">
+    <div className="py-8 px-4 sm:px-6">
       <div className="grid gap-8 lg:grid-cols-3">
         
         <Card className="lg:col-span-1 flex flex-col items-center justify-center p-6 text-center">
@@ -625,7 +641,7 @@ function DashboardPageContent() {
           </CardContent>
         </Card>
 
-        <div className="lg:col-span-3">
+        <div className="lg:col-span-3" ref={upcomingMatchesRef}>
           <div className="flex flex-row items-center justify-between mb-4">
             <h2 className="flex items-center gap-2 font-headline text-xl font-semibold"><Trophy className="text-primary"/>Příští zápas</h2>
             {userProfile?.role === 'admin' && (
@@ -688,8 +704,8 @@ function DashboardPageContent() {
                         ];
 
                         return (
-                            <CarouselItem key={match.id} className="pl-2 md:pl-4 relative basis-full md:basis-1/2 lg:basis-1/3">
-                                <Card className="relative h-full flex flex-col">
+                            <CarouselItem key={match.id} className="pl-2 md:pl-4 basis-full md:basis-1/2 lg:basis-1/3">
+                                <Card className={cn("relative h-full flex flex-col", highlightedMatchId === match.id && 'animate-highlight-card')}>
                                     <CardHeader className="flex-row items-start justify-between pb-2">
                                          <CardTitle className="text-lg sm:text-xl break-words pr-2">{opponent}</CardTitle>
                                         <div className="flex items-center gap-1">
@@ -813,10 +829,8 @@ function DashboardPageContent() {
                         )
                     })}
                 </CarouselContent>
-                {upcomingMatches.length > 1 && <>
-                    <CarouselPrevious className="hidden sm:flex" />
-                    <CarouselNext className="hidden sm:flex" />
-                </>}
+                <CarouselPrevious className="absolute left-[-16px] top-1/2 -translate-y-1/2 hidden sm:flex" />
+                <CarouselNext className="absolute right-[-16px] top-1/2 -translate-y-1/2 hidden sm:flex" />
             </Carousel>
           ) : (
             <Card><CardContent className="pt-6">Žádný nadcházející zápas.</CardContent></Card>

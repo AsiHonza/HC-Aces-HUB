@@ -102,11 +102,16 @@ export default {
           '0%': { opacity: '0', transform: 'scale(0.8) rotate(-10deg)' },
           '100%': { opacity: '1', transform: 'scale(1) rotate(0deg)' },
         },
+        'highlight-card': {
+          '0%, 100%': { boxShadow: '0 0 0 0px hsl(var(--primary) / 0)' },
+          '50%': { boxShadow: '0 0 0 4px hsl(var(--primary) / 0.5)' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
         'logo-in': 'logo-in 1s ease-out forwards',
+        'highlight-card': 'highlight-card 2.5s ease-out',
       },
     },
   },
