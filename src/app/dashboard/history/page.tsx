@@ -116,16 +116,16 @@ function HistoryPageContent() {
     const { data: userProfile, isLoading: userProfileLoading } = useDoc<UserProfile>(userDocRef);
 
     const matchesQuery = useMemoFirebase(() => 
-        firestore ? collection(firestore, 'matches') : null, 
-    [firestore]);
+        firestore && user ? collection(firestore, 'matches') : null, 
+    [firestore, user]);
     const { data: allMatches, isLoading: matchesLoading } = useCollection<Match>(matchesQuery);
 
     const usersQuery = useMemoFirebase(() => 
-        firestore ? collection(firestore, 'users') : null, 
-    [firestore]);
+        firestore && user ? collection(firestore, 'users') : null, 
+    [firestore, user]);
     const { data: users, isLoading: usersLoading } = useCollection<UserProfile>(usersQuery);
 
-    const allStatsRef = useMemoFirebase(() => firestore ? collectionGroup(firestore, 'playerStats'): null, [firestore]);
+    const allStatsRef = useMemoFirebase(() => firestore && user ? collectionGroup(firestore, 'playerStats'): null, [firestore, user]);
     const { data: allStats, isLoading: statsLoading } = useCollection<PlayerStats>(allStatsRef);
 
     const matches = useMemo(() => {
@@ -390,3 +390,5 @@ export default function HistoryPage() {
         </Suspense>
     )
 }
+
+    

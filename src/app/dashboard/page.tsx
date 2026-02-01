@@ -143,23 +143,24 @@ function DashboardPageContent() {
 
   // Fetch matches
   const matchesQuery = useMemoFirebase(() => {
-      if (!firestore) return null;
-      return query(collection(firestore, 'matches'), orderBy('dateTime', 'asc'));
-  }, [firestore]);
+      if (!firestore || !user) return null;
+      return collection(firestore, 'matches');
+  }, [firestore, user]);
   const { data: allMatches, isLoading: areMatchesLoading } = useCollection<Match>(matchesQuery);
   
   const upcomingMatches = useMemo(() => {
     if (!allMatches) return [];
     return allMatches
       .filter(match => !match.isPlayed)
+      .sort((a, b) => a.dateTime.toMillis() - b.dateTime.toMillis())
       .slice(0, 5);
   }, [allMatches]);
   
   // Fetch all users and stats for leaderboard
-  const usersRef = useMemoFirebase(() => firestore ? collection(firestore, 'users'): null, [firestore]);
+  const usersRef = useMemoFirebase(() => firestore && user ? collection(firestore, 'users'): null, [firestore, user]);
   const { data: allUsers, isLoading: areUsersLoading } = useCollection<UserProfile>(usersRef);
 
-  const allStatsRef = useMemoFirebase(() => firestore ? collectionGroup(firestore, 'playerStats'): null, [firestore]);
+  const allStatsRef = useMemoFirebase(() => firestore && user ? collectionGroup(firestore, 'playerStats'): null, [firestore, user]);
   const { data: allStats, isLoading: areStatsLoading } = useCollection<PlayerStats>(allStatsRef);
 
   // Fetch attendances for upcoming matches
@@ -1086,3 +1087,5 @@ export default function DashboardPage() {
     </Suspense>
   )
 }
+
+    
