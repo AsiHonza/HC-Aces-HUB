@@ -7,7 +7,7 @@ import Link from "next/link"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Power, User } from "lucide-react"
+import { Power, User, Users } from "lucide-react"
 
 function UserNav() {
   const searchParams = useSearchParams()
@@ -15,6 +15,7 @@ function UserNav() {
   const email = searchParams.get('email') || 'adam.hrac@email.com'
   const fallback = name.split(' ').map(n => n[0]).join('').toUpperCase()
   const params = new URLSearchParams(Array.from(searchParams.entries()))
+  const role = searchParams.get('role')
 
   return (
     <DropdownMenu>
@@ -34,6 +35,14 @@ function UserNav() {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        {role === 'admin' && (
+            <DropdownMenuItem asChild>
+                <Link href={`/dashboard/team-management?${params.toString()}`}>
+                    <Users className="mr-2 h-4 w-4" />
+                    <span>Správa týmu</span>
+                </Link>
+            </DropdownMenuItem>
+        )}
         <DropdownMenuItem asChild>
           <Link href={`/dashboard/settings?${params.toString()}`}>
             <User className="mr-2 h-4 w-4" />
