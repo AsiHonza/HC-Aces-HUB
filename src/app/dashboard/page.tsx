@@ -17,7 +17,7 @@ import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase, errorEmi
 import { doc, collection, collectionGroup, updateDoc, query, Timestamp, addDoc, deleteDoc, writeBatch, orderBy, where, limit, setDoc } from 'firebase/firestore'
 import { format, parse } from 'date-fns'
 import { cs } from 'date-fns/locale'
-import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious, type CarouselApi } from '@/components/ui/carousel'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import Link from 'next/link'
 import { useToast } from "@/hooks/use-toast"
 import { Textarea } from '@/components/ui/textarea'
@@ -119,7 +119,6 @@ function DashboardPageContent() {
   const { toast } = useToast()
   const searchParams = useSearchParams()
   
-  const [api, setApi] = useState<CarouselApi | null>(null)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -136,6 +135,7 @@ function DashboardPageContent() {
   
   const upcomingMatchesRef = useRef<HTMLDivElement>(null);
   const [highlightedMatchId, setHighlightedMatchId] = useState<string | null>(null);
+  const [openAccordionValue, setOpenAccordionValue] = useState('');
 
 
   // Fetch current user's profile and stats
@@ -159,6 +159,9 @@ function DashboardPageContent() {
       .filter(match => !match.isPlayed)
       .slice(0, 5);
   }, [allMatches]);
+
+  const nextMatch = useMemo(() => upcomingMatches?.[0], [upcomingMatches]);
+  const otherUpcomingMatches = useMemo(() => upcomingMatches?.slice(1) || [], [upcomingMatches]);
   
   // Fetch all users and stats for leaderboard
   const usersRef = useMemoFirebase(() => firestore && user ? collection(firestore, 'users'): null, [firestore, user]);
@@ -219,28 +222,32 @@ function DashboardPageContent() {
   }, [allAttendances]);
 
   useEffect(() => {
-    if (!api || !upcomingMatches || upcomingMatches.length === 0) return;
-
     const matchId = searchParams.get('matchId');
-    if (matchId) {
-        const matchIndex = upcomingMatches.findIndex(m => m.id === matchId);
-        if (matchIndex !== -1) {
-            api.scrollTo(matchIndex);
-            
-            upcomingMatchesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (!matchId || !upcomingMatches || upcomingMatches.length === 0) return;
+
+    const isOtherMatch = otherUpcomingMatches.some(m => m.id === matchId);
+    if (isOtherMatch) {
+        setOpenAccordionValue("item-1");
+    }
+    
+    // Using a timeout to allow the accordion to render and open before scrolling
+    setTimeout(() => {
+        const element = document.getElementById(`match-${matchId}`);
+        if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
             setHighlightedMatchId(matchId);
 
             const timer = setTimeout(() => {
                 setHighlightedMatchId(null);
+                // Clear the matchId from URL without reloading
                 const newUrl = new URL(window.location.href);
                 newUrl.searchParams.delete('matchId');
                 window.history.replaceState({}, '', newUrl);
             }, 2500);
-
-            return () => clearTimeout(timer);
         }
-    }
-  }, [api, upcomingMatches, searchParams]);
+    }, 200);
+
+  }, [upcomingMatches, otherUpcomingMatches, searchParams]);
 
   const usersMap = useMemo(() => {
     if (!allUsers) return new Map<string, UserProfile>();
@@ -368,23 +375,6 @@ function DashboardPageContent() {
     });
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-      </div>
-    )
-  }
-  
-  const fallback = userProfile?.name?.split(' ').map(n => n[0]).join('').toUpperCase() ?? ''
-
-  const stats = [
-    { metric: 'Góly', value: playerStats?.goals ?? 0 },
-    { metric: 'Asistence', value: playerStats?.assists ?? 0 },
-    { metric: 'Body', value: (playerStats?.goals ?? 0) + (playerStats?.assists ?? 0) },
-    { metric: 'Odehrané zápasy', value: playerStats?.gamesPlayed ?? 0 },
-  ]
-  
   const handleMatchUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!selectedMatch || !firestore) return;
@@ -524,7 +514,6 @@ function DashboardPageContent() {
     setSelectedMatch(null);
 };
 
-
   const handleEditScoringClick = () => {
     setEditableScoring(teamScoring.map(p => ({...p})));
     setIsScoringEditMode(true);
@@ -599,7 +588,24 @@ function DashboardPageContent() {
       })
     );
   };
+  
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    )
+  }
+  
+  const fallback = userProfile?.name?.split(' ').map(n => n[0]).join('').toUpperCase() ?? ''
 
+  const stats = [
+    { metric: 'Góly', value: playerStats?.goals ?? 0 },
+    { metric: 'Asistence', value: playerStats?.assists ?? 0 },
+    { metric: 'Body', value: (playerStats?.goals ?? 0) + (playerStats?.assists ?? 0) },
+    { metric: 'Odehrané zápasy', value: playerStats?.gamesPlayed ?? 0 },
+  ]
+  
   const scoringData = isScoringEditMode ? editableScoring : teamScoring;
   const sortedTeamScoring = [...scoringData]
     .sort((a, b) => b.points - a.points)
@@ -609,6 +615,141 @@ function DashboardPageContent() {
   const sortedLeagueStandings = [...leagueData]
     .sort((a, b) => b.points - a.points)
     .map((team, index) => ({ ...team, rank: index + 1 }));
+
+  const renderMatchCard = (match: Match) => {
+    const opponent = match.team1 === 'Aces' ? match.team2 : match.team1;
+    const attendance = userAttendancesWithOptimistic.get(match.id)?.status;
+    const attendeesForMatch = (attendancesByMatch.get(match.id) || []);
+    const attendeeCount = attendeesForMatch.filter(a => a.status === 'going').length;
+    const sortedAttendees = [
+        ...attendeesForMatch.filter(att => att.status === 'going'),
+        ...attendeesForMatch.filter(att => att.status === 'not-going'),
+    ];
+
+    return (
+        <Card>
+            <CardHeader className="flex-row items-center justify-between pb-2">
+                 <CardTitle className="text-xl break-words pr-2">{opponent}</CardTitle>
+                <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => handleShareMatch(match.id)}>
+                        <Share2 className="h-4 w-4" />
+                    </Button>
+                    {userProfile?.role === 'admin' && (
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handleRecordResult(match)}>
+                                    <ClipboardEdit className="mr-2 h-4 w-4" /> Zapsat výsledek
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleEditMatch(match)}>
+                                    <Pencil className="mr-2 h-4 w-4" /> Upravit
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleDeleteMatch(match)} className="text-destructive">
+                                    <Trash2 className="mr-2 h-4 w-4" /> Smazat
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    )}
+                </div>
+            </CardHeader>
+            <CardContent className="flex-grow space-y-2">
+                <div className="text-sm text-muted-foreground flex items-center gap-2">
+                    <CalendarIcon className="h-4 w-4 shrink-0"/> 
+                    <span className="truncate">{format(match.dateTime.toDate(), "EEEE, d. M. yyyy, HH:mm", { locale: cs })}</span>
+                </div>
+                <div className="text-sm text-muted-foreground flex items-center gap-2">
+                    <MapPin className="h-4 w-4 shrink-0"/>
+                    <span className="truncate">{match.location}</span>
+                </div>
+            </CardContent>
+            <CardFooter className="flex-col items-start gap-4">
+                <div className="flex w-full flex-wrap items-center justify-between gap-2">
+                    <div className="flex gap-2">
+                        <Button
+                            variant={attendance === 'going' ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => {
+                                setAttendanceData({ matchId: match.id, status: 'going' });
+                                const currentNote = userAttendances.get(match.id)?.note || '';
+                                setAttendanceNote(currentNote);
+                                setIsAttendanceDialogOpen(true);
+                            }}
+                            className={cn('text-xs sm:text-sm', attendance === 'going' && "bg-green-500/10 border-green-500 text-green-600 dark:text-green-400 dark:border-green-400 hover:bg-green-500/20 hover:text-green-600")}
+                        >
+                            <Check className="h-4 w-4 mr-1 sm:mr-2" /> Jdu
+                        </Button>
+                        <Button
+                            variant={attendance === 'not-going' ? 'destructive' : 'outline'}
+                            size="sm"
+                            onClick={() => {
+                                setAttendanceData({ matchId: match.id, status: 'not-going' });
+                                const currentNote = userAttendances.get(match.id)?.note || '';
+                                setAttendanceNote(currentNote);
+                                setIsAttendanceDialogOpen(true);
+                            }}
+                            className={cn('text-xs sm:text-sm', attendance === 'not-going' && "bg-destructive/10 border-destructive text-destructive hover:bg-destructive/20 hover:text-destructive")}
+                        >
+                            <X className="h-4 w-4 mr-1 sm:mr-2" /> Nejdu
+                        </Button>
+                    </div>
+                    <Dialog>
+                        <DialogTrigger asChild>
+                            <Button variant="outline" size="sm" className="text-xs sm:text-sm">
+                                <Users className="mr-1 sm:mr-2" />
+                                Účast: {attendeeCount}
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                            <DialogHeader>
+                                <DialogTitle>Přihlášení na zápas</DialogTitle>
+                                <DialogDescription>
+                                    {match.team1} vs {match.team2} - {format(match.dateTime.toDate(), "d. MMMM yyyy", { locale: cs })}
+                                </DialogDescription>
+                            </DialogHeader>
+                            <div className="max-h-[400px] overflow-y-auto pr-4 space-y-4">
+                                {sortedAttendees.length > 0 ? sortedAttendees.map(att => {
+                                    const attendeeProfile = usersMap.get(att.userId);
+                                    if (!attendeeProfile) return null;
+                                    const isGoing = att.status === 'going';
+                                    return (
+                                        <div 
+                                            key={att.userId} 
+                                            className={cn(
+                                                "flex items-center gap-4 p-2 rounded-lg border-2 transition-colors",
+                                                isGoing 
+                                                    ? "border-green-500 bg-green-500/10" 
+                                                    : "border-destructive bg-destructive/10"
+                                            )}
+                                        >
+                                            <Avatar>
+                                                <AvatarImage src={`https://picsum.photos/seed/${attendeeProfile.email}/100/100`} data-ai-hint="player portrait" alt={attendeeProfile.name} />
+                                                <AvatarFallback>{attendeeProfile.name.split(' ').map(n=>n[0]).join('')}</AvatarFallback>
+                                            </Avatar>
+                                            <div className="flex-1">
+                                                <p className="font-medium">{attendeeProfile.name}</p>
+                                                {attendeeProfile.jerseyNumber && <p className="text-sm text-muted-foreground">#{attendeeProfile.jerseyNumber}</p>}
+                                                {att.note && <p className="text-sm text-muted-foreground italic mt-1">"{att.note}"</p>}
+                                            </div>
+                                            {isGoing 
+                                                ? <Check className="h-6 w-6 text-green-500" /> 
+                                                : <X className="h-6 w-6 text-destructive" />
+                                            }
+                                        </div>
+                                    )
+                                }) : <p className="text-muted-foreground">Zatím nikdo neodpověděl.</p>}
+                            </div>
+                        </DialogContent>
+                    </Dialog>
+                </div>
+            </CardFooter>
+        </Card>
+    );
+  };
+
 
   return (
     <div className="py-8 px-4 sm:px-6">
@@ -686,155 +827,32 @@ function DashboardPageContent() {
                 </Dialog>
               )}
           </div>
-          {upcomingMatches.length > 0 ? (
-            <Carousel
-                setApi={setApi}
-                opts={{ align: "start" }}
-                className="w-full"
-            >
-                <CarouselContent className="-ml-2 md:-ml-4">
-                    {upcomingMatches.map((match) => {
-                        const opponent = match.team1 === 'Aces' ? match.team2 : match.team1;
-                        const attendance = userAttendancesWithOptimistic.get(match.id)?.status;
-                        const attendeesForMatch = (attendancesByMatch.get(match.id) || []);
-                        const attendeeCount = attendeesForMatch.filter(a => a.status === 'going').length;
-                        const sortedAttendees = [
-                            ...attendeesForMatch.filter(att => att.status === 'going'),
-                            ...attendeesForMatch.filter(att => att.status === 'not-going'),
-                        ];
+          
+            {nextMatch ? (
+                <div id={`match-${nextMatch.id}`} className={cn(highlightedMatchId === nextMatch.id && 'animate-highlight-card')}>
+                    {renderMatchCard(nextMatch)}
+                </div>
+            ) : (
+                <Card><CardContent className="pt-6">Žádný nadcházející zápas.</CardContent></Card>
+            )}
 
-                        return (
-                            <CarouselItem key={match.id} className="pl-2 md:pl-4 basis-full md:basis-1/2 lg:basis-1/3">
-                                <Card className={cn("relative h-full flex flex-col", highlightedMatchId === match.id && 'animate-highlight-card')}>
-                                    <CardHeader className="flex-row items-start justify-between pb-2">
-                                         <CardTitle className="text-lg sm:text-xl break-words pr-2">{opponent}</CardTitle>
-                                        <div className="flex items-center gap-1">
-                                            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => handleShareMatch(match.id)}>
-                                                <Share2 className="h-4 w-4" />
-                                            </Button>
-                                            {userProfile?.role === 'admin' && (
-                                                <DropdownMenu>
-                                                    <DropdownMenuTrigger asChild>
-                                                        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-                                                            <MoreHorizontal className="h-4 w-4" />
-                                                        </Button>
-                                                    </DropdownMenuTrigger>
-                                                    <DropdownMenuContent align="end">
-                                                        <DropdownMenuItem onClick={() => handleRecordResult(match)}>
-                                                            <ClipboardEdit className="mr-2 h-4 w-4" /> Zapsat výsledek
-                                                        </DropdownMenuItem>
-                                                        <DropdownMenuItem onClick={() => handleEditMatch(match)}>
-                                                            <Pencil className="mr-2 h-4 w-4" /> Upravit
-                                                        </DropdownMenuItem>
-                                                        <DropdownMenuItem onClick={() => handleDeleteMatch(match)} className="text-destructive">
-                                                            <Trash2 className="mr-2 h-4 w-4" /> Smazat
-                                                        </DropdownMenuItem>
-                                                    </DropdownMenuContent>
-                                                </DropdownMenu>
-                                            )}
-                                        </div>
-                                    </CardHeader>
-                                    <CardContent className="flex-grow space-y-2">
-                                        <div className="text-sm text-muted-foreground flex items-center gap-2">
-                                            <CalendarIcon className="h-4 w-4 shrink-0"/> 
-                                            <span className="truncate">{format(match.dateTime.toDate(), "EEEE, d. M. yyyy, HH:mm", { locale: cs })}</span>
-                                        </div>
-                                        <div className="text-sm text-muted-foreground flex items-center gap-2">
-                                            <MapPin className="h-4 w-4 shrink-0"/>
-                                            <span className="truncate">{match.location}</span>
-                                        </div>
-                                    </CardContent>
-                                    <CardFooter className="flex-col items-start gap-4">
-                                        <div className="flex w-full flex-wrap items-center justify-between gap-2">
-                                            <div className="flex gap-2">
-                                                <Button
-                                                    variant={attendance === 'going' ? 'default' : 'outline'}
-                                                    size="sm"
-                                                    onClick={() => {
-                                                        setAttendanceData({ matchId: match.id, status: 'going' });
-                                                        const currentNote = userAttendances.get(match.id)?.note || '';
-                                                        setAttendanceNote(currentNote);
-                                                        setIsAttendanceDialogOpen(true);
-                                                    }}
-                                                    className={cn(attendance === 'going' && "bg-green-500/10 border-green-500 text-green-600 dark:text-green-400 dark:border-green-400 hover:bg-green-500/20 hover:text-green-600")}
-                                                >
-                                                    <Check className="h-4 w-4 mr-2" /> Jdu
-                                                </Button>
-                                                <Button
-                                                    variant={attendance === 'not-going' ? 'destructive' : 'outline'}
-                                                    size="sm"
-                                                    onClick={() => {
-                                                        setAttendanceData({ matchId: match.id, status: 'not-going' });
-                                                        const currentNote = userAttendances.get(match.id)?.note || '';
-                                                        setAttendanceNote(currentNote);
-                                                        setIsAttendanceDialogOpen(true);
-                                                    }}
-                                                    className={cn(attendance === 'not-going' && "bg-destructive/10 border-destructive text-destructive hover:bg-destructive/20 hover:text-destructive")}
-                                                >
-                                                    <X className="h-4 w-4 mr-2" /> Nejdu
-                                                </Button>
-                                            </div>
-                                            <Dialog>
-                                                <DialogTrigger asChild>
-                                                    <Button variant="outline" size="sm">
-                                                        <Users className="mr-2" />
-                                                        Účast: {attendeeCount}
-                                                    </Button>
-                                                </DialogTrigger>
-                                                <DialogContent>
-                                                    <DialogHeader>
-                                                        <DialogTitle>Přihlášení na zápas</DialogTitle>
-                                                        <DialogDescription>
-                                                            {match.team1} vs {match.team2} - {format(match.dateTime.toDate(), "d. MMMM yyyy", { locale: cs })}
-                                                        </DialogDescription>
-                                                    </DialogHeader>
-                                                    <div className="max-h-[400px] overflow-y-auto pr-4 space-y-4">
-                                                        {sortedAttendees.length > 0 ? sortedAttendees.map(att => {
-                                                            const attendeeProfile = usersMap.get(att.userId);
-                                                            if (!attendeeProfile) return null;
-                                                            const isGoing = att.status === 'going';
-                                                            return (
-                                                                <div 
-                                                                    key={att.userId} 
-                                                                    className={cn(
-                                                                        "flex items-center gap-4 p-2 rounded-lg border-2 transition-colors",
-                                                                        isGoing 
-                                                                            ? "border-green-500 bg-green-500/10" 
-                                                                            : "border-destructive bg-destructive/10"
-                                                                    )}
-                                                                >
-                                                                    <Avatar>
-                                                                        <AvatarImage src={`https://picsum.photos/seed/${attendeeProfile.email}/100/100`} data-ai-hint="player portrait" alt={attendeeProfile.name} />
-                                                                        <AvatarFallback>{attendeeProfile.name.split(' ').map(n=>n[0]).join('')}</AvatarFallback>
-                                                                    </Avatar>
-                                                                    <div className="flex-1">
-                                                                        <p className="font-medium">{attendeeProfile.name}</p>
-                                                                        {attendeeProfile.jerseyNumber && <p className="text-sm text-muted-foreground">#{attendeeProfile.jerseyNumber}</p>}
-                                                                        {att.note && <p className="text-sm text-muted-foreground italic mt-1">"{att.note}"</p>}
-                                                                    </div>
-                                                                    {isGoing 
-                                                                        ? <Check className="h-6 w-6 text-green-500" /> 
-                                                                        : <X className="h-6 w-6 text-destructive" />
-                                                                    }
-                                                                </div>
-                                                            )
-                                                        }) : <p className="text-muted-foreground">Zatím nikdo neodpověděl.</p>}
-                                                    </div>
-                                                </DialogContent>
-                                            </Dialog>
-                                        </div>
-                                    </CardFooter>
-                                </Card>
-                            </CarouselItem>
-                        )
-                    })}
-                </CarouselContent>
-                <CarouselPrevious className="absolute left-[-16px] top-1/2 -translate-y-1/2 hidden sm:flex" />
-                <CarouselNext className="absolute right-[-16px] top-1/2 -translate-y-1/2 hidden sm:flex" />
-            </Carousel>
-          ) : (
-            <Card><CardContent className="pt-6">Žádný nadcházející zápas.</CardContent></Card>
-          )}
+            {otherUpcomingMatches && otherUpcomingMatches.length > 0 && (
+                <Accordion type="single" collapsible className="w-full mt-4" value={openAccordionValue} onValueChange={setOpenAccordionValue}>
+                    <AccordionItem value="item-1" className="border-none">
+                        <AccordionTrigger className="rounded-lg border bg-card text-card-foreground shadow-sm px-4 py-3 hover:no-underline font-medium">Další zápasy</AccordionTrigger>
+                        <AccordionContent className="pt-4">
+                            <div className="space-y-4">
+                                {otherUpcomingMatches.map(match => (
+                                    <div id={`match-${match.id}`} key={match.id} className={cn(highlightedMatchId === match.id && 'animate-highlight-card')}>
+                                        {renderMatchCard(match)}
+                                    </div>
+                                ))}
+                            </div>
+                        </AccordionContent>
+                    </AccordionItem>
+                </Accordion>
+            )}
+
         </div>
 
         <Card className="lg:col-span-3">
