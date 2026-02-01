@@ -108,7 +108,9 @@ export async function login(prevState: any, formData: FormData) {
 
 const profileSchema = z.object({
   name: z.string().min(2, { message: 'Jméno musí mít alespoň 2 znaky.' }),
-  phone: z.string().min(9, { message: 'Telefonní číslo musí mít alespoň 9 znaků.' }).optional(),
+  phone: z.string().optional().refine(val => !val || val.length === 0 || val.length >= 9, {
+    message: 'Telefonní číslo musí mít alespoň 9 znaků.',
+  }),
   jerseyNumber: z.string().optional(),
   dob: z.string().optional(),
 });
