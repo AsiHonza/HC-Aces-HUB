@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Calendar, MapPin, Users, Trophy, BarChart, Sword, Pencil, Check, X, Flame, Shield, Plus, Minus, Loader2 } from "lucide-react"
 import { cn } from '@/lib/utils'
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase'
-import { doc, collection, collectionGroup, updateDoc, query, orderBy, Timestamp } from 'firebase/firestore'
+import { doc, collection, collectionGroup, updateDoc, query, orderBy, Timestamp, addDoc } from 'firebase/firestore'
 import { format } from 'date-fns'
 import { cs } from 'date-fns/locale'
 
@@ -47,6 +47,7 @@ function DashboardPageContent() {
   
   const [attendance, setAttendance] = useState('unknown');
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isScoringEditMode, setIsScoringEditMode] = useState(false);
   const [isLeagueEditMode, setIsLeagueEditMode] = useState(false);
   
@@ -58,13 +59,13 @@ function DashboardPageContent() {
   const { data: playerStats, isLoading: isPlayerStatsLoading } = useDoc<PlayerStats>(playerStatsRef);
   
   // Fetch matches
-  const matchesQuery = useMemoFirebase(() => query(collection(firestore, 'matches'), orderBy('dateTime', 'desc')), [firestore]);
+  const matchesQuery = useMemoFirebase(() => query(collection(firestore, 'matches'), orderBy('dateTime', 'asc')), [firestore]);
   const { data: matches, isLoading: areMatchesLoading } = useCollection<Match>(matchesQuery);
   
   const nextMatch = useMemo(() => {
     if (!matches) return null;
     const now = new Date();
-    return matches.find(m => m.dateTime.toDate() > now) || matches[0];
+    return matches.find(m => m.dateTime.toDate() > now) || null;
   }, [matches]);
 
   // Fetch all users and stats for leaderboard
@@ -126,7 +127,7 @@ function DashboardPageContent() {
 
   const handleMatchUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!nextMatch) return;
+    if (!nextMatch || !firestore) return;
 
     const formData = new FormData(e.currentTarget);
     const dateStr = formData.get('date') as string;
@@ -148,6 +149,29 @@ function DashboardPageContent() {
     setIsEditDialogOpen(false);
   };
 
+  const handleMatchAdd = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!firestore) return;
+
+    const formData = new FormData(e.currentTarget);
+    const dateStr = formData.get('date') as string;
+    const timeStr = formData.get('time') as string;
+    
+    const [day, month, year] = dateStr.split('. ').map(Number);
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    const newDateTime = new Date(year, month - 1, day, hours, minutes);
+
+    const newMatchData = {
+        team1: 'Aces',
+        team2: formData.get('opponent') as string,
+        location: formData.get('location') as string,
+        dateTime: Timestamp.fromDate(newDateTime),
+    };
+    
+    await addDoc(collection(firestore, 'matches'), newMatchData);
+    setIsAddDialogOpen(false);
+  };
+
   const handleEditScoringClick = () => {
     setEditableScoring(teamScoring.map(p => ({...p})));
     setIsScoringEditMode(true);
@@ -155,6 +179,7 @@ function DashboardPageContent() {
 
   const handleSaveScoring = async () => {
     setIsScoringEditMode(false);
+    if (!firestore) return;
     const updates = editableScoring.map(player => {
         const playerStatsRef = doc(firestore, 'users', player.id, 'playerStats', 'stats');
         return updateDoc(playerStatsRef, {
@@ -259,47 +284,90 @@ function DashboardPageContent() {
         <Card className="lg:col-span-3">
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2 font-headline"><Trophy className="text-primary"/>Příští zápas</CardTitle>
-             {userProfile?.role === 'admin' && nextMatch && (
-              <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" size="icon">
-                    <Pencil className="h-4 w-4" />
-                    <span className="sr-only">Upravit zápas</span>
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Upravit příští zápas</DialogTitle>
-                    <DialogDescription>
-                      Změňte podrobnosti o nadcházejícím zápase.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <form onSubmit={handleMatchUpdate}>
-                    <div className="grid gap-4 py-4">
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="opponent" className="text-right">Soupeř</Label>
-                        <Input id="opponent" name="opponent" defaultValue={opponent} className="col-span-3" />
+            <div className="flex items-center gap-2">
+              {userProfile?.role === 'admin' && (
+                <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Přidat zápas
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Přidat nový zápas</DialogTitle>
+                      <DialogDescription>
+                        Zadejte podrobnosti o nadcházejícím zápase.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={handleMatchAdd}>
+                      <div className="grid gap-4 py-4">
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="opponent-add" className="text-right">Soupeř</Label>
+                          <Input id="opponent-add" name="opponent" className="col-span-3" required />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="date-add" className="text-right">Datum</Label>
+                          <Input id="date-add" name="date" defaultValue={format(new Date(), 'd. M. yyyy')} className="col-span-3" required />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="time-add" className="text-right">Čas</Label>
+                          <Input id="time-add" name="time" defaultValue="18:00" className="col-span-3" required />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="location-add" className="text-right">Místo</Label>
+                          <Input id="location-add" name="location" className="col-span-3" required />
+                        </div>
                       </div>
-                       <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="date" className="text-right">Datum</Label>
-                        <Input id="date" name="date" defaultValue={format(nextMatch.dateTime.toDate(), 'd. M. yyyy')} className="col-span-3" />
+                      <DialogFooter>
+                        <Button type="submit">Uložit zápas</Button>
+                      </DialogFooter>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+              )}
+              {userProfile?.role === 'admin' && nextMatch && (
+                <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="icon">
+                      <Pencil className="h-4 w-4" />
+                      <span className="sr-only">Upravit zápas</span>
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Upravit příští zápas</DialogTitle>
+                      <DialogDescription>
+                        Změňte podrobnosti o nadcházejícím zápase.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={handleMatchUpdate}>
+                      <div className="grid gap-4 py-4">
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="opponent" className="text-right">Soupeř</Label>
+                          <Input id="opponent" name="opponent" defaultValue={opponent} className="col-span-3" />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="date" className="text-right">Datum</Label>
+                          <Input id="date" name="date" defaultValue={format(nextMatch.dateTime.toDate(), 'd. M. yyyy')} className="col-span-3" />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="time" className="text-right">Čas</Label>
+                          <Input id="time" name="time" defaultValue={format(nextMatch.dateTime.toDate(), 'HH:mm')} className="col-span-3" />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="location" className="text-right">Místo</Label>
+                          <Input id="location" name="location" defaultValue={nextMatch.location} className="col-span-3" />
+                        </div>
                       </div>
-                       <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="time" className="text-right">Čas</Label>
-                        <Input id="time" name="time" defaultValue={format(nextMatch.dateTime.toDate(), 'HH:mm')} className="col-span-3" />
-                      </div>
-                       <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="location" className="text-right">Místo</Label>
-                        <Input id="location" name="location" defaultValue={nextMatch.location} className="col-span-3" />
-                      </div>
-                    </div>
-                    <DialogFooter>
-                      <Button type="submit">Uložit změny</Button>
-                    </DialogFooter>
-                  </form>
-                </DialogContent>
-              </Dialog>
-            )}
+                      <DialogFooter>
+                        <Button type="submit">Uložit změny</Button>
+                      </DialogFooter>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+              )}
+            </div>
           </CardHeader>
           {nextMatch ? (
             <>
