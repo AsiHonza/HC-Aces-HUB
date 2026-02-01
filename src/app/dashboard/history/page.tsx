@@ -4,7 +4,7 @@ import { Suspense, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase'
-import { query, collection, where, orderBy, Timestamp } from 'firebase/firestore'
+import { query, collection, Timestamp } from 'firebase/firestore'
 import { format } from 'date-fns'
 import { cs } from 'date-fns/locale'
 import { Loader2, Trophy, Users } from 'lucide-react'
@@ -32,14 +32,21 @@ function HistoryPageContent() {
     const firestore = useFirestore()
 
     const matchesQuery = useMemoFirebase(() => 
-        firestore ? query(collection(firestore, 'matches'), where('isPlayed', '==', true), orderBy('dateTime', 'desc')) : null, 
+        firestore ? collection(firestore, 'matches') : null, 
     [firestore]);
-    const { data: matches, isLoading: matchesLoading } = useCollection<Match>(matchesQuery);
+    const { data: allMatches, isLoading: matchesLoading } = useCollection<Match>(matchesQuery);
 
     const usersQuery = useMemoFirebase(() => 
         firestore ? collection(firestore, 'users') : null, 
     [firestore]);
     const { data: users, isLoading: usersLoading } = useCollection<UserProfile>(usersQuery);
+
+    const matches = useMemo(() => {
+        if (!allMatches) return null;
+        return allMatches
+            .filter(m => m.isPlayed)
+            .sort((a, b) => b.dateTime.toMillis() - a.dateTime.toMillis());
+    }, [allMatches]);
 
     const usersMap = useMemo(() => {
         if (!users) return new Map();

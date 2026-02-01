@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar, MapPin, Users, Trophy, BarChart, Sword, Pencil, Check, X, Flame, Shield, Plus, Minus, Loader2, Trash2, ClipboardEdit, History } from "lucide-react"
 import { cn } from '@/lib/utils'
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase'
-import { doc, collection, collectionGroup, updateDoc, query, orderBy, Timestamp, addDoc, deleteDoc, where, writeBatch } from 'firebase/firestore'
+import { doc, collection, collectionGroup, updateDoc, query, Timestamp, addDoc, deleteDoc, writeBatch } from 'firebase/firestore'
 import { format } from 'date-fns'
 import { cs } from 'date-fns/locale'
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel'
@@ -125,13 +125,16 @@ function DashboardPageContent() {
   const playerStats = useMemo(() => playerStatsData?.[0], [playerStatsData]);
 
   // Fetch matches
-  const matchesQuery = useMemoFirebase(() => query(collection(firestore, 'matches'), where('isPlayed', '==', false), orderBy('dateTime', 'asc')), [firestore]);
-  const { data: matches, isLoading: areMatchesLoading } = useCollection<Match>(matchesQuery);
+  const matchesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'matches') : null, [firestore]);
+  const { data: allMatches, isLoading: areMatchesLoading } = useCollection<Match>(matchesQuery);
   
   const upcomingMatches = useMemo(() => {
-    if (!matches) return [];
-    return matches.slice(0, 5);
-  }, [matches]);
+    if (!allMatches) return [];
+    return allMatches
+      .filter(match => !match.isPlayed)
+      .sort((a, b) => a.dateTime.toMillis() - b.dateTime.toMillis())
+      .slice(0, 5);
+  }, [allMatches]);
   
   // Fetch all users and stats for leaderboard
   const usersRef = useMemoFirebase(() => collection(firestore, 'users'), [firestore]);
