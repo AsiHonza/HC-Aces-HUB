@@ -9,10 +9,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Calendar, MapPin, Users, Trophy, BarChart, Sword, Pencil, Check, X, Flame, Shield, Plus, Minus, Loader2 } from "lucide-react"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
+import { Calendar, MapPin, Users, Trophy, BarChart, Sword, Pencil, Check, X, Flame, Shield, Plus, Minus, Loader2, Trash2 } from "lucide-react"
 import { cn } from '@/lib/utils'
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase'
-import { doc, collection, collectionGroup, updateDoc, query, orderBy, Timestamp, addDoc } from 'firebase/firestore'
+import { doc, collection, collectionGroup, updateDoc, query, orderBy, Timestamp, addDoc, deleteDoc } from 'firebase/firestore'
 import { format } from 'date-fns'
 import { cs } from 'date-fns/locale'
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel'
@@ -49,6 +50,9 @@ function DashboardPageContent() {
   const [attendances, setAttendances] = useState<Record<string, string>>({});
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
+
   const [isScoringEditMode, setIsScoringEditMode] = useState(false);
   const [isLeagueEditMode, setIsLeagueEditMode] = useState(false);
   
@@ -70,10 +74,6 @@ function DashboardPageContent() {
     return matches.filter(m => m.dateTime.toDate() > now).slice(0, 5);
   }, [matches]);
   
-  const nextMatch = useMemo(() => {
-    return upcomingMatches[0] || null;
-  }, [upcomingMatches]);
-
   // Fetch all users and stats for leaderboard
   const usersRef = useMemoFirebase(() => collection(firestore, 'users'), [firestore]);
   const { data: allUsers, isLoading: areUsersLoading } = useCollection<UserProfile>(usersRef);
@@ -112,6 +112,24 @@ function DashboardPageContent() {
 
   const isLoading = isUserLoading || isUserProfileLoading || isPlayerStatsLoading || areMatchesLoading || areUsersLoading || areStatsLoading;
 
+  const handleEditMatch = (match: Match) => {
+    setSelectedMatch(match);
+    setIsEditDialogOpen(true);
+  };
+  const handleDeleteMatch = (match: Match) => {
+    setSelectedMatch(match);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteMatch = async () => {
+    if (!selectedMatch || !firestore) return;
+    
+    const matchRef = doc(firestore, 'matches', selectedMatch.id);
+    await deleteDoc(matchRef);
+    setIsDeleteDialogOpen(false);
+    setSelectedMatch(null);
+  };
+
   if (isLoading) {
     return (
       <div className="container py-8 flex justify-center items-center">
@@ -129,17 +147,14 @@ function DashboardPageContent() {
     { metric: 'Odehrané zápasy', value: playerStats?.gamesPlayed ?? 0 },
   ]
   
-  const opponent = nextMatch?.team1 === 'Aces' ? nextMatch?.team2 : nextMatch?.team1;
-
   const handleMatchUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!nextMatch || !firestore) return;
+    if (!selectedMatch || !firestore) return;
 
     const formData = new FormData(e.currentTarget);
     const dateStr = formData.get('date') as string;
     const timeStr = formData.get('time') as string;
     
-    // Combine date and time and create a Timestamp
     const [day, month, year] = dateStr.split('. ').map(Number);
     const [hours, minutes] = timeStr.split(':').map(Number);
     const newDateTime = new Date(year, month - 1, day, hours, minutes);
@@ -150,9 +165,10 @@ function DashboardPageContent() {
         dateTime: Timestamp.fromDate(newDateTime),
     };
     
-    const matchRef = doc(firestore, 'matches', nextMatch.id);
+    const matchRef = doc(firestore, 'matches', selectedMatch.id);
     await updateDoc(matchRef, updatedData);
     setIsEditDialogOpen(false);
+    setSelectedMatch(null);
   };
 
   const handleMatchAdd = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -203,7 +219,7 @@ function DashboardPageContent() {
                 assists: player.assists
             });
         }
-        return Promise.resolve(); // Should not happen if data is consistent
+        return Promise.resolve();
     });
     await Promise.all(updates);
   };
@@ -344,47 +360,6 @@ function DashboardPageContent() {
                   </DialogContent>
                 </Dialog>
               )}
-              {userProfile?.role === 'admin' && nextMatch && (
-                <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" size="icon">
-                      <Pencil className="h-4 w-4" />
-                      <span className="sr-only">Upravit zápas</span>
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Upravit příští zápas</DialogTitle>
-                      <DialogDescription>
-                        Změňte podrobnosti o nadcházejícím zápase.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <form onSubmit={handleMatchUpdate}>
-                      <div className="grid gap-4 py-4">
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="opponent" className="text-right">Soupeř</Label>
-                          <Input id="opponent" name="opponent" defaultValue={opponent ?? ''} className="col-span-3" />
-                        </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="date" className="text-right">Datum</Label>
-                          <Input id="date" name="date" defaultValue={format(nextMatch.dateTime.toDate(), 'd. M. yyyy')} className="col-span-3" />
-                        </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="time" className="text-right">Čas</Label>
-                          <Input id="time" name="time" defaultValue={format(nextMatch.dateTime.toDate(), 'HH:mm')} className="col-span-3" />
-                        </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="location" className="text-right">Místo</Label>
-                          <Input id="location" name="location" defaultValue={nextMatch.location} className="col-span-3" />
-                        </div>
-                      </div>
-                      <DialogFooter>
-                        <Button type="submit">Uložit změny</Button>
-                      </DialogFooter>
-                    </form>
-                  </DialogContent>
-                </Dialog>
-              )}
             </div>
           </CardHeader>
           {upcomingMatches.length > 0 ? (
@@ -400,7 +375,19 @@ function DashboardPageContent() {
                   const attendance = attendances[match.id] || 'unknown';
 
                   return (
-                    <CarouselItem key={match.id}>
+                    <CarouselItem key={match.id} className="relative">
+                       {userProfile?.role === 'admin' && (
+                          <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
+                              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleEditMatch(match)}>
+                                  <Pencil className="h-4 w-4" />
+                                  <span className="sr-only">Upravit zápas</span>
+                              </Button>
+                              <Button variant="destructive" size="icon" className="h-8 w-8" onClick={() => handleDeleteMatch(match)}>
+                                  <Trash2 className="h-4 w-4" />
+                                  <span className="sr-only">Smazat zápas</span>
+                              </Button>
+                          </div>
+                        )}
                         <>
                         <CardContent className="grid gap-6 md:grid-cols-5 items-center pt-6">
                             <div className="md:col-span-2 text-center md:text-left">
@@ -618,6 +605,54 @@ function DashboardPageContent() {
             </Card>
         </div>
       </div>
+      <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => { setIsEditDialogOpen(isOpen); if (!isOpen) setSelectedMatch(null); }}>
+          <DialogContent>
+              <DialogHeader>
+                  <DialogTitle>Upravit zápas</DialogTitle>
+                  <DialogDescription>
+                      Změňte podrobnosti o nadcházejícím zápase.
+                  </DialogDescription>
+              </DialogHeader>
+              {selectedMatch && <form onSubmit={handleMatchUpdate}>
+                  <div className="grid gap-4 py-4">
+                      <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="opponent" className="text-right">Soupeř</Label>
+                          <Input id="opponent" name="opponent" defaultValue={selectedMatch.team1 === 'Aces' ? selectedMatch.team2 : selectedMatch.team1} className="col-span-3" />
+                      </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="date" className="text-right">Datum</Label>
+                          <Input id="date" name="date" defaultValue={format(selectedMatch.dateTime.toDate(), 'd. M. yyyy')} className="col-span-3" />
+                      </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="time" className="text-right">Čas</Label>
+                          <Input id="time" name="time" defaultValue={format(selectedMatch.dateTime.toDate(), 'HH:mm')} className="col-span-3" />
+                      </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="location" className="text-right">Místo</Label>
+                          <Input id="location" name="location" defaultValue={selectedMatch.location} className="col-span-3" />
+                      </div>
+                  </div>
+                  <DialogFooter>
+                      <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>Zrušit</Button>
+                      <Button type="submit">Uložit změny</Button>
+                  </DialogFooter>
+              </form>}
+          </DialogContent>
+      </Dialog>
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Opravdu chcete smazat tento zápas?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tato akce je nevratná. Záznam o zápase bude trvale odstraněn.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Zrušit</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteMatch} className="bg-destructive hover:bg-destructive/90">Smazat</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
