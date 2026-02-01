@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useState, useMemo } from 'react'
+import { Suspense, useState, useMemo, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -10,13 +10,15 @@ import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { Calendar, MapPin, Users, Trophy, BarChart, Sword, Pencil, Check, X, Flame, Shield, Plus, Minus, Loader2, Trash2 } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Calendar, MapPin, Users, Trophy, BarChart, Sword, Pencil, Check, X, Flame, Shield, Plus, Minus, Loader2, Trash2, ClipboardEdit, History } from "lucide-react"
 import { cn } from '@/lib/utils'
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase'
-import { doc, collection, collectionGroup, updateDoc, query, orderBy, Timestamp, addDoc, deleteDoc } from 'firebase/firestore'
+import { doc, collection, collectionGroup, updateDoc, query, orderBy, Timestamp, addDoc, deleteDoc, where, writeBatch } from 'firebase/firestore'
 import { format } from 'date-fns'
 import { cs } from 'date-fns/locale'
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel'
+import Link from 'next/link'
 
 // Types based on backend.json
 interface UserProfile {
@@ -29,6 +31,7 @@ interface UserProfile {
 }
 
 interface PlayerStats {
+  id: string; // Document ID from playerStats subcollection
   userProfileId: string;
   goals: number;
   assists: number;
@@ -41,6 +44,62 @@ interface Match {
   location: string;
   team1: string;
   team2: string;
+  isPlayed: boolean;
+  team1Score?: number;
+  team2Score?: number;
+  scorers?: { goal: string; assist: string | null }[];
+}
+
+function RecordResultForm({ match, allUsers, onSave, onCancel }: { match: Match, allUsers: UserProfile[], onSave: (e: React.FormEvent<HTMLFormElement>) => Promise<void>, onCancel: () => void }) {
+    const [goalCount, setGoalCount] = useState(0)
+
+    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+        await onSave(e);
+    }
+    
+    return (
+        <form onSubmit={handleSubmit}>
+            <div className="grid gap-4 py-4">
+                <p className="text-center font-bold text-lg">{match.team1} vs {match.team2}</p>
+                <div className="grid grid-cols-2 items-center gap-4">
+                    <div className="grid gap-2 text-center">
+                        <Label htmlFor="team1Score">Aces</Label>
+                        <Input id="team1Score" name="team1Score" type="number" className="text-center text-2xl font-bold h-16" min="0" required onChange={(e) => setGoalCount(parseInt(e.target.value) || 0)} />
+                    </div>
+                     <div className="grid gap-2 text-center">
+                        <Label htmlFor="team2Score">Soupeř</Label>
+                        <Input id="team2Score" name="team2Score" type="number" className="text-center text-2xl font-bold h-16" min="0" required />
+                    </div>
+                </div>
+                {goalCount > 0 && <p className="font-medium mt-4">Střelci a asistence (Aces)</p>}
+                {Array.from({ length: goalCount }).map((_, index) => (
+                    <div key={index} className="grid grid-cols-2 gap-2 items-center">
+                        <Select name={`goal-${index}`} required>
+                            <SelectTrigger>
+                                <SelectValue placeholder={`Gól ${index + 1}`} />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {allUsers.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                        <Select name={`assist-${index}`}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Asistence" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="none">Žádná</SelectItem>
+                                {allUsers.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                ))}
+            </div>
+            <DialogFooter>
+                <Button type="button" variant="outline" onClick={onCancel}>Zrušit</Button>
+                <Button type="submit">Uložit výsledek</Button>
+            </DialogFooter>
+        </form>
+    )
 }
 
 function DashboardPageContent() {
@@ -51,6 +110,7 @@ function DashboardPageContent() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isResultDialogOpen, setIsResultDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
 
   const [isScoringEditMode, setIsScoringEditMode] = useState(false);
@@ -65,13 +125,12 @@ function DashboardPageContent() {
   const playerStats = useMemo(() => playerStatsData?.[0], [playerStatsData]);
 
   // Fetch matches
-  const matchesQuery = useMemoFirebase(() => query(collection(firestore, 'matches'), orderBy('dateTime', 'asc')), [firestore]);
+  const matchesQuery = useMemoFirebase(() => query(collection(firestore, 'matches'), where('isPlayed', '==', false), orderBy('dateTime', 'asc')), [firestore]);
   const { data: matches, isLoading: areMatchesLoading } = useCollection<Match>(matchesQuery);
   
   const upcomingMatches = useMemo(() => {
     if (!matches) return [];
-    const now = new Date();
-    return matches.filter(m => m.dateTime.toDate() > now).slice(0, 5);
+    return matches.slice(0, 5);
   }, [matches]);
   
   // Fetch all users and stats for leaderboard
@@ -120,6 +179,11 @@ function DashboardPageContent() {
     setSelectedMatch(match);
     setIsDeleteDialogOpen(true);
   };
+
+  const handleRecordResult = (match: Match) => {
+    setSelectedMatch(match);
+    setIsResultDialogOpen(true);
+  }
 
   const confirmDeleteMatch = async () => {
     if (!selectedMatch || !firestore) return;
@@ -188,11 +252,81 @@ function DashboardPageContent() {
         team2: formData.get('opponent') as string,
         location: formData.get('location') as string,
         dateTime: Timestamp.fromDate(newDateTime),
+        isPlayed: false,
+        team1Score: null,
+        team2Score: null,
+        scorers: [],
     };
     
     await addDoc(collection(firestore, 'matches'), newMatchData);
     setIsAddDialogOpen(false);
   };
+
+  const handleResultSave = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!selectedMatch || !firestore || !allStats) return;
+
+    const formData = new FormData(e.currentTarget);
+    const team1Score = parseInt(formData.get('team1Score') as string, 10);
+    const team2Score = parseInt(formData.get('team2Score') as string, 10);
+
+    const scorersData = [];
+    for (let i = 0; i < team1Score; i++) {
+        const goal = formData.get(`goal-${i}`) as string;
+        const assist = formData.get(`assist-${i}`) as string;
+        if (goal) {
+            scorersData.push({
+                goal,
+                assist: assist && assist !== 'none' ? assist : null,
+            });
+        }
+    }
+
+    const batch = writeBatch(firestore);
+
+    // 1. Update the match document
+    const matchRef = doc(firestore, 'matches', selectedMatch.id);
+    batch.update(matchRef, {
+        isPlayed: true,
+        team1Score,
+        team2Score,
+        scorers: scorersData,
+    });
+
+    // 2. Tally up goals and assists for each player
+    const playerStatUpdates = new Map<string, { goals: number, assists: number }>();
+    scorersData.forEach(s => {
+        if (s.goal) {
+            const current = playerStatUpdates.get(s.goal) || { goals: 0, assists: 0 };
+            playerStatUpdates.set(s.goal, { ...current, goals: current.goals + 1 });
+        }
+        if (s.assist) {
+            const current = playerStatUpdates.get(s.assist) || { goals: 0, assists: 0 };
+            playerStatUpdates.set(s.assist, { ...current, assists: current.assists + 1 });
+        }
+    });
+
+    // 3. Create batch updates for playerStats
+    const allStatsMap = new Map(allStats.map(s => [s.userProfileId, s]));
+
+    for (const [userId, updates] of playerStatUpdates.entries()) {
+        const userStats = allStatsMap.get(userId);
+        // Each user has one stats doc, ID is 'stats'
+        if (userStats) {
+             const statDocRef = doc(firestore, 'users', userId, 'playerStats', userStats.id);
+            batch.update(statDocRef, {
+                goals: (userStats.goals || 0) + updates.goals,
+                assists: (userStats.assists || 0) + updates.assists,
+            });
+        }
+    }
+
+    await batch.commit();
+
+    setIsResultDialogOpen(false);
+    setSelectedMatch(null);
+};
+
 
   const handleEditScoringClick = () => {
     setEditableScoring(teamScoring.map(p => ({...p})));
@@ -203,25 +337,20 @@ function DashboardPageContent() {
     setIsScoringEditMode(false);
     if (!firestore || !allStats) return;
 
-    const statsMap = new Map<string, { id: string }>();
-    allStats.forEach(stat => {
-        if (stat.id) {
-            statsMap.set(stat.userProfileId, { id: stat.id });
-        }
-    });
+    const batch = writeBatch(firestore);
+    const statsMap = new Map(allStats.map(s => [s.userProfileId, s.id]));
 
-    const updates = editableScoring.map(player => {
-        const statInfo = statsMap.get(player.id);
-        if (statInfo) {
-            const playerStatsRef = doc(firestore, 'users', player.id, 'playerStats', statInfo.id);
-            return updateDoc(playerStatsRef, {
+    editableScoring.forEach(player => {
+        const statDocId = statsMap.get(player.id);
+        if (statDocId) {
+            const playerStatsRef = doc(firestore, 'users', player.id, 'playerStats', statDocId);
+            batch.update(playerStatsRef, {
                 goals: player.goals,
                 assists: player.assists
             });
         }
-        return Promise.resolve();
     });
-    await Promise.all(updates);
+    await batch.commit();
   };
   
   const handleCancelScoring = () => {
@@ -378,6 +507,10 @@ function DashboardPageContent() {
                     <CarouselItem key={match.id} className="relative">
                        {userProfile?.role === 'admin' && (
                           <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
+                              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleRecordResult(match)}>
+                                <ClipboardEdit className="h-4 w-4" />
+                                <span className="sr-only">Zapsat výsledek</span>
+                              </Button>
                               <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleEditMatch(match)}>
                                   <Pencil className="h-4 w-4" />
                                   <span className="sr-only">Upravit zápas</span>
@@ -453,6 +586,20 @@ function DashboardPageContent() {
           ) : (
             <CardContent><p>Žádný nadcházející zápas.</p></CardContent>
           )}
+        </Card>
+
+        <Card className="lg:col-span-3">
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2 font-headline"><History className="text-primary"/>Historie zápasů</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <p>Prohlédněte si výsledky a statistiky již odehraných zápasů.</p>
+            </CardContent>
+            <CardFooter>
+                <Button asChild>
+                    <Link href="/dashboard/history">Zobrazit historii</Link>
+                </Button>
+            </CardFooter>
         </Card>
 
         <div className="lg:col-span-3 grid gap-8 md:grid-cols-2">
@@ -653,6 +800,17 @@ function DashboardPageContent() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <Dialog open={isResultDialogOpen} onOpenChange={(isOpen) => { setIsResultDialogOpen(isOpen); if (!isOpen) setSelectedMatch(null); }}>
+          <DialogContent className="max-w-md">
+              <DialogHeader>
+                  <DialogTitle>Zapsat výsledek zápasu</DialogTitle>
+                  <DialogDescription>
+                    Zadejte konečné skóre a vyberte střelce gólů a asistence.
+                  </DialogDescription>
+              </DialogHeader>
+              {selectedMatch && allUsers && <RecordResultForm match={selectedMatch} allUsers={allUsers} onSave={handleResultSave} onCancel={() => setIsResultDialogOpen(false)} />}
+          </DialogContent>
+      </Dialog>
     </div>
   )
 }

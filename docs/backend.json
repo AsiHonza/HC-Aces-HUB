@@ -38,7 +38,7 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Match",
       "type": "object",
-      "description": "Represents a hockey match.",
+      "description": "Represents a hockey match, played or upcoming.",
       "properties": {
         "id": {
           "type": "string",
@@ -60,6 +60,38 @@
         "team2": {
           "type": "string",
           "description": "Name of the second team."
+        },
+        "isPlayed": {
+          "type": "boolean",
+          "description": "Indicates if the match has been played and a result has been recorded."
+        },
+        "team1Score": {
+          "type": "number",
+          "description": "Final score for team 1 (usually Aces)."
+        },
+        "team2Score": {
+          "type": "number",
+          "description": "Final score for the opponent team."
+        },
+        "scorers": {
+          "type": "array",
+          "description": "An array of objects detailing each goal scored by the home team.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "goal": {
+                "type": "string",
+                "description": "The user ID of the player who scored the goal."
+              },
+              "assist": {
+                "type": "string",
+                "description": "The user ID of the player who assisted on the goal."
+              }
+            },
+            "required": [
+              "goal"
+            ]
+          }
         }
       },
       "required": [
@@ -67,7 +99,8 @@
         "dateTime",
         "location",
         "team1",
-        "team2"
+        "team2",
+        "isPlayed"
       ]
     },
     "PlayerStats": {
