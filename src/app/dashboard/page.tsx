@@ -56,7 +56,7 @@ interface Attendance {
     id: string; // userId, as it's the doc id
     userId: string;
     matchId: string;
-    status: 'going' | 'not-going';
+    status: 'going' | 'not-going' | 'unknown';
     note?: string;
 }
 
@@ -164,9 +164,9 @@ function DashboardPageContent() {
 
   // Fetch attendances for upcoming matches
     const attendancesQuery = useMemoFirebase(() => {
-        if (!firestore ) return null;
+        if (!firestore || !user) return null;
         return query(collectionGroup(firestore, 'attendees'));
-    }, [firestore]);
+    }, [firestore, user]);
     const { data: allAttendances, isLoading: attendancesLoading } = useCollection<Attendance>(attendancesQuery);
 
 
@@ -194,17 +194,13 @@ function DashboardPageContent() {
   const userAttendancesWithOptimistic = useMemo(() => {
       const merged = new Map(userAttendances);
       optimisticAttendances.forEach((optimisticAtt, matchId) => {
-          if (optimisticAtt.status === undefined) { // When status is undefined, it means deletion
+          if (optimisticAtt.status === 'unknown') { 
               merged.delete(matchId);
           } else {
-              const existingAtt = merged.get(matchId) || {};
+              const existingAtt = merged.get(matchId) || { id: user!.uid, userId: user!.uid, matchId: matchId };
               merged.set(matchId, { 
                   ...existingAtt, 
-                  ...optimisticAtt, 
-                  id: user!.uid, 
-                  userId: user!.uid, 
-                  matchId: matchId,
-                  status: optimisticAtt.status! // status is guaranteed to be defined here
+                  ...optimisticAtt,
               } as Attendance);
           }
       });
@@ -306,7 +302,7 @@ function DashboardPageContent() {
     setSelectedMatch(null);
   };
 
- const handleAttendanceChange = (matchId: string, newStatus: 'going' | 'not-going', note: string) => {
+  const handleAttendanceChange = (matchId: string, newStatus: 'going' | 'not-going', note: string) => {
     if (!user || !firestore) {
       toast({
         variant: 'destructive',
@@ -319,12 +315,8 @@ function DashboardPageContent() {
     const attendanceRef = doc(firestore, 'matches', matchId, 'attendees', user.uid);
     const originalAttendance = userAttendances.get(matchId);
   
-    // Optimistically update the UI
-    if (newStatus === 'not-going') {
-      setOptimisticAttendances(prev => new Map(prev).set(matchId, { status: 'not-going', note }));
-    } else {
-      setOptimisticAttendances(prev => new Map(prev).set(matchId, { status: 'going', note }));
-    }
+    const optimisticData: Partial<Attendance> = { status: newStatus, note: note || '' };
+    setOptimisticAttendances(prev => new Map(prev).set(matchId, optimisticData));
   
     const revertOptimisticUpdate = () => {
       setOptimisticAttendances(prev => {
