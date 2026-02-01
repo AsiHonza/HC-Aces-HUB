@@ -35,6 +35,10 @@ service cloud.firestore {
     function isSignedIn() {
       return request.auth != null;
     }
+    
+    function isAdmin() {
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
 
     // Checks if the requesting user's UID matches the document's owner ID
     function isOwner(userId) {
@@ -66,50 +70,26 @@ service cloud.firestore {
       return request.resource.data.userProfileId == resource.data.userProfileId;
     }
 
-    /**
-     * @description Controls access to a user's own profile document.
-     * @path /users/{userId}
-     * @allow (get, create, update, delete) A signed-in user with auth.uid = 'user_abc' can perform all operations on the document at /users/user_abc.
-     * @deny (get, list) A signed-in user with auth.uid = 'user_xyz' cannot read or list documents under /users/user_abc. Listing the entire /users collection is denied for everyone.
-     * @principle Restricts access to a user's own data tree and prevents enumeration of all users in the system.
-     */
     match /users/{userId} {
-      allow get: if isOwner(userId);
-      allow list: if false;
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
       allow create: if isOwner(userId) && isCreatingOwnProfile(userId);
-      allow update: if isExistingOwner(userId) && isUpdatingOwnProfile();
-      allow delete: if isExistingOwner(userId);
+      allow update: if (isExistingOwner(userId) && isUpdatingOwnProfile()) || isAdmin();
+      allow delete: if isExistingOwner(userId) || isAdmin();
     }
 
-    /**
-     * @description Controls access to a user's personal player statistics.
-     * @path /users/{userId}/playerStats/{playerStatsId}
-     * @allow (get, list, create, update, delete) A signed-in user with auth.uid = 'user_abc' can manage their own stats under /users/user_abc/playerStats/.
-     * @deny (any) A signed-in user with auth.uid = 'user_xyz' cannot perform any operation on documents under /users/user_abc/playerStats/.
-     * @principle Enforces inherited ownership from the parent document, ensuring a user can only manage their own subcollection data.
-     */
     match /users/{userId}/playerStats/{playerStatsId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isSignedIn();
       allow create: if isOwner(userId) && isCreatingOwnPlayerStats(userId);
-      allow update: if isExistingOwner(userId) && isUpdatingOwnPlayerStats();
-      allow delete: if isExistingOwner(userId);
+      allow update: if (isExistingOwner(userId) && isUpdatingOwnPlayerStats()) || isAdmin();
+      allow delete: if isExistingOwner(userId) || isAdmin();
     }
 
-    /**
-     * @description Manages access to hockey match information.
-     * @path /matches/{matchId}
-     * @allow (get, list) Any user, including unauthenticated visitors, can read match data.
-     * @deny (create, update, delete) All write operations are currently denied for everyone because the data model lacks an owner/admin field for authorization.
-     * @principle Provides public read access for shared data while defaulting to a secure, write-denied state until an ownership model is implemented.
-     */
     match /matches/{matchId} {
       allow get: if true;
       allow list: if true;
-      // CRITICAL: Cannot implement owner-only writes. The 'Match' entity is missing an 'ownerId' or 'authorId' field.
-      allow create: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
-      allow update: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
-      allow delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create, update, delete: if isAdmin();
     }
   }
 }

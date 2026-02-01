@@ -7,14 +7,19 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Power, User, Users } from "lucide-react"
-import { useUser, useAuth } from '@/firebase'
+import { useUser, useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase'
 import { signOut } from 'firebase/auth'
 import { useRouter } from 'next/navigation'
+import { doc } from 'firebase/firestore'
 
 function UserNav() {
   const { user, isUserLoading } = useUser()
   const auth = useAuth()
+  const firestore = useFirestore()
   const router = useRouter()
+
+  const userDocRef = useMemoFirebase(() => (user ? doc(firestore, 'users', user.uid) : null), [firestore, user]);
+  const { data: userProfile, isLoading: isUserProfileLoading } = useDoc(userDocRef);
 
   const handleLogout = async () => {
     if (auth) {
@@ -23,17 +28,14 @@ function UserNav() {
     router.push('/');
   };
 
-  if (isUserLoading) {
+  if (isUserLoading || (user && isUserProfileLoading)) {
     return <div className="h-10 w-10 rounded-full bg-muted animate-pulse" />
   }
 
   const name = user?.displayName || 'Uživatel'
   const email = user?.email || ''
   const fallback = name.split(' ').map(n => n[0]).join('').toUpperCase()
-  // const role = 'admin' // TODO: Get role from user claims
-  
-  // Hardcoded role for demo
-  const role = user?.email === 'janmlcak6@gmail.com' ? 'admin' : 'classic';
+  const role = userProfile?.role || 'classic';
 
 
   return (
@@ -56,7 +58,7 @@ function UserNav() {
         <DropdownMenuSeparator />
         {role === 'admin' && (
             <DropdownMenuItem asChild>
-                <Link href="/dashboard/team-management">
+                <Link href={{ pathname: '/dashboard/team-management', query: { role } }}>
                     <Users className="mr-2 h-4 w-4" />
                     <span>Správa týmu</span>
                 </Link>

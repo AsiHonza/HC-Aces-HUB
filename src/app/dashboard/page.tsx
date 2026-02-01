@@ -1,7 +1,6 @@
 'use client'
 
-import { Suspense, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { Suspense, useState, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -10,52 +9,91 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Calendar, MapPin, Users, Trophy, BarChart, Sword, Pencil, Check, X, Flame, Shield, Plus, Minus } from "lucide-react"
+import { Calendar, MapPin, Users, Trophy, BarChart, Sword, Pencil, Check, X, Flame, Shield, Plus, Minus, Loader2 } from "lucide-react"
 import { cn } from '@/lib/utils'
-import { Textarea } from '@/components/ui/textarea'
+import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase'
+import { doc, collection, collectionGroup, updateDoc, query, orderBy, Timestamp } from 'firebase/firestore'
+import { format } from 'date-fns'
+import { cs } from 'date-fns/locale'
+
+// Types based on backend.json
+interface UserProfile {
+  id: string;
+  name: string;
+  email: string;
+  jerseyNumber?: number;
+  phoneNumber?: string;
+  role: 'admin' | 'classic';
+}
+
+interface PlayerStats {
+  userProfileId: string;
+  goals: number;
+  assists: number;
+  gamesPlayed: number;
+}
+
+interface Match {
+  id: string;
+  dateTime: Timestamp;
+  location: string;
+  team1: string;
+  team2: string;
+}
 
 function DashboardPageContent() {
-  const searchParams = useSearchParams()
-  const name = searchParams.get('name') || 'Adam Hráč'
-  const jerseyNumber = searchParams.get('jerseyNumber')
-  const email = searchParams.get('email') || 'adam.hrac@email.com'
-  const role = searchParams.get('role') || 'classic'
-
+  const { user, isUserLoading } = useUser()
+  const firestore = useFirestore()
+  
   const [attendance, setAttendance] = useState('unknown');
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isScoringEditMode, setIsScoringEditMode] = useState(false);
   const [isLeagueEditMode, setIsLeagueEditMode] = useState(false);
+  
+  // Fetch current user's profile and stats
+  const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
+  const { data: userProfile, isLoading: isUserProfileLoading } = useDoc<UserProfile>(userDocRef);
 
-  const player = {
-    name,
-    jerseyNumber: jerseyNumber ? Number(jerseyNumber) : null,
-    photoUrl: `https://picsum.photos/seed/${email}/400/400`,
-    photoHint: 'player portrait'
-  }
+  const playerStatsRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid, 'playerStats', 'stats') : null, [firestore, user]);
+  const { data: playerStats, isLoading: isPlayerStatsLoading } = useDoc<PlayerStats>(playerStatsRef);
+  
+  // Fetch matches
+  const matchesQuery = useMemoFirebase(() => query(collection(firestore, 'matches'), orderBy('dateTime', 'desc')), [firestore]);
+  const { data: matches, isLoading: areMatchesLoading } = useCollection<Match>(matchesQuery);
+  
+  const nextMatch = useMemo(() => {
+    if (!matches) return null;
+    const now = new Date();
+    return matches.find(m => m.dateTime.toDate() > now) || matches[0];
+  }, [matches]);
 
-  const stats = [
-    { metric: 'Góly', value: 12 },
-    { metric: 'Asistence', value: 21 },
-    { metric: 'Body', value: 33 },
-    { metric: 'Trestné minuty', value: '28' },
-  ]
+  // Fetch all users and stats for leaderboard
+  const usersRef = useMemoFirebase(() => collection(firestore, 'users'), [firestore]);
+  const { data: allUsers, isLoading: areUsersLoading } = useCollection<UserProfile>(usersRef);
 
-  const [nextMatch, setNextMatch] = useState({
-    opponent: 'HC Draci',
-    date: 'Sobota, 22. června 2024',
-    time: '18:00',
-    location: 'Zimní stadion, Město',
-  })
+  const allStatsRef = useMemoFirebase(() => collectionGroup(firestore, 'playerStats'), [firestore]);
+  const { data: allStats, isLoading: areStatsLoading } = useCollection<PlayerStats>(allStatsRef);
+  
+  const teamScoring = useMemo(() => {
+    if (!allUsers || !allStats) return [];
+    
+    const statsMap = new Map<string, PlayerStats>();
+    allStats.forEach(stat => statsMap.set(stat.userProfileId, stat));
 
-  const [teamScoring, setTeamScoring] = useState([
-    { rank: 1, name: 'Adam Hráč', goals: 12, assists: 21, points: 33 },
-    { rank: 2, name: 'Jan Mlcak', goals: 15, assists: 15, points: 30 },
-    { rank: 3, name: 'Petr Novák', goals: 10, assists: 18, points: 28 },
-    { rank: 4, name: 'Tomáš Dvořák', goals: 8, assists: 15, points: 23 },
-    { rank: 5, name: 'Martin Černý', goals: 5, assists: 12, points: 17 },
-  ]);
+    return allUsers.map(u => {
+      const stats = statsMap.get(u.id);
+      return {
+        id: u.id,
+        name: u.name,
+        goals: stats?.goals ?? 0,
+        assists: stats?.assists ?? 0,
+        points: (stats?.goals ?? 0) + (stats?.assists ?? 0),
+      };
+    });
+  }, [allUsers, allStats]);
+
   const [editableScoring, setEditableScoring] = useState(teamScoring);
-
+  
   const [leagueStandings, setLeagueStandings] = useState([
     { rank: 1, name: 'Aces', points: 45, gf: 120, ga: 85 },
     { rank: 2, name: 'HC Draci', points: 42, gf: 115, ga: 90 },
@@ -65,18 +103,48 @@ function DashboardPageContent() {
   ]);
   const [editableLeagueStandings, setEditableLeagueStandings] = useState(leagueStandings);
 
-  const fallback = name.split(' ').map(n => n[0]).join('').toUpperCase()
+  const isLoading = isUserLoading || isUserProfileLoading || isPlayerStatsLoading || areMatchesLoading || areUsersLoading || areStatsLoading;
 
-  const handleMatchUpdate = (e: React.FormEvent<HTMLFormElement>) => {
+  if (isLoading) {
+    return (
+      <div className="container py-8 flex justify-center items-center">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    )
+  }
+  
+  const fallback = userProfile?.name?.split(' ').map(n => n[0]).join('').toUpperCase() ?? ''
+
+  const stats = [
+    { metric: 'Góly', value: playerStats?.goals ?? 0 },
+    { metric: 'Asistence', value: playerStats?.assists ?? 0 },
+    { metric: 'Body', value: (playerStats?.goals ?? 0) + (playerStats?.assists ?? 0) },
+    { metric: 'Odehrané zápasy', value: playerStats?.gamesPlayed ?? 0 },
+  ]
+  
+  const opponent = nextMatch?.team1 === 'Aces' ? nextMatch?.team2 : nextMatch?.team1;
+
+  const handleMatchUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!nextMatch) return;
+
     const formData = new FormData(e.currentTarget);
-    const newMatchData = {
-        opponent: formData.get('opponent') as string,
-        date: formData.get('date') as string,
-        time: formData.get('time') as string,
+    const dateStr = formData.get('date') as string;
+    const timeStr = formData.get('time') as string;
+    
+    // Combine date and time and create a Timestamp
+    const [day, month, year] = dateStr.split('. ').map(Number);
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    const newDateTime = new Date(year, month - 1, day, hours, minutes);
+
+    const updatedData = {
+        team2: formData.get('opponent') as string, // Assuming Aces is always team1 for simplicity
         location: formData.get('location') as string,
+        dateTime: Timestamp.fromDate(newDateTime),
     };
-    setNextMatch(newMatchData);
+    
+    const matchRef = doc(firestore, 'matches', nextMatch.id);
+    await updateDoc(matchRef, updatedData);
     setIsEditDialogOpen(false);
   };
 
@@ -85,19 +153,26 @@ function DashboardPageContent() {
     setIsScoringEditMode(true);
   };
 
-  const handleSaveScoring = () => {
-    setTeamScoring(editableScoring);
+  const handleSaveScoring = async () => {
     setIsScoringEditMode(false);
+    const updates = editableScoring.map(player => {
+        const playerStatsRef = doc(firestore, 'users', player.id, 'playerStats', 'stats');
+        return updateDoc(playerStatsRef, {
+            goals: player.goals,
+            assists: player.assists
+        });
+    });
+    await Promise.all(updates);
   };
-
+  
   const handleCancelScoring = () => {
     setIsScoringEditMode(false);
   };
 
-  const handleScoringChange = (playerName: string, stat: 'goals' | 'assists', delta: number) => {
+  const handleScoringChange = (playerId: string, stat: 'goals' | 'assists', delta: number) => {
     setEditableScoring(currentScoring =>
       currentScoring.map(p => {
-        if (p.name === playerName) {
+        if (p.id === playerId) {
           const newStatValue = p[stat] + delta;
           const updatedPlayer = {
             ...p,
@@ -156,11 +231,11 @@ function DashboardPageContent() {
         
         <Card className="lg:col-span-1 flex flex-col items-center justify-center p-6 text-center">
             <Avatar className="h-32 w-32 mb-4 border-4 border-primary shadow-lg">
-              <AvatarImage src={player.photoUrl} alt={player.name} data-ai-hint={player.photoHint} />
+              <AvatarImage src={`https://picsum.photos/seed/${userProfile?.email}/400/400`} alt={userProfile?.name ?? ''} data-ai-hint="player portrait" />
               <AvatarFallback className="text-4xl">{fallback}</AvatarFallback>
             </Avatar>
-            <CardTitle className="text-3xl font-headline">{player.name}</CardTitle>
-            {player.jerseyNumber && <CardDescription className="text-primary font-bold text-5xl font-mono mt-2">#{player.jerseyNumber}</CardDescription>}
+            <CardTitle className="text-3xl font-headline">{userProfile?.name}</CardTitle>
+            {userProfile?.jerseyNumber && <CardDescription className="text-primary font-bold text-5xl font-mono mt-2">#{userProfile.jerseyNumber}</CardDescription>}
         </Card>
 
         <Card className="lg:col-span-2">
@@ -184,7 +259,7 @@ function DashboardPageContent() {
         <Card className="lg:col-span-3">
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2 font-headline"><Trophy className="text-primary"/>Příští zápas</CardTitle>
-             {role === 'admin' && (
+             {userProfile?.role === 'admin' && nextMatch && (
               <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline" size="icon">
@@ -203,15 +278,15 @@ function DashboardPageContent() {
                     <div className="grid gap-4 py-4">
                       <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="opponent" className="text-right">Soupeř</Label>
-                        <Input id="opponent" name="opponent" defaultValue={nextMatch.opponent} className="col-span-3" />
+                        <Input id="opponent" name="opponent" defaultValue={opponent} className="col-span-3" />
                       </div>
                        <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="date" className="text-right">Datum</Label>
-                        <Input id="date" name="date" defaultValue={nextMatch.date} className="col-span-3" />
+                        <Input id="date" name="date" defaultValue={format(nextMatch.dateTime.toDate(), 'd. M. yyyy')} className="col-span-3" />
                       </div>
                        <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="time" className="text-right">Čas</Label>
-                        <Input id="time" name="time" defaultValue={nextMatch.time} className="col-span-3" />
+                        <Input id="time" name="time" defaultValue={format(nextMatch.dateTime.toDate(), 'HH:mm')} className="col-span-3" />
                       </div>
                        <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="location" className="text-right">Místo</Label>
@@ -226,60 +301,68 @@ function DashboardPageContent() {
               </Dialog>
             )}
           </CardHeader>
-          <CardContent className="grid gap-6 md:grid-cols-5 items-center">
-            <div className="md:col-span-2 text-center md:text-left">
-              <p className="text-lg text-muted-foreground">Soupeř</p>
-              <p className="text-4xl font-bold flex items-center gap-3 justify-center md:justify-start mt-1"><Users /> {nextMatch.opponent}</p>
-            </div>
-            
-            <div className="hidden md:flex justify-center items-center">
-                <Sword className="h-16 w-16 text-muted-foreground/20" />
-            </div>
+          {nextMatch ? (
+            <>
+            <CardContent className="grid gap-6 md:grid-cols-5 items-center">
+                <div className="md:col-span-2 text-center md:text-left">
+                <p className="text-lg text-muted-foreground">Soupeř</p>
+                <p className="text-4xl font-bold flex items-center gap-3 justify-center md:justify-start mt-1"><Users /> {opponent}</p>
+                </div>
+                
+                <div className="hidden md:flex justify-center items-center">
+                    <Sword className="h-16 w-16 text-muted-foreground/20" />
+                </div>
 
-            <div className="md:col-span-2 text-center md:text-left">
-              <p className="text-lg text-muted-foreground">Kdy a kde</p>
-              <p className="text-xl font-semibold flex items-center gap-2 justify-center md:justify-start mt-1"><Calendar /> {nextMatch.date} - {nextMatch.time}</p>
-              <p className="text-lg flex items-center gap-2 text-muted-foreground justify-center md:justify-start mt-1"><MapPin /> {nextMatch.location}</p>
-            </div>
-          </CardContent>
-           <CardFooter className="flex-col items-start gap-4 pt-4 border-t">
-              <p className="text-base font-medium">Tvoje účast:</p>
-              <RadioGroup value={attendance} onValueChange={setAttendance} className="flex gap-4">
-                <Label
-                  htmlFor="going"
-                  className={cn(
-                    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-lg font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border h-12 px-6 cursor-pointer",
-                    attendance === 'going'
-                      ? "bg-green-500/10 border-green-500 text-green-600 dark:text-green-400 dark:border-green-400 hover:bg-green-500/20"
-                      : "border-input bg-background hover:bg-accent hover:text-accent-foreground"
-                  )}
-                >
-                  <RadioGroupItem value="going" id="going" className="sr-only" />
-                  <Check className="h-5 w-5" />
-                  Jdu
-                </Label>
-                <Label
-                  htmlFor="not-going"
-                  className={cn(
-                    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-lg font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border h-12 px-6 cursor-pointer",
-                    attendance === 'not-going'
-                      ? "bg-destructive/10 border-destructive text-destructive hover:bg-destructive/20"
-                      : "border-input bg-background hover:bg-accent hover:text-accent-foreground"
-                  )}
-                >
-                  <RadioGroupItem value="not-going" id="not-going" className="sr-only" />
-                  <X className="h-5 w-5" />
-                  Nejdu
-                </Label>
-              </RadioGroup>
-          </CardFooter>
+                <div className="md:col-span-2 text-center md:text-left">
+                <p className="text-lg text-muted-foreground">Kdy a kde</p>
+                <p className="text-xl font-semibold flex items-center gap-2 justify-center md:justify-start mt-1">
+                    <Calendar /> {format(nextMatch.dateTime.toDate(), "EEEE, d. MMMM yyyy", { locale: cs })} - {format(nextMatch.dateTime.toDate(), 'HH:mm')}
+                </p>
+                <p className="text-lg flex items-center gap-2 text-muted-foreground justify-center md:justify-start mt-1"><MapPin /> {nextMatch.location}</p>
+                </div>
+            </CardContent>
+            <CardFooter className="flex-col items-start gap-4 pt-4 border-t">
+                <p className="text-base font-medium">Tvoje účast:</p>
+                <RadioGroup value={attendance} onValueChange={setAttendance} className="flex gap-4">
+                    <Label
+                    htmlFor="going"
+                    className={cn(
+                        "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-lg font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border h-12 px-6 cursor-pointer",
+                        attendance === 'going'
+                        ? "bg-green-500/10 border-green-500 text-green-600 dark:text-green-400 dark:border-green-400 hover:bg-green-500/20"
+                        : "border-input bg-background hover:bg-accent hover:text-accent-foreground"
+                    )}
+                    >
+                    <RadioGroupItem value="going" id="going" className="sr-only" />
+                    <Check className="h-5 w-5" />
+                    Jdu
+                    </Label>
+                    <Label
+                    htmlFor="not-going"
+                    className={cn(
+                        "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-lg font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border h-12 px-6 cursor-pointer",
+                        attendance === 'not-going'
+                        ? "bg-destructive/10 border-destructive text-destructive hover:bg-destructive/20"
+                        : "border-input bg-background hover:bg-accent hover:text-accent-foreground"
+                    )}
+                    >
+                    <RadioGroupItem value="not-going" id="not-going" className="sr-only" />
+                    <X className="h-5 w-5" />
+                    Nejdu
+                    </Label>
+                </RadioGroup>
+            </CardFooter>
+            </>
+          ) : (
+            <CardContent><p>Žádný nadcházející zápas.</p></CardContent>
+          )}
         </Card>
 
         <div className="lg:col-span-3 grid gap-8 md:grid-cols-2">
             <Card>
                 <CardHeader className="flex-row items-center justify-between">
                     <CardTitle className="flex items-center gap-2 font-headline"><Flame className="text-primary"/>Kanadské bodování</CardTitle>
-                    {role === 'admin' && (
+                    {userProfile?.role === 'admin' && (
                       <div className="flex gap-2">
                         {isScoringEditMode ? (
                           <>
@@ -308,17 +391,17 @@ function DashboardPageContent() {
                         </TableHeader>
                         <TableBody>
                             {sortedTeamScoring.map((player) => (
-                                <TableRow key={player.name}>
+                                <TableRow key={player.id}>
                                     <TableCell className="font-medium">{player.rank}</TableCell>
                                     <TableCell>{player.name}</TableCell>
                                     <TableCell className="text-center font-mono">
                                       {isScoringEditMode ? (
                                         <div className="flex items-center justify-center gap-2">
-                                          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleScoringChange(player.name, 'goals', -1)}>
+                                          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleScoringChange(player.id, 'goals', -1)}>
                                             <Minus className="h-4 w-4" />
                                           </Button>
                                           <span className="w-6 text-center">{player.goals}</span>
-                                          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleScoringChange(player.name, 'goals', 1)}>
+                                          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleScoringChange(player.id, 'goals', 1)}>
                                             <Plus className="h-4 w-4" />
                                           </Button>
                                         </div>
@@ -329,11 +412,11 @@ function DashboardPageContent() {
                                     <TableCell className="text-center font-mono">
                                       {isScoringEditMode ? (
                                         <div className="flex items-center justify-center gap-2">
-                                          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleScoringChange(player.name, 'assists', -1)}>
+                                          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleScoringChange(player.id, 'assists', -1)}>
                                             <Minus className="h-4 w-4" />
                                           </Button>
                                           <span className="w-6 text-center">{player.assists}</span>
-                                          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleScoringChange(player.name, 'assists', 1)}>
+                                          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleScoringChange(player.id, 'assists', 1)}>
                                             <Plus className="h-4 w-4" />
                                           </Button>
                                         </div>
@@ -352,7 +435,7 @@ function DashboardPageContent() {
              <Card>
                 <CardHeader className="flex-row items-center justify-between">
                     <CardTitle className="flex items-center gap-2 font-headline"><Shield className="text-primary"/>Tabulka soutěže</CardTitle>
-                    {role === 'admin' && (
+                    {userProfile?.role === 'admin' && (
                       <div className="flex gap-2">
                         {isLeagueEditMode ? (
                           <>
