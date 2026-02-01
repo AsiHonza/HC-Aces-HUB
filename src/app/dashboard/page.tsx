@@ -15,6 +15,7 @@ import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@
 import { doc, collection, collectionGroup, updateDoc, query, orderBy, Timestamp, addDoc } from 'firebase/firestore'
 import { format } from 'date-fns'
 import { cs } from 'date-fns/locale'
+import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel'
 
 // Types based on backend.json
 interface UserProfile {
@@ -45,7 +46,7 @@ function DashboardPageContent() {
   const { user, isUserLoading } = useUser()
   const firestore = useFirestore()
   
-  const [attendance, setAttendance] = useState('unknown');
+  const [attendances, setAttendances] = useState<Record<string, string>>({});
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isScoringEditMode, setIsScoringEditMode] = useState(false);
@@ -55,18 +56,23 @@ function DashboardPageContent() {
   const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
   const { data: userProfile, isLoading: isUserProfileLoading } = useDoc<UserProfile>(userDocRef);
 
-  const playerStatsRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid, 'playerStats', 'stats') : null, [firestore, user]);
-  const { data: playerStats, isLoading: isPlayerStatsLoading } = useDoc<PlayerStats>(playerStatsRef);
-  
+  const playerStatsCollectionRef = useMemoFirebase(() => user ? collection(firestore, 'users', user.uid, 'playerStats') : null, [firestore, user]);
+  const { data: playerStatsData, isLoading: isPlayerStatsLoading } = useCollection<PlayerStats>(playerStatsCollectionRef);
+  const playerStats = useMemo(() => playerStatsData?.[0], [playerStatsData]);
+
   // Fetch matches
   const matchesQuery = useMemoFirebase(() => query(collection(firestore, 'matches'), orderBy('dateTime', 'asc')), [firestore]);
   const { data: matches, isLoading: areMatchesLoading } = useCollection<Match>(matchesQuery);
   
-  const nextMatch = useMemo(() => {
-    if (!matches) return null;
+  const upcomingMatches = useMemo(() => {
+    if (!matches) return [];
     const now = new Date();
-    return matches.find(m => m.dateTime.toDate() > now) || null;
+    return matches.filter(m => m.dateTime.toDate() > now).slice(0, 5);
   }, [matches]);
+  
+  const nextMatch = useMemo(() => {
+    return upcomingMatches[0] || null;
+  }, [upcomingMatches]);
 
   // Fetch all users and stats for leaderboard
   const usersRef = useMemoFirebase(() => collection(firestore, 'users'), [firestore]);
@@ -179,13 +185,25 @@ function DashboardPageContent() {
 
   const handleSaveScoring = async () => {
     setIsScoringEditMode(false);
-    if (!firestore) return;
+    if (!firestore || !allStats) return;
+
+    const statsMap = new Map<string, { id: string }>();
+    allStats.forEach(stat => {
+        if (stat.id) {
+            statsMap.set(stat.userProfileId, { id: stat.id });
+        }
+    });
+
     const updates = editableScoring.map(player => {
-        const playerStatsRef = doc(firestore, 'users', player.id, 'playerStats', 'stats');
-        return updateDoc(playerStatsRef, {
-            goals: player.goals,
-            assists: player.assists
-        });
+        const statInfo = statsMap.get(player.id);
+        if (statInfo) {
+            const playerStatsRef = doc(firestore, 'users', player.id, 'playerStats', statInfo.id);
+            return updateDoc(playerStatsRef, {
+                goals: player.goals,
+                assists: player.assists
+            });
+        }
+        return Promise.resolve(); // Should not happen if data is consistent
     });
     await Promise.all(updates);
   };
@@ -281,7 +299,7 @@ function DashboardPageContent() {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-3">
+        <Card className="lg:col-span-3 relative">
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2 font-headline"><Trophy className="text-primary"/>Příští zápas</CardTitle>
             <div className="flex items-center gap-2">
@@ -345,7 +363,7 @@ function DashboardPageContent() {
                       <div className="grid gap-4 py-4">
                         <div className="grid grid-cols-4 items-center gap-4">
                           <Label htmlFor="opponent" className="text-right">Soupeř</Label>
-                          <Input id="opponent" name="opponent" defaultValue={opponent} className="col-span-3" />
+                          <Input id="opponent" name="opponent" defaultValue={opponent ?? ''} className="col-span-3" />
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                           <Label htmlFor="date" className="text-right">Datum</Label>
@@ -369,58 +387,82 @@ function DashboardPageContent() {
               )}
             </div>
           </CardHeader>
-          {nextMatch ? (
-            <>
-            <CardContent className="grid gap-6 md:grid-cols-5 items-center">
-                <div className="md:col-span-2 text-center md:text-left">
-                <p className="text-lg text-muted-foreground">Soupeř</p>
-                <p className="text-4xl font-bold flex items-center gap-3 justify-center md:justify-start mt-1"><Users /> {opponent}</p>
-                </div>
-                
-                <div className="hidden md:flex justify-center items-center">
-                    <Sword className="h-16 w-16 text-muted-foreground/20" />
-                </div>
+          {upcomingMatches.length > 0 ? (
+            <Carousel
+              opts={{
+                align: "start",
+              }}
+              className="w-full"
+            >
+              <CarouselContent>
+                {upcomingMatches.map((match) => {
+                  const opponent = match.team1 === 'Aces' ? match.team2 : match.team1;
+                  const attendance = attendances[match.id] || 'unknown';
 
-                <div className="md:col-span-2 text-center md:text-left">
-                <p className="text-lg text-muted-foreground">Kdy a kde</p>
-                <p className="text-xl font-semibold flex items-center gap-2 justify-center md:justify-start mt-1">
-                    <Calendar /> {format(nextMatch.dateTime.toDate(), "EEEE, d. MMMM yyyy", { locale: cs })} - {format(nextMatch.dateTime.toDate(), 'HH:mm')}
-                </p>
-                <p className="text-lg flex items-center gap-2 text-muted-foreground justify-center md:justify-start mt-1"><MapPin /> {nextMatch.location}</p>
-                </div>
-            </CardContent>
-            <CardFooter className="flex-col items-start gap-4 pt-4 border-t">
-                <p className="text-base font-medium">Tvoje účast:</p>
-                <RadioGroup value={attendance} onValueChange={setAttendance} className="flex gap-4">
-                    <Label
-                    htmlFor="going"
-                    className={cn(
-                        "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-lg font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border h-12 px-6 cursor-pointer",
-                        attendance === 'going'
-                        ? "bg-green-500/10 border-green-500 text-green-600 dark:text-green-400 dark:border-green-400 hover:bg-green-500/20"
-                        : "border-input bg-background hover:bg-accent hover:text-accent-foreground"
-                    )}
-                    >
-                    <RadioGroupItem value="going" id="going" className="sr-only" />
-                    <Check className="h-5 w-5" />
-                    Jdu
-                    </Label>
-                    <Label
-                    htmlFor="not-going"
-                    className={cn(
-                        "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-lg font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border h-12 px-6 cursor-pointer",
-                        attendance === 'not-going'
-                        ? "bg-destructive/10 border-destructive text-destructive hover:bg-destructive/20"
-                        : "border-input bg-background hover:bg-accent hover:text-accent-foreground"
-                    )}
-                    >
-                    <RadioGroupItem value="not-going" id="not-going" className="sr-only" />
-                    <X className="h-5 w-5" />
-                    Nejdu
-                    </Label>
-                </RadioGroup>
-            </CardFooter>
-            </>
+                  return (
+                    <CarouselItem key={match.id}>
+                        <>
+                        <CardContent className="grid gap-6 md:grid-cols-5 items-center pt-6">
+                            <div className="md:col-span-2 text-center md:text-left">
+                            <p className="text-lg text-muted-foreground">Soupeř</p>
+                            <p className="text-4xl font-bold flex items-center gap-3 justify-center md:justify-start mt-1"><Users /> {opponent}</p>
+                            </div>
+                            
+                            <div className="hidden md:flex justify-center items-center">
+                                <Sword className="h-16 w-16 text-muted-foreground/20" />
+                            </div>
+
+                            <div className="md:col-span-2 text-center md:text-left">
+                            <p className="text-lg text-muted-foreground">Kdy a kde</p>
+                            <p className="text-xl font-semibold flex items-center gap-2 justify-center md:justify-start mt-1">
+                                <Calendar /> {format(match.dateTime.toDate(), "EEEE, d. MMMM yyyy", { locale: cs })} - {format(match.dateTime.toDate(), 'HH:mm')}
+                            </p>
+                            <p className="text-lg flex items-center gap-2 text-muted-foreground justify-center md:justify-start mt-1"><MapPin /> {match.location}</p>
+                            </div>
+                        </CardContent>
+                        <CardFooter className="flex-col items-start gap-4 pt-4 border-t">
+                            <p className="text-base font-medium">Tvoje účast:</p>
+                            <RadioGroup value={attendance} onValueChange={(value) => setAttendances(prev => ({...prev, [match.id]: value}))} className="flex gap-4">
+                                <Label
+                                htmlFor={`going-${match.id}`}
+                                className={cn(
+                                    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-lg font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border h-12 px-6 cursor-pointer",
+                                    attendance === 'going'
+                                    ? "bg-green-500/10 border-green-500 text-green-600 dark:text-green-400 dark:border-green-400 hover:bg-green-500/20"
+                                    : "border-input bg-background hover:bg-accent hover:text-accent-foreground"
+                                )}
+                                >
+                                <RadioGroupItem value="going" id={`going-${match.id}`} className="sr-only" />
+                                <Check className="h-5 w-5" />
+                                Jdu
+                                </Label>
+                                <Label
+                                htmlFor={`not-going-${match.id}`}
+                                className={cn(
+                                    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-lg font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border h-12 px-6 cursor-pointer",
+                                    attendance === 'not-going'
+                                    ? "bg-destructive/10 border-destructive text-destructive hover:bg-destructive/20"
+                                    : "border-input bg-background hover:bg-accent hover:text-accent-foreground"
+                                )}
+                                >
+                                <RadioGroupItem value="not-going" id={`not-going-${match.id}`} className="sr-only" />
+                                <X className="h-5 w-5" />
+                                Nejdu
+                                </Label>
+                            </RadioGroup>
+                        </CardFooter>
+                        </>
+                    </CarouselItem>
+                  )
+                })}
+              </CarouselContent>
+              {upcomingMatches.length > 1 && (
+                <>
+                  <CarouselPrevious className="absolute -left-2 top-1/2 -translate-y-1/2 z-10 hidden h-8 w-8 md:flex" />
+                  <CarouselNext className="absolute -right-2 top-1/2 -translate-y-1/2 z-10 hidden h-8 w-8 md:flex" />
+                </>
+              )}
+            </Carousel>
           ) : (
             <CardContent><p>Žádný nadcházející zápas.</p></CardContent>
           )}
