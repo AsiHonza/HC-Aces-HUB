@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar as CalendarIcon, MapPin, Users, Trophy, BarChart, Sword, Pencil, Check, X, Flame, Shield, Plus, Minus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal, FileText } from "lucide-react"
+import { Calendar as CalendarIcon, MapPin, Users, Trophy, BarChart, Sword, Pencil, Check, X, Flame, Shield, Plus, Minus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal, FileText, View } from "lucide-react"
 import { cn } from '@/lib/utils'
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase'
 import { doc, collection, collectionGroup, updateDoc, query, Timestamp, addDoc, deleteDoc, writeBatch, orderBy, where, limit, setDoc } from 'firebase/firestore'
@@ -24,8 +24,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Switch } from "@/components/ui/switch"
-import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel'
-import { LineupBuilder } from '@/components/lineup-builder'
+import { LineupBuilder, LineupDisplay, type Lineup } from '@/components/lineup-builder'
 
 
 // Types based on backend.json
@@ -63,6 +62,7 @@ interface Match {
   team1Score?: number;
   team2Score?: number;
   scorers?: { goal: string; assist: string | null }[];
+  lineup?: Lineup;
 }
 
 interface Attendance {
@@ -177,6 +177,8 @@ function DashboardPageContent() {
   const [isLineupBuilderOpen, setIsLineupBuilderOpen] = useState(false);
   const [lineupMatch, setLineupMatch] = useState<Match | null>(null);
 
+  const [isLineupViewOpen, setIsLineupViewOpen] = useState(false);
+  const [viewLineupData, setViewLineupData] = useState<Lineup | null>(null);
 
   // Fetch current user's profile and stats
   const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
@@ -265,15 +267,14 @@ function DashboardPageContent() {
     { rank: 5, name: 'Lvi', points: 30, gf: 90, ga: 110 },
   ]);
   const [editableLeagueStandings, setEditableLeagueStandings] = useState(leagueStandings);
-
-  const leagueData = isLeagueEditMode ? editableLeagueStandings : leagueStandings;
   
     const sortedLeagueStandings = useMemo(() => {
-        if (!leagueData) return [];
-        return [...leagueData]
+        const data = isLeagueEditMode ? editableLeagueStandings : leagueStandings;
+        if (!data) return [];
+        return [...data]
         .sort((a, b) => b.points - a.points)
         .map((team, index) => ({ ...team, rank: index + 1 }));
-    }, [leagueData]);
+    }, [leagueStandings, editableLeagueStandings, isLeagueEditMode]);
 
   const upcomingMatches = useMemo(() => {
     if (!allMatches || !user) return [];
@@ -419,6 +420,30 @@ function DashboardPageContent() {
   const handleBuildLineup = (match: Match) => {
     setLineupMatch(match);
     setIsLineupBuilderOpen(true);
+  };
+
+  const handleViewLineup = (match: Match) => {
+    if (match.lineup) {
+      setViewLineupData(match.lineup);
+      setIsLineupViewOpen(true);
+    }
+  };
+
+  const handleSaveLineup = async (lineupToSave: Lineup) => {
+    if (!lineupMatch || !firestore) return;
+
+    const matchRef = doc(firestore, 'matches', lineupMatch.id);
+    try {
+      await updateDoc(matchRef, { lineup: lineupToSave });
+      toast({ title: "Sestava uložena." });
+      setIsLineupBuilderOpen(false);
+      setLineupMatch(null);
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Chyba', description: `Nepodařilo se uložit sestavu: ${error.message}` });
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        operation: 'update', path: matchRef.path, requestResourceData: { lineup: lineupToSave },
+      }));
+    }
   };
 
   const confirmDeleteMatch = async () => {
@@ -774,7 +799,7 @@ function DashboardPageContent() {
                             {userProfile?.role === 'admin' && (
                                 <>
                                     <DropdownMenuItem onClick={() => handleBuildLineup(match)}>
-                                        <FileText className="mr-2 h-4 w-4" /> Tvořit sestavu
+                                        <FileText className="mr-2 h-4 w-4" /> Tvořit/Upravit sestavu
                                     </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => handleRecordResult(match)}>
                                         <ClipboardEdit className="mr-2 h-4 w-4" /> Zapsat výsledek
@@ -826,54 +851,61 @@ function DashboardPageContent() {
                                 <X className="h-4 w-4 mr-1 sm:mr-2" /> Nejdu
                             </Button>
                         </div>
-                        <Dialog>
-                            <DialogTrigger asChild>
-                                <Button variant="outline" size="sm" className="text-xs sm:text-sm">
-                                    <Users className="mr-1 sm:mr-2" />
-                                    Účast: {attendeeCount}
+                        <div className="flex items-center gap-2">
+                            {match.lineup && (
+                                <Button variant="outline" size="sm" className="text-xs sm:text-sm" onClick={() => handleViewLineup(match)}>
+                                    <View className="mr-1 sm:mr-2" /> Sestava
                                 </Button>
-                            </DialogTrigger>
-                            <DialogContent>
-                                <DialogHeader>
-                                    <DialogTitle>Přihlášení na zápas</DialogTitle>
-                                    <DialogDescription>
-                                        {match.team1} vs {match.team2} - {format(match.dateTime.toDate(), "d. MMMM yyyy", { locale: cs })}
-                                    </DialogDescription>
-                                </DialogHeader>
-                                <div className="max-h-[400px] overflow-y-auto pr-4 space-y-4">
-                                    {sortedAttendees.length > 0 ? sortedAttendees.map(att => {
-                                        const attendeeProfile = usersMap.get(att.userId);
-                                        if (!attendeeProfile) return null;
-                                        const isGoing = att.status === 'going';
-                                        return (
-                                            <div 
-                                                key={att.userId} 
-                                                className={cn(
-                                                    "flex items-center gap-4 p-2 rounded-lg border-2 transition-colors",
-                                                    isGoing 
-                                                        ? "border-green-500 bg-green-500/10" 
-                                                        : "border-destructive bg-destructive/10"
-                                                )}
-                                            >
-                                                <Avatar>
-                                                    <AvatarImage src={`https://picsum.photos/seed/${attendeeProfile.email}/100/100`} data-ai-hint="player portrait" alt={attendeeProfile.name} />
-                                                    <AvatarFallback>{attendeeProfile.name.split(' ').map(n=>n[0]).join('')}</AvatarFallback>
-                                                </Avatar>
-                                                <div className="flex-1">
-                                                    <p className="font-medium">{attendeeProfile.name}</p>
-                                                    {attendeeProfile.jerseyNumber && <p className="text-sm text-muted-foreground">#{attendeeProfile.jerseyNumber}</p>}
-                                                    {att.note && <p className="text-sm text-muted-foreground italic mt-1">"{att.note}"</p>}
+                            )}
+                            <Dialog>
+                                <DialogTrigger asChild>
+                                    <Button variant="outline" size="sm" className="text-xs sm:text-sm">
+                                        <Users className="mr-1 sm:mr-2" />
+                                        Účast: {attendeeCount}
+                                    </Button>
+                                </DialogTrigger>
+                                <DialogContent>
+                                    <DialogHeader>
+                                        <DialogTitle>Přihlášení na zápas</DialogTitle>
+                                        <DialogDescription>
+                                            {match.team1} vs {match.team2} - {format(match.dateTime.toDate(), "d. MMMM yyyy", { locale: cs })}
+                                        </DialogDescription>
+                                    </DialogHeader>
+                                    <div className="max-h-[400px] overflow-y-auto pr-4 space-y-4">
+                                        {sortedAttendees.length > 0 ? sortedAttendees.map(att => {
+                                            const attendeeProfile = usersMap.get(att.userId);
+                                            if (!attendeeProfile) return null;
+                                            const isGoing = att.status === 'going';
+                                            return (
+                                                <div 
+                                                    key={att.userId} 
+                                                    className={cn(
+                                                        "flex items-center gap-4 p-2 rounded-lg border-2 transition-colors",
+                                                        isGoing 
+                                                            ? "border-green-500 bg-green-500/10" 
+                                                            : "border-destructive bg-destructive/10"
+                                                    )}
+                                                >
+                                                    <Avatar>
+                                                        <AvatarImage src={`https://picsum.photos/seed/${attendeeProfile.email}/100/100`} data-ai-hint="player portrait" alt={attendeeProfile.name} />
+                                                        <AvatarFallback>{attendeeProfile.name.split(' ').map(n=>n[0]).join('')}</AvatarFallback>
+                                                    </Avatar>
+                                                    <div className="flex-1">
+                                                        <p className="font-medium">{attendeeProfile.name}</p>
+                                                        {attendeeProfile.jerseyNumber && <p className="text-sm text-muted-foreground">#{attendeeProfile.jerseyNumber}</p>}
+                                                        {att.note && <p className="text-sm text-muted-foreground italic mt-1">"{att.note}"</p>}
+                                                    </div>
+                                                    {isGoing 
+                                                        ? <Check className="h-6 w-6 text-green-500" /> 
+                                                        : <X className="h-6 w-6 text-destructive" />
+                                                    }
                                                 </div>
-                                                {isGoing 
-                                                    ? <Check className="h-6 w-6 text-green-500" /> 
-                                                    : <X className="h-6 w-6 text-destructive" />
-                                                }
-                                            </div>
-                                        )
-                                    }) : <p className="text-muted-foreground">Zatím nikdo neodpověděl.</p>}
-                                </div>
-                            </DialogContent>
-                        </Dialog>
+                                            )
+                                        }) : <p className="text-muted-foreground">Zatím nikdo neodpověděl.</p>}
+                                    </div>
+                                </DialogContent>
+                            </Dialog>
+                        </div>
                     </div>
                 </CardFooter>
             </Card>
@@ -1296,7 +1328,7 @@ function DashboardPageContent() {
       </Dialog>
 
         <Dialog open={isLineupBuilderOpen} onOpenChange={setIsLineupBuilderOpen}>
-            <DialogContent className="max-w-4xl h-[90vh]">
+            <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
                  {lineupMatch && allUsers && (
                     <>
                         <DialogHeader>
@@ -1307,7 +1339,25 @@ function DashboardPageContent() {
                         </DialogHeader>
                         <LineupBuilder
                             players={allUsers.filter(u => (attendancesByMatch.get(lineupMatch.id) || []).some(a => a.userId === u.id && a.status === 'going'))}
+                            initialData={lineupMatch.lineup}
+                            onSave={handleSaveLineup}
+                            onCancel={() => setIsLineupBuilderOpen(false)}
                         />
+                    </>
+                )}
+            </DialogContent>
+        </Dialog>
+        <Dialog open={isLineupViewOpen} onOpenChange={setIsLineupViewOpen}>
+            <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
+                 {viewLineupData && lineupMatch && (
+                    <>
+                        <DialogHeader>
+                            <DialogTitle>Sestava: {lineupMatch.team1} vs {lineupMatch.team2}</DialogTitle>
+                             <DialogDescription>
+                                Uložená sestava pro nadcházející zápas.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <LineupDisplay lineup={viewLineupData} />
                     </>
                 )}
             </DialogContent>
