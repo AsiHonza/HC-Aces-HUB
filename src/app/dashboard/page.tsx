@@ -274,7 +274,13 @@ function DashboardPageContent() {
 
     const leagueSettingsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'league') : null, [firestore]);
     const { data: leagueSettings, isLoading: leagueSettingsLoading } = useDoc<AppSettings>(leagueSettingsRef);
-    const myStatsToDisplay = useMemo(() => {
+    
+  const isPlayoffEnabled = leagueSettings?.isPlayoffEnabled ?? false;
+  const isScoringInPlayoffMode = leagueSettings?.isScoringInPlayoffMode ?? false;
+  const playoffSeries = leagueSettings?.playoffSeries ?? [];
+  const leagueStandings = useMemo(() => leagueSettings?.leagueStandings ?? [], [leagueSettings]);
+
+  const myStatsToDisplay = useMemo(() => {
     if (userProfile?.playerType === 'player' && skaterStatsData?.[0]) {
         const stats = skaterStatsData[0];
         switch(myStatsView) {
@@ -301,11 +307,51 @@ function DashboardPageContent() {
     }
     return { gamesPlayed: 0, wins: 0, savePct: 0 };
   }, [myStatsView, goalieStatsData, userProfile]);
-
-
-  const leagueStandings = useMemo(() => leagueSettings?.leagueStandings ?? [], [leagueSettings]);
   
   
+  const isLoading = isUserProfileLoading || isSkaterStatsLoading || isGoalieStatsLoading || areMatchesLoading || areUsersLoading || areSkaterStatsLoading || areGoalieStatsLoading || attendancesLoading || leagueSettingsLoading;
+
+  useEffect(() => {
+    setOptimisticAttendances(new Map());
+  }, [allAttendances]);
+
+  useEffect(() => {
+    if (isLoading) return;
+    const matchId = searchParams.get('matchId');
+    if (!matchId || upcomingMatches.length === 0) return;
+
+    const container = upcomingMatchesRef.current;
+    if (!container) return;
+
+    const isOtherMatch = otherUpcomingMatches.some(m => m.id === matchId);
+    if (isOtherMatch) {
+        setOpenAccordionValue("item-1");
+    }
+    
+    setTimeout(() => {
+        const element = document.getElementById(`match-${matchId}`);
+        if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            setHighlightedMatchId(matchId);
+
+            setTimeout(() => {
+                setHighlightedMatchId(null);
+                const newUrl = new URL(window.location.href);
+                newUrl.searchParams.delete('matchId');
+                window.history.replaceState({}, '', newUrl);
+            }, 3000);
+        }
+    }, 200);
+
+  }, [isLoading, upcomingMatches, otherUpcomingMatches, searchParams]);
+  
+  if (isLoading || !user) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    )
+  }
 
   const teamScoring = useMemo(() => {
     if (!allUsers || !allSkaterStats) return [];
@@ -451,53 +497,6 @@ function DashboardPageContent() {
   }, [userAttendances, optimisticAttendances, user]);
 
   const usersMap = useMemo(() => new Map(allUsers?.map(u => [u.id, u])), [allUsers]);
-
-  const isPlayoffEnabled = leagueSettings?.isPlayoffEnabled ?? false;
-  const isScoringInPlayoffMode = leagueSettings?.isScoringInPlayoffMode ?? false;
-  const playoffSeries = leagueSettings?.playoffSeries ?? [];
-  const isLoading = isUserProfileLoading || isSkaterStatsLoading || isGoalieStatsLoading || areMatchesLoading || areUsersLoading || areSkaterStatsLoading || areGoalieStatsLoading || attendancesLoading || leagueSettingsLoading;
-
-  useEffect(() => {
-    setOptimisticAttendances(new Map());
-  }, [allAttendances]);
-
-  useEffect(() => {
-    if (isLoading) return;
-    const matchId = searchParams.get('matchId');
-    if (!matchId || upcomingMatches.length === 0) return;
-
-    const container = upcomingMatchesRef.current;
-    if (!container) return;
-
-    const isOtherMatch = otherUpcomingMatches.some(m => m.id === matchId);
-    if (isOtherMatch) {
-        setOpenAccordionValue("item-1");
-    }
-    
-    setTimeout(() => {
-        const element = document.getElementById(`match-${matchId}`);
-        if (element) {
-            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            setHighlightedMatchId(matchId);
-
-            setTimeout(() => {
-                setHighlightedMatchId(null);
-                const newUrl = new URL(window.location.href);
-                newUrl.searchParams.delete('matchId');
-                window.history.replaceState({}, '', newUrl);
-            }, 3000);
-        }
-    }, 200);
-
-  }, [isLoading, upcomingMatches, otherUpcomingMatches, searchParams]);
-  
-  if (isLoading || !user) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-      </div>
-    )
-  }
 
   const nextMatch = upcomingMatches?.[0];
   
@@ -993,7 +992,7 @@ function DashboardPageContent() {
     ];
 
     return (
-        <Card id={`match-${match.id}`} className={cn("w-full transition-all", highlightedMatchId === match.id && 'animate-highlight-card')}>
+        <Card key={match.id} id={`match-${match.id}`} className={cn("w-full transition-all", highlightedMatchId === match.id && 'animate-highlight-card')}>
                 <CardHeader className="flex-row items-start justify-between pb-2">
                     <div className="space-y-1">
                         <CardTitle className="text-xl break-words pr-2">{opponent}</CardTitle>
