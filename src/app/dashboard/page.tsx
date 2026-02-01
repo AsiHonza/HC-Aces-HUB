@@ -4,13 +4,13 @@ import { Suspense, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Calendar, MapPin, Users, Trophy, BarChart, Sword, Pencil, Check, X } from "lucide-react"
+import { Calendar, MapPin, Users, Trophy, BarChart, Sword, Pencil, Check, X, Flame, Shield } from "lucide-react"
 import { cn } from '@/lib/utils'
 
 function DashboardPageContent() {
@@ -43,6 +43,22 @@ function DashboardPageContent() {
     time: '18:00',
     location: 'Zimní stadion, Město',
   })
+
+  const teamScoring = [
+    { rank: 1, name: 'Adam Hráč', goals: 12, assists: 21, points: 33 },
+    { rank: 2, name: 'Jan Mlcak', goals: 15, assists: 15, points: 30 },
+    { rank: 3, name: 'Petr Novák', goals: 10, assists: 18, points: 28 },
+    { rank: 4, name: 'Tomáš Dvořák', goals: 8, assists: 15, points: 23 },
+    { rank: 5, name: 'Martin Černý', goals: 5, assists: 12, points: 17 },
+  ];
+
+  const leagueStandings = [
+    { rank: 1, name: 'Aces', points: 45, gf: 120, ga: 85 },
+    { rank: 2, name: 'HC Draci', points: 42, gf: 115, ga: 90 },
+    { rank: 3, name: 'Rytíři', points: 38, gf: 100, ga: 95 },
+    { rank: 4, name: 'Kometa', points: 35, gf: 95, ga: 105 },
+    { rank: 5, name: 'Lvi', points: 30, gf: 90, ga: 110 },
+  ];
 
   const fallback = name.split(' ').map(n => n[0]).join('').toUpperCase()
 
@@ -183,6 +199,66 @@ function DashboardPageContent() {
               </RadioGroup>
           </CardFooter>
         </Card>
+
+        <div className="lg:col-span-3 grid gap-8 md:grid-cols-2">
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2 font-headline"><Flame className="text-primary"/>Kanadské bodování</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead className="w-[40px]">#</TableHead>
+                                <TableHead>Hráč</TableHead>
+                                <TableHead className="text-center">G</TableHead>
+                                <TableHead className="text-center">A</TableHead>
+                                <TableHead className="text-right">B</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {teamScoring.map((player) => (
+                                <TableRow key={player.rank}>
+                                    <TableCell className="font-medium">{player.rank}</TableCell>
+                                    <TableCell>{player.name}</TableCell>
+                                    <TableCell className="text-center font-mono">{player.goals}</TableCell>
+                                    <TableCell className="text-center font-mono">{player.assists}</TableCell>
+                                    <TableCell className="text-right font-mono font-bold">{player.points}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
+
+             <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2 font-headline"><Shield className="text-primary"/>Tabulka soutěže</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead className="w-[50px]">#</TableHead>
+                                <TableHead>Tým</TableHead>
+                                <TableHead>Skóre</TableHead>
+                                <TableHead className="text-right">B</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {leagueStandings.map((team) => (
+                                <TableRow key={team.rank} className={team.name === 'Aces' ? 'bg-primary/10' : ''}>
+                                    <TableCell className="font-medium">{team.rank}</TableCell>
+                                    <TableCell>{team.name}</TableCell>
+                                    <TableCell className="font-mono text-xs">{team.gf}:{team.ga}</TableCell>
+                                    <TableCell className="text-right font-mono font-bold">{team.points}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
+        </div>
       </div>
     </div>
   )
