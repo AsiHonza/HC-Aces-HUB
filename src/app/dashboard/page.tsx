@@ -144,7 +144,7 @@ function DashboardPageContent() {
   // Fetch matches
   const matchesQuery = useMemoFirebase(() => {
       if (!firestore || !user) return null;
-      return collection(firestore, 'matches');
+      return query(collection(firestore, 'matches'), orderBy('dateTime', 'asc'));
   }, [firestore, user]);
   const { data: allMatches, isLoading: areMatchesLoading } = useCollection<Match>(matchesQuery);
   
@@ -152,7 +152,6 @@ function DashboardPageContent() {
     if (!allMatches) return [];
     return allMatches
       .filter(match => !match.isPlayed)
-      .sort((a, b) => a.dateTime.toMillis() - b.dateTime.toMillis())
       .slice(0, 5);
   }, [allMatches]);
   
@@ -586,12 +585,12 @@ function DashboardPageContent() {
       <div className="grid gap-8 lg:grid-cols-3">
         
         <Card className="lg:col-span-1 flex flex-col items-center justify-center p-6 text-center">
-            <Avatar className="h-32 w-32 mb-4 border-4 border-primary shadow-lg">
+            <Avatar className="h-24 w-24 md:h-32 md:w-32 mb-4 border-4 border-primary shadow-lg">
               <AvatarImage src={`https://picsum.photos/seed/${userProfile?.email}/400/400`} alt={userProfile?.name ?? ''} data-ai-hint="player portrait" />
               <AvatarFallback className="text-4xl">{fallback}</AvatarFallback>
             </Avatar>
-            <CardTitle className="text-3xl font-headline">{userProfile?.name}</CardTitle>
-            {userProfile?.jerseyNumber && <CardDescription className="text-primary font-bold text-5xl font-mono mt-2">#{userProfile.jerseyNumber}</CardDescription>}
+            <CardTitle className="text-2xl md:text-3xl font-headline">{userProfile?.name}</CardTitle>
+            {userProfile?.jerseyNumber && <CardDescription className="text-primary font-bold text-4xl md:text-5xl font-mono mt-2">#{userProfile.jerseyNumber}</CardDescription>}
         </Card>
 
         <Card className="lg:col-span-2">
@@ -614,7 +613,7 @@ function DashboardPageContent() {
 
         <Card className="lg:col-span-3 relative">
           <CardHeader className="flex-row items-center justify-between">
-            <CardTitle className="flex items-center gap-2 font-headline"><Trophy className="text-primary"/>Příští zápas</CardTitle>
+            <CardTitle className="flex items-center gap-2 font-headline text-xl"><Trophy className="text-primary"/>Příští zápas</CardTitle>
             <div className="flex items-center gap-2">
               {userProfile?.role === 'admin' && (
                 <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
@@ -705,8 +704,8 @@ function DashboardPageContent() {
                         <>
                         <CardContent className="grid gap-6 md:grid-cols-5 items-center pt-6">
                             <div className="md:col-span-2 text-center md:text-left">
-                            <p className="text-lg text-muted-foreground">Soupeř</p>
-                            <p className="text-3xl md:text-4xl font-bold flex items-center gap-3 justify-center md:justify-start mt-1"><Users /> {opponent}</p>
+                            <p className="text-base text-muted-foreground">Soupeř</p>
+                            <p className="text-2xl md:text-3xl font-bold flex items-center gap-3 justify-center md:justify-start mt-1"><Users /> {opponent}</p>
                             </div>
                             
                             <div className="hidden md:flex justify-center items-center">
@@ -714,18 +713,18 @@ function DashboardPageContent() {
                             </div>
 
                             <div className="md:col-span-2 text-center md:text-left">
-                            <p className="text-lg text-muted-foreground">Kdy a kde</p>
-                            <p className="text-xl font-semibold flex items-center gap-2 justify-center md:justify-start mt-1">
+                            <p className="text-base text-muted-foreground">Kdy a kde</p>
+                            <p className="text-base md:text-lg font-semibold flex items-center gap-2 justify-center md:justify-start mt-1">
                                 <CalendarIcon /> {format(match.dateTime.toDate(), "EEEE, d. MMMM yyyy", { locale: cs })} - {format(match.dateTime.toDate(), 'HH:mm')}
                             </p>
-                            <p className="text-lg flex items-center gap-2 text-muted-foreground justify-center md:justify-start mt-1"><MapPin /> {match.location}</p>
+                            <p className="text-base flex items-center gap-2 text-muted-foreground justify-center md:justify-start mt-1"><MapPin /> {match.location}</p>
                             </div>
                         </CardContent>
                         <CardFooter className="flex-col items-start gap-4 pt-4 border-t">
                             <div className="flex flex-col sm:flex-row w-full items-start sm:items-center justify-between gap-4">
                                 <div>
                                     <p className="text-base font-medium mb-2">Tvoje účast:</p>
-                                    <div className="flex gap-4">
+                                    <div className="flex gap-2">
                                         <Button
                                             variant={attendance === 'going' ? 'default' : 'outline'}
                                             onClick={() => {
@@ -861,7 +860,7 @@ function DashboardPageContent() {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead className="w-[40px]">#</TableHead>
+                                <TableHead>#</TableHead>
                                 <TableHead>Hráč</TableHead>
                                 <TableHead className="text-center hidden sm:table-cell">G</TableHead>
                                 <TableHead className="text-center hidden sm:table-cell">A</TableHead>
@@ -934,11 +933,11 @@ function DashboardPageContent() {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead className="w-[50px]">#</TableHead>
+                                <TableHead>#</TableHead>
                                 <TableHead>Tým</TableHead>
-                                <TableHead className="text-center w-[120px] hidden sm:table-cell">GF</TableHead>
-                                <TableHead className="text-center w-[120px] hidden sm:table-cell">GA</TableHead>
-                                <TableHead className="text-center w-[120px]">B</TableHead>
+                                <TableHead className="text-center hidden sm:table-cell">GF</TableHead>
+                                <TableHead className="text-center hidden sm:table-cell">GA</TableHead>
+                                <TableHead className="text-center">B</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>

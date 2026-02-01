@@ -115,17 +115,22 @@ function HistoryPageContent() {
     const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
     const { data: userProfile, isLoading: userProfileLoading } = useDoc<UserProfile>(userDocRef);
 
-    const matchesQuery = useMemoFirebase(() => 
-        firestore && user ? collection(firestore, 'matches') : null, 
-    [firestore, user]);
+    const matchesQuery = useMemoFirebase(() => {
+      if (!firestore || !user) return null;
+      return collection(firestore, 'matches');
+    }, [firestore, user]);
     const { data: allMatches, isLoading: matchesLoading } = useCollection<Match>(matchesQuery);
 
-    const usersQuery = useMemoFirebase(() => 
-        firestore && user ? collection(firestore, 'users') : null, 
-    [firestore, user]);
+    const usersQuery = useMemoFirebase(() => {
+        if (!firestore || !user) return null;
+        return collection(firestore, 'users');
+    }, [firestore, user]);
     const { data: users, isLoading: usersLoading } = useCollection<UserProfile>(usersQuery);
 
-    const allStatsRef = useMemoFirebase(() => firestore && user ? collectionGroup(firestore, 'playerStats'): null, [firestore, user]);
+    const allStatsRef = useMemoFirebase(() => {
+      if (!firestore || !user) return null;
+      return collectionGroup(firestore, 'playerStats');
+    }, [firestore, user]);
     const { data: allStats, isLoading: statsLoading } = useCollection<PlayerStats>(allStatsRef);
 
     const matches = useMemo(() => {
@@ -310,9 +315,9 @@ function HistoryPageContent() {
                                                 <p className="text-sm text-muted-foreground">{format(match.dateTime.toDate(), "EEEE, d. MMMM yyyy", { locale: cs })}</p>
                                                 <p className="font-semibold">{match.team1} vs {match.team2}</p>
                                             </div>
-                                            <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto">
+                                            <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
                                                 <div className="flex items-center gap-2">
-                                                    <span className="text-lg sm:text-xl font-bold font-mono">{match.team1Score} : {match.team2Score}</span>
+                                                    <span className="text-base sm:text-lg font-bold font-mono">{match.team1Score} : {match.team2Score}</span>
                                                     <Badge variant={getResultBadgeVariant(match.team1Score, match.team2Score)}>{getResultText(match.team1Score, match.team2Score)}</Badge>
                                                 </div>
                                                 {userProfile?.role === 'admin' && (

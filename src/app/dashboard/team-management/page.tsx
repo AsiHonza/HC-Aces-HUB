@@ -175,7 +175,7 @@ function TeamManagementContent() {
               {users?.map((user) => (
                 <TableRow key={user.id}>
                   <TableCell>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
                       <Avatar className="h-10 w-10">
                          <AvatarImage src={`https://picsum.photos/seed/${user.email}/100/100`} data-ai-hint="player portrait" alt={user.name} />
                          <AvatarFallback>{user.name.split(' ').map(n => n[0]).join('').toUpperCase()}</AvatarFallback>
