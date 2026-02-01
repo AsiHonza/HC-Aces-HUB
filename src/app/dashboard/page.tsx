@@ -272,11 +272,49 @@ function DashboardPageContent() {
       .map((team, index) => ({ ...team, rank: index + 1 }));
   }, [leagueStandings, editableLeagueStandings, isLeagueEditMode]);
   
+  const upcomingMatches = useMemo(() => allMatches?.filter(match => !match.isPlayed) ?? [], [allMatches]);
+  const otherUpcomingMatches = useMemo(() => upcomingMatches?.slice(1) || [], [upcomingMatches]);
+
   const isPlayoffEnabled = leagueSettings?.isPlayoffEnabled ?? false;
   const isScoringInPlayoffMode = leagueSettings?.isScoringInPlayoffMode ?? false;
   const playoffSeries = leagueSettings?.playoffSeries ?? [];
   
   const isLoading = isUserLoading || isUserProfileLoading || isPlayerStatsLoading || areMatchesLoading || areUsersLoading || areStatsLoading || attendancesLoading || leagueSettingsLoading;
+
+  useEffect(() => {
+    // When fresh data arrives from Firestore, clear any optimistic updates
+    setOptimisticAttendances(new Map());
+  }, [allAttendances]);
+
+  useEffect(() => {
+    const matchId = searchParams.get('matchId');
+    if (!matchId || upcomingMatches.length === 0) return;
+
+    // Use a ref to the container of all upcoming matches for scrolling
+    const container = upcomingMatchesRef.current;
+    if (!container) return;
+
+    const isOtherMatch = otherUpcomingMatches.some(m => m.id === matchId);
+    if (isOtherMatch) {
+        setOpenAccordionValue("item-1");
+    }
+    
+    setTimeout(() => {
+        const element = document.getElementById(`match-${matchId}`);
+        if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            setHighlightedMatchId(matchId);
+
+            setTimeout(() => {
+                setHighlightedMatchId(null);
+                const newUrl = new URL(window.location.href);
+                newUrl.searchParams.delete('matchId');
+                window.history.replaceState({}, '', newUrl);
+            }, 3000);
+        }
+    }, 200);
+
+  }, [upcomingMatches, otherUpcomingMatches, searchParams]);
   
   if (isLoading) {
     return (
@@ -286,9 +324,7 @@ function DashboardPageContent() {
     )
   }
 
-  const upcomingMatches = allMatches?.filter(match => !match.isPlayed) ?? [];
   const nextMatch = upcomingMatches?.[0];
-  const otherUpcomingMatches = upcomingMatches?.slice(1) || [];
 
   const attendancesByMatch = new Map<string, Attendance[]>();
   allAttendances?.forEach(att => {
@@ -336,43 +372,6 @@ function DashboardPageContent() {
     { metric: 'Odehrané zápasy', value: myStatsToDisplay.gamesPlayed ?? 0 },
   ]
   
-
-  useEffect(() => {
-    // When fresh data arrives from Firestore, clear any optimistic updates
-    setOptimisticAttendances(new Map());
-  }, [allAttendances]);
-
-  useEffect(() => {
-    const matchId = searchParams.get('matchId');
-    if (!matchId || !upcomingMatches || upcomingMatches.length === 0) return;
-
-    // Use a ref to the container of all upcoming matches for scrolling
-    const container = upcomingMatchesRef.current;
-    if (!container) return;
-
-    const isOtherMatch = otherUpcomingMatches.some(m => m.id === matchId);
-    if (isOtherMatch) {
-        setOpenAccordionValue("item-1");
-    }
-    
-    setTimeout(() => {
-        const element = document.getElementById(`match-${matchId}`);
-        if (element) {
-            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            setHighlightedMatchId(matchId);
-
-            setTimeout(() => {
-                setHighlightedMatchId(null);
-                const newUrl = new URL(window.location.href);
-                newUrl.searchParams.delete('matchId');
-                window.history.replaceState({}, '', newUrl);
-            }, 3000);
-        }
-    }, 200);
-
-  }, [upcomingMatches, otherUpcomingMatches, searchParams]);
-
-
   const handleShareMatch = (matchId: string) => {
     const url = new URL(window.location.origin + window.location.pathname);
     url.searchParams.set('matchId', matchId);
