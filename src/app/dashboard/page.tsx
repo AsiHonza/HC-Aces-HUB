@@ -312,50 +312,6 @@ function DashboardPageContent() {
     }, [myStatsView, goalieStatsData, userProfile]);
   
   
-  const isLoading = isUserProfileLoading || isSkaterStatsLoading || isGoalieStatsLoading || areMatchesLoading || areUsersLoading || areSkaterStatsLoading || areGoalieStatsLoading || attendancesLoading || leagueSettingsLoading;
-
-  useEffect(() => {
-    setOptimisticAttendances(new Map());
-  }, [allAttendances]);
-
-  useEffect(() => {
-    if (isLoading) return;
-    const matchId = searchParams.get('matchId');
-    if (!matchId || upcomingMatches.length === 0) return;
-
-    const container = upcomingMatchesRef.current;
-    if (!container) return;
-
-    const isOtherMatch = otherUpcomingMatches.some(m => m.id === matchId);
-    if (isOtherMatch) {
-        setOpenAccordionValue("item-1");
-    }
-    
-    setTimeout(() => {
-        const element = document.getElementById(`match-${matchId}`);
-        if (element) {
-            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            setHighlightedMatchId(matchId);
-
-            setTimeout(() => {
-                setHighlightedMatchId(null);
-                const newUrl = new URL(window.location.href);
-                newUrl.searchParams.delete('matchId');
-                window.history.replaceState({}, '', newUrl);
-            }, 3000);
-        }
-    }, 200);
-
-  }, [isLoading, upcomingMatches, otherUpcomingMatches, searchParams]);
-  
-  if (isLoading || !user) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-      </div>
-    )
-  }
-
   const teamScoring = useMemo(() => {
     if (!allUsers || !allSkaterStats) return [];
     
@@ -450,7 +406,7 @@ function DashboardPageContent() {
         name: goalie.name,
         ...goalie[scoringView]
     }));
-    return data.sort((a, b) => b.savePercentage - a.savePercentage || b.wins - a.wins).map((goalie, index) => ({...goalie, rank: index + 1}));
+    return data.sort((a, b) => b.savePercentage - a.savePercentage || b.wins - b.wins).map((goalie, index) => ({...goalie, rank: index + 1}));
   }, [goalieLeaderboard, scoringView]);
 
   const sortedLeagueStandings = useMemo(() => {
@@ -499,7 +455,7 @@ function DashboardPageContent() {
 
   const nextMatch = upcomingMatches?.[0];
   
-  const stats = userProfile?.playerType === 'player' ? [
+  const stats = useMemo(() => userProfile?.playerType === 'player' ? [
     { metric: 'Góly', value: myStatsToDisplay.goals ?? 0 },
     { metric: 'Asistence', value: myStatsToDisplay.assists ?? 0 },
     { metric: 'Body', value: (myStatsToDisplay.goals ?? 0) + (myStatsToDisplay.assists ?? 0) },
@@ -508,8 +464,53 @@ function DashboardPageContent() {
     { metric: 'Zápasy', value: myGoalieStatsToDisplay.gamesPlayed },
     { metric: 'Výhry', value: myGoalieStatsToDisplay.wins },
     { metric: 'Úspěšnost', value: `${myGoalieStatsToDisplay.savePct.toFixed(2)} %` },
-  ] : [];
+  ] : [], [myStatsToDisplay.assists, myStatsToDisplay.gamesPlayed, myStatsToDisplay.goals, myGoalieStatsToDisplay.gamesPlayed, myGoalieStatsToDisplay.savePct, myGoalieStatsToDisplay.wins, userProfile?.playerType]);
   
+
+  const isLoading = isUserProfileLoading || isSkaterStatsLoading || isGoalieStatsLoading || areMatchesLoading || areUsersLoading || areSkaterStatsLoading || areGoalieStatsLoading || attendancesLoading || leagueSettingsLoading;
+
+  useEffect(() => {
+    setOptimisticAttendances(new Map());
+  }, [allAttendances]);
+
+  useEffect(() => {
+    if (isLoading) return;
+    const matchId = searchParams.get('matchId');
+    if (!matchId || upcomingMatches.length === 0) return;
+
+    const container = upcomingMatchesRef.current;
+    if (!container) return;
+
+    const isOtherMatch = otherUpcomingMatches.some(m => m.id === matchId);
+    if (isOtherMatch) {
+        setOpenAccordionValue("item-1");
+    }
+    
+    setTimeout(() => {
+        const element = document.getElementById(`match-${matchId}`);
+        if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            setHighlightedMatchId(matchId);
+
+            setTimeout(() => {
+                setHighlightedMatchId(null);
+                const newUrl = new URL(window.location.href);
+                newUrl.searchParams.delete('matchId');
+                window.history.replaceState({}, '', newUrl);
+            }, 3000);
+        }
+    }, 200);
+
+  }, [isLoading, upcomingMatches, otherUpcomingMatches, searchParams]);
+  
+  if (isLoading || !user) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    )
+  }
+
   const handleShareMatch = (matchId: string) => {
     const url = new URL(window.location.origin + window.location.pathname);
     url.searchParams.set('matchId', matchId);
