@@ -85,7 +85,7 @@ export function useCollection<T = any>(
         setError(null);
         setIsLoading(false);
       },
-      (error: FirestoreError) => {
+      async (error: FirestoreError) => {
         // If the error isn't a standard permission error, it might be an index issue.
         // In that case, we should show the original error which might contain an index creation link.
         if (error.code !== 'permission-denied') {

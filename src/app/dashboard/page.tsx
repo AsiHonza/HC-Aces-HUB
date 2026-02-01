@@ -13,9 +13,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Calendar as CalendarIcon, MapPin, Users, Trophy, BarChart, Sword, Pencil, Check, X, Flame, Shield, Plus, Minus, Loader2, Trash2, ClipboardEdit, History } from "lucide-react"
 import { cn } from '@/lib/utils'
-import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase'
+import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase'
 import { doc, collection, collectionGroup, updateDoc, query, Timestamp, addDoc, deleteDoc, writeBatch, orderBy, where, limit, setDoc } from 'firebase/firestore'
-import { format } from 'date-fns'
+import { format, parse } from 'date-fns'
 import { cs } from 'date-fns/locale'
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel'
 import Link from 'next/link'
@@ -243,11 +243,20 @@ function DashboardPageContent() {
   const handleAttendanceChange = (matchId: string, status: 'going' | 'not-going') => {
     if (!user || !firestore) return;
     const attendanceRef = doc(firestore, 'matches', matchId, 'attendees', user.uid);
-    setDoc(attendanceRef, {
+    const data = {
         userId: user.uid,
         matchId,
         status,
-    }, { merge: true });
+    };
+    setDoc(attendanceRef, data, { merge: true })
+        .catch(async (error) => {
+            const contextualError = new FirestorePermissionError({
+                operation: 'write',
+                path: attendanceRef.path,
+                requestResourceData: data,
+            });
+            errorEmitter.emit('permission-error', contextualError);
+        });
   };
 
   if (isLoading) {
@@ -274,8 +283,8 @@ function DashboardPageContent() {
     const formData = new FormData(e.currentTarget);
     const timeStr = formData.get('time') as string;
     const dateStr = formData.get('date') as string;
-
-    const newDateTime = new Date(`${dateStr}T${timeStr}`);
+    
+    const newDateTime = parse(`${dateStr} ${timeStr}`, 'yyyy-MM-dd HH:mm', new Date());
 
     const updatedData = {
         team2: formData.get('opponent') as string, // Assuming Aces is always team1 for simplicity
@@ -297,7 +306,7 @@ function DashboardPageContent() {
     const timeStr = formData.get('time') as string;
     const dateStr = formData.get('date') as string;
     
-    const newDateTime = new Date(`${dateStr}T${timeStr}`);
+    const newDateTime = parse(`${dateStr} ${timeStr}`, 'yyyy-MM-dd HH:mm', new Date());
 
     const newMatchData = {
         team1: 'Aces',
