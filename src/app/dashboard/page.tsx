@@ -702,22 +702,19 @@ function DashboardPageContent() {
                             )}
                         </div>
                         <>
-                        <CardContent className="grid gap-6 md:grid-cols-5 items-center pt-6">
-                            <div className="md:col-span-2 text-center md:text-left">
-                            <p className="text-base text-muted-foreground">Soupeř</p>
-                            <p className="text-xl md:text-3xl font-bold flex items-center gap-3 justify-center md:justify-start mt-1"><Users /> {opponent}</p>
+                        <CardContent className="grid gap-4 sm:gap-6 sm:grid-cols-2 items-center pt-6">
+                            <div className="text-center sm:text-left">
+                                <p className="text-sm text-muted-foreground">Soupeř</p>
+                                <p className="text-lg sm:text-2xl font-bold flex items-center gap-2 justify-center sm:justify-start mt-1 break-words"><Users /> {opponent}</p>
                             </div>
                             
-                            <div className="hidden md:flex justify-center items-center">
-                                <Sword className="h-16 w-16 text-muted-foreground/20" />
-                            </div>
-
-                            <div className="md:col-span-2 text-center md:text-left">
-                            <p className="text-base text-muted-foreground">Kdy a kde</p>
-                            <p className="text-base md:text-lg font-semibold flex items-center gap-2 justify-center md:justify-start mt-1">
-                                <CalendarIcon /> {format(match.dateTime.toDate(), "EEEE, d. MMMM yyyy", { locale: cs })} - {format(match.dateTime.toDate(), 'HH:mm')}
-                            </p>
-                            <p className="text-base flex items-center gap-2 text-muted-foreground justify-center md:justify-start mt-1"><MapPin /> {match.location}</p>
+                            <div className="text-center sm:text-right">
+                                <p className="text-sm text-muted-foreground">Kdy a kde</p>
+                                <p className="text-sm font-semibold flex flex-col sm:gap-0 items-center sm:items-end mt-1">
+                                    <span>{format(match.dateTime.toDate(), "EEEE, d. MMMM", { locale: cs })}</span>
+                                    <span className="font-bold text-base">{format(match.dateTime.toDate(), 'HH:mm')}</span>
+                                </p>
+                                <p className="text-sm flex items-center gap-2 text-muted-foreground justify-center sm:justify-end mt-1"><MapPin /> {match.location}</p>
                             </div>
                         </CardContent>
                         <CardFooter className="flex-col items-start gap-4 pt-4 border-t">
@@ -812,8 +809,8 @@ function DashboardPageContent() {
               </CarouselContent>
               {upcomingMatches.length > 1 && (
                 <>
-                  <CarouselPrevious className="absolute left-2 top-1/2 -translate-y-1/2 z-10 hidden h-8 w-8 md:flex" />
-                  <CarouselNext className="absolute right-2 top-1/2 -translate-y-1/2 z-10 hidden h-8 w-8 md:flex" />
+                  <CarouselPrevious className="hidden md:flex" />
+                  <CarouselNext className="hidden md:flex" />
                 </>
               )}
             </Carousel>
@@ -860,21 +857,21 @@ function DashboardPageContent() {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead className="w-12">#</TableHead>
+                                <TableHead className="w-[40px] px-2 sm:px-4">#</TableHead>
                                 <TableHead>Hráč</TableHead>
-                                <TableHead className="text-center hidden sm:table-cell w-24">G</TableHead>
-                                <TableHead className="text-center hidden sm:table-cell w-24">A</TableHead>
-                                <TableHead className="text-right w-16">B</TableHead>
+                                <TableHead className="text-center hidden sm:table-cell w-[80px]">G</TableHead>
+                                <TableHead className="text-center hidden sm:table-cell w-[80px]">A</TableHead>
+                                <TableHead className="text-right w-[60px] px-2 sm:px-4">B</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {sortedTeamScoring.map((player) => (
                                 <TableRow key={player.id}>
-                                    <TableCell className="font-medium">{player.rank}</TableCell>
+                                    <TableCell className="font-medium px-2 sm:px-4">{player.rank}</TableCell>
                                     <TableCell>{player.name}</TableCell>
                                     <TableCell className="text-center font-mono hidden sm:table-cell">
                                       {isScoringEditMode ? (
-                                        <div className="flex items-center justify-center gap-2">
+                                        <div className="flex items-center justify-center gap-1 sm:gap-2">
                                           <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleScoringChange(player.id, 'goals', -1)}>
                                             <Minus className="h-4 w-4" />
                                           </Button>
@@ -889,7 +886,7 @@ function DashboardPageContent() {
                                     </TableCell>
                                     <TableCell className="text-center font-mono hidden sm:table-cell">
                                       {isScoringEditMode ? (
-                                        <div className="flex items-center justify-center gap-2">
+                                        <div className="flex items-center justify-center gap-1 sm:gap-2">
                                           <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleScoringChange(player.id, 'assists', -1)}>
                                             <Minus className="h-4 w-4" />
                                           </Button>
@@ -902,7 +899,7 @@ function DashboardPageContent() {
                                         player.assists
                                       )}
                                     </TableCell>
-                                    <TableCell className="text-right font-mono font-bold">{player.points}</TableCell>
+                                    <TableCell className="text-right font-mono font-bold px-2 sm:px-4">{player.points}</TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
@@ -933,21 +930,21 @@ function DashboardPageContent() {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead className="w-12">#</TableHead>
+                                <TableHead className="w-[40px] px-2 sm:px-4">#</TableHead>
                                 <TableHead>Tým</TableHead>
                                 <TableHead className="text-center hidden sm:table-cell">GF</TableHead>
                                 <TableHead className="text-center hidden sm:table-cell">GA</TableHead>
-                                <TableHead className="text-center w-24">B</TableHead>
+                                <TableHead className="text-center w-[100px] sm:w-auto px-2 sm:px-4">B</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {sortedLeagueStandings.map((team) => (
                                 <TableRow key={team.name} className={team.name === 'Aces' ? 'bg-primary/10' : ''}>
-                                    <TableCell className="font-medium">{team.rank}</TableCell>
+                                    <TableCell className="font-medium px-2 sm:px-4">{team.rank}</TableCell>
                                     <TableCell>{team.name}</TableCell>
                                     <TableCell className="text-center font-mono hidden sm:table-cell">
                                         {isLeagueEditMode ? (
-                                            <div className="flex items-center justify-center gap-2">
+                                            <div className="flex items-center justify-center gap-1 sm:gap-2">
                                                 <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.name, 'gf', -1)}><Minus className="h-4 w-4" /></Button>
                                                 <span className="w-8 text-center">{team.gf}</span>
                                                 <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.name, 'gf', 1)}><Plus className="h-4 w-4" /></Button>
@@ -958,7 +955,7 @@ function DashboardPageContent() {
                                     </TableCell>
                                     <TableCell className="text-center font-mono hidden sm:table-cell">
                                         {isLeagueEditMode ? (
-                                            <div className="flex items-center justify-center gap-2">
+                                            <div className="flex items-center justify-center gap-1 sm:gap-2">
                                                 <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.name, 'ga', -1)}><Minus className="h-4 w-4" /></Button>
                                                 <span className="w-8 text-center">{team.ga}</span>
                                                 <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.name, 'ga', 1)}><Plus className="h-4 w-4" /></Button>
@@ -967,9 +964,9 @@ function DashboardPageContent() {
                                             team.ga
                                         )}
                                     </TableCell>
-                                    <TableCell className="text-center font-mono">
+                                    <TableCell className="text-center font-mono px-2 sm:px-4">
                                         {isLeagueEditMode ? (
-                                            <div className="flex items-center justify-center gap-2">
+                                            <div className="flex items-center justify-center gap-1 sm:gap-2">
                                                 <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.name, 'points', -1)}><Minus className="h-4 w-4" /></Button>
                                                 <span className="w-8 text-center">{team.points}</span>
                                                 <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.name, 'points', 1)}><Plus className="h-4 w-4" /></Button>

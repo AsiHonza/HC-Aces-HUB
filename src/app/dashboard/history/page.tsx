@@ -310,14 +310,14 @@ function HistoryPageContent() {
                             {matches.map(match => (
                                 <AccordionItem value={match.id} key={match.id}>
                                     <AccordionTrigger className="hover:no-underline text-left">
-                                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full pr-2 gap-2">
-                                            <div className="flex-1">
-                                                <p className="text-sm text-muted-foreground">{format(match.dateTime.toDate(), "EEEE, d. MMMM yyyy", { locale: cs })}</p>
-                                                <p className="font-semibold">{match.team1} vs {match.team2}</p>
+                                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full pr-2 gap-y-1 gap-x-2">
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-xs text-muted-foreground">{format(match.dateTime.toDate(), "EEEE, d. M. yy", { locale: cs })}</p>
+                                                <p className="font-semibold truncate">{match.team1} vs {match.team2}</p>
                                             </div>
                                             <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
                                                 <div className="flex items-center gap-2">
-                                                    <span className="text-base sm:text-lg font-bold font-mono">{match.team1Score} : {match.team2Score}</span>
+                                                    <span className="text-sm sm:text-base font-bold font-mono">{match.team1Score} : {match.team2Score}</span>
                                                     <Badge variant={getResultBadgeVariant(match.team1Score, match.team2Score)}>{getResultText(match.team1Score, match.team2Score)}</Badge>
                                                 </div>
                                                 {userProfile?.role === 'admin' && (
