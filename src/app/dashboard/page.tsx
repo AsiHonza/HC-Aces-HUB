@@ -24,7 +24,7 @@ function DashboardPageContent() {
   const [attendance, setAttendance] = useState('unknown');
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isScoringEditMode, setIsScoringEditMode] = useState(false);
-  const [isLeagueStandingsEditDialogOpen, setIsLeagueStandingsEditDialogOpen] = useState(false);
+  const [isLeagueEditMode, setIsLeagueEditMode] = useState(false);
 
   const player = {
     name,
@@ -63,6 +63,7 @@ function DashboardPageContent() {
     { rank: 4, name: 'Kometa', points: 35, gf: 95, ga: 105 },
     { rank: 5, name: 'Lvi', points: 30, gf: 90, ga: 110 },
   ]);
+  const [editableLeagueStandings, setEditableLeagueStandings] = useState(leagueStandings);
 
   const fallback = name.split(' ').map(n => n[0]).join('').toUpperCase()
 
@@ -77,19 +78,6 @@ function DashboardPageContent() {
     };
     setNextMatch(newMatchData);
     setIsEditDialogOpen(false);
-  };
-
-  const handleLeagueStandingsUpdate = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    try {
-      const newData = JSON.parse(formData.get('standingsData') as string);
-      setLeagueStandings(newData);
-      setIsLeagueStandingsEditDialogOpen(false);
-    } catch (error) {
-      console.error("Failed to parse league standings JSON", error);
-       // In a real app, you might want to show a toast notification here
-    }
   };
 
   const handleEditScoringClick = () => {
@@ -123,12 +111,42 @@ function DashboardPageContent() {
     );
   };
 
+  const handleEditLeagueClick = () => {
+    setEditableLeagueStandings(leagueStandings.map(t => ({...t})));
+    setIsLeagueEditMode(true);
+  };
+
+  const handleSaveLeague = () => {
+    setLeagueStandings(editableLeagueStandings);
+    setIsLeagueEditMode(false);
+  };
+
+  const handleCancelLeague = () => {
+    setIsLeagueEditMode(false);
+  };
+
+  const handleLeagueChange = (teamName: string, stat: 'points' | 'gf' | 'ga', delta: number) => {
+    setEditableLeagueStandings(currentStandings =>
+      currentStandings.map(t => {
+        if (t.name === teamName) {
+          const newStatValue = t[stat] + delta;
+          return {
+            ...t,
+            [stat]: Math.max(0, newStatValue),
+          };
+        }
+        return t;
+      })
+    );
+  };
+
   const scoringData = isScoringEditMode ? editableScoring : teamScoring;
   const sortedTeamScoring = [...scoringData]
     .sort((a, b) => b.points - a.points)
     .map((player, index) => ({ ...player, rank: index + 1 }));
-
-  const sortedLeagueStandings = [...leagueStandings]
+  
+  const leagueData = isLeagueEditMode ? editableLeagueStandings : leagueStandings;
+  const sortedLeagueStandings = [...leagueData]
     .sort((a, b) => b.points - a.points)
     .map((team, index) => ({ ...team, rank: index + 1 }));
 
@@ -335,35 +353,19 @@ function DashboardPageContent() {
                 <CardHeader className="flex-row items-center justify-between">
                     <CardTitle className="flex items-center gap-2 font-headline"><Shield className="text-primary"/>Tabulka soutěže</CardTitle>
                     {role === 'admin' && (
-                      <Dialog open={isLeagueStandingsEditDialogOpen} onOpenChange={setIsLeagueStandingsEditDialogOpen}>
-                        <DialogTrigger asChild>
-                          <Button variant="outline" size="icon">
+                      <div className="flex gap-2">
+                        {isLeagueEditMode ? (
+                          <>
+                            <Button variant="outline" onClick={handleCancelLeague}>Zrušit</Button>
+                            <Button onClick={handleSaveLeague}>Uložit</Button>
+                          </>
+                        ) : (
+                          <Button variant="outline" size="icon" onClick={handleEditLeagueClick}>
                             <Pencil className="h-4 w-4" />
                             <span className="sr-only">Upravit tabulku</span>
                           </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Upravit tabulku soutěže</DialogTitle>
-                            <DialogDescription>
-                              Upravte data v JSON formátu. Pořadí bude automaticky seřazeno.
-                            </DialogDescription>
-                          </DialogHeader>
-                          <form onSubmit={handleLeagueStandingsUpdate}>
-                            <div className="grid gap-4 py-4">
-                              <Textarea
-                                id="standingsData"
-                                name="standingsData"
-                                defaultValue={JSON.stringify(leagueStandings, null, 2)}
-                                className="col-span-4 h-64 font-mono text-xs"
-                              />
-                            </div>
-                            <DialogFooter>
-                              <Button type="submit">Uložit změny</Button>
-                            </DialogFooter>
-                          </form>
-                        </DialogContent>
-                      </Dialog>
+                        )}
+                      </div>
                     )}
                 </CardHeader>
                 <CardContent>
@@ -372,8 +374,9 @@ function DashboardPageContent() {
                             <TableRow>
                                 <TableHead className="w-[50px]">#</TableHead>
                                 <TableHead>Tým</TableHead>
-                                <TableHead>Skóre</TableHead>
-                                <TableHead className="text-right">B</TableHead>
+                                <TableHead className="text-center w-[120px]">B</TableHead>
+                                <TableHead className="text-center w-[120px]">GF</TableHead>
+                                <TableHead className="text-center w-[120px]">GA</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -381,8 +384,39 @@ function DashboardPageContent() {
                                 <TableRow key={team.name} className={team.name === 'Aces' ? 'bg-primary/10' : ''}>
                                     <TableCell className="font-medium">{team.rank}</TableCell>
                                     <TableCell>{team.name}</TableCell>
-                                    <TableCell className="font-mono text-xs">{team.gf}:{team.ga}</TableCell>
-                                    <TableCell className="text-right font-mono font-bold">{team.points}</TableCell>
+                                    <TableCell className="text-center font-mono">
+                                        {isLeagueEditMode ? (
+                                            <div className="flex items-center justify-center gap-2">
+                                                <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.name, 'points', -1)}><Minus className="h-4 w-4" /></Button>
+                                                <span className="w-8 text-center">{team.points}</span>
+                                                <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.name, 'points', 1)}><Plus className="h-4 w-4" /></Button>
+                                            </div>
+                                        ) : (
+                                            <span className="font-bold">{team.points}</span>
+                                        )}
+                                    </TableCell>
+                                    <TableCell className="text-center font-mono">
+                                        {isLeagueEditMode ? (
+                                            <div className="flex items-center justify-center gap-2">
+                                                <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.name, 'gf', -1)}><Minus className="h-4 w-4" /></Button>
+                                                <span className="w-8 text-center">{team.gf}</span>
+                                                <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.name, 'gf', 1)}><Plus className="h-4 w-4" /></Button>
+                                            </div>
+                                        ) : (
+                                            team.gf
+                                        )}
+                                    </TableCell>
+                                    <TableCell className="text-center font-mono">
+                                        {isLeagueEditMode ? (
+                                            <div className="flex items-center justify-center gap-2">
+                                                <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.name, 'ga', -1)}><Minus className="h-4 w-4" /></Button>
+                                                <span className="w-8 text-center">{team.ga}</span>
+                                                <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.name, 'ga', 1)}><Plus className="h-4 w-4" /></Button>
+                                            </div>
+                                        ) : (
+                                            team.ga
+                                        )}
+                                    </TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
