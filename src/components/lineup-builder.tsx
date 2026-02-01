@@ -1,11 +1,15 @@
 'use client'
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { DragDropContext, Droppable, Draggable, OnDragEndResponder } from '@hello-pangea/dnd';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { cn } from '@/lib/utils';
-import { Card, CardContent } from './ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from './ui/select';
+import { ScrollArea } from './ui/scroll-area';
+
 
 export interface Player {
   id: string;
@@ -20,7 +24,6 @@ export interface Lineup {
   LK2: Player | null; C2: Player | null; PK2: Player | null;
   LO2: Player | null; PO2: Player | null;
   B1: Player | null;
-  B2: Player | null;
 }
 
 export const initialLineup: Lineup = {
@@ -28,7 +31,7 @@ export const initialLineup: Lineup = {
   LO1: null, PO1: null,
   LK2: null, C2: null, PK2: null,
   LO2: null, PO2: null,
-  B1: null, B2: null,
+  B1: null,
 };
 
 const positionNames: Record<keyof Lineup, string> = {
@@ -36,7 +39,7 @@ const positionNames: Record<keyof Lineup, string> = {
     LO1: "Levý obránce (1)", PO1: "Pravý obránce (1)",
     LK2: "Levé křídlo (2)", C2: "Centr (2)", PK2: "Pravé křídlo (2)",
     LO2: "Levý obránce (2)", PO2: "Pravý obránce (2)",
-    B1: "Brankář (1)", B2: "Brankář (2)",
+    B1: "Brankář",
 }
 
 const RinkBackground = () => (
@@ -86,7 +89,8 @@ function getPlayersInLineup(lineup: Lineup): string[] {
 
 export function LineupBuilder({ players, initialData, onSave, onCancel }: { players: Player[], initialData?: Lineup | null, onSave: (lineup: Lineup) => void, onCancel: () => void }) {
   const [lineup, setLineup] = useState<Lineup>(initialData || initialLineup);
-
+  const isMobile = useIsMobile();
+  
   const [availablePlayers, setAvailablePlayers] = useState<Player[]>(() => {
     const playersInLineup = getPlayersInLineup(initialData || initialLineup);
     return players.filter(p => !playersInLineup.includes(p.id));
@@ -94,49 +98,34 @@ export function LineupBuilder({ players, initialData, onSave, onCancel }: { play
 
   const onDragEnd: OnDragEndResponder = (result) => {
     const { source, destination } = result;
-
     if (!destination) return;
-
     const sourceId = source.droppableId;
     const destId = destination.droppableId;
 
-    // Player from available to a position
     if (sourceId === 'availablePlayers' && destId.startsWith('pos-')) {
         const position = destId.split('-')[1] as keyof Lineup;
         const playerToMove = availablePlayers[source.index];
         const playerOnPosition = lineup[position];
-
         const newAvailable = availablePlayers.filter(p => p.id !== playerToMove.id);
-        if (playerOnPosition) {
-            newAvailable.push(playerOnPosition);
-        }
-
+        if (playerOnPosition) newAvailable.push(playerOnPosition);
         setLineup(prev => ({ ...prev, [position]: playerToMove }));
         setAvailablePlayers(newAvailable);
     }
-    // Player from a position to available
     else if (sourceId.startsWith('pos-') && destId === 'availablePlayers') {
         const position = sourceId.split('-')[1] as keyof Lineup;
         const playerToMove = lineup[position];
-
         if (!playerToMove) return;
-
         const newAvailable = [...availablePlayers];
         newAvailable.splice(destination.index, 0, playerToMove);
-
         setLineup(prev => ({ ...prev, [position]: null }));
         setAvailablePlayers(newAvailable);
     }
-    // Player from one position to another
     else if (sourceId.startsWith('pos-') && destId.startsWith('pos-')) {
         const sourcePosition = sourceId.split('-')[1] as keyof Lineup;
         const destPosition = destId.split('-')[1] as keyof Lineup;
-
         if (sourcePosition === destPosition) return;
-
         const sourcePlayer = lineup[sourcePosition];
         const destPlayer = lineup[destPosition];
-
         setLineup(prev => ({
             ...prev,
             [sourcePosition]: destPlayer,
@@ -144,6 +133,25 @@ export function LineupBuilder({ players, initialData, onSave, onCancel }: { play
         }));
     }
   };
+
+  const handlePlayerSelect = (position: keyof Lineup, playerId: string) => {
+    const playerCurrentlyOnPosition = lineup[position];
+    let newAvailablePlayers = [...availablePlayers];
+    if (playerCurrentlyOnPosition) {
+        newAvailablePlayers.push(playerCurrentlyOnPosition);
+    }
+    if (playerId === 'clear') {
+        setLineup(prev => ({ ...prev, [position]: null }));
+        setAvailablePlayers(newAvailablePlayers.sort((a,b) => a.name.localeCompare(b.name)));
+        return;
+    }
+    const playerToPlace = newAvailablePlayers.find(p => p.id === playerId);
+    if (!playerToPlace) return;
+    const finalAvailablePlayers = newAvailablePlayers.filter(p => p.id !== playerId);
+    setLineup(prev => ({ ...prev, [position]: playerToPlace }));
+    setAvailablePlayers(finalAvailablePlayers.sort((a,b) => a.name.localeCompare(b.name)));
+  };
+
 
   const PositionDropzone = ({ positionKey }: { positionKey: keyof Lineup }) => {
     const player = lineup[positionKey];
@@ -153,10 +161,7 @@ export function LineupBuilder({ players, initialData, onSave, onCancel }: { play
             <div
                 ref={provided.innerRef}
                 {...provided.droppableProps}
-                className={cn(
-                "h-20 w-48 rounded-lg border-2 border-dashed flex flex-col items-center justify-center transition-colors",
-                snapshot.isDraggingOver ? "border-primary bg-primary/20" : "border-muted-foreground/50 bg-background/50 backdrop-blur-sm"
-                )}
+                className={cn( "h-20 w-48 rounded-lg border-2 border-dashed flex flex-col items-center justify-center transition-colors", snapshot.isDraggingOver ? "border-primary bg-primary/20" : "border-muted-foreground/50 bg-background/50 backdrop-blur-sm" )}
             >
                 {player ? (
                     <Draggable draggableId={player.id} index={0}>
@@ -166,9 +171,7 @@ export function LineupBuilder({ players, initialData, onSave, onCancel }: { play
                             </div>
                         )}
                     </Draggable>
-                ): (
-                    <p className="text-muted-foreground font-semibold">{positionNames[positionKey]}</p>
-                )}
+                ): ( <p className="text-muted-foreground font-semibold">{positionNames[positionKey]}</p> )}
                 {provided.placeholder}
             </div>
             )}
@@ -176,7 +179,30 @@ export function LineupBuilder({ players, initialData, onSave, onCancel }: { play
     );
   }
 
-  return (
+  const MobilePositionSelector = ({ positionKey }: { positionKey: keyof Lineup }) => {
+    const player = lineup[positionKey];
+    return (
+        <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-muted-foreground">{positionNames[positionKey]}</label>
+            <Select onValueChange={(value) => handlePlayerSelect(positionKey, value)} value={player?.id || ''}>
+                <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Vybrat hráče...">
+                        {player ? player.name : 'Vybrat hráče...'}
+                    </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="clear" className="text-destructive">Vymazat výběr</SelectItem>
+                    <SelectSeparator />
+                    {availablePlayers.map(p => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+        </div>
+    )
+  }
+
+  const DesktopBuilder = () => (
     <DragDropContext onDragEnd={onDragEnd}>
         <div className="flex h-full gap-4">
             <Card className="w-64 flex flex-col">
@@ -187,10 +213,7 @@ export function LineupBuilder({ players, initialData, onSave, onCancel }: { play
                         <div
                             ref={provided.innerRef}
                             {...provided.droppableProps}
-                            className={cn(
-                                "p-2 rounded-lg bg-muted min-h-[500px] h-full overflow-y-auto space-y-2 transition-colors",
-                                snapshot.isDraggingOver && 'bg-primary/10'
-                            )}
+                            className={cn( "p-2 rounded-lg bg-muted min-h-[500px] h-full overflow-y-auto space-y-2 transition-colors", snapshot.isDraggingOver && 'bg-primary/10' )}
                         >
                             {availablePlayers.map((player, index) => (
                             <Draggable key={player.id} draggableId={player.id} index={index}>
@@ -207,49 +230,96 @@ export function LineupBuilder({ players, initialData, onSave, onCancel }: { play
                     </Droppable>
                 </CardContent>
             </Card>
-
-            <div className="flex-1 flex flex-col gap-4">
-                <div className="flex-1 relative rounded-lg overflow-hidden">
-                    <RinkBackground />
-                    <div className="relative z-10 h-full flex flex-col justify-around p-4">
-                        {/* Attacking Zone */}
-                        <div className="space-y-4">
-                           <div className="flex justify-around items-center">
-                                <PositionDropzone positionKey="LK1" />
-                                <PositionDropzone positionKey="C1" />
-                                <PositionDropzone positionKey="PK1" />
-                            </div>
-                             <div className="flex justify-around items-center">
-                                <PositionDropzone positionKey="LK2" />
-                                <PositionDropzone positionKey="C2" />
-                                <PositionDropzone positionKey="PK2" />
-                            </div>
-                        </div>
-                        {/* Defensive Zone */}
-                        <div className="space-y-4">
-                           <div className="flex justify-around items-center">
-                                <PositionDropzone positionKey="LO1" />
-                                <PositionDropzone positionKey="PO1" />
-                            </div>
-                            <div className="flex justify-around items-center">
-                                <PositionDropzone positionKey="LO2" />
-                                <PositionDropzone positionKey="PO2" />
-                            </div>
-                        </div>
-                        {/* Goalies */}
+            <div className="flex-1 relative rounded-lg overflow-hidden">
+                <RinkBackground />
+                <div className="relative z-10 h-full flex flex-col justify-around p-4">
+                    <div className="space-y-4">
                         <div className="flex justify-around items-center">
-                            <PositionDropzone positionKey="B1" />
-                            <PositionDropzone positionKey="B2" />
+                            <PositionDropzone positionKey="LK1" />
+                            <PositionDropzone positionKey="C1" />
+                            <PositionDropzone positionKey="PK1" />
+                        </div>
+                        <div className="flex justify-around items-center">
+                            <PositionDropzone positionKey="LK2" />
+                            <PositionDropzone positionKey="C2" />
+                            <PositionDropzone positionKey="PK2" />
                         </div>
                     </div>
-                </div>
-                <div className="flex justify-end gap-2 p-2">
-                    <Button variant="outline" onClick={onCancel}>Zrušit</Button>
-                    <Button onClick={() => onSave(lineup)}>Uložit sestavu</Button>
+                    <div className="space-y-4">
+                        <div className="flex justify-around items-center">
+                            <PositionDropzone positionKey="LO1" />
+                            <PositionDropzone positionKey="PO1" />
+                        </div>
+                        <div className="flex justify-around items-center">
+                            <PositionDropzone positionKey="LO2" />
+                            <PositionDropzone positionKey="PO2" />
+                        </div>
+                    </div>
+                    <div className="flex justify-around items-center">
+                        <PositionDropzone positionKey="B1" />
+                    </div>
                 </div>
             </div>
         </div>
     </DragDropContext>
+  )
+
+  const MobileBuilder = () => (
+    <div className="flex flex-col h-full p-2 gap-4">
+        <Card>
+            <CardHeader><CardTitle>Sestava</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+                <h4 className="font-semibold text-center">Útok</h4>
+                <MobilePositionSelector positionKey="LK1" />
+                <MobilePositionSelector positionKey="C1" />
+                <MobilePositionSelector positionKey="PK1" />
+                <MobilePositionSelector positionKey="LK2" />
+                <MobilePositionSelector positionKey="C2" />
+                <MobilePositionSelector positionKey="PK2" />
+                <h4 className="font-semibold text-center pt-4">Obrana</h4>
+                <MobilePositionSelector positionKey="LO1" />
+                <MobilePositionSelector positionKey="PO1" />
+                <MobilePositionSelector positionKey="LO2" />
+                <MobilePositionSelector positionKey="PO2" />
+                <h4 className="font-semibold text-center pt-4">Brankář</h4>
+                <MobilePositionSelector positionKey="B1" />
+            </CardContent>
+        </Card>
+        <Card className="flex-1 min-h-0">
+             <CardHeader><CardTitle>Dostupní hráči</CardTitle></CardHeader>
+             <CardContent>
+                <ScrollArea className="h-48">
+                    <div className="space-y-2">
+                        {availablePlayers.map(p => (
+                            <div key={p.id} className="flex items-center gap-2 p-2 bg-muted rounded-md">
+                                <Avatar className="h-8 w-8">
+                                    <AvatarImage src={`https://picsum.photos/seed/${p.email}/100/100`} data-ai-hint="player portrait" alt={p.name} />
+                                    <AvatarFallback>{p.name.split(' ').map(n=>n[0]).join('')}</AvatarFallback>
+                                </Avatar>
+                                <div>
+                                    <p className="font-medium text-sm leading-tight">{p.name}</p>
+                                    {p.jerseyNumber != null && <p className="text-xs text-muted-foreground">#{p.jerseyNumber}</p>}
+                                </div>
+                            </div>
+                        ))}
+                         {availablePlayers.length === 0 && <p className="text-sm text-muted-foreground text-center">Všichni hráči jsou v sestavě.</p>}
+                    </div>
+                </ScrollArea>
+             </CardContent>
+        </Card>
+    </div>
+  )
+
+  return (
+    <div className="flex h-full flex-col">
+        <div className="flex-1 overflow-auto">
+            {isMobile ? <MobileBuilder /> : <DesktopBuilder />}
+        </div>
+        <div className="flex-shrink-0 flex justify-end gap-2 p-4 border-t">
+            <Button variant="outline" onClick={onCancel}>Zrušit</Button>
+            <Button onClick={() => onSave(lineup)}>Uložit sestavu</Button>
+        </div>
+    </div>
   );
 }
 
@@ -269,7 +339,6 @@ export function LineupDisplay({ lineup }: { lineup: Lineup }) {
         <div className="flex-1 relative rounded-lg overflow-hidden">
             <RinkBackground />
             <div className="relative z-10 h-full flex flex-col justify-around p-4">
-                 {/* Attacking Zone */}
                 <div className="space-y-4">
                     <div className="flex justify-around items-center">
                         <PositionDisplay positionKey="LK1" />
@@ -282,7 +351,6 @@ export function LineupDisplay({ lineup }: { lineup: Lineup }) {
                         <PositionDisplay positionKey="PK2" />
                     </div>
                 </div>
-                {/* Defensive Zone */}
                 <div className="space-y-4">
                     <div className="flex justify-around items-center">
                         <PositionDisplay positionKey="LO1" />
@@ -293,10 +361,8 @@ export function LineupDisplay({ lineup }: { lineup: Lineup }) {
                         <PositionDisplay positionKey="PO2" />
                     </div>
                 </div>
-                {/* Goalies */}
                 <div className="flex justify-around items-center">
                     <PositionDisplay positionKey="B1" />
-                    <PositionDisplay positionKey="B2" />
                 </div>
             </div>
         </div>
