@@ -11,7 +11,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar, MapPin, Users, Trophy, BarChart, Sword, Pencil, Check, X, Flame, Shield, Plus, Minus, Loader2, Trash2, ClipboardEdit, History } from "lucide-react"
+import { Calendar as CalendarIcon, MapPin, Users, Trophy, BarChart, Sword, Pencil, Check, X, Flame, Shield, Plus, Minus, Loader2, Trash2, ClipboardEdit, History } from "lucide-react"
 import { cn } from '@/lib/utils'
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase'
 import { doc, collection, collectionGroup, updateDoc, query, Timestamp, addDoc, deleteDoc, writeBatch, orderBy, where, limit } from 'firebase/firestore'
@@ -19,6 +19,8 @@ import { format } from 'date-fns'
 import { cs } from 'date-fns/locale'
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel'
 import Link from 'next/link'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Calendar } from '@/components/ui/calendar'
 
 // Types based on backend.json
 interface UserProfile {
@@ -113,8 +115,19 @@ function DashboardPageContent() {
   const [isResultDialogOpen, setIsResultDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
 
+  const [addMatchDate, setAddMatchDate] = useState<Date | undefined>(new Date());
+  const [editMatchDate, setEditMatchDate] = useState<Date | undefined>();
+
   const [isScoringEditMode, setIsScoringEditMode] = useState(false);
   const [isLeagueEditMode, setIsLeagueEditMode] = useState(false);
+
+  useEffect(() => {
+    if (isEditDialogOpen && selectedMatch) {
+        setEditMatchDate(selectedMatch.dateTime.toDate());
+    } else if (!isAddDialogOpen) {
+      setAddMatchDate(new Date());
+    }
+  }, [isEditDialogOpen, selectedMatch, isAddDialogOpen]);
   
   // Fetch current user's profile and stats
   const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
@@ -219,15 +232,16 @@ function DashboardPageContent() {
   
   const handleMatchUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!selectedMatch || !firestore) return;
+    if (!selectedMatch || !firestore || !editMatchDate) return;
 
     const formData = new FormData(e.currentTarget);
-    const dateStr = formData.get('date') as string;
     const timeStr = formData.get('time') as string;
     
-    const [day, month, year] = dateStr.split('.').map(Number);
     const [hours, minutes] = timeStr.split(':').map(Number);
-    const newDateTime = new Date(year, month - 1, day, hours, minutes);
+
+    const newDateTime = new Date(editMatchDate);
+    newDateTime.setHours(hours);
+    newDateTime.setMinutes(minutes);
 
     const updatedData = {
         team2: formData.get('opponent') as string, // Assuming Aces is always team1 for simplicity
@@ -243,15 +257,16 @@ function DashboardPageContent() {
 
   const handleMatchAdd = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!firestore) return;
+    if (!firestore || !addMatchDate) return;
 
     const formData = new FormData(e.currentTarget);
-    const dateStr = formData.get('date') as string;
     const timeStr = formData.get('time') as string;
     
-    const [day, month, year] = dateStr.split('.').map(Number);
     const [hours, minutes] = timeStr.split(':').map(Number);
-    const newDateTime = new Date(year, month - 1, day, hours, minutes);
+    
+    const newDateTime = new Date(addMatchDate);
+    newDateTime.setHours(hours);
+    newDateTime.setMinutes(minutes);
 
     const newMatchData = {
         team1: 'Aces',
@@ -476,8 +491,18 @@ function DashboardPageContent() {
                           <Input id="opponent-add" name="opponent" className="col-span-3" required />
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="date-add" className="text-right">Datum</Label>
-                          <Input id="date-add" name="date" defaultValue={format(new Date(), 'dd.MM.yyyy')} className="col-span-3" required />
+                          <Label className="text-right">Datum</Label>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button variant={"outline"} className={cn("col-span-3 justify-start text-left font-normal", !addMatchDate && "text-muted-foreground")}>
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {addMatchDate ? format(addMatchDate, "dd.MM.yyyy") : <span>Vyberte datum</span>}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                              <Calendar mode="single" selected={addMatchDate} onSelect={setAddMatchDate} initialFocus />
+                            </PopoverContent>
+                          </Popover>
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                           <Label htmlFor="time-add" className="text-right">Čas</Label>
@@ -541,7 +566,7 @@ function DashboardPageContent() {
                             <div className="md:col-span-2 text-center md:text-left">
                             <p className="text-lg text-muted-foreground">Kdy a kde</p>
                             <p className="text-xl font-semibold flex items-center gap-2 justify-center md:justify-start mt-1">
-                                <Calendar /> {format(match.dateTime.toDate(), "EEEE, d. MMMM yyyy", { locale: cs })} - {format(match.dateTime.toDate(), 'HH:mm')}
+                                <CalendarIcon /> {format(match.dateTime.toDate(), "EEEE, d. MMMM yyyy", { locale: cs })} - {format(match.dateTime.toDate(), 'HH:mm')}
                             </p>
                             <p className="text-lg flex items-center gap-2 text-muted-foreground justify-center md:justify-start mt-1"><MapPin /> {match.location}</p>
                             </div>
@@ -773,8 +798,18 @@ function DashboardPageContent() {
                           <Input id="opponent" name="opponent" defaultValue={selectedMatch.team1 === 'Aces' ? selectedMatch.team2 : selectedMatch.team1} className="col-span-3" />
                       </div>
                       <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="date" className="text-right">Datum</Label>
-                          <Input id="date" name="date" defaultValue={format(selectedMatch.dateTime.toDate(), 'dd.MM.yyyy')} className="col-span-3" />
+                          <Label className="text-right">Datum</Label>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button variant={"outline"} className={cn("col-span-3 justify-start text-left font-normal", !editMatchDate && "text-muted-foreground")}>
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {editMatchDate ? format(editMatchDate, "dd.MM.yyyy", { locale: cs }) : <span>Vyberte datum</span>}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                              <Calendar mode="single" selected={editMatchDate} onSelect={setEditMatchDate} initialFocus />
+                            </PopoverContent>
+                          </Popover>
                       </div>
                       <div className="grid grid-cols-4 items-center gap-4">
                           <Label htmlFor="time" className="text-right">Čas</Label>
