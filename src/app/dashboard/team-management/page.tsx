@@ -48,6 +48,7 @@ function TeamManagementContent() {
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
 
   const role = searchParams.get('role')
 
@@ -74,11 +75,9 @@ function TeamManagementContent() {
   }
 
   const confirmDelete = async () => {
-    if (!selectedUser || !firestore) {
-      setIsDeleteDialogOpen(false)
-      return;
-    }
+    if (!selectedUser || !firestore) return;
     
+    setIsSaving(true);
     const userDocRef = doc(firestore, 'users', selectedUser.id);
     try {
       await deleteDoc(userDocRef);
@@ -93,6 +92,7 @@ function TeamManagementContent() {
         description: `Nepodařilo se smazat uživatele: ${error.message}`,
       })
     } finally {
+      setIsSaving(false);
       setIsDeleteDialogOpen(false)
       setSelectedUser(null)
     }
@@ -121,12 +121,9 @@ function TeamManagementContent() {
   
   const handleUpdateUser = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!selectedUser || !firestore) {
-        setIsEditDialogOpen(false);
-        setSelectedUser(null);
-        return;
-    };
+    if (!selectedUser || !firestore) return;
 
+    setIsSaving(true);
     const formData = new FormData(e.currentTarget);
     const updatedData: Partial<UserProfile> = {
         name: formData.get('name') as string,
@@ -151,6 +148,7 @@ function TeamManagementContent() {
           description: `Nepodařilo se aktualizovat profil: ${error.message}`,
       });
     } finally {
+        setIsSaving(false);
         setIsEditDialogOpen(false);
         setSelectedUser(null);
     }
@@ -260,7 +258,7 @@ function TeamManagementContent() {
       </Card>
       
       {/* Edit Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+      <Dialog open={isEditDialogOpen} onOpenChange={(open) => !isSaving && setIsEditDialogOpen(open)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Upravit uživatele</DialogTitle>
@@ -306,8 +304,11 @@ function TeamManagementContent() {
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>Zrušit</Button>
-                  <Button type="submit">Uložit změny</Button>
+                  <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={isSaving}>Zrušit</Button>
+                  <Button type="submit" disabled={isSaving}>
+                    {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Uložit změny
+                  </Button>
                 </DialogFooter>
               </form>
           )}
@@ -315,7 +316,7 @@ function TeamManagementContent() {
       </Dialog>
 
       {/* Delete Alert Dialog */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={(open) => !isSaving && setIsDeleteDialogOpen(open)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Opravdu chcete smazat tohoto uživatele?</AlertDialogTitle>
@@ -324,8 +325,11 @@ function TeamManagementContent() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Zrušit</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-destructive hover:bg-destructive/90">Smazat</AlertDialogAction>
+            <AlertDialogCancel disabled={isSaving}>Zrušit</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive hover:bg-destructive/90" disabled={isSaving}>
+               {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Smazat
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -340,5 +344,3 @@ export default function TeamManagementPage() {
         </Suspense>
     )
 }
-
-    
