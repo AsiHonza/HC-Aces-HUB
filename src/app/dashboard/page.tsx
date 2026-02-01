@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Calendar as CalendarIcon, MapPin, Users, Trophy, BarChart, Sword, Pencil, Check, X, Flame, Shield, Plus, Minus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal } from "lucide-react"
@@ -58,7 +58,7 @@ interface Match {
   team1: string;
   team2: string;
   isPlayed: boolean;
-  isPlayoffMatch?: boolean;
+  type: 'regular' | 'playoff' | 'friendly';
   team1Score?: number;
   team2Score?: number;
   scorers?: { goal: string; assist: string | null }[];
@@ -342,7 +342,7 @@ function DashboardPageContent() {
                 const newUrl = new URL(window.location.href);
                 newUrl.searchParams.delete('matchId');
                 window.history.replaceState({}, '', newUrl);
-            }, 2500);
+            }, 3000);
         }
     }, 200);
 
@@ -521,6 +521,7 @@ function DashboardPageContent() {
           location: formData.get('location') as string,
           dateTime: Timestamp.fromDate(newDateTime),
           isPlayed: false,
+          type: formData.get('type') as 'regular' | 'playoff' | 'friendly',
           team1Score: null,
           team2Score: null,
           scorers: [],
@@ -567,53 +568,52 @@ function DashboardPageContent() {
         team1Score,
         team2Score,
         scorers: scorersData,
-        isPlayoffMatch: isScoringInPlayoffMode,
     });
 
-    const goalsField = isScoringInPlayoffMode ? 'playoffGoals' : 'seasonGoals';
-    const assistsField = isScoringInPlayoffMode ? 'playoffAssists' : 'seasonAssists';
-    const gamesPlayedField = isScoringInPlayoffMode ? 'playoffGamesPlayed' : 'seasonGamesPlayed';
+    if (selectedMatch.type !== 'friendly') {
+        const goalsField = selectedMatch.type === 'playoff' ? 'playoffGoals' : 'seasonGoals';
+        const assistsField = selectedMatch.type === 'playoff' ? 'playoffAssists' : 'seasonAssists';
+        const gamesPlayedField = selectedMatch.type === 'playoff' ? 'playoffGamesPlayed' : 'seasonGamesPlayed';
 
+        // 2. Tally up goals and assists for each player
+        const playerStatUpdates = new Map<string, { goals: number, assists: number }>();
+        scorersData.forEach(s => {
+            if (s.goal) {
+                const current = playerStatUpdates.get(s.goal) || { goals: 0, assists: 0 };
+                playerStatUpdates.set(s.goal, { ...current, goals: current.goals + 1 });
+            }
+            if (s.assist) {
+                const current = playerStatUpdates.get(s.assist) || { goals: 0, assists: 0 };
+                playerStatUpdates.set(s.assist, { ...current, assists: current.assists + 1 });
+            }
+        });
 
-    // 2. Tally up goals and assists for each player
-    const playerStatUpdates = new Map<string, { goals: number, assists: number }>();
-    scorersData.forEach(s => {
-        if (s.goal) {
-            const current = playerStatUpdates.get(s.goal) || { goals: 0, assists: 0 };
-            playerStatUpdates.set(s.goal, { ...current, goals: current.goals + 1 });
+        const allStatsMap = new Map(allStats.map(s => [s.userProfileId, s]));
+
+        // 3. Create batch updates for player goals/assists
+        for (const [userId, updates] of playerStatUpdates.entries()) {
+            const userStats = allStatsMap.get(userId);
+            if (userStats) {
+                const statDocRef = doc(firestore, 'users', userId, 'playerStats', userStats.id);
+                const update: any = {};
+                update[goalsField] = (userStats[goalsField] || 0) + updates.goals;
+                update[assistsField] = (userStats[assistsField] || 0) + updates.assists;
+                batch.update(statDocRef, update);
+            }
         }
-        if (s.assist) {
-            const current = playerStatUpdates.get(s.assist) || { goals: 0, assists: 0 };
-            playerStatUpdates.set(s.assist, { ...current, assists: current.assists + 1 });
-        }
-    });
 
-    const allStatsMap = new Map(allStats.map(s => [s.userProfileId, s]));
-
-    // 3. Create batch updates for player goals/assists
-    for (const [userId, updates] of playerStatUpdates.entries()) {
-        const userStats = allStatsMap.get(userId);
-        if (userStats) {
-             const statDocRef = doc(firestore, 'users', userId, 'playerStats', userStats.id);
-             const update: any = {};
-             update[goalsField] = (userStats[goalsField] || 0) + updates.goals;
-             update[assistsField] = (userStats[assistsField] || 0) + updates.assists;
-            batch.update(statDocRef, update);
-        }
+        // 4. Update games played for attendees
+        const matchAttendees = attendancesByMatch.get(selectedMatch.id) || [];
+        matchAttendees.forEach(att => {
+            const userStats = allStatsMap.get(att.userId);
+            if (att.status === 'going' && userStats) {
+                const statDocRef = doc(firestore, 'users', att.userId, 'playerStats', userStats.id);
+                const update: any = {};
+                update[gamesPlayedField] = (userStats[gamesPlayedField] || 0) + 1;
+                batch.update(statDocRef, update);
+            }
+        });
     }
-
-    // 4. Update games played for attendees
-    const matchAttendees = attendancesByMatch.get(selectedMatch.id) || [];
-    matchAttendees.forEach(att => {
-        const userStats = allStatsMap.get(att.userId);
-        if (att.status === 'going' && userStats) {
-            const statDocRef = doc(firestore, 'users', att.userId, 'playerStats', userStats.id);
-            const update: any = {};
-            update[gamesPlayedField] = (userStats[gamesPlayedField] || 0) + 1;
-            batch.update(statDocRef, update);
-        }
-    });
-
 
     await batch.commit();
     toast({ title: "Výsledek uložen", description: "Statistiky hráčů byly aktualizovány." });
@@ -933,6 +933,19 @@ function DashboardPageContent() {
                         <div className="grid grid-cols-4 items-center gap-4">
                           <Label htmlFor="location-add" className="text-right">Místo</Label>
                           <Input id="location-add" name="location" className="col-span-3" required />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="type-add" className="text-right">Typ zápasu</Label>
+                            <Select name="type" required defaultValue="regular">
+                                <SelectTrigger className="col-span-3">
+                                    <SelectValue placeholder="Vyberte typ" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="regular">Základní část</SelectItem>
+                                    <SelectItem value="playoff">Play-off</SelectItem>
+                                    <SelectItem value="friendly">Přátelský</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
                       </div>
                       <DialogFooter>

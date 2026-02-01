@@ -25,7 +25,7 @@ interface Match {
   team1: string;
   team2: string;
   isPlayed: boolean;
-  isPlayoffMatch?: boolean;
+  type: 'regular' | 'playoff' | 'friendly';
   team1Score?: number;
   team2Score?: number;
   scorers?: { goal: string; assist: string | null }[];
@@ -193,57 +193,58 @@ function HistoryPageContent() {
         if (!selectedMatch || !firestore || !allStats) return;
     
         const batch = writeBatch(firestore);
-        const isPlayoff = !!selectedMatch.isPlayoffMatch;
+        const matchType = selectedMatch.type;
         
-        // Revert goals and assists
-        const statsToRevert = new Map<string, { goals: number, assists: number }>();
-        selectedMatch.scorers?.forEach(scorer => {
-            if (scorer.goal) {
-                const current = statsToRevert.get(scorer.goal) || { goals: 0, assists: 0 };
-                statsToRevert.set(scorer.goal, { ...current, goals: current.goals + 1 });
-            }
-            if (scorer.assist) {
-                const current = statsToRevert.get(scorer.assist) || { goals: 0, assists: 0 };
-                statsToRevert.set(scorer.assist, { ...current, assists: current.assists + 1 });
-            }
-        });
-    
-        const allStatsMap = new Map(allStats.map(s => [s.userProfileId, s]));
-        for (const [userId, revert] of statsToRevert.entries()) {
-            const userStats = allStatsMap.get(userId);
-            if (userStats) {
-                const statDocRef = doc(firestore, 'users', userId, 'playerStats', userStats.id);
-                const update: any = {};
-                if (isPlayoff) {
-                    update.playoffGoals = Math.max(0, (userStats.playoffGoals || 0) - revert.goals);
-                    update.playoffAssists = Math.max(0, (userStats.playoffAssists || 0) - revert.assists);
-                } else {
-                    update.seasonGoals = Math.max(0, (userStats.seasonGoals || 0) - revert.goals);
-                    update.seasonAssists = Math.max(0, (userStats.seasonAssists || 0) - revert.assists);
+        if (matchType !== 'friendly') {
+            // Revert goals and assists
+            const statsToRevert = new Map<string, { goals: number, assists: number }>();
+            selectedMatch.scorers?.forEach(scorer => {
+                if (scorer.goal) {
+                    const current = statsToRevert.get(scorer.goal) || { goals: 0, assists: 0 };
+                    statsToRevert.set(scorer.goal, { ...current, goals: current.goals + 1 });
                 }
-                batch.update(statDocRef, update);
+                if (scorer.assist) {
+                    const current = statsToRevert.get(scorer.assist) || { goals: 0, assists: 0 };
+                    statsToRevert.set(scorer.assist, { ...current, assists: current.assists + 1 });
+                }
+            });
+        
+            const allStatsMap = new Map(allStats.map(s => [s.userProfileId, s]));
+            for (const [userId, revert] of statsToRevert.entries()) {
+                const userStats = allStatsMap.get(userId);
+                if (userStats) {
+                    const statDocRef = doc(firestore, 'users', userId, 'playerStats', userStats.id);
+                    const update: any = {};
+                    if (matchType === 'playoff') {
+                        update.playoffGoals = Math.max(0, (userStats.playoffGoals || 0) - revert.goals);
+                        update.playoffAssists = Math.max(0, (userStats.playoffAssists || 0) - revert.assists);
+                    } else {
+                        update.seasonGoals = Math.max(0, (userStats.seasonGoals || 0) - revert.goals);
+                        update.seasonAssists = Math.max(0, (userStats.seasonAssists || 0) - revert.assists);
+                    }
+                    batch.update(statDocRef, update);
+                }
             }
+            
+            // Revert games played
+            const matchAttendees = attendancesByMatch.get(selectedMatch.id) || [];
+            matchAttendees.forEach(att => {
+                const userStats = allStatsMap.get(att.userId);
+                if (att.status === 'going' && userStats) {
+                    const statDocRef = doc(firestore, 'users', att.userId, 'playerStats', userStats.id);
+                    if (matchType === 'playoff') {
+                        batch.update(statDocRef, {
+                            playoffGamesPlayed: Math.max(0, (userStats.playoffGamesPlayed || 0) - 1)
+                        });
+                    } else {
+                        batch.update(statDocRef, {
+                            seasonGamesPlayed: Math.max(0, (userStats.seasonGamesPlayed || 0) - 1)
+                        });
+                    }
+                }
+            });
         }
-        
-        // Revert games played
-        const matchAttendees = attendancesByMatch.get(selectedMatch.id) || [];
-        matchAttendees.forEach(att => {
-            const userStats = allStatsMap.get(att.userId);
-            if (att.status === 'going' && userStats) {
-                const statDocRef = doc(firestore, 'users', att.userId, 'playerStats', userStats.id);
-                if (isPlayoff) {
-                    batch.update(statDocRef, {
-                        playoffGamesPlayed: Math.max(0, (userStats.playoffGamesPlayed || 0) - 1)
-                    });
-                } else {
-                    batch.update(statDocRef, {
-                        seasonGamesPlayed: Math.max(0, (userStats.seasonGamesPlayed || 0) - 1)
-                    });
-                }
-            }
-        });
 
-    
         const matchRef = doc(firestore, 'matches', selectedMatch.id);
         batch.delete(matchRef);
     
@@ -262,7 +263,7 @@ function HistoryPageContent() {
         e.preventDefault();
         if (!selectedMatch || !firestore || !allStats || !users) return;
 
-        const isPlayoff = !!selectedMatch.isPlayoffMatch;
+        const matchType = selectedMatch.type;
 
         const formData = new FormData(e.currentTarget);
         const team1Score = parseInt(formData.get('team1Score') as string, 10);
@@ -281,46 +282,49 @@ function HistoryPageContent() {
         }
 
         const batch = writeBatch(firestore);
-        const statsDiff = new Map<string, { goals: number, assists: number }>();
 
-        // Revert old stats
-        selectedMatch.scorers?.forEach(scorer => {
-            if (scorer.goal) {
-                const current = statsDiff.get(scorer.goal) || { goals: 0, assists: 0 };
-                statsDiff.set(scorer.goal, { ...current, goals: current.goals - 1 });
-            }
-            if (scorer.assist) {
-                const current = statsDiff.get(scorer.assist) || { goals: 0, assists: 0 };
-                statsDiff.set(scorer.assist, { ...current, assists: current.assists - 1 });
-            }
-        });
+        if (matchType !== 'friendly') {
+            const statsDiff = new Map<string, { goals: number, assists: number }>();
 
-        // Apply new stats
-        newScorersData.forEach(scorer => {
-            if (scorer.goal) {
-                const current = statsDiff.get(scorer.goal) || { goals: 0, assists: 0 };
-                statsDiff.set(scorer.goal, { ...current, goals: current.goals + 1 });
-            }
-            if (scorer.assist) {
-                const current = statsDiff.get(scorer.assist) || { goals: 0, assists: 0 };
-                statsDiff.set(scorer.assist, { ...current, assists: current.assists + 1 });
-            }
-        });
-
-        const allStatsMap = new Map(allStats.map(s => [s.userProfileId, s]));
-        for (const [userId, diff] of statsDiff.entries()) {
-            const userStats = allStatsMap.get(userId);
-            if (userStats) {
-                const statDocRef = doc(firestore, 'users', userId, 'playerStats', userStats.id);
-                const update: any = {};
-                if (isPlayoff) {
-                    update.playoffGoals = Math.max(0, (userStats.playoffGoals || 0) + diff.goals);
-                    update.playoffAssists = Math.max(0, (userStats.playoffAssists || 0) + diff.assists);
-                } else {
-                    update.seasonGoals = Math.max(0, (userStats.seasonGoals || 0) + diff.goals);
-                    update.seasonAssists = Math.max(0, (userStats.seasonAssists || 0) + diff.assists);
+            // Revert old stats
+            selectedMatch.scorers?.forEach(scorer => {
+                if (scorer.goal) {
+                    const current = statsDiff.get(scorer.goal) || { goals: 0, assists: 0 };
+                    statsDiff.set(scorer.goal, { ...current, goals: current.goals - 1 });
                 }
-                batch.update(statDocRef, update);
+                if (scorer.assist) {
+                    const current = statsDiff.get(scorer.assist) || { goals: 0, assists: 0 };
+                    statsDiff.set(scorer.assist, { ...current, assists: current.assists - 1 });
+                }
+            });
+
+            // Apply new stats
+            newScorersData.forEach(scorer => {
+                if (scorer.goal) {
+                    const current = statsDiff.get(scorer.goal) || { goals: 0, assists: 0 };
+                    statsDiff.set(scorer.goal, { ...current, goals: current.goals + 1 });
+                }
+                if (scorer.assist) {
+                    const current = statsDiff.get(scorer.assist) || { goals: 0, assists: 0 };
+                    statsDiff.set(scorer.assist, { ...current, assists: current.assists + 1 });
+                }
+            });
+
+            const allStatsMap = new Map(allStats.map(s => [s.userProfileId, s]));
+            for (const [userId, diff] of statsDiff.entries()) {
+                const userStats = allStatsMap.get(userId);
+                if (userStats) {
+                    const statDocRef = doc(firestore, 'users', userId, 'playerStats', userStats.id);
+                    const update: any = {};
+                    if (matchType === 'playoff') {
+                        update.playoffGoals = Math.max(0, (userStats.playoffGoals || 0) + diff.goals);
+                        update.playoffAssists = Math.max(0, (userStats.playoffAssists || 0) + diff.assists);
+                    } else {
+                        update.seasonGoals = Math.max(0, (userStats.seasonGoals || 0) + diff.goals);
+                        update.seasonAssists = Math.max(0, (userStats.seasonAssists || 0) + diff.assists);
+                    }
+                    batch.update(statDocRef, update);
+                }
             }
         }
 
@@ -363,6 +367,14 @@ function HistoryPageContent() {
         return 'Remíza';
     }
 
+    const renderMatchTypeBadge = (type: Match['type']) => {
+        switch (type) {
+            case 'playoff': return <Badge variant="outline">Playoff</Badge>;
+            case 'friendly': return <Badge variant="secondary">Přátelský</Badge>;
+            default: return null;
+        }
+    }
+
 
     return (
         <div className="p-4 sm:p-6 lg:p-8">
@@ -379,14 +391,14 @@ function HistoryPageContent() {
                                     <AccordionTrigger className="hover:no-underline text-left">
                                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full pr-2 gap-y-1 gap-x-2">
                                             <div className="flex-1 min-w-0">
-                                                <p className="text-xs text-muted-foreground">{format(match.dateTime.toDate(), "d.M.yy", { locale: cs })}</p>
+                                                <p className="text-xs text-muted-foreground">{format(match.dateTime.toDate(), "d. M. yyyy", { locale: cs })}</p>
                                                 <p className="font-semibold truncate">{match.team1} vs {match.team2}</p>
                                             </div>
                                             <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-sm sm:text-base font-bold font-mono">{match.team1Score} : {match.team2Score}</span>
                                                     <Badge variant={getResultBadgeVariant(match.team1Score, match.team2Score)}>{getResultText(match.team1Score, match.team2Score)}</Badge>
-                                                    {match.isPlayoffMatch && <Badge variant="outline">Playoff</Badge>}
+                                                    {renderMatchTypeBadge(match.type)}
                                                 </div>
                                                 {userProfile?.role === 'admin' && (
                                                     <DropdownMenu>
