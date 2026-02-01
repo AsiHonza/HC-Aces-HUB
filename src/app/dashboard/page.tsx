@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar as CalendarIcon, MapPin, Users, Trophy, BarChart, Sword, Pencil, Check, X, Flame, Shield, Plus, Minus, Loader2, Trash2, ClipboardEdit, History } from "lucide-react"
 import { cn } from '@/lib/utils'
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase'
-import { doc, collection, collectionGroup, updateDoc, query, Timestamp, addDoc, deleteDoc, writeBatch, orderBy, where, limit } from 'firebase/firestore'
+import { doc, collection, collectionGroup, updateDoc, query, Timestamp, addDoc, deleteDoc, writeBatch, orderBy, where, limit, setDoc } from 'firebase/firestore'
 import { format } from 'date-fns'
 import { cs } from 'date-fns/locale'
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel'
@@ -48,6 +48,13 @@ interface Match {
   team1Score?: number;
   team2Score?: number;
   scorers?: { goal: string; assist: string | null }[];
+}
+
+interface Attendance {
+    id: string; // userId, as it's the doc id
+    userId: string;
+    matchId: string;
+    status: 'going' | 'not-going' | 'unknown';
 }
 
 function RecordResultForm({ match, allUsers, onSave, onCancel }: { match: Match, allUsers: UserProfile[], onSave: (e: React.FormEvent<HTMLFormElement>) => Promise<void>, onCancel: () => void }) {
@@ -106,7 +113,6 @@ function DashboardPageContent() {
   const { user, isUserLoading } = useUser()
   const firestore = useFirestore()
   
-  const [attendances, setAttendances] = useState<Record<string, string>>({});
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -145,6 +151,40 @@ function DashboardPageContent() {
 
   const allStatsRef = useMemoFirebase(() => firestore ? collectionGroup(firestore, 'playerStats'): null, [firestore]);
   const { data: allStats, isLoading: areStatsLoading } = useCollection<PlayerStats>(allStatsRef);
+
+  // Fetch attendances for upcoming matches
+  const upcomingMatchIds = useMemo(() => upcomingMatches.map(m => m.id), [upcomingMatches]);
+  const attendancesQuery = useMemoFirebase(() => {
+    if (!firestore || upcomingMatchIds.length === 0) return null;
+    return query(collectionGroup(firestore, 'attendees'), where('matchId', 'in', upcomingMatchIds));
+  }, [firestore, upcomingMatchIds]);
+  const { data: allAttendances, isLoading: attendancesLoading } = useCollection<Attendance>(attendancesQuery);
+
+  const attendancesByMatch = useMemo(() => {
+    if (!allAttendances) return new Map<string, Attendance[]>();
+    const map = new Map<string, Attendance[]>();
+    allAttendances.forEach(att => {
+        if (!map.has(att.matchId)) {
+            map.set(att.matchId, []);
+        }
+        map.get(att.matchId)!.push(att);
+    });
+    return map;
+  }, [allAttendances]);
+
+  const userAttendances = useMemo(() => {
+    if (!allAttendances || !user) return new Map<string, 'going' | 'not-going' | 'unknown'>();
+    const map = new Map<string, 'going' | 'not-going' | 'unknown'>();
+    allAttendances.filter(att => att.userId === user.uid).forEach(att => {
+        map.set(att.matchId, att.status);
+    });
+    return map;
+  }, [allAttendances, user]);
+
+  const usersMap = useMemo(() => {
+    if (!allUsers) return new Map<string, UserProfile>();
+    return new Map(allUsers.map(u => [u.id, u]));
+  }, [allUsers]);
   
   const teamScoring = useMemo(() => {
     if (!allUsers || !allStats) return [];
@@ -175,7 +215,7 @@ function DashboardPageContent() {
   ]);
   const [editableLeagueStandings, setEditableLeagueStandings] = useState(leagueStandings);
 
-  const isLoading = isUserLoading || isUserProfileLoading || isPlayerStatsLoading || areMatchesLoading || areUsersLoading || areStatsLoading;
+  const isLoading = isUserLoading || isUserProfileLoading || isPlayerStatsLoading || areMatchesLoading || areUsersLoading || areStatsLoading || attendancesLoading;
 
   const handleEditMatch = (match: Match) => {
     setSelectedMatch(match);
@@ -198,6 +238,16 @@ function DashboardPageContent() {
     await deleteDoc(matchRef);
     setIsDeleteDialogOpen(false);
     setSelectedMatch(null);
+  };
+
+  const handleAttendanceChange = (matchId: string, status: 'going' | 'not-going') => {
+    if (!user || !firestore) return;
+    const attendanceRef = doc(firestore, 'matches', matchId, 'attendees', user.uid);
+    setDoc(attendanceRef, {
+        userId: user.uid,
+        matchId,
+        status,
+    }, { merge: true });
   };
 
   if (isLoading) {
@@ -503,7 +553,9 @@ function DashboardPageContent() {
               <CarouselContent>
                 {upcomingMatches.map((match) => {
                   const opponent = match.team1 === 'Aces' ? match.team2 : match.team1;
-                  const attendance = attendances[match.id] || 'unknown';
+                  const attendance = userAttendances.get(match.id) || 'unknown';
+                  const attendeesForMatch = (attendancesByMatch.get(match.id) || []).filter(a => a.status === 'going');
+                  const attendeeCount = attendeesForMatch.length;
 
                   return (
                     <CarouselItem key={match.id} className="relative">
@@ -543,35 +595,73 @@ function DashboardPageContent() {
                             </div>
                         </CardContent>
                         <CardFooter className="flex-col items-start gap-4 pt-4 border-t">
-                            <p className="text-base font-medium">Tvoje účast:</p>
-                            <RadioGroup value={attendance} onValueChange={(value) => setAttendances(prev => ({...prev, [match.id]: value}))} className="flex gap-4">
-                                <Label
-                                htmlFor={`going-${match.id}`}
-                                className={cn(
-                                    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-lg font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border h-12 px-6 cursor-pointer",
-                                    attendance === 'going'
-                                    ? "bg-green-500/10 border-green-500 text-green-600 dark:text-green-400 dark:border-green-400 hover:bg-green-500/20"
-                                    : "border-input bg-background hover:bg-accent hover:text-accent-foreground"
-                                )}
-                                >
-                                <RadioGroupItem value="going" id={`going-${match.id}`} className="sr-only" />
-                                <Check className="h-5 w-5" />
-                                Jdu
-                                </Label>
-                                <Label
-                                htmlFor={`not-going-${match.id}`}
-                                className={cn(
-                                    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-lg font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border h-12 px-6 cursor-pointer",
-                                    attendance === 'not-going'
-                                    ? "bg-destructive/10 border-destructive text-destructive hover:bg-destructive/20"
-                                    : "border-input bg-background hover:bg-accent hover:text-accent-foreground"
-                                )}
-                                >
-                                <RadioGroupItem value="not-going" id={`not-going-${match.id}`} className="sr-only" />
-                                <X className="h-5 w-5" />
-                                Nejdu
-                                </Label>
-                            </RadioGroup>
+                            <div className="flex w-full items-center justify-between">
+                                <div>
+                                    <p className="text-base font-medium mb-2">Tvoje účast:</p>
+                                    <RadioGroup value={attendance} onValueChange={(value) => handleAttendanceChange(match.id, value as any)} className="flex gap-4">
+                                        <Label
+                                        htmlFor={`going-${match.id}`}
+                                        className={cn(
+                                            "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border h-10 px-4 cursor-pointer",
+                                            attendance === 'going'
+                                            ? "bg-green-500/10 border-green-500 text-green-600 dark:text-green-400 dark:border-green-400 hover:bg-green-500/20"
+                                            : "border-input bg-background hover:bg-accent hover:text-accent-foreground"
+                                        )}
+                                        >
+                                        <RadioGroupItem value="going" id={`going-${match.id}`} className="sr-only" />
+                                        <Check className="h-5 w-5" />
+                                        Jdu
+                                        </Label>
+                                        <Label
+                                        htmlFor={`not-going-${match.id}`}
+                                        className={cn(
+                                            "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border h-10 px-4 cursor-pointer",
+                                            attendance === 'not-going'
+                                            ? "bg-destructive/10 border-destructive text-destructive hover:bg-destructive/20"
+                                            : "border-input bg-background hover:bg-accent hover:text-accent-foreground"
+                                        )}
+                                        >
+                                        <RadioGroupItem value="not-going" id={`not-going-${match.id}`} className="sr-only" />
+                                        <X className="h-5 w-5" />
+                                        Nejdu
+                                        </Label>
+                                    </RadioGroup>
+                                </div>
+                                <Dialog>
+                                    <DialogTrigger asChild>
+                                        <Button variant="outline">
+                                            <Users className="mr-2" />
+                                            Účast: {attendeeCount}
+                                        </Button>
+                                    </DialogTrigger>
+                                    <DialogContent>
+                                        <DialogHeader>
+                                            <DialogTitle>Přihlášení na zápas</DialogTitle>
+                                            <DialogDescription>
+                                                {match.team1} vs {match.team2} - {format(match.dateTime.toDate(), "d. MMMM yyyy", { locale: cs })}
+                                            </DialogDescription>
+                                        </DialogHeader>
+                                        <div className="max-h-[400px] overflow-y-auto pr-4 space-y-4">
+                                            {attendeesForMatch.length > 0 ? attendeesForMatch.map(att => {
+                                                const attendeeProfile = usersMap.get(att.userId);
+                                                if (!attendeeProfile) return null;
+                                                return (
+                                                    <div key={att.userId} className="flex items-center gap-4">
+                                                        <Avatar>
+                                                            <AvatarImage src={`https://picsum.photos/seed/${attendeeProfile.email}/100/100`} data-ai-hint="player portrait" alt={attendeeProfile.name} />
+                                                            <AvatarFallback>{attendeeProfile.name.split(' ').map(n=>n[0]).join('')}</AvatarFallback>
+                                                        </Avatar>
+                                                        <div className="flex-1">
+                                                            <p className="font-medium">{attendeeProfile.name}</p>
+                                                            {attendeeProfile.jerseyNumber && <p className="text-sm text-muted-foreground">#{attendeeProfile.jerseyNumber}</p>}
+                                                        </div>
+                                                    </div>
+                                                )
+                                            }) : <p className="text-muted-foreground">Zatím nikdo nepotvrdil účast.</p>}
+                                        </div>
+                                    </DialogContent>
+                                </Dialog>
+                            </div>
                         </CardFooter>
                         </>
                     </CarouselItem>

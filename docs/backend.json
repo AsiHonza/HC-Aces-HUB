@@ -137,6 +137,36 @@
         "assists",
         "gamesPlayed"
       ]
+    },
+    "Attendance": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Attendance",
+      "type": "object",
+      "description": "Represents a user's attendance status for a specific match.",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The ID of the user."
+        },
+        "matchId": {
+          "type": "string",
+          "description": "The ID of the match."
+        },
+        "status": {
+          "type": "string",
+          "description": "The attendance status.",
+          "enum": [
+            "going",
+            "not-going",
+            "unknown"
+          ]
+        }
+      },
+      "required": [
+        "userId",
+        "matchId",
+        "status"
+      ]
     }
   },
   "auth": {
@@ -195,6 +225,26 @@
             {
               "name": "matchId",
               "description": "The unique identifier of the match."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/matches/{matchId}/attendees/{userId}",
+        "definition": {
+          "entityName": "Attendance",
+          "schema": {
+            "$ref": "#/backend/entities/Attendance"
+          },
+          "description": "Stores attendance information for a match. Each user has one document per match.",
+          "params": [
+            {
+              "name": "matchId",
+              "description": "The unique identifier of the match."
+            },
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user."
             }
           ]
         }
