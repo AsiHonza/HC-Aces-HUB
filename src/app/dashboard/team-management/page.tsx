@@ -2,8 +2,9 @@
 
 import { useState, Suspense, useEffect, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase'
-import { collection, doc, updateDoc, deleteDoc } from 'firebase/firestore'
+import { useFirestore, useCollection, useMemoFirebase, useAuth } from '@/firebase'
+import { collection, doc, updateDoc, deleteDoc, setDoc } from 'firebase/firestore'
+import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
@@ -12,7 +13,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
-import { MoreHorizontal, Trash2, UserCog, Edit, ShieldCheck, User as UserIcon, Loader2, Contact } from 'lucide-react'
+import { MoreHorizontal, Trash2, UserCog, Edit, ShieldCheck, User as UserIcon, Loader2, Plus } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from "@/hooks/use-toast"
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -42,12 +43,14 @@ function TeamManagementContent() {
   const { toast } = useToast()
   
   const firestore = useFirestore()
+  const auth = useAuth();
   const usersCollectionRef = useMemoFirebase(() => firestore ? collection(firestore, 'users') : null, [firestore]);
   const { data: users, isLoading: usersLoading } = useCollection<UserProfile>(usersCollectionRef);
   
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
   const role = searchParams.get('role')
@@ -153,6 +156,72 @@ function TeamManagementContent() {
         setSelectedUser(null);
     }
   }
+
+  const handleCreateUser = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!auth || !firestore) return;
+
+    setIsSaving(true);
+    const formData = new FormData(e.currentTarget);
+    const name = formData.get('name') as string;
+    const email = formData.get('email') as string;
+    const password = formData.get('password') as string;
+    const phoneNumber = formData.get('phoneNumber') as string;
+    const jerseyNumber = formData.get('jerseyNumber') as string;
+    const playerType = formData.get('playerType') as UserProfile['playerType'];
+    const dob = formData.get('dob') as string;
+
+    if (!name || !email || !password || !playerType) {
+        toast({ variant: 'destructive', title: 'Chyba', description: 'Prosím, vyplňte všechna povinná pole.' });
+        setIsSaving(false);
+        return;
+    }
+
+    try {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+
+        await updateProfile(user, { displayName: name });
+
+        await setDoc(doc(firestore, 'users', user.uid), {
+            id: user.uid,
+            name,
+            email,
+            phoneNumber: phoneNumber || null,
+            jerseyNumber: jerseyNumber ? Number(jerseyNumber) : null,
+            role: 'classic',
+            playerType,
+            dob: dob || null,
+        });
+
+        if (playerType === 'player') {
+            await setDoc(doc(firestore, `users/${user.uid}/skaterStats`, 'stats'), {
+                userProfileId: user.uid, seasonGoals: 0, seasonAssists: 0, seasonGamesPlayed: 0, playoffGoals: 0, playoffAssists: 0, playoffGamesPlayed: 0, historicalGoals: 0, historicalAssists: 0, historicalGamesPlayed: 0,
+            });
+        } else if (playerType === 'goalie') {
+            await setDoc(doc(firestore, `users/${user.uid}/goalieStats`, 'stats'), {
+                userProfileId: user.uid, seasonGamesPlayed: 0, seasonWins: 0, seasonSaves: 0, seasonShotsAgainst: 0, playoffGamesPlayed: 0, playoffWins: 0, playoffSaves: 0, playoffShotsAgainst: 0, historicalGamesPlayed: 0, historicalWins: 0, historicalSaves: 0, historicalShotsAgainst: 0,
+            });
+        }
+
+        toast({ title: 'Uživatel vytvořen', description: `Účet pro ${name} byl úspěšně vytvořen. Budete odhlášeni a přihlášeni jako nový uživatel.` });
+        router.push('/dashboard')
+
+    } catch (error: any) {
+        let description = "Neznámá chyba.";
+        if (error.code === 'auth/email-already-in-use') {
+            description = 'Tato e-mailová adresa je již používána.';
+        } else if (error.code === 'auth/weak-password') {
+            description = 'Heslo je příliš slabé. Musí mít alespoň 6 znaků.';
+        } else if (error.code === 'auth/invalid-email') {
+            description = 'Neplatný formát e-mailové adresy.';
+        }
+        toast({ variant: 'destructive', title: 'Chyba při vytváření účtu', description });
+    } finally {
+        setIsSaving(false);
+        setIsAddDialogOpen(false);
+    }
+  };
   
   if (usersLoading) {
     return (
@@ -170,10 +239,18 @@ function TeamManagementContent() {
     <div className="px-4 sm:px-6 py-8">
       <Card>
         <CardHeader>
-          <CardTitle>Správa týmu</CardTitle>
-          <CardDescription>
-            Zde můžete spravovat uživatelské účty, měnit role a upravovat profily.
-          </CardDescription>
+          <div className="flex justify-between items-center">
+              <div>
+                <CardTitle>Správa týmu</CardTitle>
+                <CardDescription>
+                  Zde můžete spravovat uživatelské účty, měnit role a upravovat profily.
+                </CardDescription>
+              </div>
+              <Button onClick={() => setIsAddDialogOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Přidat účet
+              </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <Table>
@@ -333,6 +410,66 @@ function TeamManagementContent() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Add Dialog */}
+      <Dialog open={isAddDialogOpen} onOpenChange={(open) => !isSaving && setIsAddDialogOpen(open)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Vytvořit nový účet</DialogTitle>
+            <DialogDescription>
+              Zadejte údaje pro vytvoření nového testovacího účtu.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreateUser}>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="name-add" className="text-right">Jméno</Label>
+                <Input id="name-add" name="name" placeholder="Adam Hráč" className="col-span-3" required />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="email-add" className="text-right">Email</Label>
+                <Input id="email-add" name="email" type="email" placeholder="hrac@email.com" className="col-span-3" required />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="password-add" className="text-right">Heslo</Label>
+                <Input id="password-add" name="password" type="password" className="col-span-3" required />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="playerType-add" className="text-right">Pozice</Label>
+                <Select name="playerType" required>
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Vyberte pozici" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="player">Hráč</SelectItem>
+                    <SelectItem value="goalie">Brankář</SelectItem>
+                    <SelectItem value="member">Člen</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="phone-add" className="text-right">Telefon</Label>
+                <Input id="phone-add" name="phoneNumber" placeholder="+420 123 456 789" className="col-span-3" />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="jersey-add" className="text-right">Číslo dresu</Label>
+                <Input id="jersey-add" name="jerseyNumber" type="number" placeholder="88" className="col-span-3" />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="dob-add" className="text-right">Datum nar.</Label>
+                <Input id="dob-add" name="dob" type="date" className="col-span-3" />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)} disabled={isSaving}>Zrušit</Button>
+              <Button type="submit" disabled={isSaving}>
+                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Vytvořit účet
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
