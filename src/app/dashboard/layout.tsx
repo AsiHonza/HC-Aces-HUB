@@ -1,12 +1,12 @@
 'use client'
 
-import { Suspense } from 'react'
+import { Suspense, useEffect } from 'react'
 import { Logo } from "@/components/icons/logo"
 import Link from "next/link"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Power, User, Users } from "lucide-react"
+import { Power, User, Users, Loader2 } from "lucide-react"
 import { useUser, useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase'
 import { signOut } from 'firebase/auth'
 import { useRouter } from 'next/navigation'
@@ -81,6 +81,23 @@ function UserNav() {
 }
 
 function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
+    const { user, isUserLoading } = useUser();
+    const router = useRouter();
+
+    useEffect(() => {
+        if (!isUserLoading && !user) {
+            router.replace('/');
+        }
+    }, [isUserLoading, user, router]);
+
+    if (isUserLoading || !user) {
+        return (
+            <div className="flex h-screen w-full items-center justify-center bg-background">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            </div>
+        );
+    }
+  
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <header className="sticky top-0 z-10 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -102,18 +119,9 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex flex-col bg-background">
-        <header className="sticky top-0 z-10 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="container flex h-16 items-center justify-between">
-            <Link href="/dashboard" className="flex items-center gap-2 font-bold text-lg text-foreground">
-              <Logo className="h-8 w-8 text-primary" />
-              <span className="font-headline">Aces Hockey Hub</span>
-            </Link>
-          </div>
-        </header>
-        <main className="flex-1">
-        </main>
-      </div>
+        <div className="flex h-screen w-full items-center justify-center bg-background">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        </div>
     }>
       <DashboardLayoutContent>{children}</DashboardLayoutContent>
     </Suspense>
