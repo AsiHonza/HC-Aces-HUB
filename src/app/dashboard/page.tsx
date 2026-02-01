@@ -425,6 +425,32 @@ function DashboardPageContent() {
   const playoffSeries = leagueSettings?.playoffSeries ?? [];
   const isLoading = isUserProfileLoading || isSkaterStatsLoading || isGoalieStatsLoading || areMatchesLoading || areUsersLoading || areSkaterStatsLoading || areGoalieStatsLoading || attendancesLoading || leagueSettingsLoading;
 
+  const myStatsToDisplay = useMemo(() => {
+    if (userProfile?.playerType === 'player' && skaterStats) {
+        switch(myStatsView) {
+            case 'playoff': return { goals: skaterStats.playoffGoals, assists: skaterStats.playoffAssists, gamesPlayed: skaterStats.playoffGamesPlayed };
+            case 'history': return { goals: skaterStats.historicalGoals, assists: skaterStats.historicalAssists, gamesPlayed: skaterStats.historicalGamesPlayed };
+            case 'season':
+            default:
+                return { goals: skaterStats.seasonGoals, assists: skaterStats.seasonAssists, gamesPlayed: skaterStats.seasonGamesPlayed };
+        }
+    }
+    return { goals: 0, assists: 0, gamesPlayed: 0 };
+  }, [myStatsView, skaterStats, userProfile]);
+
+  const myGoalieStatsToDisplay = useMemo(() => {
+    if (userProfile?.playerType === 'goalie' && goalieStats) {
+         switch(myStatsView) {
+            case 'playoff': return { gamesPlayed: goalieStats.playoffGamesPlayed, wins: goalieStats.playoffWins, savePct: goalieStats.playoffShotsAgainst > 0 ? (goalieStats.playoffSaves / goalieStats.playoffShotsAgainst) * 100 : 0 };
+            case 'history': return { gamesPlayed: goalieStats.historicalGamesPlayed, wins: goalieStats.historicalWins, savePct: goalieStats.historicalShotsAgainst > 0 ? (goalieStats.historicalSaves / goalieStats.historicalShotsAgainst) * 100 : 0 };
+            case 'season':
+            default:
+                 return { gamesPlayed: goalieStats.seasonGamesPlayed, wins: goalieStats.seasonWins, savePct: goalieStats.seasonShotsAgainst > 0 ? (goalieStats.seasonSaves / goalieStats.seasonShotsAgainst) * 100 : 0 };
+        }
+    }
+    return { gamesPlayed: 0, wins: 0, savePct: 0 };
+  }, [myStatsView, goalieStats, userProfile]);
+
 
   useEffect(() => {
     setOptimisticAttendances(new Map());
@@ -470,33 +496,6 @@ function DashboardPageContent() {
 
   const nextMatch = upcomingMatches?.[0];
   
-  const myStatsToDisplay = useMemo(() => {
-    if (userProfile?.playerType === 'player' && skaterStats) {
-        switch(myStatsView) {
-            case 'playoff': return { goals: skaterStats.playoffGoals, assists: skaterStats.playoffAssists, gamesPlayed: skaterStats.playoffGamesPlayed };
-            case 'history': return { goals: skaterStats.historicalGoals, assists: skaterStats.historicalAssists, gamesPlayed: skaterStats.historicalGamesPlayed };
-            case 'season':
-            default:
-                return { goals: skaterStats.seasonGoals, assists: skaterStats.seasonAssists, gamesPlayed: skaterStats.seasonGamesPlayed };
-        }
-    }
-    return { goals: 0, assists: 0, gamesPlayed: 0 };
-  }, [myStatsView, skaterStats, userProfile]);
-
-  const myGoalieStatsToDisplay = useMemo(() => {
-    if (userProfile?.playerType === 'goalie' && goalieStats) {
-         switch(myStatsView) {
-            case 'playoff': return { gamesPlayed: goalieStats.playoffGamesPlayed, wins: goalieStats.playoffWins, savePct: goalieStats.playoffShotsAgainst > 0 ? (goalieStats.playoffSaves / goalieStats.playoffShotsAgainst) * 100 : 0 };
-            case 'history': return { gamesPlayed: goalieStats.historicalGamesPlayed, wins: goalieStats.historicalWins, savePct: goalieStats.historicalShotsAgainst > 0 ? (goalieStats.historicalSaves / goalieStats.historicalShotsAgainst) * 100 : 0 };
-            case 'season':
-            default:
-                 return { gamesPlayed: goalieStats.seasonGamesPlayed, wins: goalieStats.seasonWins, savePct: goalieStats.seasonShotsAgainst > 0 ? (goalieStats.seasonSaves / goalieStats.seasonShotsAgainst) * 100 : 0 };
-        }
-    }
-    return { gamesPlayed: 0, wins: 0, savePct: 0 };
-  }, [myStatsView, goalieStats, userProfile]);
-
-
   const stats = userProfile?.playerType === 'player' ? [
     { metric: 'Góly', value: myStatsToDisplay.goals ?? 0 },
     { metric: 'Asistence', value: myStatsToDisplay.assists ?? 0 },
@@ -969,7 +968,7 @@ function DashboardPageContent() {
                 <CardHeader className="flex-row items-start justify-between pb-2">
                     <div className="space-y-1">
                         <CardTitle className="text-xl break-words pr-2">{opponent}</CardTitle>
-                        <CardDescription className="font-semibold text-foreground pt-1">{format(match.dateTime.toDate(), "EEEE, d. M. yyyy, HH:mm", { locale: cs })}</CardDescription>
+                        <CardDescription className="font-semibold pt-1">{format(match.dateTime.toDate(), "EEEE, d. M. yyyy, HH:mm", { locale: cs })}</CardDescription>
                     </div>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -1001,7 +1000,7 @@ function DashboardPageContent() {
                     </DropdownMenu>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm">
-                    <div className="flex items-center gap-2 font-semibold text-foreground">
+                    <div className="flex items-center gap-2 font-semibold">
                         <MapPin className="h-4 w-4 shrink-0 text-primary"/>
                         <span className="truncate">{match.location}</span>
                     </div>
@@ -1627,5 +1626,3 @@ export default function DashboardPage() {
     </Suspense>
   )
 }
-
-    
