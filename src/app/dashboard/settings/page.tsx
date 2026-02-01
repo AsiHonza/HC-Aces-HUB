@@ -158,8 +158,8 @@ function SettingsForm() {
 
 function SettingsPageContent() {
   return (
-    <div className="container py-8">
-       <Card>
+    <div className="px-4 sm:px-6 py-8">
+       <Card className="max-w-2xl mx-auto">
         <CardHeader>
           <CardTitle>Nastavení profilu</CardTitle>
           <CardDescription>
@@ -174,7 +174,7 @@ function SettingsPageContent() {
 
 export default function SettingsPage() {
     return (
-        <Suspense fallback={<div className="container py-8">Načítání...</div>}>
+        <Suspense fallback={<div className="px-4 sm:px-6 py-8">Načítání...</div>}>
             <SettingsPageContent />
         </Suspense>
     )

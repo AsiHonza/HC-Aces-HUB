@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar as CalendarIcon, MapPin, Users, Trophy, BarChart, Sword, Pencil, Check, X, Flame, Shield, Plus, Minus, Loader2, Trash2, ClipboardEdit, History, Share2 } from "lucide-react"
+import { Calendar as CalendarIcon, MapPin, Users, Trophy, BarChart, Sword, Pencil, Check, X, Flame, Shield, Plus, Minus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal } from "lucide-react"
 import { cn } from '@/lib/utils'
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase'
 import { doc, collection, collectionGroup, updateDoc, query, Timestamp, addDoc, deleteDoc, writeBatch, orderBy, where, limit, setDoc } from 'firebase/firestore'
@@ -21,6 +21,7 @@ import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious
 import Link from 'next/link'
 import { useToast } from "@/hooks/use-toast"
 import { Textarea } from '@/components/ui/textarea'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 
 // Types based on backend.json
 interface UserProfile {
@@ -353,7 +354,7 @@ function DashboardPageContent() {
 
   if (isLoading) {
     return (
-      <div className="container py-8 flex justify-center items-center">
+      <div className="px-4 sm:px-6 py-8 flex justify-center items-center">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
       </div>
     )
@@ -594,7 +595,7 @@ function DashboardPageContent() {
     .map((team, index) => ({ ...team, rank: index + 1 }));
 
   return (
-    <div className="container py-8">
+    <div className="px-4 sm:px-6 py-8">
       <div className="grid gap-8 lg:grid-cols-3">
         
         <Card className="lg:col-span-1 flex flex-col items-center justify-center p-6 text-center">
@@ -671,162 +672,154 @@ function DashboardPageContent() {
           </div>
           {upcomingMatches.length > 0 ? (
             <Carousel
-              setApi={setApi}
-              opts={{
-                align: "start",
-              }}
-              className="w-full"
+                setApi={setApi}
+                opts={{ align: "start" }}
+                className="w-full"
             >
-              <CarouselContent>
-                {upcomingMatches.map((match) => {
-                  const opponent = match.team1 === 'Aces' ? match.team2 : match.team1;
-                  const attendance = userAttendancesWithOptimistic.get(match.id)?.status;
-                  const attendeesForMatch = (attendancesByMatch.get(match.id) || []);
-                  const attendeeCount = attendeesForMatch.filter(a => a.status === 'going').length;
-                  const sortedAttendees = [
-                      ...attendeesForMatch.filter(att => att.status === 'going'),
-                      ...attendeesForMatch.filter(att => att.status === 'not-going'),
-                  ];
+                <CarouselContent className="-ml-2 md:-ml-4">
+                    {upcomingMatches.map((match) => {
+                        const opponent = match.team1 === 'Aces' ? match.team2 : match.team1;
+                        const attendance = userAttendancesWithOptimistic.get(match.id)?.status;
+                        const attendeesForMatch = (attendancesByMatch.get(match.id) || []);
+                        const attendeeCount = attendeesForMatch.filter(a => a.status === 'going').length;
+                        const sortedAttendees = [
+                            ...attendeesForMatch.filter(att => att.status === 'going'),
+                            ...attendeesForMatch.filter(att => att.status === 'not-going'),
+                        ];
 
-                  return (
-                    <CarouselItem key={match.id} className="relative">
-                      <Card className="relative">
-                        <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
-                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleShareMatch(match.id)}>
-                                <Share2 className="h-4 w-4" />
-                                <span className="sr-only">Sdílet zápas</span>
-                            </Button>
-                           {userProfile?.role === 'admin' && (
-                              <>
-                                  <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleRecordResult(match)}>
-                                    <ClipboardEdit className="h-4 w-4" />
-                                    <span className="sr-only">Zapsat výsledek</span>
-                                  </Button>
-                                  <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleEditMatch(match)}>
-                                      <Pencil className="h-4 w-4" />
-                                      <span className="sr-only">Upravit zápas</span>
-                                  </Button>
-                                  <Button variant="destructive" size="icon" className="h-8 w-8" onClick={() => handleDeleteMatch(match)}>
-                                      <Trash2 className="h-4 w-4" />
-                                      <span className="sr-only">Smazat zápas</span>
-                                  </Button>
-                              </>
-                            )}
-                        </div>
-                        <div className="grid gap-2 sm:gap-6 sm:grid-cols-2 items-center p-4 pt-6 sm:p-6">
-                            <div className="text-center sm:text-left">
-                                <p className="text-xs sm:text-sm text-muted-foreground">Soupeř</p>
-                                <p className="text-base sm:text-xl font-bold flex items-center gap-2 justify-center sm:justify-start mt-1 break-words"><Users /> {opponent}</p>
-                            </div>
-                            
-                            <div className="text-center sm:text-right">
-                                <p className="text-xs sm:text-sm text-muted-foreground">Kdy a kde</p>
-                                <div className="text-sm font-semibold flex flex-col sm:gap-0 items-center sm:items-end mt-1">
-                                    <span className="text-xs sm:text-sm">{format(match.dateTime.toDate(), "EEEE, d. MMMM", { locale: cs })}</span>
-                                    <span className="font-bold text-base">{format(match.dateTime.toDate(), 'HH:mm')}</span>
-                                </div>
-                                <p className="text-xs sm:text-sm flex items-center gap-2 text-muted-foreground justify-center sm:justify-end mt-1"><MapPin /> {match.location}</p>
-                            </div>
-                        </div>
-                        <div className="flex-col items-start gap-4 p-4 sm:p-6 pt-4 border-t">
-                            <div className="flex flex-col sm:flex-row w-full items-start sm:items-center justify-between gap-4">
-                                <div>
-                                    <p className="text-base font-medium mb-2">Tvoje účast:</p>
-                                    <div className="flex gap-2">
-                                        <Button
-                                            variant={attendance === 'going' ? 'default' : 'outline'}
-                                            onClick={() => {
-                                                setAttendanceData({ matchId: match.id, status: 'going' });
-                                                const currentNote = userAttendances.get(match.id)?.note || '';
-                                                setAttendanceNote(currentNote);
-                                                setIsAttendanceDialogOpen(true);
-                                            }}
-                                            className={cn( "h-10 px-4", attendance === 'going' && "bg-green-500/10 border-green-500 text-green-600 dark:text-green-400 dark:border-green-400 hover:bg-green-500/20 hover:text-green-600"
+                        return (
+                            <CarouselItem key={match.id} className="pl-2 md:pl-4 relative basis-full md:basis-1/2 lg:basis-1/3">
+                                <Card className="relative h-full flex flex-col">
+                                    <CardHeader className="flex-row items-start justify-between pb-2">
+                                         <CardTitle className="text-lg sm:text-xl break-words pr-2">{opponent}</CardTitle>
+                                        <div className="flex items-center gap-1">
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => handleShareMatch(match.id)}>
+                                                <Share2 className="h-4 w-4" />
+                                            </Button>
+                                            {userProfile?.role === 'admin' && (
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                                                            <MoreHorizontal className="h-4 w-4" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end">
+                                                        <DropdownMenuItem onClick={() => handleRecordResult(match)}>
+                                                            <ClipboardEdit className="mr-2 h-4 w-4" /> Zapsat výsledek
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem onClick={() => handleEditMatch(match)}>
+                                                            <Pencil className="mr-2 h-4 w-4" /> Upravit
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem onClick={() => handleDeleteMatch(match)} className="text-destructive">
+                                                            <Trash2 className="mr-2 h-4 w-4" /> Smazat
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
                                             )}
-                                        >
-                                            <Check className="h-4 w-4 mr-2" />
-                                            Jdu
-                                        </Button>
-                                        <Button
-                                             variant={attendance === 'not-going' ? 'destructive' : 'outline'}
-                                             onClick={() => {
-                                                setAttendanceData({ matchId: match.id, status: 'not-going' });
-                                                const currentNote = userAttendances.get(match.id)?.note || '';
-                                                setAttendanceNote(currentNote);
-                                                setIsAttendanceDialogOpen(true);
-                                            }}
-                                             className={cn("h-10 px-4", attendance === 'not-going' && "bg-destructive/10 border-destructive text-destructive hover:bg-destructive/20 hover:text-destructive"
-                                             )}
-                                        >
-                                            <X className="h-4 w-4 mr-2" />
-                                            Nejdu
-                                        </Button>
-                                    </div>
-                                </div>
-                                <Dialog>
-                                    <DialogTrigger asChild>
-                                        <Button variant="outline">
-                                            <Users className="mr-2" />
-                                            Účast: {attendeeCount}
-                                        </Button>
-                                    </DialogTrigger>
-                                    <DialogContent>
-                                        <DialogHeader>
-                                            <DialogTitle>Přihlášení na zápas</DialogTitle>
-                                            <DialogDescription>
-                                                {match.team1} vs {match.team2} - {format(match.dateTime.toDate(), "d. MMMM yyyy", { locale: cs })}
-                                            </DialogDescription>
-                                        </DialogHeader>
-                                        <div className="max-h-[400px] overflow-y-auto pr-4 space-y-4">
-                                            {sortedAttendees.length > 0 ? sortedAttendees.map(att => {
-                                                const attendeeProfile = usersMap.get(att.userId);
-                                                if (!attendeeProfile) return null;
-                                                const isGoing = att.status === 'going';
-                                                return (
-                                                    <div 
-                                                        key={att.userId} 
-                                                        className={cn(
-                                                            "flex items-center gap-4 p-2 rounded-lg border-2 transition-colors",
-                                                            isGoing 
-                                                                ? "border-green-500 bg-green-500/10" 
-                                                                : "border-destructive bg-destructive/10"
-                                                        )}
-                                                    >
-                                                        <Avatar>
-                                                            <AvatarImage src={`https://picsum.photos/seed/${attendeeProfile.email}/100/100`} data-ai-hint="player portrait" alt={attendeeProfile.name} />
-                                                            <AvatarFallback>{attendeeProfile.name.split(' ').map(n=>n[0]).join('')}</AvatarFallback>
-                                                        </Avatar>
-                                                        <div className="flex-1">
-                                                            <p className="font-medium">{attendeeProfile.name}</p>
-                                                            {attendeeProfile.jerseyNumber && <p className="text-sm text-muted-foreground">#{attendeeProfile.jerseyNumber}</p>}
-                                                            {att.note && <p className="text-sm text-muted-foreground italic mt-1">"{att.note}"</p>}
-                                                        </div>
-                                                        {isGoing 
-                                                            ? <Check className="h-6 w-6 text-green-500" /> 
-                                                            : <X className="h-6 w-6 text-destructive" />
-                                                        }
-                                                    </div>
-                                                )
-                                            }) : <p className="text-muted-foreground">Zatím nikdo neodpověděl.</p>}
                                         </div>
-                                    </DialogContent>
-                                </Dialog>
-                            </div>
-                        </div>
-                      </Card>
-                    </CarouselItem>
-                  )
-                })}
-              </CarouselContent>
-              {upcomingMatches.length > 1 && (
-                <>
-                  <CarouselPrevious className="hidden md:flex" />
-                  <CarouselNext className="hidden md:flex" />
-                </>
-              )}
+                                    </CardHeader>
+                                    <CardContent className="flex-grow space-y-2">
+                                        <div className="text-sm text-muted-foreground flex items-center gap-2">
+                                            <CalendarIcon className="h-4 w-4 shrink-0"/> 
+                                            <span className="truncate">{format(match.dateTime.toDate(), "EEEE, d. M. yyyy, HH:mm", { locale: cs })}</span>
+                                        </div>
+                                        <div className="text-sm text-muted-foreground flex items-center gap-2">
+                                            <MapPin className="h-4 w-4 shrink-0"/>
+                                            <span className="truncate">{match.location}</span>
+                                        </div>
+                                    </CardContent>
+                                    <CardFooter className="flex-col items-start gap-4">
+                                        <div className="flex w-full flex-wrap items-center justify-between gap-2">
+                                            <div className="flex gap-2">
+                                                <Button
+                                                    variant={attendance === 'going' ? 'default' : 'outline'}
+                                                    size="sm"
+                                                    onClick={() => {
+                                                        setAttendanceData({ matchId: match.id, status: 'going' });
+                                                        const currentNote = userAttendances.get(match.id)?.note || '';
+                                                        setAttendanceNote(currentNote);
+                                                        setIsAttendanceDialogOpen(true);
+                                                    }}
+                                                    className={cn(attendance === 'going' && "bg-green-500/10 border-green-500 text-green-600 dark:text-green-400 dark:border-green-400 hover:bg-green-500/20 hover:text-green-600")}
+                                                >
+                                                    <Check className="h-4 w-4 mr-2" /> Jdu
+                                                </Button>
+                                                <Button
+                                                    variant={attendance === 'not-going' ? 'destructive' : 'outline'}
+                                                    size="sm"
+                                                    onClick={() => {
+                                                        setAttendanceData({ matchId: match.id, status: 'not-going' });
+                                                        const currentNote = userAttendances.get(match.id)?.note || '';
+                                                        setAttendanceNote(currentNote);
+                                                        setIsAttendanceDialogOpen(true);
+                                                    }}
+                                                    className={cn(attendance === 'not-going' && "bg-destructive/10 border-destructive text-destructive hover:bg-destructive/20 hover:text-destructive")}
+                                                >
+                                                    <X className="h-4 w-4 mr-2" /> Nejdu
+                                                </Button>
+                                            </div>
+                                            <Dialog>
+                                                <DialogTrigger asChild>
+                                                    <Button variant="outline" size="sm">
+                                                        <Users className="mr-2" />
+                                                        Účast: {attendeeCount}
+                                                    </Button>
+                                                </DialogTrigger>
+                                                <DialogContent>
+                                                    <DialogHeader>
+                                                        <DialogTitle>Přihlášení na zápas</DialogTitle>
+                                                        <DialogDescription>
+                                                            {match.team1} vs {match.team2} - {format(match.dateTime.toDate(), "d. MMMM yyyy", { locale: cs })}
+                                                        </DialogDescription>
+                                                    </DialogHeader>
+                                                    <div className="max-h-[400px] overflow-y-auto pr-4 space-y-4">
+                                                        {sortedAttendees.length > 0 ? sortedAttendees.map(att => {
+                                                            const attendeeProfile = usersMap.get(att.userId);
+                                                            if (!attendeeProfile) return null;
+                                                            const isGoing = att.status === 'going';
+                                                            return (
+                                                                <div 
+                                                                    key={att.userId} 
+                                                                    className={cn(
+                                                                        "flex items-center gap-4 p-2 rounded-lg border-2 transition-colors",
+                                                                        isGoing 
+                                                                            ? "border-green-500 bg-green-500/10" 
+                                                                            : "border-destructive bg-destructive/10"
+                                                                    )}
+                                                                >
+                                                                    <Avatar>
+                                                                        <AvatarImage src={`https://picsum.photos/seed/${attendeeProfile.email}/100/100`} data-ai-hint="player portrait" alt={attendeeProfile.name} />
+                                                                        <AvatarFallback>{attendeeProfile.name.split(' ').map(n=>n[0]).join('')}</AvatarFallback>
+                                                                    </Avatar>
+                                                                    <div className="flex-1">
+                                                                        <p className="font-medium">{attendeeProfile.name}</p>
+                                                                        {attendeeProfile.jerseyNumber && <p className="text-sm text-muted-foreground">#{attendeeProfile.jerseyNumber}</p>}
+                                                                        {att.note && <p className="text-sm text-muted-foreground italic mt-1">"{att.note}"</p>}
+                                                                    </div>
+                                                                    {isGoing 
+                                                                        ? <Check className="h-6 w-6 text-green-500" /> 
+                                                                        : <X className="h-6 w-6 text-destructive" />
+                                                                    }
+                                                                </div>
+                                                            )
+                                                        }) : <p className="text-muted-foreground">Zatím nikdo neodpověděl.</p>}
+                                                    </div>
+                                                </DialogContent>
+                                            </Dialog>
+                                        </div>
+                                    </CardFooter>
+                                </Card>
+                            </CarouselItem>
+                        )
+                    })}
+                </CarouselContent>
+                {upcomingMatches.length > 1 && <>
+                    <CarouselPrevious className="hidden sm:flex" />
+                    <CarouselNext className="hidden sm:flex" />
+                </>}
             </Carousel>
           ) : (
-            <Card><CardContent><p>Žádný nadcházející zápas.</p></CardContent></Card>
+            <Card><CardContent className="pt-6">Žádný nadcházející zápas.</CardContent></Card>
           )}
         </div>
 
@@ -1090,10 +1083,8 @@ function DashboardPageContent() {
 
 export default function DashboardPage() {
   return (
-    <Suspense fallback={<div className="container py-8">Načítání...</div>}>
+    <Suspense fallback={<div className="px-4 sm:px-6 py-8">Načítání...</div>}>
       <DashboardPageContent />
     </Suspense>
   )
 }
-
-

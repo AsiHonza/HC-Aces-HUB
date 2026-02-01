@@ -4,18 +4,19 @@ import { Suspense, useMemo, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase'
-import { query, collection, Timestamp, collectionGroup, doc, writeBatch, deleteDoc, updateDoc } from 'firebase/firestore'
+import { query, collection, Timestamp, collectionGroup, doc, writeBatch, deleteDoc, updateDoc, orderBy } from 'firebase/firestore'
 import { format } from 'date-fns'
 import { cs } from 'date-fns/locale'
-import { Loader2, Trophy, Users, Pencil, Trash2 } from 'lucide-react'
+import { Loader2, Trophy, Users, Pencil, Trash2, MoreHorizontal } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from '@/hooks/use-toast'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 
 interface Match {
   id: string;
@@ -117,7 +118,7 @@ function HistoryPageContent() {
 
     const matchesQuery = useMemoFirebase(() => {
       if (!firestore || !user) return null;
-      return collection(firestore, 'matches');
+      return query(collection(firestore, 'matches'), orderBy('dateTime', 'desc'));
     }, [firestore, user]);
     const { data: allMatches, isLoading: matchesLoading } = useCollection<Match>(matchesQuery);
 
@@ -135,9 +136,7 @@ function HistoryPageContent() {
 
     const matches = useMemo(() => {
         if (!allMatches) return null;
-        return allMatches
-            .filter(m => m.isPlayed)
-            .sort((a, b) => b.dateTime.toMillis() - a.dateTime.toMillis());
+        return allMatches.filter(m => m.isPlayed);
     }, [allMatches]);
 
     const usersMap = useMemo(() => {
@@ -298,7 +297,7 @@ function HistoryPageContent() {
 
 
     return (
-        <div className="container py-8">
+        <div className="px-4 sm:px-6 py-8">
             <Card>
                 <CardHeader>
                     <CardTitle>Historie zápasů</CardTitle>
@@ -312,7 +311,7 @@ function HistoryPageContent() {
                                     <AccordionTrigger className="hover:no-underline text-left">
                                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full pr-2 gap-y-1 gap-x-2">
                                             <div className="flex-1 min-w-0">
-                                                <p className="text-xs text-muted-foreground">{format(match.dateTime.toDate(), "EEEE, d. M. yy", { locale: cs })}</p>
+                                                <p className="text-xs text-muted-foreground">{format(match.dateTime.toDate(), "d. M. yy", { locale: cs })}</p>
                                                 <p className="font-semibold truncate">{match.team1} vs {match.team2}</p>
                                             </div>
                                             <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
@@ -321,14 +320,21 @@ function HistoryPageContent() {
                                                     <Badge variant={getResultBadgeVariant(match.team1Score, match.team2Score)}>{getResultText(match.team1Score, match.team2Score)}</Badge>
                                                 </div>
                                                 {userProfile?.role === 'admin' && (
-                                                    <div className="flex gap-1">
-                                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); handleEditMatch(match); }}>
-                                                            <Pencil className="h-4 w-4" />
-                                                        </Button>
-                                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={(e) => { e.stopPropagation(); handleDeleteMatch(match); }}>
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </Button>
-                                                    </div>
+                                                    <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild>
+                                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => e.stopPropagation()}>
+                                                                <MoreHorizontal className="h-4 w-4" />
+                                                            </Button>
+                                                        </DropdownMenuTrigger>
+                                                        <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                                                            <DropdownMenuItem onClick={() => handleEditMatch(match)}>
+                                                                <Pencil className="mr-2 h-4 w-4" /> Upravit
+                                                            </DropdownMenuItem>
+                                                            <DropdownMenuItem onClick={() => handleDeleteMatch(match)} className="text-destructive">
+                                                                <Trash2 className="mr-2 h-4 w-4" /> Smazat
+                                                            </DropdownMenuItem>
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
                                                 )}
                                             </div>
                                         </div>
@@ -392,7 +398,7 @@ function HistoryPageContent() {
 
 export default function HistoryPage() {
     return (
-        <Suspense fallback={<div className="container py-8">Načítání...</div>}>
+        <Suspense fallback={<div className="px-4 sm:px-6 py-8">Načítání...</div>}>
             <HistoryPageContent />
         </Suspense>
     )
