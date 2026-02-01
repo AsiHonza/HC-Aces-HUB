@@ -33,7 +33,8 @@ export interface InternalQuery extends Query<DocumentData> {
     path: {
       canonicalString(): string;
       toString(): string;
-    }
+    };
+    collectionGroup: string | null;
   }
 }
 
@@ -85,12 +86,30 @@ export function useCollection<T = any>(
         setIsLoading(false);
       },
       (error: FirestoreError) => {
-        // This logic extracts the path from either a ref or a query
-        const path: string =
-          memoizedTargetRefOrQuery.type === 'collection'
-            ? (memoizedTargetRefOrQuery as CollectionReference).path
-            : (memoizedTargetRefOrQuery as unknown as InternalQuery)._query.path.canonicalString()
+        // If the error isn't a standard permission error, it might be an index issue.
+        // In that case, we should show the original error which might contain an index creation link.
+        if (error.code !== 'permission-denied') {
+            setError(error);
+            setData(null);
+            setIsLoading(false);
+            console.error("Firebase query failed (not a permission error, maybe a missing index?):", error);
+            // Throw the original error to make it visible in the Next.js overlay
+            throw error;
+        }
 
+        // For permission errors, build the contextual error.
+        const internalQuery = memoizedTargetRefOrQuery as unknown as InternalQuery;
+        let path: string;
+
+        if (memoizedTargetRefOrQuery.type === 'collection') {
+          path = (memoizedTargetRefOrQuery as CollectionReference).path;
+        } else if (internalQuery?._query?.collectionGroup) {
+          path = `collectionGroup('${internalQuery._query.collectionGroup}')`;
+        } else {
+          const canonicalPath = internalQuery?._query?.path?.canonicalString();
+          path = canonicalPath || 'collectionGroupQuery';
+        }
+        
         const contextualError = new FirestorePermissionError({
           operation: 'list',
           path,
