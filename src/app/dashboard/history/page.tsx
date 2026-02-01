@@ -340,10 +340,10 @@ function HistoryPageContent() {
             toast({ title: "Výsledek zápasu aktualizován." });
         } catch (error: any) {
             toast({ variant: 'destructive', title: "Chyba", description: `Nepodařilo se uložit změny: ${error.message}` });
+        } finally {
+            setIsEditDialogOpen(false);
+            setSelectedMatch(null);
         }
-
-        setIsEditDialogOpen(false);
-        setSelectedMatch(null);
     };
 
     if (isLoading) {
@@ -391,7 +391,7 @@ function HistoryPageContent() {
                                     <AccordionTrigger className="hover:no-underline text-left">
                                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full pr-2 gap-y-1 gap-x-2">
                                             <div className="flex-1 min-w-0">
-                                                <p className="text-xs text-muted-foreground">{format(match.dateTime.toDate(), "d. M. yyyy", { locale: cs })}</p>
+                                                <p className="text-xs text-muted-foreground">{format(match.dateTime.toDate(), "d. M. yy", { locale: cs })}</p>
                                                 <p className="font-semibold truncate">{match.team1} vs {match.team2}</p>
                                             </div>
                                             <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
@@ -484,5 +484,3 @@ export default function HistoryPage() {
         </Suspense>
     )
 }
-
-    

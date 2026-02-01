@@ -253,6 +253,7 @@ function DashboardPageContent() {
   }, [allUsers, allStats]);
   
   const sortedTeamScoring = useMemo(() => {
+      if (!teamScoring) return [];
       const data = teamScoring.map(player => ({
           id: player.id,
           name: player.name,
@@ -271,9 +272,13 @@ function DashboardPageContent() {
   const [editableLeagueStandings, setEditableLeagueStandings] = useState(leagueStandings);
 
   const leagueData = isLeagueEditMode ? editableLeagueStandings : leagueStandings;
-  const sortedLeagueStandings = useMemo(() => [...leagueData]
-    .sort((a, b) => b.points - a.points)
-    .map((team, index) => ({ ...team, rank: index + 1 })), [leagueData]);
+  
+  const sortedLeagueStandings = useMemo(() => {
+    if (!leagueData) return [];
+    return [...leagueData]
+      .sort((a, b) => b.points - a.points)
+      .map((team, index) => ({ ...team, rank: index + 1 }));
+  }, [leagueData]);
 
   const attendancesByMatch = useMemo(() => {
     if (!allAttendances) return new Map<string, Attendance[]>();
@@ -615,10 +620,15 @@ function DashboardPageContent() {
         });
     }
 
-    await batch.commit();
-    toast({ title: "Výsledek uložen", description: "Statistiky hráčů byly aktualizovány." });
-    setIsResultDialogOpen(false);
-    setSelectedMatch(null);
+    try {
+        await batch.commit();
+        toast({ title: "Výsledek uložen", description: "Statistiky hráčů byly aktualizovány." });
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: 'Chyba', description: `Nepodařilo se uložit výsledek: ${error.message}` });
+    } finally {
+        setIsResultDialogOpen(false);
+        setSelectedMatch(null);
+    }
 };
 
   const handleEditLeagueClick = () => {
@@ -1277,10 +1287,8 @@ function DashboardPageContent() {
 
 export default function DashboardPage() {
   return (
-    <Suspense fallback={<div className="p-4 sm:p-6 lg:p-8">Načítání...</div>}>
+    <Suspense fallback={<div className="px-4 sm:px-6 py-8">Načítání...</div>}>
       <DashboardPageContent />
     </Suspense>
   )
 }
-
-    
