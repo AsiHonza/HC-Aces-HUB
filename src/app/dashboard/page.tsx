@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Calendar, MapPin, Users, Trophy, BarChart, Sword, Pencil, Check, X, Flame, Shield } from "lucide-react"
+import { Calendar, MapPin, Users, Trophy, BarChart, Sword, Pencil, Check, X, Flame, Shield, Plus, Minus } from "lucide-react"
 import { cn } from '@/lib/utils'
 import { Textarea } from '@/components/ui/textarea'
 
@@ -23,7 +23,7 @@ function DashboardPageContent() {
 
   const [attendance, setAttendance] = useState('unknown');
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [isTeamScoringEditDialogOpen, setIsTeamScoringEditDialogOpen] = useState(false);
+  const [isScoringEditMode, setIsScoringEditMode] = useState(false);
   const [isLeagueStandingsEditDialogOpen, setIsLeagueStandingsEditDialogOpen] = useState(false);
 
   const player = {
@@ -54,6 +54,7 @@ function DashboardPageContent() {
     { rank: 4, name: 'Tomáš Dvořák', goals: 8, assists: 15, points: 23 },
     { rank: 5, name: 'Martin Černý', goals: 5, assists: 12, points: 17 },
   ]);
+  const [editableScoring, setEditableScoring] = useState(teamScoring);
 
   const [leagueStandings, setLeagueStandings] = useState([
     { rank: 1, name: 'Aces', points: 45, gf: 120, ga: 85 },
@@ -78,19 +79,6 @@ function DashboardPageContent() {
     setIsEditDialogOpen(false);
   };
 
-  const handleTeamScoringUpdate = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    try {
-      const newData = JSON.parse(formData.get('scoringData') as string);
-      setTeamScoring(newData);
-      setIsTeamScoringEditDialogOpen(false);
-    } catch (error) {
-      console.error("Failed to parse team scoring JSON", error);
-      // In a real app, you might want to show a toast notification here
-    }
-  };
-
   const handleLeagueStandingsUpdate = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
@@ -104,7 +92,39 @@ function DashboardPageContent() {
     }
   };
 
-  const sortedTeamScoring = [...teamScoring]
+  const handleEditScoringClick = () => {
+    setEditableScoring(teamScoring.map(p => ({...p})));
+    setIsScoringEditMode(true);
+  };
+
+  const handleSaveScoring = () => {
+    setTeamScoring(editableScoring);
+    setIsScoringEditMode(false);
+  };
+
+  const handleCancelScoring = () => {
+    setIsScoringEditMode(false);
+  };
+
+  const handleScoringChange = (playerName: string, stat: 'goals' | 'assists', delta: number) => {
+    setEditableScoring(currentScoring =>
+      currentScoring.map(p => {
+        if (p.name === playerName) {
+          const newStatValue = p[stat] + delta;
+          const updatedPlayer = {
+            ...p,
+            [stat]: Math.max(0, newStatValue),
+          };
+          updatedPlayer.points = updatedPlayer.goals + updatedPlayer.assists;
+          return updatedPlayer;
+        }
+        return p;
+      })
+    );
+  };
+
+  const scoringData = isScoringEditMode ? editableScoring : teamScoring;
+  const sortedTeamScoring = [...scoringData]
     .sort((a, b) => b.points - a.points)
     .map((player, index) => ({ ...player, rank: index + 1 }));
 
@@ -242,35 +262,19 @@ function DashboardPageContent() {
                 <CardHeader className="flex-row items-center justify-between">
                     <CardTitle className="flex items-center gap-2 font-headline"><Flame className="text-primary"/>Kanadské bodování</CardTitle>
                     {role === 'admin' && (
-                      <Dialog open={isTeamScoringEditDialogOpen} onOpenChange={setIsTeamScoringEditDialogOpen}>
-                        <DialogTrigger asChild>
-                          <Button variant="outline" size="icon">
+                      <div className="flex gap-2">
+                        {isScoringEditMode ? (
+                          <>
+                            <Button variant="outline" onClick={handleCancelScoring}>Zrušit</Button>
+                            <Button onClick={handleSaveScoring}>Uložit</Button>
+                          </>
+                        ) : (
+                          <Button variant="outline" size="icon" onClick={handleEditScoringClick}>
                             <Pencil className="h-4 w-4" />
                             <span className="sr-only">Upravit bodování</span>
                           </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Upravit kanadské bodování</DialogTitle>
-                            <DialogDescription>
-                              Upravte data v JSON formátu. Pořadí bude automaticky seřazeno.
-                            </DialogDescription>
-                          </DialogHeader>
-                          <form onSubmit={handleTeamScoringUpdate}>
-                            <div className="grid gap-4 py-4">
-                              <Textarea
-                                id="scoringData"
-                                name="scoringData"
-                                defaultValue={JSON.stringify(teamScoring, null, 2)}
-                                className="col-span-4 h-64 font-mono text-xs"
-                              />
-                            </div>
-                            <DialogFooter>
-                              <Button type="submit">Uložit změny</Button>
-                            </DialogFooter>
-                          </form>
-                        </DialogContent>
-                      </Dialog>
+                        )}
+                      </div>
                     )}
                 </CardHeader>
                 <CardContent>
@@ -289,8 +293,36 @@ function DashboardPageContent() {
                                 <TableRow key={player.name}>
                                     <TableCell className="font-medium">{player.rank}</TableCell>
                                     <TableCell>{player.name}</TableCell>
-                                    <TableCell className="text-center font-mono">{player.goals}</TableCell>
-                                    <TableCell className="text-center font-mono">{player.assists}</TableCell>
+                                    <TableCell className="text-center font-mono">
+                                      {isScoringEditMode ? (
+                                        <div className="flex items-center justify-center gap-2">
+                                          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleScoringChange(player.name, 'goals', -1)}>
+                                            <Minus className="h-4 w-4" />
+                                          </Button>
+                                          <span className="w-6 text-center">{player.goals}</span>
+                                          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleScoringChange(player.name, 'goals', 1)}>
+                                            <Plus className="h-4 w-4" />
+                                          </Button>
+                                        </div>
+                                      ) : (
+                                        player.goals
+                                      )}
+                                    </TableCell>
+                                    <TableCell className="text-center font-mono">
+                                      {isScoringEditMode ? (
+                                        <div className="flex items-center justify-center gap-2">
+                                          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleScoringChange(player.name, 'assists', -1)}>
+                                            <Minus className="h-4 w-4" />
+                                          </Button>
+                                          <span className="w-6 text-center">{player.assists}</span>
+                                          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleScoringChange(player.name, 'assists', 1)}>
+                                            <Plus className="h-4 w-4" />
+                                          </Button>
+                                        </div>
+                                      ) : (
+                                        player.assists
+                                      )}
+                                    </TableCell>
                                     <TableCell className="text-right font-mono font-bold">{player.points}</TableCell>
                                 </TableRow>
                             ))}
@@ -370,5 +402,3 @@ export default function DashboardPage() {
     </Suspense>
   )
 }
-
-    
