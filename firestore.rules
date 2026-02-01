@@ -93,8 +93,7 @@ service cloud.firestore {
     }
 
     match /matches/{matchId} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
+      allow get, list: if isSignedIn();
       allow create, update, delete: if isAdmin();
     }
   }
