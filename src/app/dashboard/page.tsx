@@ -1,6 +1,7 @@
 'use client'
 
 import { Suspense, useState, useMemo, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -10,13 +11,13 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar as CalendarIcon, MapPin, Users, Trophy, BarChart, Sword, Pencil, Check, X, Flame, Shield, Plus, Minus, Loader2, Trash2, ClipboardEdit, History } from "lucide-react"
+import { Calendar as CalendarIcon, MapPin, Users, Trophy, BarChart, Sword, Pencil, Check, X, Flame, Shield, Plus, Minus, Loader2, Trash2, ClipboardEdit, History, Share2 } from "lucide-react"
 import { cn } from '@/lib/utils'
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase'
 import { doc, collection, collectionGroup, updateDoc, query, Timestamp, addDoc, deleteDoc, writeBatch, orderBy, where, limit, setDoc } from 'firebase/firestore'
 import { format, parse } from 'date-fns'
 import { cs } from 'date-fns/locale'
-import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel'
+import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious, type CarouselApi } from '@/components/ui/carousel'
 import Link from 'next/link'
 import { useToast } from "@/hooks/use-toast"
 import { Textarea } from '@/components/ui/textarea'
@@ -55,7 +56,7 @@ interface Attendance {
     id: string; // userId, as it's the doc id
     userId: string;
     matchId: string;
-    status: 'going' | 'not-going' | 'unknown';
+    status: 'going' | 'not-going';
     note?: string;
 }
 
@@ -115,7 +116,9 @@ function DashboardPageContent() {
   const { user, isUserLoading } = useUser()
   const firestore = useFirestore()
   const { toast } = useToast()
+  const searchParams = useSearchParams()
   
+  const [api, setApi] = useState<CarouselApi | null>(null)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -160,11 +163,12 @@ function DashboardPageContent() {
   const { data: allStats, isLoading: areStatsLoading } = useCollection<PlayerStats>(allStatsRef);
 
   // Fetch attendances for upcoming matches
-  const attendancesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collectionGroup(firestore, 'attendees');
-  }, [firestore]);
-  const { data: allAttendances, isLoading: attendancesLoading } = useCollection<Attendance>(attendancesQuery);
+    const attendancesQuery = useMemoFirebase(() => {
+        if (!firestore ) return null;
+        return query(collectionGroup(firestore, 'attendees'));
+    }, [firestore]);
+    const { data: allAttendances, isLoading: attendancesLoading } = useCollection<Attendance>(attendancesQuery);
+
 
   const attendancesByMatch = useMemo(() => {
     if (!allAttendances) return new Map<string, Attendance[]>();
@@ -190,15 +194,19 @@ function DashboardPageContent() {
   const userAttendancesWithOptimistic = useMemo(() => {
       const merged = new Map(userAttendances);
       optimisticAttendances.forEach((optimisticAtt, matchId) => {
-          const existingAtt = merged.get(matchId) || {};
-          merged.set(matchId, { 
-              ...existingAtt, 
-              ...optimisticAtt, 
-              id: user!.uid, 
-              userId: user!.uid, 
-              matchId: matchId, 
-              status: optimisticAtt.status || 'unknown' 
-          } as Attendance);
+          if (optimisticAtt.status === undefined) { // When status is undefined, it means deletion
+              merged.delete(matchId);
+          } else {
+              const existingAtt = merged.get(matchId) || {};
+              merged.set(matchId, { 
+                  ...existingAtt, 
+                  ...optimisticAtt, 
+                  id: user!.uid, 
+                  userId: user!.uid, 
+                  matchId: matchId,
+                  status: optimisticAtt.status! // status is guaranteed to be defined here
+              } as Attendance);
+          }
       });
       return merged;
   }, [userAttendances, optimisticAttendances, user]);
@@ -208,6 +216,18 @@ function DashboardPageContent() {
     // When fresh data arrives from Firestore, clear any optimistic updates
     setOptimisticAttendances(new Map());
   }, [allAttendances]);
+
+  useEffect(() => {
+    if (!api || !upcomingMatches || upcomingMatches.length === 0) return;
+
+    const matchId = searchParams.get('matchId');
+    if (matchId) {
+        const matchIndex = upcomingMatches.findIndex(m => m.id === matchId);
+        if (matchIndex !== -1) {
+            api.scrollTo(matchIndex);
+        }
+    }
+  }, [api, upcomingMatches, searchParams]);
 
   const usersMap = useMemo(() => {
     if (!allUsers) return new Map<string, UserProfile>();
@@ -244,6 +264,24 @@ function DashboardPageContent() {
   const [editableLeagueStandings, setEditableLeagueStandings] = useState(leagueStandings);
 
   const isLoading = isUserLoading || isUserProfileLoading || isPlayerStatsLoading || areMatchesLoading || areUsersLoading || areStatsLoading || attendancesLoading;
+
+  const handleShareMatch = (matchId: string) => {
+    const url = new URL(window.location.origin + window.location.pathname);
+    url.searchParams.set('matchId', matchId);
+    navigator.clipboard.writeText(url.toString()).then(() => {
+      toast({
+        title: "Odkaz na zápas zkopírován",
+        description: "Nyní ho můžete sdílet s ostatními.",
+      });
+    }).catch(err => {
+      console.error('Failed to copy text: ', err);
+      toast({
+        variant: "destructive",
+        title: "Chyba",
+        description: "Nepodařilo se zkopírovat odkaz.",
+      });
+    });
+  };
 
   const handleEditMatch = (match: Match) => {
     setSelectedMatch(match);
@@ -282,7 +320,11 @@ function DashboardPageContent() {
     const originalAttendance = userAttendances.get(matchId);
   
     // Optimistically update the UI
-    setOptimisticAttendances(prev => new Map(prev).set(matchId, { status: newStatus, note }));
+    if (newStatus === 'not-going') {
+      setOptimisticAttendances(prev => new Map(prev).set(matchId, { status: 'not-going', note }));
+    } else {
+      setOptimisticAttendances(prev => new Map(prev).set(matchId, { status: 'going', note }));
+    }
   
     const revertOptimisticUpdate = () => {
       setOptimisticAttendances(prev => {
@@ -302,6 +344,7 @@ function DashboardPageContent() {
       status: newStatus,
       note: note || null,
     };
+  
     setDoc(attendanceRef, data, { merge: true }).catch(async (error) => {
       revertOptimisticUpdate();
       toast({ variant: 'destructive', title: "Chyba", description: "Nepodařilo se uložit vaši účast." });
@@ -624,6 +667,7 @@ function DashboardPageContent() {
           </CardHeader>
           {upcomingMatches.length > 0 ? (
             <Carousel
+              setApi={setApi}
               opts={{
                 align: "start",
               }}
@@ -632,7 +676,7 @@ function DashboardPageContent() {
               <CarouselContent>
                 {upcomingMatches.map((match) => {
                   const opponent = match.team1 === 'Aces' ? match.team2 : match.team1;
-                  const attendance = userAttendancesWithOptimistic.get(match.id)?.status || 'unknown';
+                  const attendance = userAttendancesWithOptimistic.get(match.id)?.status;
                   const attendeesForMatch = (attendancesByMatch.get(match.id) || []);
                   const attendeeCount = attendeesForMatch.filter(a => a.status === 'going').length;
                   const sortedAttendees = [
@@ -642,22 +686,28 @@ function DashboardPageContent() {
 
                   return (
                     <CarouselItem key={match.id} className="relative">
-                       {userProfile?.role === 'admin' && (
-                          <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
-                              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleRecordResult(match)}>
-                                <ClipboardEdit className="h-4 w-4" />
-                                <span className="sr-only">Zapsat výsledek</span>
-                              </Button>
-                              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleEditMatch(match)}>
-                                  <Pencil className="h-4 w-4" />
-                                  <span className="sr-only">Upravit zápas</span>
-                              </Button>
-                              <Button variant="destructive" size="icon" className="h-8 w-8" onClick={() => handleDeleteMatch(match)}>
-                                  <Trash2 className="h-4 w-4" />
-                                  <span className="sr-only">Smazat zápas</span>
-                              </Button>
-                          </div>
-                        )}
+                        <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
+                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleShareMatch(match.id)}>
+                                <Share2 className="h-4 w-4" />
+                                <span className="sr-only">Sdílet zápas</span>
+                            </Button>
+                           {userProfile?.role === 'admin' && (
+                              <>
+                                  <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleRecordResult(match)}>
+                                    <ClipboardEdit className="h-4 w-4" />
+                                    <span className="sr-only">Zapsat výsledek</span>
+                                  </Button>
+                                  <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleEditMatch(match)}>
+                                      <Pencil className="h-4 w-4" />
+                                      <span className="sr-only">Upravit zápas</span>
+                                  </Button>
+                                  <Button variant="destructive" size="icon" className="h-8 w-8" onClick={() => handleDeleteMatch(match)}>
+                                      <Trash2 className="h-4 w-4" />
+                                      <span className="sr-only">Smazat zápas</span>
+                                  </Button>
+                              </>
+                            )}
+                        </div>
                         <>
                         <CardContent className="grid gap-6 md:grid-cols-5 items-center pt-6">
                             <div className="md:col-span-2 text-center md:text-left">
