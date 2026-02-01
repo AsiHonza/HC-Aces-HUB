@@ -106,10 +106,16 @@ function RegisterForm() {
 
       // Also create initial player stats
       await setDoc(doc(firestore, `users/${user.uid}/playerStats`, 'stats'), {
-        goals: 0,
-        assists: 0,
-        gamesPlayed: 0,
         userProfileId: user.uid,
+        seasonGoals: 0,
+        seasonAssists: 0,
+        seasonGamesPlayed: 0,
+        playoffGoals: 0,
+        playoffAssists: 0,
+        playoffGamesPlayed: 0,
+        historicalGoals: 0,
+        historicalAssists: 0,
+        historicalGamesPlayed: 0,
       });
 
 
@@ -238,3 +244,5 @@ export function AuthPage() {
     </>
   )
 }
+
+    

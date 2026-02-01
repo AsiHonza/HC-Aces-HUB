@@ -40,9 +40,15 @@ interface UserProfile {
 interface PlayerStats {
   id: string; // Document ID from playerStats subcollection
   userProfileId: string;
-  goals: number;
-  assists: number;
-  gamesPlayed: number;
+  seasonGoals: number;
+  seasonAssists: number;
+  seasonGamesPlayed: number;
+  playoffGoals: number;
+  playoffAssists: number;
+  playoffGamesPlayed: number;
+  historicalGoals: number;
+  historicalAssists: number;
+  historicalGamesPlayed: number;
 }
 
 interface Match {
@@ -52,6 +58,7 @@ interface Match {
   team1: string;
   team2: string;
   isPlayed: boolean;
+  isPlayoffMatch?: boolean;
   team1Score?: number;
   team2Score?: number;
   scorers?: { goal: string; assist: string | null }[];
@@ -74,6 +81,7 @@ interface PlayoffSeries {
 
 interface AppSettings {
   isPlayoffEnabled: boolean;
+  isScoringInPlayoffMode: boolean;
   playoffSeries: PlayoffSeries[];
 }
 
@@ -86,7 +94,13 @@ function RecordResultForm({ match, allUsers, onSave, onCancel }: { match: Match,
     
     return (
         <form onSubmit={handleSubmit}>
-            <div className="grid gap-4 py-4">
+             <DialogHeader>
+                  <DialogTitle>Zapsat výsledek zápasu</DialogTitle>
+                  <DialogDescription>
+                    Zadejte konečné skóre a vyberte střelce gólů a asistence.
+                  </DialogDescription>
+              </DialogHeader>
+            <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-4">
                 <p className="text-center font-bold text-lg">{match.team1} vs {match.team2}</p>
                 <div className="grid grid-cols-2 items-center gap-4">
                     <div className="grid gap-2 text-center">
@@ -121,7 +135,7 @@ function RecordResultForm({ match, allUsers, onSave, onCancel }: { match: Match,
                     </div>
                 ))}
             </div>
-            <DialogFooter>
+            <DialogFooter className="pt-4">
                 <Button type="button" variant="outline" onClick={onCancel}>Zrušit</Button>
                 <Button type="submit">Uložit výsledek</Button>
             </DialogFooter>
@@ -141,7 +155,6 @@ function DashboardPageContent() {
   const [isResultDialogOpen, setIsResultDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
 
-  const [isScoringEditMode, setIsScoringEditMode] = useState(false);
   const [isLeagueEditMode, setIsLeagueEditMode] = useState(false);
   
   const [optimisticAttendances, setOptimisticAttendances] = useState<Map<string, Partial<Attendance>>>(new Map());
@@ -157,6 +170,10 @@ function DashboardPageContent() {
   const [editablePlayoffSeries, setEditablePlayoffSeries] = useState<PlayoffSeries[]>([]);
   const [editableIsPlayoffEnabled, setEditableIsPlayoffEnabled] = useState(false);
 
+  const [myStatsView, setMyStatsView] = useState<'season' | 'playoff' | 'history'>('season');
+  const [scoringView, setScoringView] = useState<'season' | 'playoff' | 'history'>('season');
+
+
   // Fetch current user's profile and stats
   const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
   const { data: userProfile, isLoading: isUserProfileLoading } = useDoc<UserProfile>(userDocRef);
@@ -171,15 +188,6 @@ function DashboardPageContent() {
       return query(collection(firestore, 'matches'), orderBy('dateTime', 'asc'));
   }, [firestore, user]);
   const { data: allMatches, isLoading: areMatchesLoading } = useCollection<Match>(matchesQuery);
-  
-  const upcomingMatches = useMemo(() => {
-    if (!allMatches || !user) return [];
-    return allMatches
-      .filter(match => !match.isPlayed);
-  }, [allMatches, user]);
-
-  const nextMatch = useMemo(() => upcomingMatches?.[0], [upcomingMatches]);
-  const otherUpcomingMatches = useMemo(() => upcomingMatches?.slice(1) || [], [upcomingMatches]);
   
   // Fetch all users and stats for leaderboard
   const usersRef = useMemoFirebase(() => firestore && user ? collection(firestore, 'users'): null, [firestore, user]);
@@ -199,7 +207,17 @@ function DashboardPageContent() {
     const { data: leagueSettings, isLoading: leagueSettingsLoading } = useDoc<AppSettings>(leagueSettingsRef);
 
     const isPlayoffEnabled = leagueSettings?.isPlayoffEnabled ?? false;
+    const isScoringInPlayoffMode = leagueSettings?.isScoringInPlayoffMode ?? false;
     const playoffSeries = leagueSettings?.playoffSeries ?? [];
+  
+  const upcomingMatches = useMemo(() => {
+    if (!allMatches || !user) return [];
+    return allMatches
+      .filter(match => !match.isPlayed);
+  }, [allMatches, user]);
+
+  const nextMatch = useMemo(() => upcomingMatches?.[0], [upcomingMatches]);
+  const otherUpcomingMatches = useMemo(() => upcomingMatches?.slice(1) || [], [upcomingMatches]);
 
   const teamScoring = useMemo(() => {
     if (!allUsers || !allStats) return [];
@@ -210,14 +228,38 @@ function DashboardPageContent() {
     return allUsers.map(u => {
       const stats = statsMap.get(u.id);
       return {
-        id: u.id,
-        name: u.name,
-        goals: stats?.goals ?? 0,
-        assists: stats?.assists ?? 0,
-        points: (stats?.goals ?? 0) + (stats?.assists ?? 0),
+          id: u.id,
+          name: u.name,
+          season: {
+              goals: stats?.seasonGoals ?? 0,
+              assists: stats?.seasonAssists ?? 0,
+              gamesPlayed: stats?.seasonGamesPlayed ?? 0,
+              points: (stats?.seasonGoals ?? 0) + (stats?.seasonAssists ?? 0),
+          },
+          playoff: {
+              goals: stats?.playoffGoals ?? 0,
+              assists: stats?.playoffAssists ?? 0,
+              gamesPlayed: stats?.playoffGamesPlayed ?? 0,
+              points: (stats?.playoffGoals ?? 0) + (stats?.playoffAssists ?? 0),
+          },
+          history: {
+              goals: stats?.historicalGoals ?? 0,
+              assists: stats?.historicalAssists ?? 0,
+              gamesPlayed: stats?.historicalGamesPlayed ?? 0,
+              points: (stats?.historicalGoals ?? 0) + (stats?.historicalAssists ?? 0),
+          },
       };
     });
   }, [allUsers, allStats]);
+  
+  const sortedTeamScoring = useMemo(() => {
+      const data = teamScoring.map(player => ({
+          id: player.id,
+          name: player.name,
+          ...player[scoringView]
+      }));
+      return data.sort((a, b) => b.points - a.points || b.goals - a.goals).map((player, index) => ({ ...player, rank: index + 1 }));
+  }, [teamScoring, scoringView]);
   
   const [leagueStandings, setLeagueStandings] = useState([
     { rank: 1, name: 'Aces', points: 45, gf: 120, ga: 85 },
@@ -228,17 +270,10 @@ function DashboardPageContent() {
   ]);
   const [editableLeagueStandings, setEditableLeagueStandings] = useState(leagueStandings);
 
-  const scoringData = isScoringEditMode ? editableScoring : teamScoring;
-  const sortedTeamScoring = useMemo(() => [...scoringData]
-    .sort((a, b) => b.points - a.points)
-    .map((player, index) => ({ ...player, rank: index + 1 })), [scoringData]);
-  
   const leagueData = isLeagueEditMode ? editableLeagueStandings : leagueStandings;
   const sortedLeagueStandings = useMemo(() => [...leagueData]
     .sort((a, b) => b.points - a.points)
     .map((team, index) => ({ ...team, rank: index + 1 })), [leagueData]);
-
-  const [editableScoring, setEditableScoring] = useState(teamScoring);
 
   const attendancesByMatch = useMemo(() => {
     if (!allAttendances) return new Map<string, Attendance[]>();
@@ -287,12 +322,15 @@ function DashboardPageContent() {
     const matchId = searchParams.get('matchId');
     if (!matchId || !upcomingMatches || upcomingMatches.length === 0) return;
 
+    // Use a ref to the container of all upcoming matches for scrolling
+    const container = upcomingMatchesRef.current;
+    if (!container) return;
+
     const isOtherMatch = otherUpcomingMatches.some(m => m.id === matchId);
     if (isOtherMatch) {
         setOpenAccordionValue("item-1");
     }
     
-    // Using a timeout to allow the accordion to render and open before scrolling
     setTimeout(() => {
         const element = document.getElementById(`match-${matchId}`);
         if (element) {
@@ -301,7 +339,6 @@ function DashboardPageContent() {
 
             setTimeout(() => {
                 setHighlightedMatchId(null);
-                // Clear the matchId from URL without reloading
                 const newUrl = new URL(window.location.href);
                 newUrl.searchParams.delete('matchId');
                 window.history.replaceState({}, '', newUrl);
@@ -315,6 +352,24 @@ function DashboardPageContent() {
     if (!allUsers) return new Map<string, UserProfile>();
     return new Map(allUsers.map(u => [u.id, u]));
   }, [allUsers]);
+  
+  const myStatsToDisplay = useMemo(() => {
+    if (!playerStats) return { goals: 0, assists: 0, gamesPlayed: 0 };
+    switch(myStatsView) {
+        case 'playoff': return { goals: playerStats.playoffGoals, assists: playerStats.playoffAssists, gamesPlayed: playerStats.playoffGamesPlayed };
+        case 'history': return { goals: playerStats.historicalGoals, assists: playerStats.historicalAssists, gamesPlayed: playerStats.historicalGamesPlayed };
+        case 'season':
+        default:
+            return { goals: playerStats.seasonGoals, assists: playerStats.seasonAssists, gamesPlayed: playerStats.seasonGamesPlayed };
+    }
+  }, [playerStats, myStatsView]);
+
+  const stats = [
+    { metric: 'Góly', value: myStatsToDisplay.goals ?? 0 },
+    { metric: 'Asistence', value: myStatsToDisplay.assists ?? 0 },
+    { metric: 'Body', value: (myStatsToDisplay.goals ?? 0) + (myStatsToDisplay.assists ?? 0) },
+    { metric: 'Odehrané zápasy', value: myStatsToDisplay.gamesPlayed ?? 0 },
+  ]
   
 
   const isLoading = isUserLoading || isUserProfileLoading || isPlayerStatsLoading || areMatchesLoading || areUsersLoading || areStatsLoading || attendancesLoading || leagueSettingsLoading;
@@ -485,7 +540,7 @@ function DashboardPageContent() {
 
   const handleResultSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!selectedMatch || !firestore || !allStats) return;
+    if (!selectedMatch || !firestore || !allStats || !allAttendances) return;
 
     const formData = new FormData(e.currentTarget);
     const team1Score = parseInt(formData.get('team1Score') as string, 10);
@@ -512,7 +567,13 @@ function DashboardPageContent() {
         team1Score,
         team2Score,
         scorers: scorersData,
+        isPlayoffMatch: isScoringInPlayoffMode,
     });
+
+    const goalsField = isScoringInPlayoffMode ? 'playoffGoals' : 'seasonGoals';
+    const assistsField = isScoringInPlayoffMode ? 'playoffAssists' : 'seasonAssists';
+    const gamesPlayedField = isScoringInPlayoffMode ? 'playoffGamesPlayed' : 'seasonGamesPlayed';
+
 
     // 2. Tally up goals and assists for each player
     const playerStatUpdates = new Map<string, { goals: number, assists: number }>();
@@ -527,72 +588,38 @@ function DashboardPageContent() {
         }
     });
 
-    // 3. Create batch updates for playerStats
     const allStatsMap = new Map(allStats.map(s => [s.userProfileId, s]));
 
+    // 3. Create batch updates for player goals/assists
     for (const [userId, updates] of playerStatUpdates.entries()) {
         const userStats = allStatsMap.get(userId);
-        // Each user has one stats doc, ID is 'stats'
         if (userStats) {
              const statDocRef = doc(firestore, 'users', userId, 'playerStats', userStats.id);
-            batch.update(statDocRef, {
-                goals: (userStats.goals || 0) + updates.goals,
-                assists: (userStats.assists || 0) + updates.assists,
-            });
+             const update: any = {};
+             update[goalsField] = (userStats[goalsField] || 0) + updates.goals;
+             update[assistsField] = (userStats[assistsField] || 0) + updates.assists;
+            batch.update(statDocRef, update);
         }
     }
 
-    await batch.commit();
+    // 4. Update games played for attendees
+    const matchAttendees = attendancesByMatch.get(selectedMatch.id) || [];
+    matchAttendees.forEach(att => {
+        const userStats = allStatsMap.get(att.userId);
+        if (att.status === 'going' && userStats) {
+            const statDocRef = doc(firestore, 'users', att.userId, 'playerStats', userStats.id);
+            const update: any = {};
+            update[gamesPlayedField] = (userStats[gamesPlayedField] || 0) + 1;
+            batch.update(statDocRef, update);
+        }
+    });
 
+
+    await batch.commit();
+    toast({ title: "Výsledek uložen", description: "Statistiky hráčů byly aktualizovány." });
     setIsResultDialogOpen(false);
     setSelectedMatch(null);
 };
-
-  const handleEditScoringClick = () => {
-    setEditableScoring(teamScoring.map(p => ({...p})));
-    setIsScoringEditMode(true);
-  };
-
-  const handleSaveScoring = async () => {
-    setIsScoringEditMode(false);
-    if (!firestore || !allStats) return;
-
-    const batch = writeBatch(firestore);
-    const statsMap = new Map(allStats.map(s => [s.userProfileId, s.id]));
-
-    editableScoring.forEach(player => {
-        const statDocId = statsMap.get(player.id);
-        if (statDocId) {
-            const playerStatsRef = doc(firestore, 'users', player.id, 'playerStats', statDocId);
-            batch.update(playerStatsRef, {
-                goals: player.goals,
-                assists: player.assists
-            });
-        }
-    });
-    await batch.commit();
-  };
-  
-  const handleCancelScoring = () => {
-    setIsScoringEditMode(false);
-  };
-
-  const handleScoringChange = (playerId: string, stat: 'goals' | 'assists', delta: number) => {
-    setEditableScoring(currentScoring =>
-      currentScoring.map(p => {
-        if (p.id === playerId) {
-          const newStatValue = p[stat] + delta;
-          const updatedPlayer = {
-            ...p,
-            [stat]: Math.max(0, newStatValue),
-          };
-          updatedPlayer.points = updatedPlayer.goals + updatedPlayer.assists;
-          return updatedPlayer;
-        }
-        return p;
-      })
-    );
-  };
 
   const handleEditLeagueClick = () => {
     setEditableLeagueStandings(leagueStandings.map(t => ({...t})));
@@ -696,13 +723,6 @@ function DashboardPageContent() {
   }
   
   const fallback = userProfile?.name?.split(' ').map(n => n[0]).join('').toUpperCase() ?? ''
-
-  const stats = [
-    { metric: 'Góly', value: playerStats?.goals ?? 0 },
-    { metric: 'Asistence', value: playerStats?.assists ?? 0 },
-    { metric: 'Body', value: (playerStats?.goals ?? 0) + (playerStats?.assists ?? 0) },
-    { metric: 'Odehrané zápasy', value: playerStats?.gamesPlayed ?? 0 },
-  ]
   
   const renderMatchCard = (match: Match) => {
     const opponent = match.team1 === 'Aces' ? match.team2 : match.team1;
@@ -715,8 +735,7 @@ function DashboardPageContent() {
     ];
 
     return (
-        <CarouselItem key={match.id} id={`match-${match.id}`} className={cn("basis-full relative", highlightedMatchId === match.id && 'animate-highlight-card')}>
-            <Card>
+        <Card id={`match-${match.id}`} className={cn("w-full transition-all", highlightedMatchId === match.id && 'animate-highlight-card')}>
                 <CardHeader className="flex-row items-start justify-between pb-2">
                     <div className="space-y-1">
                         <CardTitle className="text-xl break-words pr-2">{opponent}</CardTitle>
@@ -835,13 +854,12 @@ function DashboardPageContent() {
                     </div>
                 </CardFooter>
             </Card>
-        </CarouselItem>
     );
   };
 
 
   return (
-    <div className="py-8 px-4 sm:px-6">
+    <div className="py-8 px-4 sm:px-6 lg:px-8">
       <div className="grid gap-8 lg:grid-cols-3">
         
         <Card className="lg:col-span-1 flex flex-col items-center justify-center p-6 text-center">
@@ -854,21 +872,30 @@ function DashboardPageContent() {
         </Card>
 
         <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 font-headline"><BarChart className="text-primary"/>Statistiky sezóny</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableBody>
-                {stats.map(stat => (
-                  <TableRow key={stat.metric}>
-                    <TableCell className="font-medium text-base">{stat.metric}</TableCell>
-                    <TableCell className="text-right font-mono text-lg font-bold">{stat.value}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2 font-headline"><BarChart className="text-primary"/>Moje statistiky</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <Tabs value={myStatsView} onValueChange={(value) => setMyStatsView(value as any)} className="w-full">
+                    <TabsList className="grid w-full grid-cols-3">
+                        <TabsTrigger value="season">Sezóna</TabsTrigger>
+                        <TabsTrigger value="playoff" disabled={!isScoringInPlayoffMode}>Play-off</TabsTrigger>
+                        <TabsTrigger value="history">Historie</TabsTrigger>
+                    </TabsList>
+                    <div className="mt-4">
+                        <Table>
+                            <TableBody>
+                                {stats.map(stat => (
+                                <TableRow key={stat.metric}>
+                                    <TableCell className="font-medium text-base">{stat.metric}</TableCell>
+                                    <TableCell className="text-right font-mono text-lg font-bold">{stat.value}</TableCell>
+                                </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
+                </Tabs>
+            </CardContent>
         </Card>
 
         <div className="lg:col-span-3" ref={upcomingMatchesRef}>
@@ -918,7 +945,7 @@ function DashboardPageContent() {
           </div>
           
             {nextMatch ? (
-                 <div id={`match-${nextMatch.id}`} className={cn('relative', highlightedMatchId === nextMatch.id && 'animate-highlight-card')}>
+                 <div className="w-full">
                     {renderMatchCard(nextMatch)}
                 </div>
             ) : (
@@ -932,9 +959,7 @@ function DashboardPageContent() {
                         <AccordionContent className="pt-4">
                             <div className="space-y-4">
                                 {otherUpcomingMatches.map(match => (
-                                    <div id={`match-${match.id}`} key={match.id} className={cn('relative', highlightedMatchId === match.id && 'animate-highlight-card')}>
-                                        {renderMatchCard(match)}
-                                    </div>
+                                    renderMatchCard(match)
                                 ))}
                             </div>
                         </AccordionContent>
@@ -960,75 +985,43 @@ function DashboardPageContent() {
 
         <div className="lg:col-span-3 grid gap-8 md:grid-cols-2">
             <Card>
-                <CardHeader className="flex-row items-center justify-between">
+                <CardHeader>
                     <CardTitle className="flex items-center gap-2 font-headline"><Flame className="text-primary"/>Kanadské bodování</CardTitle>
-                    {userProfile?.role === 'admin' && (
-                      <div className="flex gap-2">
-                        {isScoringEditMode ? (
-                          <>
-                            <Button variant="outline" onClick={handleCancelScoring}>Zrušit</Button>
-                            <Button onClick={handleSaveScoring}>Uložit</Button>
-                          </>
-                        ) : (
-                          <Button variant="outline" size="icon" onClick={handleEditScoringClick}>
-                            <Pencil className="h-4 w-4" />
-                            <span className="sr-only">Upravit bodování</span>
-                          </Button>
-                        )}
-                      </div>
-                    )}
                 </CardHeader>
                 <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead className="w-[40px] px-2 sm:px-4">#</TableHead>
-                                <TableHead>Hráč</TableHead>
-                                <TableHead className="text-center hidden sm:table-cell w-[80px]">G</TableHead>
-                                <TableHead className="text-center hidden sm:table-cell w-[80px]">A</TableHead>
-                                <TableHead className="text-right w-[60px] px-2 sm:px-4">B</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {sortedTeamScoring.map((player) => (
-                                <TableRow key={player.id}>
-                                    <TableCell className="font-medium px-2 sm:px-4">{player.rank}</TableCell>
-                                    <TableCell>{player.name}</TableCell>
-                                    <TableCell className="text-center font-mono hidden sm:table-cell">
-                                      {isScoringEditMode ? (
-                                        <div className="flex items-center justify-center gap-1 sm:gap-2">
-                                          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleScoringChange(player.id, 'goals', -1)}>
-                                            <Minus className="h-4 w-4" />
-                                          </Button>
-                                          <span className="w-6 text-center">{player.goals}</span>
-                                          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleScoringChange(player.id, 'goals', 1)}>
-                                            <Plus className="h-4 w-4" />
-                                          </Button>
-                                        </div>
-                                      ) : (
-                                        player.goals
-                                      )}
-                                    </TableCell>
-                                    <TableCell className="text-center font-mono hidden sm:table-cell">
-                                      {isScoringEditMode ? (
-                                        <div className="flex items-center justify-center gap-1 sm:gap-2">
-                                          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleScoringChange(player.id, 'assists', -1)}>
-                                            <Minus className="h-4 w-4" />
-                                          </Button>
-                                          <span className="w-6 text-center">{player.assists}</span>
-                                          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleScoringChange(player.id, 'assists', 1)}>
-                                            <Plus className="h-4 w-4" />
-                                          </Button>
-                                        </div>
-                                      ) : (
-                                        player.assists
-                                      )}
-                                    </TableCell>
-                                    <TableCell className="text-right font-mono font-bold px-2 sm:px-4">{player.points}</TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
+                    <Tabs value={scoringView} onValueChange={(value) => setScoringView(value as any)} className="w-full">
+                        <TabsList className="grid w-full grid-cols-3">
+                            <TabsTrigger value="season">Sezóna</TabsTrigger>
+                            <TabsTrigger value="playoff" disabled={!isScoringInPlayoffMode}>Play-off</TabsTrigger>
+                            <TabsTrigger value="history">Historie</TabsTrigger>
+                        </TabsList>
+                        <div className="mt-4">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead className="w-[20px] px-1 sm:px-4">#</TableHead>
+                                        <TableHead>Hráč</TableHead>
+                                        <TableHead className="text-center w-[40px] px-1 sm:px-4">Z</TableHead>
+                                        <TableHead className="text-center w-[40px] px-1 sm:px-4">G</TableHead>
+                                        <TableHead className="text-center w-[40px] px-1 sm:px-4">A</TableHead>
+                                        <TableHead className="text-right w-[40px] px-1 sm:px-4">B</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {sortedTeamScoring.map((player) => (
+                                        <TableRow key={player.id}>
+                                            <TableCell className="font-medium px-1 sm:px-4">{player.rank}</TableCell>
+                                            <TableCell className="py-2 px-1 sm:px-4">{player.name}</TableCell>
+                                            <TableCell className="text-center font-mono py-2 px-1 sm:px-4">{player.gamesPlayed}</TableCell>
+                                            <TableCell className="text-center font-mono py-2 px-1 sm:px-4">{player.goals}</TableCell>
+                                            <TableCell className="text-center font-mono py-2 px-1 sm:px-4">{player.assists}</TableCell>
+                                            <TableCell className="text-right font-mono font-bold py-2 px-1 sm:px-4">{player.points}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </Tabs>
                 </CardContent>
             </Card>
 
@@ -1081,11 +1074,11 @@ function DashboardPageContent() {
                             <Table>
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead className="w-[40px] px-2 sm:px-4">#</TableHead>
+                                        <TableHead className="w-auto px-2 sm:px-4">#</TableHead>
                                         <TableHead>Tým</TableHead>
                                         <TableHead className="text-center hidden sm:table-cell">GF</TableHead>
                                         <TableHead className="text-center hidden sm:table-cell">GA</TableHead>
-                                        <TableHead className="text-center w-[100px] sm:w-auto px-2 sm:px-4">B</TableHead>
+                                        <TableHead className="text-center w-auto px-2 sm:px-4">B</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -1231,12 +1224,6 @@ function DashboardPageContent() {
       </AlertDialog>
       <Dialog open={isResultDialogOpen} onOpenChange={(isOpen) => { setIsResultDialogOpen(isOpen); if (!isOpen) setSelectedMatch(null); }}>
           <DialogContent className="max-w-md">
-              <DialogHeader>
-                  <DialogTitle>Zapsat výsledek zápasu</DialogTitle>
-                  <DialogDescription>
-                    Zadejte konečné skóre a vyberte střelce gólů a asistence.
-                  </DialogDescription>
-              </DialogHeader>
               {selectedMatch && allUsers && <RecordResultForm match={selectedMatch} allUsers={allUsers} onSave={handleResultSave} onCancel={() => setIsResultDialogOpen(false)} />}
           </DialogContent>
       </Dialog>
@@ -1277,8 +1264,10 @@ function DashboardPageContent() {
 
 export default function DashboardPage() {
   return (
-    <Suspense fallback={<div className="px-4 sm:px-6 py-8">Načítání...</div>}>
+    <Suspense fallback={<div className="p-4 sm:p-6 lg:p-8">Načítání...</div>}>
       <DashboardPageContent />
     </Suspense>
   )
 }
+
+    

@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useMemo, useState } from 'react'
+import { Suspense, useMemo, useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase'
@@ -25,6 +25,7 @@ interface Match {
   team1: string;
   team2: string;
   isPlayed: boolean;
+  isPlayoffMatch?: boolean;
   team1Score?: number;
   team2Score?: number;
   scorers?: { goal: string; assist: string | null }[];
@@ -40,9 +41,23 @@ interface UserProfile {
 interface PlayerStats {
   id: string;
   userProfileId: string;
-  goals: number;
-  assists: number;
-  gamesPlayed: number;
+  seasonGoals: number;
+  seasonAssists: number;
+  seasonGamesPlayed: number;
+  playoffGoals: number;
+  playoffAssists: number;
+  playoffGamesPlayed: number;
+  historicalGoals: number;
+  historicalAssists: number;
+  historicalGamesPlayed: number;
+}
+
+interface Attendance {
+    id: string;
+    userId: string;
+    matchId: string;
+    status: 'going' | 'not-going' | 'unknown';
+    note?: string;
 }
 
 function EditResultForm({ match, allUsers, onSave, onCancel }: { match: Match, allUsers: UserProfile[], onSave: (e: React.FormEvent<HTMLFormElement>) => Promise<void>, onCancel: () => void }) {
@@ -133,6 +148,24 @@ function HistoryPageContent() {
       return collectionGroup(firestore, 'playerStats');
     }, [firestore, user]);
     const { data: allStats, isLoading: statsLoading } = useCollection<PlayerStats>(allStatsRef);
+    
+    const attendancesQuery = useMemoFirebase(() => {
+        if (!firestore || !user) return null;
+        return query(collectionGroup(firestore, 'attendees'));
+    }, [firestore, user]);
+    const { data: allAttendances, isLoading: attendancesLoading } = useCollection<Attendance>(attendancesQuery);
+    
+    const attendancesByMatch = useMemo(() => {
+        if (!allAttendances) return new Map<string, Attendance[]>();
+        const map = new Map<string, Attendance[]>();
+        allAttendances.forEach(att => {
+            if (!map.has(att.matchId)) {
+                map.set(att.matchId, []);
+            }
+            map.get(att.matchId)!.push(att);
+        });
+        return map;
+      }, [allAttendances]);
 
     const matches = useMemo(() => {
         if (!allMatches) return null;
@@ -144,7 +177,7 @@ function HistoryPageContent() {
         return new Map(users.map(u => [u.id, u.name]));
     }, [users]);
     
-    const isLoading = userProfileLoading || matchesLoading || usersLoading || statsLoading;
+    const isLoading = userProfileLoading || matchesLoading || usersLoading || statsLoading || attendancesLoading;
 
     const handleEditMatch = (match: Match) => {
         setSelectedMatch(match);
@@ -160,7 +193,9 @@ function HistoryPageContent() {
         if (!selectedMatch || !firestore || !allStats) return;
     
         const batch = writeBatch(firestore);
+        const isPlayoff = !!selectedMatch.isPlayoffMatch;
         
+        // Revert goals and assists
         const statsToRevert = new Map<string, { goals: number, assists: number }>();
         selectedMatch.scorers?.forEach(scorer => {
             if (scorer.goal) {
@@ -178,12 +213,36 @@ function HistoryPageContent() {
             const userStats = allStatsMap.get(userId);
             if (userStats) {
                 const statDocRef = doc(firestore, 'users', userId, 'playerStats', userStats.id);
-                batch.update(statDocRef, {
-                    goals: Math.max(0, (userStats.goals || 0) - revert.goals),
-                    assists: Math.max(0, (userStats.assists || 0) - revert.assists),
-                });
+                const update: any = {};
+                if (isPlayoff) {
+                    update.playoffGoals = Math.max(0, (userStats.playoffGoals || 0) - revert.goals);
+                    update.playoffAssists = Math.max(0, (userStats.playoffAssists || 0) - revert.assists);
+                } else {
+                    update.seasonGoals = Math.max(0, (userStats.seasonGoals || 0) - revert.goals);
+                    update.seasonAssists = Math.max(0, (userStats.seasonAssists || 0) - revert.assists);
+                }
+                batch.update(statDocRef, update);
             }
         }
+        
+        // Revert games played
+        const matchAttendees = attendancesByMatch.get(selectedMatch.id) || [];
+        matchAttendees.forEach(att => {
+            const userStats = allStatsMap.get(att.userId);
+            if (att.status === 'going' && userStats) {
+                const statDocRef = doc(firestore, 'users', att.userId, 'playerStats', userStats.id);
+                if (isPlayoff) {
+                    batch.update(statDocRef, {
+                        playoffGamesPlayed: Math.max(0, (userStats.playoffGamesPlayed || 0) - 1)
+                    });
+                } else {
+                    batch.update(statDocRef, {
+                        seasonGamesPlayed: Math.max(0, (userStats.seasonGamesPlayed || 0) - 1)
+                    });
+                }
+            }
+        });
+
     
         const matchRef = doc(firestore, 'matches', selectedMatch.id);
         batch.delete(matchRef);
@@ -202,6 +261,8 @@ function HistoryPageContent() {
     const handleResultSave = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         if (!selectedMatch || !firestore || !allStats || !users) return;
+
+        const isPlayoff = !!selectedMatch.isPlayoffMatch;
 
         const formData = new FormData(e.currentTarget);
         const team1Score = parseInt(formData.get('team1Score') as string, 10);
@@ -222,6 +283,7 @@ function HistoryPageContent() {
         const batch = writeBatch(firestore);
         const statsDiff = new Map<string, { goals: number, assists: number }>();
 
+        // Revert old stats
         selectedMatch.scorers?.forEach(scorer => {
             if (scorer.goal) {
                 const current = statsDiff.get(scorer.goal) || { goals: 0, assists: 0 };
@@ -233,6 +295,7 @@ function HistoryPageContent() {
             }
         });
 
+        // Apply new stats
         newScorersData.forEach(scorer => {
             if (scorer.goal) {
                 const current = statsDiff.get(scorer.goal) || { goals: 0, assists: 0 };
@@ -249,10 +312,15 @@ function HistoryPageContent() {
             const userStats = allStatsMap.get(userId);
             if (userStats) {
                 const statDocRef = doc(firestore, 'users', userId, 'playerStats', userStats.id);
-                batch.update(statDocRef, {
-                    goals: Math.max(0, (userStats.goals || 0) + diff.goals),
-                    assists: Math.max(0, (userStats.assists || 0) + diff.assists),
-                });
+                const update: any = {};
+                if (isPlayoff) {
+                    update.playoffGoals = Math.max(0, (userStats.playoffGoals || 0) + diff.goals);
+                    update.playoffAssists = Math.max(0, (userStats.playoffAssists || 0) + diff.assists);
+                } else {
+                    update.seasonGoals = Math.max(0, (userStats.seasonGoals || 0) + diff.goals);
+                    update.seasonAssists = Math.max(0, (userStats.seasonAssists || 0) + diff.assists);
+                }
+                batch.update(statDocRef, update);
             }
         }
 
@@ -297,7 +365,7 @@ function HistoryPageContent() {
 
 
     return (
-        <div className="px-4 sm:px-6 py-8">
+        <div className="p-4 sm:p-6 lg:p-8">
             <Card>
                 <CardHeader>
                     <CardTitle>Historie zápasů</CardTitle>
@@ -311,13 +379,14 @@ function HistoryPageContent() {
                                     <AccordionTrigger className="hover:no-underline text-left">
                                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full pr-2 gap-y-1 gap-x-2">
                                             <div className="flex-1 min-w-0">
-                                                <p className="text-xs text-muted-foreground">{format(match.dateTime.toDate(), "d. M. yy", { locale: cs })}</p>
+                                                <p className="text-xs text-muted-foreground">{format(match.dateTime.toDate(), "d.M.yy", { locale: cs })}</p>
                                                 <p className="font-semibold truncate">{match.team1} vs {match.team2}</p>
                                             </div>
                                             <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-sm sm:text-base font-bold font-mono">{match.team1Score} : {match.team2Score}</span>
                                                     <Badge variant={getResultBadgeVariant(match.team1Score, match.team2Score)}>{getResultText(match.team1Score, match.team2Score)}</Badge>
+                                                    {match.isPlayoffMatch && <Badge variant="outline">Playoff</Badge>}
                                                 </div>
                                                 {userProfile?.role === 'admin' && (
                                                     <DropdownMenu>
@@ -382,7 +451,7 @@ function HistoryPageContent() {
                     <AlertDialogHeader>
                         <AlertDialogTitle>Opravdu chcete smazat tento zápas?</AlertDialogTitle>
                         <AlertDialogDescription>
-                          Tato akce je nevratná. Záznam o zápase a související statistiky (góly, asistence) budou trvale odstraněny.
+                          Tato akce je nevratná. Záznam o zápase a související statistiky (góly, asistence, odehrané zápasy) budou trvale odstraněny.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -398,8 +467,10 @@ function HistoryPageContent() {
 
 export default function HistoryPage() {
     return (
-        <Suspense fallback={<div className="px-4 sm:px-6 py-8">Načítání...</div>}>
+        <Suspense fallback={<div className="p-4 sm:p-6 lg:p-8">Načítání...</div>}>
             <HistoryPageContent />
         </Suspense>
     )
 }
+
+    

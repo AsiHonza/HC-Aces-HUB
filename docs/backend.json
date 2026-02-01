@@ -65,6 +65,10 @@
           "type": "boolean",
           "description": "Indicates if the match has been played and a result has been recorded."
         },
+        "isPlayoffMatch": {
+          "type": "boolean",
+          "description": "Indicates if the match is part of the play-offs. Defaults to false if not present."
+        },
         "team1Score": {
           "type": "number",
           "description": "Final score for team 1 (usually Aces)."
@@ -107,7 +111,7 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "PlayerStats",
       "type": "object",
-      "description": "Represents the statistics of a player.",
+      "description": "Represents the statistics of a player, categorized by season, playoff, and all-time history.",
       "properties": {
         "id": {
           "type": "string",
@@ -117,25 +121,55 @@
           "type": "string",
           "description": "Reference to UserProfile. (Relationship: UserProfile 1:1 PlayerStats)"
         },
-        "goals": {
+        "seasonGoals": {
           "type": "number",
-          "description": "Number of goals scored by the player."
+          "description": "Number of goals scored by the player in the current regular season."
         },
-        "assists": {
+        "seasonAssists": {
           "type": "number",
-          "description": "Number of assists made by the player."
+          "description": "Number of assists made by the player in the current regular season."
         },
-        "gamesPlayed": {
+        "seasonGamesPlayed": {
           "type": "number",
-          "description": "Number of games played by the player."
+          "description": "Number of games played by the player in the current regular season."
+        },
+        "playoffGoals": {
+          "type": "number",
+          "description": "Number of goals scored by the player in the current playoffs."
+        },
+        "playoffAssists": {
+          "type": "number",
+          "description": "Number of assists made by the player in the current playoffs."
+        },
+        "playoffGamesPlayed": {
+          "type": "number",
+          "description": "Number of games played by the player in the current playoffs."
+        },
+        "historicalGoals": {
+          "type": "number",
+          "description": "Total number of goals scored by the player in their career."
+        },
+        "historicalAssists": {
+          "type": "number",
+          "description": "Total number of assists made by the player in their career."
+        },
+        "historicalGamesPlayed": {
+          "type": "number",
+          "description": "Total number of games played by the player in their career."
         }
       },
       "required": [
         "id",
         "userProfileId",
-        "goals",
-        "assists",
-        "gamesPlayed"
+        "seasonGoals",
+        "seasonAssists",
+        "seasonGamesPlayed",
+        "playoffGoals",
+        "playoffAssists",
+        "playoffGamesPlayed",
+        "historicalGoals",
+        "historicalAssists",
+        "historicalGamesPlayed"
       ]
     },
     "Attendance": {
@@ -182,6 +216,10 @@
           "type": "boolean",
           "description": "Controls whether the playoff view is enabled for all users."
         },
+        "isScoringInPlayoffMode": {
+          "type": "boolean",
+          "description": "Controls whether player stats tracking is in 'play-off' mode, which uses a separate counter."
+        },
         "playoffSeries": {
           "type": "array",
           "description": "An array of objects representing playoff series.",
@@ -217,7 +255,8 @@
         }
       },
       "required": [
-        "isPlayoffEnabled"
+        "isPlayoffEnabled",
+        "isScoringInPlayoffMode"
       ]
     }
   },
@@ -321,3 +360,4 @@
     "reasoning": "Based on the requirements, the Firestore data structure is designed to prioritize security, scalability, and ease of maintenance. The core principle is Authorization Independence, achieved through denormalization where necessary, ensuring security rules are robust and efficient. The structure segregates data based on access needs and applies consistent access modeling patterns.\n\nUser profiles are stored in a private collection, accessible only to the authenticated user. PlayerStats are stored as a subcollection under user profiles to model the 1:1 relationship, ensuring that stats can only be accessed by the user themselves.\n\nMatches are stored in a separate collection, assumably accessible to all users. If match visibility were to change (e.g. only accessible to players), a membership map could be added to the `Match` entity to define access.\n\nThis design supports the QAPs (Rules are not filters) principle by ensuring that listing operations can be secured effectively. Since user profile data is private and matches are public, filtering isn't a primary concern at this stage of the design. If more complex list operations become necessary (e.g., listing matches by a specific team), indexing strategies can be applied without compromising security.\n\nAuthorization Independence is achieved by avoiding `get()` calls in security rules. Access to user profiles is based on `request.auth.uid` matching the `userId` in the path. Since the PlayerStats collection is nested under the UserProfile, access is implicitly controlled by the UserProfile access rules."
   }
 }
+    
