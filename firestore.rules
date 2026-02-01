@@ -12,13 +12,12 @@
  * Key Security Decisions:
  * - User Isolation: A user can only read or write data within their own
  *   document tree (i.e., /users/{their-own-userId}/...).
- * - No User Listing: It is not possible for any client to list all documents in
- *   the top-level /users collection, protecting user privacy.
+ * - User Listing for Leaderboard: Signed-in users can list all user profiles to
+ *   populate leaderboards and team views.
  * - Public Reads on Matches: The /matches collection is publicly readable by anyone,
  *   including unauthenticated users, to allow for easy viewing of game schedules.
  * - Write Protection on Matches: Writes to the /matches collection are currently
- *   disabled pending the addition of an ownership or administrative role field to
- *   the Match entity. This is a secure default.
+ *   restricted to admins.
  * - Denormalization for Authorization: Rules rely on the {userId} wildcard in the
  *   path for authorization, avoiding costly and slow `get()` calls to other documents.
  *   Furthermore, documents within the user's tree are required to contain a field
@@ -37,6 +36,7 @@ service cloud.firestore {
     }
     
     function isAdmin() {
+      // Check for role on the user's own document
       return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
@@ -72,7 +72,8 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
-      allow list: if isAdmin();
+      // Allow any signed-in user to list users for leaderboard purposes
+      allow list: if isSignedIn(); 
       allow create: if isOwner(userId) && isCreatingOwnProfile(userId);
       allow update: if (isExistingOwner(userId) && isUpdatingOwnProfile()) || isAdmin();
       allow delete: if isExistingOwner(userId) || isAdmin();
@@ -80,10 +81,16 @@ service cloud.firestore {
 
     match /users/{userId}/playerStats/{playerStatsId} {
       allow get: if isOwner(userId) || isAdmin();
-      allow list: if isSignedIn();
+      // list is handled by the collection group rule below
       allow create: if isOwner(userId) && isCreatingOwnPlayerStats(userId);
       allow update: if (isExistingOwner(userId) && isUpdatingOwnPlayerStats()) || isAdmin();
       allow delete: if isExistingOwner(userId) || isAdmin();
+    }
+
+    // This rule allows the collection group query for 'playerStats' used in the dashboard leaderboard.
+    // It allows any signed-in user to read and list documents from any 'playerStats' collection.
+    match /{path=**}/playerStats/{statsId} {
+        allow get, list: if isSignedIn();
     }
 
     match /matches/{matchId} {
