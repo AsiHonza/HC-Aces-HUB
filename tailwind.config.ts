@@ -103,8 +103,14 @@ export default {
           '100%': { opacity: '1', transform: 'scale(1) rotate(0deg)' },
         },
         'highlight-card': {
-          '0%, 100%': { boxShadow: '0 0 0 0px hsl(var(--primary) / 0)' },
-          '50%': { boxShadow: '0 0 0 4px hsl(var(--primary) / 0.5)' },
+          '0%, 100%': {
+            borderColor: 'hsl(var(--border))',
+            boxShadow: '0 0 0 0 hsl(var(--primary) / 0)',
+          },
+          '50%': {
+            borderColor: 'hsl(var(--primary))',
+            boxShadow: '0 0 0 8px hsl(var(--primary) / 0.3)',
+          },
         },
       },
       animation: {
