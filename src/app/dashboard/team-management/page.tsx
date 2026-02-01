@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, Suspense, useEffect } from 'react'
+import { useState, Suspense, useEffect, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { mockUsers, type User as UserType } from '@/lib/mock-users'
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase'
+import { collection, doc, updateDoc, deleteDoc } from 'firebase/firestore'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
@@ -11,18 +12,31 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
-import { MoreHorizontal, Trash2, UserCog, Edit, ShieldCheck, User as UserIcon } from 'lucide-react'
+import { MoreHorizontal, Trash2, UserCog, Edit, ShieldCheck, User as UserIcon, Loader2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from "@/hooks/use-toast"
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+
+interface UserProfile {
+  id: string;
+  name: string;
+  email: string;
+  phoneNumber?: string;
+  jerseyNumber?: number;
+  role: 'admin' | 'classic';
+  dob?: string;
+}
 
 function TeamManagementContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { toast } = useToast()
   
-  const [users, setUsers] = useState<UserType[]>(mockUsers)
-  const [selectedUser, setSelectedUser] = useState<UserType | null>(null)
+  const firestore = useFirestore()
+  const usersCollectionRef = useMemoFirebase(() => firestore ? collection(firestore, 'users') : null, [firestore]);
+  const { data: users, isLoading: usersLoading } = useCollection<UserProfile>(usersCollectionRef);
+  
+  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
 
@@ -40,59 +54,98 @@ function TeamManagementContent() {
     }
   }, [role, router, searchParams, toast])
 
-  const handleEditUser = (user: UserType) => {
+  const handleEditUser = (user: UserProfile) => {
     setSelectedUser(user)
     setIsEditDialogOpen(true)
   }
 
-  const handleDeleteUser = (user: UserType) => {
+  const handleDeleteUser = (user: UserProfile) => {
     setSelectedUser(user)
     setIsDeleteDialogOpen(true)
   }
 
-  const confirmDelete = () => {
-    if (!selectedUser) return
-    setUsers(users.filter(u => u.id !== selectedUser.id))
-    toast({
-      title: 'Uživatel smazán',
-      description: `Uživatel ${selectedUser.name} byl úspěšně smazán.`,
-    })
+  const confirmDelete = async () => {
+    if (!selectedUser || !firestore) return
+    
+    const userDocRef = doc(firestore, 'users', selectedUser.id);
+    try {
+      // Note: This deletes the Firestore document, but not the Firebase Auth user.
+      // A backend function would be required to delete the auth user.
+      await deleteDoc(userDocRef);
+      toast({
+        title: 'Uživatel smazán',
+        description: `Záznam uživatele ${selectedUser.name} byl úspěšně smazán.`,
+      })
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Chyba',
+        description: `Nepodařilo se smazat uživatele: ${error.message}`,
+      })
+    }
+    
     setIsDeleteDialogOpen(false)
     setSelectedUser(null)
   }
 
-  const handleRoleChange = (userId: string, newRole: 'admin' | 'classic') => {
-    setUsers(users.map(u => u.id === userId ? { ...u, role: newRole } : u))
+  const handleRoleChange = async (userId: string, newRole: 'admin' | 'classic') => {
+    if (!firestore || !users) return;
     const user = users.find(u => u.id === userId);
-    if (user) {
+    if (!user) return;
+    
+    const userDocRef = doc(firestore, 'users', userId);
+    try {
+      await updateDoc(userDocRef, { role: newRole });
+      toast({
+        title: 'Role změněna',
+        description: `Role uživatele ${user.name} byla změněna na ${newRole}.`,
+      })
+    } catch (error: any) {
         toast({
-          title: 'Role změněna',
-          description: `Role uživatele ${user.name} byla změněna na ${newRole}.`,
+          variant: 'destructive',
+          title: 'Chyba',
+          description: `Nepodařilo se změnit roli: ${error.message}`,
         })
     }
   }
   
-  const handleUpdateUser = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleUpdateUser = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!selectedUser) return;
+    if (!selectedUser || !firestore) return;
 
     const formData = new FormData(e.currentTarget);
-    const updatedUser: UserType = {
-        ...selectedUser,
+    const updatedData = {
         name: formData.get('name') as string,
         email: formData.get('email') as string,
-        phone: formData.get('phone') as string,
-        jerseyNumber: formData.get('jerseyNumber') as string || null,
-        dob: formData.get('dob') as string || undefined,
+        phoneNumber: formData.get('phoneNumber') as string,
+        jerseyNumber: Number(formData.get('jerseyNumber') as string) || null,
+        dob: formData.get('dob') as string || '',
     };
     
-    setUsers(users.map(u => u.id === updatedUser.id ? updatedUser : u));
-    toast({
-      title: 'Profil aktualizován',
-      description: `Profil uživatele ${updatedUser.name} byl úspěšně aktualizován.`,
-    });
-    setIsEditDialogOpen(false);
-    setSelectedUser(null);
+    const userDocRef = doc(firestore, 'users', selectedUser.id);
+    try {
+      await updateDoc(userDocRef, updatedData);
+      toast({
+        title: 'Profil aktualizován',
+        description: `Profil uživatele ${updatedData.name} byl úspěšně aktualizován.`,
+      });
+      setIsEditDialogOpen(false);
+      setSelectedUser(null);
+    } catch (error: any) {
+      toast({
+          variant: 'destructive',
+          title: 'Chyba',
+          description: `Nepodařilo se aktualizovat profil: ${error.message}`,
+      });
+    }
+  }
+  
+  if (usersLoading) {
+    return (
+      <div className="container py-8 flex justify-center items-center">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    )
   }
 
   if (role !== 'admin') {
@@ -119,7 +172,7 @@ function TeamManagementContent() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users.map((user) => (
+              {users?.map((user) => (
                 <TableRow key={user.id}>
                   <TableCell>
                     <div className="flex items-center gap-4">
@@ -135,7 +188,7 @@ function TeamManagementContent() {
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
                      <div>{user.email}</div>
-                     <div className="text-sm text-muted-foreground">{user.phone}</div>
+                     <div className="text-sm text-muted-foreground">{user.phoneNumber}</div>
                   </TableCell>
                   <TableCell className="text-center">
                     <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
@@ -208,11 +261,11 @@ function TeamManagementContent() {
                   </div>
                    <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="phone-edit" className="text-right">Telefon</Label>
-                    <Input id="phone-edit" name="phone" defaultValue={selectedUser.phone} className="col-span-3" />
+                    <Input id="phone-edit" name="phoneNumber" defaultValue={selectedUser.phoneNumber ?? ''} className="col-span-3" />
                   </div>
                    <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="jersey-edit" className="text-right">Číslo dresu</Label>
-                    <Input id="jersey-edit" name="jerseyNumber" defaultValue={selectedUser.jerseyNumber ?? ''} className="col-span-3" />
+                    <Input id="jersey-edit" name="jerseyNumber" type="number" defaultValue={selectedUser.jerseyNumber ?? ''} className="col-span-3" />
                   </div>
                    <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="dob-edit" className="text-right">Datum nar.</Label>
@@ -234,7 +287,7 @@ function TeamManagementContent() {
           <AlertDialogHeader>
             <AlertDialogTitle>Opravdu chcete smazat tohoto uživatele?</AlertDialogTitle>
             <AlertDialogDescription>
-              Tato akce je nevratná. Účet uživatele {selectedUser?.name} bude trvale odstraněn.
+              Tato akce je nevratná. Záznam o uživateli {selectedUser?.name} bude trvale odstraněn z databáze týmu. Jeho přihlašovací účet zůstane aktivní.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
