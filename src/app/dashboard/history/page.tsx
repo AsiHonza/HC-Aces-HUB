@@ -9,7 +9,7 @@ import { format } from 'date-fns'
 import { cs } from 'date-fns/locale'
 import { Loader2, Trophy, Users, Pencil, Trash2, MoreHorizontal } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Input } from '@/components/ui/input'
@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from '@/hooks/use-toast'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { cn } from '@/lib/utils'
 
 interface Match {
   id: string;
@@ -403,11 +404,14 @@ function HistoryPageContent() {
                                                 {userProfile?.role === 'admin' && (
                                                     <DropdownMenu>
                                                         <DropdownMenuTrigger asChild>
-                                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => e.stopPropagation()}>
+                                                            <div
+                                                              onClick={(e) => { e.preventDefault(); e.stopPropagation() }}
+                                                              className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "h-8 w-8")}
+                                                            >
                                                                 <MoreHorizontal className="h-4 w-4" />
-                                                            </Button>
+                                                            </div>
                                                         </DropdownMenuTrigger>
-                                                        <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                                                        <DropdownMenuContent align="end">
                                                             <DropdownMenuItem onClick={() => handleEditMatch(match)}>
                                                                 <Pencil className="mr-2 h-4 w-4" /> Upravit
                                                             </DropdownMenuItem>
