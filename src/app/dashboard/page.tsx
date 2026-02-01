@@ -4,13 +4,14 @@ import { Suspense, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Calendar, MapPin, Users, Trophy, BarChart, Sword, Pencil } from "lucide-react"
+import { Calendar, MapPin, Users, Trophy, BarChart, Sword, Pencil, Check, X } from "lucide-react"
+import { cn } from '@/lib/utils'
 
 function DashboardPageContent() {
   const searchParams = useSearchParams()
@@ -152,15 +153,33 @@ function DashboardPageContent() {
           </CardContent>
            <CardFooter className="flex-col items-start gap-4 pt-4 border-t">
               <p className="text-base font-medium">Tvoje účast:</p>
-              <RadioGroup value={attendance} onValueChange={setAttendance} className="flex gap-8">
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="going" id="r1" />
-                  <Label htmlFor="r1" className="text-lg">Jdu</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="not-going" id="r2" />
-                  <Label htmlFor="r2" className="text-lg">Nejdu</Label>
-                </div>
+              <RadioGroup value={attendance} onValueChange={setAttendance} className="flex gap-4">
+                <Label
+                  htmlFor="going"
+                  className={cn(
+                    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-lg font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border h-12 px-6 cursor-pointer",
+                    attendance === 'going'
+                      ? "bg-green-500/10 border-green-500 text-green-600 dark:text-green-400 dark:border-green-400 hover:bg-green-500/20"
+                      : "border-input bg-background hover:bg-accent hover:text-accent-foreground"
+                  )}
+                >
+                  <RadioGroupItem value="going" id="going" className="sr-only" />
+                  <Check className="h-5 w-5" />
+                  Jdu
+                </Label>
+                <Label
+                  htmlFor="not-going"
+                  className={cn(
+                    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-lg font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border h-12 px-6 cursor-pointer",
+                    attendance === 'not-going'
+                      ? "bg-destructive/10 border-destructive text-destructive hover:bg-destructive/20"
+                      : "border-input bg-background hover:bg-accent hover:text-accent-foreground"
+                  )}
+                >
+                  <RadioGroupItem value="not-going" id="not-going" className="sr-only" />
+                  <X className="h-5 w-5" />
+                  Nejdu
+                </Label>
               </RadioGroup>
           </CardFooter>
         </Card>
