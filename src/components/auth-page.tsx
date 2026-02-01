@@ -1,6 +1,7 @@
 'use client'
 
-import { useFormState, useFormStatus } from 'react-dom'
+import { useActionState } from 'react'
+import { useFormStatus } from 'react-dom'
 import { login, register } from '@/lib/actions'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
@@ -16,7 +17,7 @@ const initialLoginState = {
 }
 
 function LoginForm() {
-  const [state, dispatch] = useFormState(login, initialLoginState)
+  const [state, dispatch] = useActionState(login, initialLoginState)
 
   return (
     <form action={dispatch} className="space-y-4">
@@ -42,7 +43,7 @@ const initialRegisterState = {
 }
 
 function RegisterForm() {
-  const [state, dispatch] = useFormState(register, initialRegisterState)
+  const [state, dispatch] = useActionState(register, initialRegisterState)
 
   return (
     <form action={dispatch} className="space-y-4">
