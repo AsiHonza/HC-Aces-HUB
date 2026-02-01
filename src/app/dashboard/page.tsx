@@ -19,6 +19,7 @@ import { cs } from 'date-fns/locale'
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel'
 import Link from 'next/link'
 import { useToast } from "@/hooks/use-toast"
+import { Textarea } from '@/components/ui/textarea'
 
 // Types based on backend.json
 interface UserProfile {
@@ -55,6 +56,7 @@ interface Attendance {
     userId: string;
     matchId: string;
     status: 'going' | 'not-going' | 'unknown';
+    note?: string;
 }
 
 function RecordResultForm({ match, allUsers, onSave, onCancel }: { match: Match, allUsers: UserProfile[], onSave: (e: React.FormEvent<HTMLFormElement>) => Promise<void>, onCancel: () => void }) {
@@ -123,7 +125,10 @@ function DashboardPageContent() {
   const [isScoringEditMode, setIsScoringEditMode] = useState(false);
   const [isLeagueEditMode, setIsLeagueEditMode] = useState(false);
   
-  const [optimisticAttendances, setOptimisticAttendances] = useState<Map<string, 'going' | 'not-going' | 'unknown'>>(new Map());
+  const [optimisticAttendances, setOptimisticAttendances] = useState<Map<string, Partial<Attendance>>>(new Map());
+  const [isAttendanceDialogOpen, setIsAttendanceDialogOpen] = useState(false);
+  const [attendanceData, setAttendanceData] = useState<{ matchId: string; status: 'going' | 'not-going' } | null>(null);
+  const [attendanceNote, setAttendanceNote] = useState('');
 
   // Fetch current user's profile and stats
   const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
@@ -174,21 +179,30 @@ function DashboardPageContent() {
   }, [allAttendances]);
 
   const userAttendances = useMemo(() => {
-    if (!allAttendances || !user) return new Map<string, 'going' | 'not-going' | 'unknown'>();
-    const map = new Map<string, 'going' | 'not-going' | 'unknown'>();
+    if (!allAttendances || !user) return new Map<string, Attendance>();
+    const map = new Map<string, Attendance>();
     allAttendances.filter(att => att.userId === user.uid).forEach(att => {
-        map.set(att.matchId, att.status);
+        map.set(att.matchId, att);
     });
     return map;
   }, [allAttendances, user]);
 
   const userAttendancesWithOptimistic = useMemo(() => {
       const merged = new Map(userAttendances);
-      optimisticAttendances.forEach((status, matchId) => {
-          merged.set(matchId, status);
+      optimisticAttendances.forEach((optimisticAtt, matchId) => {
+          const existingAtt = merged.get(matchId) || {};
+          merged.set(matchId, { 
+              ...existingAtt, 
+              ...optimisticAtt, 
+              id: user!.uid, 
+              userId: user!.uid, 
+              matchId: matchId, 
+              status: optimisticAtt.status || 'unknown' 
+          } as Attendance);
       });
       return merged;
-  }, [userAttendances, optimisticAttendances]);
+  }, [userAttendances, optimisticAttendances, user]);
+
 
   useEffect(() => {
     // When fresh data arrives from Firestore, clear any optimistic updates
@@ -254,7 +268,7 @@ function DashboardPageContent() {
     setSelectedMatch(null);
   };
 
- const handleAttendanceChange = (matchId: string, newStatus: 'going' | 'not-going') => {
+ const handleAttendanceChange = (matchId: string, newStatus: 'going' | 'not-going', note: string) => {
     if (!user || !firestore) {
       toast({
         variant: 'destructive',
@@ -265,18 +279,18 @@ function DashboardPageContent() {
     }
   
     const attendanceRef = doc(firestore, 'matches', matchId, 'attendees', user.uid);
-    const originalStatus = userAttendances.get(matchId) || 'unknown';
+    const originalAttendance = userAttendances.get(matchId);
   
     // Optimistically update the UI
-    setOptimisticAttendances(prev => new Map(prev).set(matchId, newStatus));
+    setOptimisticAttendances(prev => new Map(prev).set(matchId, { status: newStatus, note }));
   
     const revertOptimisticUpdate = () => {
       setOptimisticAttendances(prev => {
         const newMap = new Map(prev);
-        if (originalStatus === 'unknown') {
-          newMap.delete(matchId);
+        if (originalAttendance) {
+          newMap.set(matchId, originalAttendance);
         } else {
-          newMap.set(matchId, originalStatus);
+          newMap.delete(matchId);
         }
         return newMap;
       });
@@ -286,6 +300,7 @@ function DashboardPageContent() {
       userId: user.uid,
       matchId: matchId,
       status: newStatus,
+      note: note || null,
     };
     setDoc(attendanceRef, data, { merge: true }).catch(async (error) => {
       revertOptimisticUpdate();
@@ -617,7 +632,7 @@ function DashboardPageContent() {
               <CarouselContent>
                 {upcomingMatches.map((match) => {
                   const opponent = match.team1 === 'Aces' ? match.team2 : match.team1;
-                  const attendance = userAttendancesWithOptimistic.get(match.id) || 'unknown';
+                  const attendance = userAttendancesWithOptimistic.get(match.id)?.status || 'unknown';
                   const attendeesForMatch = (attendancesByMatch.get(match.id) || []);
                   const attendeeCount = attendeesForMatch.filter(a => a.status === 'going').length;
                   const sortedAttendees = [
@@ -669,7 +684,12 @@ function DashboardPageContent() {
                                     <div className="flex gap-4">
                                         <Button
                                             variant={attendance === 'going' ? 'default' : 'outline'}
-                                            onClick={() => handleAttendanceChange(match.id, 'going')}
+                                            onClick={() => {
+                                                setAttendanceData({ matchId: match.id, status: 'going' });
+                                                const currentNote = userAttendances.get(match.id)?.note || '';
+                                                setAttendanceNote(currentNote);
+                                                setIsAttendanceDialogOpen(true);
+                                            }}
                                             className={cn( "h-10 px-4", attendance === 'going' && "bg-green-500/10 border-green-500 text-green-600 dark:text-green-400 dark:border-green-400 hover:bg-green-500/20 hover:text-green-600"
                                             )}
                                         >
@@ -678,7 +698,12 @@ function DashboardPageContent() {
                                         </Button>
                                         <Button
                                              variant={attendance === 'not-going' ? 'destructive' : 'outline'}
-                                             onClick={() => handleAttendanceChange(match.id, 'not-going')}
+                                             onClick={() => {
+                                                setAttendanceData({ matchId: match.id, status: 'not-going' });
+                                                const currentNote = userAttendances.get(match.id)?.note || '';
+                                                setAttendanceNote(currentNote);
+                                                setIsAttendanceDialogOpen(true);
+                                            }}
                                              className={cn("h-10 px-4", attendance === 'not-going' && "bg-destructive/10 border-destructive text-destructive hover:bg-destructive/20 hover:text-destructive"
                                              )}
                                         >
@@ -723,6 +748,7 @@ function DashboardPageContent() {
                                                         <div className="flex-1">
                                                             <p className="font-medium">{attendeeProfile.name}</p>
                                                             {attendeeProfile.jerseyNumber && <p className="text-sm text-muted-foreground">#{attendeeProfile.jerseyNumber}</p>}
+                                                            {att.note && <p className="text-sm text-muted-foreground italic mt-1">"{att.note}"</p>}
                                                         </div>
                                                         {isGoing 
                                                             ? <Check className="h-6 w-6 text-green-500" /> 
@@ -974,6 +1000,37 @@ function DashboardPageContent() {
                   </DialogDescription>
               </DialogHeader>
               {selectedMatch && allUsers && <RecordResultForm match={selectedMatch} allUsers={allUsers} onSave={handleResultSave} onCancel={() => setIsResultDialogOpen(false)} />}
+          </DialogContent>
+      </Dialog>
+      <Dialog open={isAttendanceDialogOpen} onOpenChange={setIsAttendanceDialogOpen}>
+          <DialogContent>
+              <DialogHeader>
+                  <DialogTitle>Potvrdit účast</DialogTitle>
+                  <DialogDescription>
+                      Můžete přidat volitelnou poznámku ke své účasti.
+                  </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                  <Label htmlFor="attendance-note">Poznámka</Label>
+                  <Textarea
+                      id="attendance-note"
+                      value={attendanceNote}
+                      onChange={(e) => setAttendanceNote(e.target.value)}
+                      placeholder="Např. přijdu později, bolí mě noha..."
+                  />
+              </div>
+              <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsAttendanceDialogOpen(false)}>Zrušit</Button>
+                  <Button onClick={() => {
+                      if (attendanceData) {
+                          handleAttendanceChange(attendanceData.matchId, attendanceData.status, attendanceNote);
+                      }
+                      setIsAttendanceDialogOpen(false);
+                      setAttendanceNote('');
+                  }}>
+                      Potvrdit
+                  </Button>
+              </DialogFooter>
           </DialogContent>
       </Dialog>
     </div>

@@ -160,6 +160,10 @@
             "not-going",
             "unknown"
           ]
+        },
+        "note": {
+          "type": "string",
+          "description": "An optional note from the user about their attendance."
         }
       },
       "required": [
