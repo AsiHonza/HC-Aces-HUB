@@ -19,6 +19,8 @@ import { cs } from 'date-fns/locale'
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel'
 import Link from 'next/link'
 import { useToast } from "@/hooks/use-toast"
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Calendar } from '@/components/ui/calendar'
 
 // Types based on backend.json
 interface UserProfile {
@@ -136,7 +138,7 @@ function DashboardPageContent() {
   // Fetch matches
   const matchesQuery = useMemoFirebase(() => {
       if (!firestore) return null;
-      return collection(firestore, 'matches');
+      return query(collection(firestore, 'matches'), orderBy('dateTime', 'asc'));
   }, [firestore]);
   const { data: allMatches, isLoading: areMatchesLoading } = useCollection<Match>(matchesQuery);
   
@@ -144,7 +146,6 @@ function DashboardPageContent() {
     if (!allMatches) return [];
     return allMatches
       .filter(match => !match.isPlayed)
-      .sort((a, b) => a.dateTime.toMillis() - b.dateTime.toMillis())
       .slice(0, 5);
   }, [allMatches]);
   
@@ -256,45 +257,81 @@ function DashboardPageContent() {
     setSelectedMatch(null);
   };
 
-  const handleAttendanceChange = (matchId: string, status: 'going' | 'not-going') => {
-    if (!user || !firestore) return;
-
-    const originalStatus = userAttendances.get(matchId) || 'unknown';
-    
-    // Optimistic update
-    setOptimisticAttendances(prev => new Map(prev).set(matchId, status));
-
+  const handleAttendanceChange = (matchId: string, newStatus: 'going' | 'not-going') => {
+    if (!user || !firestore) {
+      toast({
+        variant: 'destructive',
+        title: "Chyba",
+        description: "Uživatel není přihlášen.",
+      });
+      return;
+    }
+  
     const attendanceRef = doc(firestore, 'matches', matchId, 'attendees', user.uid);
-    const data = {
+    const originalStatus = userAttendances.get(matchId) || 'unknown';
+  
+    if (newStatus === 'going') {
+      // Optimistically set UI to 'going'
+      setOptimisticAttendances(prev => new Map(prev).set(matchId, 'going'));
+  
+      const data = {
         userId: user.uid,
-        matchId,
-        status,
-    };
-    setDoc(attendanceRef, data, { merge: true })
-        .catch(async (error) => {
-            // Revert optimistic update on error
-            setOptimisticAttendances(prev => {
-                const newMap = new Map(prev);
-                if (originalStatus === 'unknown') {
-                    newMap.delete(matchId);
-                } else {
-                    newMap.set(matchId, originalStatus);
-                }
-                return newMap;
-            });
-            toast({
-                variant: 'destructive',
-                title: "Chyba",
-                description: "Nepodařilo se uložit vaši účast. Zkuste to prosím znovu.",
-            });
-
-            const contextualError = new FirestorePermissionError({
-                operation: 'write',
-                path: attendanceRef.path,
-                requestResourceData: data,
-            });
-            errorEmitter.emit('permission-error', contextualError);
+        matchId: matchId,
+        status: 'going',
+      };
+  
+      setDoc(attendanceRef, data).catch(async (error) => {
+        // Revert optimistic update on error
+        setOptimisticAttendances(prev => {
+          const newMap = new Map(prev);
+          if (originalStatus === 'unknown') {
+            newMap.delete(matchId);
+          } else {
+            newMap.set(matchId, originalStatus);
+          }
+          return newMap;
         });
+  
+        toast({
+          variant: 'destructive',
+          title: "Chyba",
+          description: "Nepodařilo se uložit vaši účast.",
+        });
+  
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          operation: 'write',
+          path: attendanceRef.path,
+          requestResourceData: data,
+        }));
+      });
+    } else { // 'not-going', so we delete the attendance document
+      // Optimistically set UI to 'not-going' to provide feedback
+      setOptimisticAttendances(prev => new Map(prev).set(matchId, 'not-going'));
+  
+      deleteDoc(attendanceRef).catch(async (error) => {
+         // Revert optimistic update on error
+        setOptimisticAttendances(prev => {
+          const newMap = new Map(prev);
+          if (originalStatus === 'unknown') {
+            newMap.delete(matchId);
+          } else {
+            newMap.set(matchId, originalStatus);
+          }
+          return newMap;
+        });
+  
+        toast({
+          variant: 'destructive',
+          title: "Chyba",
+          description: "Nepodařilo se zrušit vaši účast.",
+        });
+  
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          operation: 'delete',
+          path: attendanceRef.path,
+        }));
+      });
+    }
   };
 
   if (isLoading) {
@@ -322,18 +359,27 @@ function DashboardPageContent() {
     const timeStr = formData.get('time') as string;
     const dateStr = formData.get('date') as string;
     
-    const newDateTime = parse(`${dateStr} ${timeStr}`, 'yyyy-MM-dd HH:mm', new Date());
+    try {
+        const newDateTime = parse(`${dateStr} ${timeStr}`, 'yyyy-MM-dd HH:mm', new Date());
 
-    const updatedData = {
-        team2: formData.get('opponent') as string, // Assuming Aces is always team1 for simplicity
-        location: formData.get('location') as string,
-        dateTime: Timestamp.fromDate(newDateTime),
-    };
-    
-    const matchRef = doc(firestore, 'matches', selectedMatch.id);
-    await updateDoc(matchRef, updatedData);
-    setIsEditDialogOpen(false);
-    setSelectedMatch(null);
+        if (isNaN(newDateTime.getTime())) {
+            toast({ variant: 'destructive', title: 'Neplatné datum', description: 'Zkontrolujte prosím formát data a času.' });
+            return;
+        }
+
+        const updatedData = {
+            team2: formData.get('opponent') as string,
+            location: formData.get('location') as string,
+            dateTime: Timestamp.fromDate(newDateTime),
+        };
+        
+        const matchRef = doc(firestore, 'matches', selectedMatch.id);
+        await updateDoc(matchRef, updatedData);
+        setIsEditDialogOpen(false);
+        setSelectedMatch(null);
+    } catch (error) {
+        toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se uložit zápas. Zkontrolujte formát data.' });
+    }
   };
 
   const handleMatchAdd = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -344,21 +390,30 @@ function DashboardPageContent() {
     const timeStr = formData.get('time') as string;
     const dateStr = formData.get('date') as string;
     
-    const newDateTime = parse(`${dateStr} ${timeStr}`, 'yyyy-MM-dd HH:mm', new Date());
+    try {
+      const newDateTime = parse(`${dateStr} ${timeStr}`, 'yyyy-MM-dd HH:mm', new Date());
 
-    const newMatchData = {
-        team1: 'Aces',
-        team2: formData.get('opponent') as string,
-        location: formData.get('location') as string,
-        dateTime: Timestamp.fromDate(newDateTime),
-        isPlayed: false,
-        team1Score: null,
-        team2Score: null,
-        scorers: [],
-    };
-    
-    await addDoc(collection(firestore, 'matches'), newMatchData);
-    setIsAddDialogOpen(false);
+      if (isNaN(newDateTime.getTime())) {
+            toast({ variant: 'destructive', title: 'Neplatné datum', description: 'Zkontrolujte prosím formát data a času.' });
+            return;
+      }
+
+      const newMatchData = {
+          team1: 'Aces',
+          team2: formData.get('opponent') as string,
+          location: formData.get('location') as string,
+          dateTime: Timestamp.fromDate(newDateTime),
+          isPlayed: false,
+          team1Score: null,
+          team2Score: null,
+          scorers: [],
+      };
+      
+      await addDoc(collection(firestore, 'matches'), newMatchData);
+      setIsAddDialogOpen(false);
+    } catch (error) {
+       toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se přidat zápas. Zkontrolujte formát data.' });
+    }
   };
 
   const handleResultSave = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -570,7 +625,7 @@ function DashboardPageContent() {
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                           <Label htmlFor="date-add" className="text-right">Datum</Label>
-                          <Input id="date-add" name="date" type="date" className="col-span-3" required defaultValue={format(new Date(), 'yyyy-MM-dd')} />
+                          <Input id="date-add" name="date" type="date" className="col-span-3" required />
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                           <Label htmlFor="time-add" className="text-right">Čas</Label>
