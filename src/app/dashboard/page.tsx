@@ -297,7 +297,11 @@ function DashboardPageContent() {
     if (!selectedMatch || !firestore) return;
     
     const matchRef = doc(firestore, 'matches', selectedMatch.id);
-    await deleteDoc(matchRef);
+    deleteDoc(matchRef).catch(async (error) => {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        operation: 'delete', path: matchRef.path
+      }));
+    });
     setIsDeleteDialogOpen(false);
     setSelectedMatch(null);
   };
@@ -315,17 +319,17 @@ function DashboardPageContent() {
     const attendanceRef = doc(firestore, 'matches', matchId, 'attendees', user.uid);
     const originalAttendance = userAttendances.get(matchId);
 
+    // Optimistic update
     const optimisticData: Partial<Attendance> = { status: newStatus, note: note || '' };
     setOptimisticAttendances(prev => new Map(prev).set(matchId, optimisticData));
-
+    
     const revertOptimisticUpdate = () => {
       setOptimisticAttendances(prev => {
         const newMap = new Map(prev);
         if (originalAttendance) {
           newMap.set(matchId, originalAttendance);
         } else {
-          // If there was no original, we can remove it or set to unknown
-           newMap.set(matchId, { status: 'unknown' });
+           newMap.delete(matchId);
         }
         return newMap;
       });
@@ -387,7 +391,11 @@ function DashboardPageContent() {
         };
         
         const matchRef = doc(firestore, 'matches', selectedMatch.id);
-        await updateDoc(matchRef, updatedData);
+        updateDoc(matchRef, updatedData).catch(async (error) => {
+          errorEmitter.emit('permission-error', new FirestorePermissionError({
+            operation: 'update', path: matchRef.path, requestResourceData: updatedData,
+          }));
+        });
         setIsEditDialogOpen(false);
         setSelectedMatch(null);
     } catch (error) {
@@ -422,7 +430,12 @@ function DashboardPageContent() {
           scorers: [],
       };
       
-      await addDoc(collection(firestore, 'matches'), newMatchData);
+      const matchesCollection = collection(firestore, 'matches')
+      addDoc(matchesCollection, newMatchData).catch(async (error) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          operation: 'create', path: matchesCollection.path, requestResourceData: newMatchData
+        }));
+      });
       setIsAddDialogOpen(false);
     } catch (error) {
        toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se přidat zápas. Zkontrolujte formát data.' });
@@ -611,11 +624,10 @@ function DashboardPageContent() {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-3 relative">
-          <CardHeader className="flex-row items-center justify-between">
-            <CardTitle className="flex items-center gap-2 font-headline text-xl"><Trophy className="text-primary"/>Příští zápas</CardTitle>
-            <div className="flex items-center gap-2">
-              {userProfile?.role === 'admin' && (
+        <div className="lg:col-span-3">
+          <div className="flex flex-row items-center justify-between mb-4">
+            <h2 className="flex items-center gap-2 font-headline text-xl font-semibold"><Trophy className="text-primary"/>Příští zápas</h2>
+            {userProfile?.role === 'admin' && (
                 <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                   <DialogTrigger asChild>
                     <Button>
@@ -656,8 +668,7 @@ function DashboardPageContent() {
                   </DialogContent>
                 </Dialog>
               )}
-            </div>
-          </CardHeader>
+          </div>
           {upcomingMatches.length > 0 ? (
             <Carousel
               setApi={setApi}
@@ -679,6 +690,7 @@ function DashboardPageContent() {
 
                   return (
                     <CarouselItem key={match.id} className="relative">
+                      <Card className="relative">
                         <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
                             <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleShareMatch(match.id)}>
                                 <Share2 className="h-4 w-4" />
@@ -701,23 +713,22 @@ function DashboardPageContent() {
                               </>
                             )}
                         </div>
-                        <>
-                        <CardContent className="grid gap-4 sm:gap-6 sm:grid-cols-2 items-center pt-6">
+                        <div className="grid gap-2 sm:gap-6 sm:grid-cols-2 items-center p-4 pt-6 sm:p-6">
                             <div className="text-center sm:text-left">
-                                <p className="text-sm text-muted-foreground">Soupeř</p>
-                                <p className="text-lg sm:text-2xl font-bold flex items-center gap-2 justify-center sm:justify-start mt-1 break-words"><Users /> {opponent}</p>
+                                <p className="text-xs sm:text-sm text-muted-foreground">Soupeř</p>
+                                <p className="text-base sm:text-xl font-bold flex items-center gap-2 justify-center sm:justify-start mt-1 break-words"><Users /> {opponent}</p>
                             </div>
                             
                             <div className="text-center sm:text-right">
-                                <p className="text-sm text-muted-foreground">Kdy a kde</p>
-                                <p className="text-sm font-semibold flex flex-col sm:gap-0 items-center sm:items-end mt-1">
-                                    <span>{format(match.dateTime.toDate(), "EEEE, d. MMMM", { locale: cs })}</span>
+                                <p className="text-xs sm:text-sm text-muted-foreground">Kdy a kde</p>
+                                <div className="text-sm font-semibold flex flex-col sm:gap-0 items-center sm:items-end mt-1">
+                                    <span className="text-xs sm:text-sm">{format(match.dateTime.toDate(), "EEEE, d. MMMM", { locale: cs })}</span>
                                     <span className="font-bold text-base">{format(match.dateTime.toDate(), 'HH:mm')}</span>
-                                </p>
-                                <p className="text-sm flex items-center gap-2 text-muted-foreground justify-center sm:justify-end mt-1"><MapPin /> {match.location}</p>
+                                </div>
+                                <p className="text-xs sm:text-sm flex items-center gap-2 text-muted-foreground justify-center sm:justify-end mt-1"><MapPin /> {match.location}</p>
                             </div>
-                        </CardContent>
-                        <CardFooter className="flex-col items-start gap-4 pt-4 border-t">
+                        </div>
+                        <div className="flex-col items-start gap-4 p-4 sm:p-6 pt-4 border-t">
                             <div className="flex flex-col sm:flex-row w-full items-start sm:items-center justify-between gap-4">
                                 <div>
                                     <p className="text-base font-medium mb-2">Tvoje účast:</p>
@@ -801,8 +812,8 @@ function DashboardPageContent() {
                                     </DialogContent>
                                 </Dialog>
                             </div>
-                        </CardFooter>
-                        </>
+                        </div>
+                      </Card>
                     </CarouselItem>
                   )
                 })}
@@ -815,9 +826,9 @@ function DashboardPageContent() {
               )}
             </Carousel>
           ) : (
-            <CardContent><p>Žádný nadcházející zápas.</p></CardContent>
+            <Card><CardContent><p>Žádný nadcházející zápas.</p></CardContent></Card>
           )}
-        </Card>
+        </div>
 
         <Card className="lg:col-span-3">
             <CardHeader>
@@ -1084,4 +1095,5 @@ export default function DashboardPage() {
     </Suspense>
   )
 }
+
 
