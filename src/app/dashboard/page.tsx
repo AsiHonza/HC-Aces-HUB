@@ -705,7 +705,7 @@ function DashboardPageContent() {
                         <CardContent className="grid gap-6 md:grid-cols-5 items-center pt-6">
                             <div className="md:col-span-2 text-center md:text-left">
                             <p className="text-base text-muted-foreground">Soupeř</p>
-                            <p className="text-2xl md:text-3xl font-bold flex items-center gap-3 justify-center md:justify-start mt-1"><Users /> {opponent}</p>
+                            <p className="text-xl md:text-3xl font-bold flex items-center gap-3 justify-center md:justify-start mt-1"><Users /> {opponent}</p>
                             </div>
                             
                             <div className="hidden md:flex justify-center items-center">
@@ -812,8 +812,8 @@ function DashboardPageContent() {
               </CarouselContent>
               {upcomingMatches.length > 1 && (
                 <>
-                  <CarouselPrevious className="absolute -left-2 top-1/2 -translate-y-1/2 z-10 hidden h-8 w-8 md:flex" />
-                  <CarouselNext className="absolute -right-2 top-1/2 -translate-y-1/2 z-10 hidden h-8 w-8 md:flex" />
+                  <CarouselPrevious className="absolute left-2 top-1/2 -translate-y-1/2 z-10 hidden h-8 w-8 md:flex" />
+                  <CarouselNext className="absolute right-2 top-1/2 -translate-y-1/2 z-10 hidden h-8 w-8 md:flex" />
                 </>
               )}
             </Carousel>
@@ -860,11 +860,11 @@ function DashboardPageContent() {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>#</TableHead>
+                                <TableHead className="w-12">#</TableHead>
                                 <TableHead>Hráč</TableHead>
-                                <TableHead className="text-center hidden sm:table-cell">G</TableHead>
-                                <TableHead className="text-center hidden sm:table-cell">A</TableHead>
-                                <TableHead className="text-right">B</TableHead>
+                                <TableHead className="text-center hidden sm:table-cell w-24">G</TableHead>
+                                <TableHead className="text-center hidden sm:table-cell w-24">A</TableHead>
+                                <TableHead className="text-right w-16">B</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -933,11 +933,11 @@ function DashboardPageContent() {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>#</TableHead>
+                                <TableHead className="w-12">#</TableHead>
                                 <TableHead>Tým</TableHead>
                                 <TableHead className="text-center hidden sm:table-cell">GF</TableHead>
                                 <TableHead className="text-center hidden sm:table-cell">GA</TableHead>
-                                <TableHead className="text-center">B</TableHead>
+                                <TableHead className="text-center w-24">B</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -1087,3 +1087,4 @@ export default function DashboardPage() {
     </Suspense>
   )
 }
+
