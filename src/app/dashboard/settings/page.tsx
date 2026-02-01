@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useState, useMemo } from 'react'
+import { Suspense, useEffect, useState, useMemo, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { updateProfile as validateProfile } from '@/lib/actions'
 import { Button } from "@/components/ui/button"
@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useFirebase, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase'
 import { doc, updateDoc, writeBatch, collectionGroup, setDoc } from 'firebase/firestore'
 import { updateProfile as updateFirebaseProfile } from 'firebase/auth'
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { Switch } from '@/components/ui/switch'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 
@@ -26,6 +27,7 @@ interface UserProfile {
     role?: 'admin' | 'classic';
     playerType: 'player' | 'goalie' | 'member';
     dob?: string;
+    photoURL?: string | null;
 }
 
 interface SkaterStats {
@@ -85,13 +87,21 @@ function SettingsForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { toast } = useToast()
-  const { user, auth } = useFirebase()
-  const firestore = useFirestore()
+  const { user, auth, firestore, storage } = useFirebase()
 
   const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
   const { data: userProfile, isLoading } = useDoc<UserProfile>(userDocRef);
 
   const [state, setState] = useState(initialFormState);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (userProfile?.photoURL) {
+      setAvatarUrl(userProfile.photoURL);
+    }
+  }, [userProfile]);
 
   const fallback = userProfile?.name?.split(' ').map(n => n[0]).join('').toUpperCase() || ''
 
@@ -115,6 +125,46 @@ function SettingsForm() {
       })
     }
   }, [state, toast])
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0 || !user || !storage) {
+        return;
+    }
+
+    const file = e.target.files[0];
+    setIsUploading(true);
+
+    try {
+        const avatarRef = storageRef(storage, `avatars/${user.uid}/${file.name}`);
+        const uploadResult = await uploadBytes(avatarRef, file);
+        const downloadURL = await getDownloadURL(uploadResult.ref);
+        
+        setAvatarUrl(downloadURL);
+
+        const userDocRef = doc(firestore, 'users', user.uid);
+        await updateDoc(userDocRef, { photoURL: downloadURL });
+
+        if (auth?.currentUser) {
+             await updateFirebaseProfile(auth.currentUser, { photoURL: downloadURL });
+        }
+
+        toast({
+            title: "Profilový obrázek aktualizován",
+            description: "Váš nový obrázek byl úspěšně nahrán.",
+        });
+        router.refresh();
+
+    } catch (error: any) {
+        toast({
+            variant: 'destructive',
+            title: 'Chyba nahrávání',
+            description: `Nepodařilo se nahrát obrázek: ${error.message}`,
+        });
+    } finally {
+        setIsUploading(false);
+    }
+  };
+
 
   const handleUpdate = async (formData: FormData) => {
     if (!user || !firestore || !auth?.currentUser) {
@@ -163,11 +213,19 @@ function SettingsForm() {
     <form action={handleUpdate}>
       <CardContent className="grid gap-6">
         <div className="flex items-center gap-6">
-          <Avatar className="h-24 w-24 border-4 border-primary shadow-lg">
-            <AvatarImage src={`https://picsum.photos/seed/${userProfile?.email}/400/400`} data-ai-hint="player portrait" alt={userProfile?.name || ''} />
+          <Avatar className="h-24 w-24 border-4 border-primary shadow-lg relative">
+            <AvatarImage src={avatarUrl ?? `https://picsum.photos/seed/${userProfile?.email}/400/400`} alt={userProfile?.name || ''} data-ai-hint="player portrait" />
             <AvatarFallback className="text-3xl">{fallback}</AvatarFallback>
+             {isUploading && (
+                <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-full">
+                    <Loader2 className="h-8 w-8 animate-spin text-white" />
+                </div>
+            )}
           </Avatar>
-          <Button type="button" variant="outline">Změnit obrázek</Button>
+          <input type="file" ref={fileInputRef} onChange={handleAvatarChange} accept="image/*" className="hidden" />
+          <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
+            {isUploading ? 'Nahrávání...' : 'Změnit obrázek'}
+          </Button>
         </div>
         
         <div className="grid gap-2">
