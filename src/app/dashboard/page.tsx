@@ -157,8 +157,6 @@ function DashboardPageContent() {
   // Fetch attendances for upcoming matches
   const attendancesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    // We query the entire collection group to avoid needing a composite index.
-    // The results are then filtered on the client by downstream memos.
     return collectionGroup(firestore, 'attendees');
   }, [firestore]);
   const { data: allAttendances, isLoading: attendancesLoading } = useCollection<Attendance>(attendancesQuery);
@@ -256,7 +254,7 @@ function DashboardPageContent() {
     setSelectedMatch(null);
   };
 
-  const handleAttendanceChange = (matchId: string, newStatus: 'going' | 'not-going') => {
+ const handleAttendanceChange = (matchId: string, newStatus: 'going' | 'not-going') => {
     if (!user || !firestore) {
       toast({
         variant: 'destructive',
@@ -284,28 +282,18 @@ function DashboardPageContent() {
       });
     };
   
-    if (newStatus === 'going') {
-      const data = {
-        userId: user.uid,
-        matchId: matchId,
-        status: 'going',
-      };
-      setDoc(attendanceRef, data).catch(async (error) => {
-        revertOptimisticUpdate();
-        toast({ variant: 'destructive', title: "Chyba", description: "Nepodařilo se uložit vaši účast." });
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          operation: 'write', path: attendanceRef.path, requestResourceData: data,
-        }));
-      });
-    } else { // 'not-going'
-      deleteDoc(attendanceRef).catch(async (error) => {
-        revertOptimisticUpdate();
-        toast({ variant: 'destructive', title: "Chyba", description: "Nepodařilo se zrušit vaši účast." });
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          operation: 'delete', path: attendanceRef.path,
-        }));
-      });
-    }
+    const data = {
+      userId: user.uid,
+      matchId: matchId,
+      status: newStatus,
+    };
+    setDoc(attendanceRef, data, { merge: true }).catch(async (error) => {
+      revertOptimisticUpdate();
+      toast({ variant: 'destructive', title: "Chyba", description: "Nepodařilo se uložit vaši účast." });
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        operation: 'write', path: attendanceRef.path, requestResourceData: data,
+      }));
+    });
   };
 
   if (isLoading) {
@@ -630,8 +618,12 @@ function DashboardPageContent() {
                 {upcomingMatches.map((match) => {
                   const opponent = match.team1 === 'Aces' ? match.team2 : match.team1;
                   const attendance = userAttendancesWithOptimistic.get(match.id) || 'unknown';
-                  const attendeesForMatch = (attendancesByMatch.get(match.id) || []).filter(a => a.status === 'going');
-                  const attendeeCount = attendeesForMatch.length;
+                  const attendeesForMatch = (attendancesByMatch.get(match.id) || []);
+                  const attendeeCount = attendeesForMatch.filter(a => a.status === 'going').length;
+                  const sortedAttendees = [
+                      ...attendeesForMatch.filter(att => att.status === 'going'),
+                      ...attendeesForMatch.filter(att => att.status === 'not-going'),
+                  ];
 
                   return (
                     <CarouselItem key={match.id} className="relative">
@@ -710,11 +702,20 @@ function DashboardPageContent() {
                                             </DialogDescription>
                                         </DialogHeader>
                                         <div className="max-h-[400px] overflow-y-auto pr-4 space-y-4">
-                                            {attendeesForMatch.length > 0 ? attendeesForMatch.map(att => {
+                                            {sortedAttendees.length > 0 ? sortedAttendees.map(att => {
                                                 const attendeeProfile = usersMap.get(att.userId);
                                                 if (!attendeeProfile) return null;
+                                                const isGoing = att.status === 'going';
                                                 return (
-                                                    <div key={att.userId} className="flex items-center gap-4">
+                                                    <div 
+                                                        key={att.userId} 
+                                                        className={cn(
+                                                            "flex items-center gap-4 p-2 rounded-lg border-2 transition-colors",
+                                                            isGoing 
+                                                                ? "border-green-500 bg-green-500/10" 
+                                                                : "border-destructive bg-destructive/10"
+                                                        )}
+                                                    >
                                                         <Avatar>
                                                             <AvatarImage src={`https://picsum.photos/seed/${attendeeProfile.email}/100/100`} data-ai-hint="player portrait" alt={attendeeProfile.name} />
                                                             <AvatarFallback>{attendeeProfile.name.split(' ').map(n=>n[0]).join('')}</AvatarFallback>
@@ -723,9 +724,13 @@ function DashboardPageContent() {
                                                             <p className="font-medium">{attendeeProfile.name}</p>
                                                             {attendeeProfile.jerseyNumber && <p className="text-sm text-muted-foreground">#{attendeeProfile.jerseyNumber}</p>}
                                                         </div>
+                                                        {isGoing 
+                                                            ? <Check className="h-6 w-6 text-green-500" /> 
+                                                            : <X className="h-6 w-6 text-destructive" />
+                                                        }
                                                     </div>
                                                 )
-                                            }) : <p className="text-muted-foreground">Zatím nikdo nepotvrdil účast.</p>}
+                                            }) : <p className="text-muted-foreground">Zatím nikdo neodpověděl.</p>}
                                         </div>
                                     </DialogContent>
                                 </Dialog>
