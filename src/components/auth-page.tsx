@@ -16,6 +16,7 @@ import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfi
 import { doc, setDoc } from 'firebase/firestore'
 import { useToast } from '@/hooks/use-toast'
 import { useRouter } from 'next/navigation'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
 
 const initialLoginState = {
   errors: {},
@@ -84,7 +85,7 @@ function RegisterForm() {
       return;
     }
     
-    const { name, email, password, phoneNumber, jerseyNumber } = validatedFields.data;
+    const { name, email, password, phoneNumber, jerseyNumber, playerType } = validatedFields.data;
 
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -101,23 +102,40 @@ function RegisterForm() {
         phoneNumber,
         jerseyNumber: jerseyNumber ? Number(jerseyNumber) : null,
         role: email === 'janmlcak6@gmail.com' ? 'admin' : 'classic',
+        playerType,
         dob: null,
       });
 
-      // Also create initial player stats
-      await setDoc(doc(firestore, `users/${user.uid}/playerStats`, 'stats'), {
-        userProfileId: user.uid,
-        seasonGoals: 0,
-        seasonAssists: 0,
-        seasonGamesPlayed: 0,
-        playoffGoals: 0,
-        playoffAssists: 0,
-        playoffGamesPlayed: 0,
-        historicalGoals: 0,
-        historicalAssists: 0,
-        historicalGamesPlayed: 0,
-      });
-
+      if (playerType === 'player') {
+        await setDoc(doc(firestore, `users/${user.uid}/skaterStats`, 'stats'), {
+          userProfileId: user.uid,
+          seasonGoals: 0,
+          seasonAssists: 0,
+          seasonGamesPlayed: 0,
+          playoffGoals: 0,
+          playoffAssists: 0,
+          playoffGamesPlayed: 0,
+          historicalGoals: 0,
+          historicalAssists: 0,
+          historicalGamesPlayed: 0,
+        });
+      } else if (playerType === 'goalie') {
+         await setDoc(doc(firestore, `users/${user.uid}/goalieStats`, 'stats'), {
+            userProfileId: user.uid,
+            seasonGamesPlayed: 0,
+            seasonWins: 0,
+            seasonSaves: 0,
+            seasonShotsAgainst: 0,
+            playoffGamesPlayed: 0,
+            playoffWins: 0,
+            playoffSaves: 0,
+            playoffShotsAgainst: 0,
+            historicalGamesPlayed: 0,
+            historicalWins: 0,
+            historicalSaves: 0,
+            historicalShotsAgainst: 0,
+        });
+      }
 
       router.push('/welcome');
 
@@ -142,6 +160,20 @@ function RegisterForm() {
         <Label htmlFor="email-register">Email</Label>
         <Input id="email-register" name="email" type="email" placeholder="hrac@email.com" required />
         {state.errors?.email && <p className="text-sm text-destructive">{state.errors.email[0]}</p>}
+      </div>
+       <div className="space-y-2">
+        <Label htmlFor="playerType">Pozice</Label>
+        <Select name="playerType" required>
+            <SelectTrigger>
+                <SelectValue placeholder="Vyberte svou pozici" />
+            </SelectTrigger>
+            <SelectContent>
+                <SelectItem value="player">Hráč v poli</SelectItem>
+                <SelectItem value="goalie">Brankář</SelectItem>
+                <SelectItem value="member">Člen</SelectItem>
+            </SelectContent>
+        </Select>
+        {state.errors?.playerType && <p className="text-sm text-destructive">{state.errors.playerType[0]}</p>}
       </div>
       <div className="space-y-2">
         <Label htmlFor="phoneNumber">Telefonní číslo</Label>

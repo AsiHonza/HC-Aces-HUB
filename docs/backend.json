@@ -26,12 +26,24 @@
         "phoneNumber": {
           "type": "string",
           "description": "Phone number of the user."
+        },
+        "role": {
+            "type": "string",
+            "description": "The administrative role of the user.",
+            "enum": ["admin", "classic"]
+        },
+        "playerType": {
+            "type": "string",
+            "description": "The functional role of the user on the team.",
+            "enum": ["player", "goalie", "member"]
         }
       },
       "required": [
         "id",
         "email",
-        "name"
+        "name",
+        "role",
+        "playerType"
       ]
     },
     "Match": {
@@ -105,6 +117,18 @@
         "lineup": {
           "type": "object",
           "description": "Stores the saved lineup for the match, with positions as keys (e.g., LK1, C1) and denormalized player data as values."
+        },
+        "goalieId": {
+            "type": "string",
+            "description": "The user ID of the goalie who played in the match."
+        },
+        "goalieSaves": {
+            "type": "number",
+            "description": "Number of saves made by the goalie in the match."
+        },
+        "goalieShotsAgainst": {
+            "type": "number",
+            "description": "Number of shots against the goalie in the match."
         }
       },
       "required": [
@@ -117,19 +141,19 @@
         "type"
       ]
     },
-    "PlayerStats": {
+    "SkaterStats": {
       "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "PlayerStats",
+      "title": "SkaterStats",
       "type": "object",
-      "description": "Represents the statistics of a player, categorized by season, playoff, and all-time history.",
+      "description": "Represents the statistics of a skater, categorized by season, playoff, and all-time history.",
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the PlayerStats entity."
+          "description": "Unique identifier for the SkaterStats entity."
         },
         "userProfileId": {
           "type": "string",
-          "description": "Reference to UserProfile. (Relationship: UserProfile 1:1 PlayerStats)"
+          "description": "Reference to UserProfile. (Relationship: UserProfile 1:1 SkaterStats)"
         },
         "seasonGoals": {
           "type": "number",
@@ -180,6 +204,44 @@
         "historicalGoals",
         "historicalAssists",
         "historicalGamesPlayed"
+      ]
+    },
+     "GoalieStats": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "GoalieStats",
+      "type": "object",
+      "description": "Represents the statistics of a goalie, categorized by season, playoff, and all-time history.",
+      "properties": {
+        "id": { "type": "string" },
+        "userProfileId": { "type": "string" },
+        "seasonGamesPlayed": { "type": "number" },
+        "seasonWins": { "type": "number" },
+        "seasonShotsAgainst": { "type": "number" },
+        "seasonSaves": { "type": "number" },
+        "playoffGamesPlayed": { "type": "number" },
+        "playoffWins": { "type": "number" },
+        "playoffShotsAgainst": { "type": "number" },
+        "playoffSaves": { "type": "number" },
+        "historicalGamesPlayed": { "type": "number" },
+        "historicalWins": { "type": "number" },
+        "historicalShotsAgainst": { "type": "number" },
+        "historicalSaves": { "type": "number" }
+      },
+      "required": [
+        "id",
+        "userProfileId",
+        "seasonGamesPlayed",
+        "seasonWins",
+        "seasonShotsAgainst",
+        "seasonSaves",
+        "playoffGamesPlayed",
+        "playoffWins",
+        "playoffShotsAgainst",
+        "playoffSaves",
+        "historicalGamesPlayed",
+        "historicalWins",
+        "historicalShotsAgainst",
+        "historicalSaves"
       ]
     },
     "Attendance": {
@@ -295,21 +357,41 @@
         }
       },
       {
-        "path": "/users/{userId}/playerStats/{playerStatsId}",
+        "path": "/users/{userId}/skaterStats/{skaterStatsId}",
         "definition": {
-          "entityName": "PlayerStats",
+          "entityName": "SkaterStats",
           "schema": {
-            "$ref": "#/backend/entities/PlayerStats"
+            "$ref": "#/backend/entities/SkaterStats"
           },
-          "description": "Stores player statistics associated with a specific user. Only the user can access their own stats. Inherits authorization from the parent UserProfile document.",
+          "description": "Stores skater statistics associated with a specific user. Only the user can access their own stats. Inherits authorization from the parent UserProfile document.",
           "params": [
             {
               "name": "userId",
               "description": "The unique identifier of the user."
             },
             {
-              "name": "playerStatsId",
-              "description": "The unique identifier of the player stats."
+              "name": "skaterStatsId",
+              "description": "The unique identifier of the skater stats."
+            }
+          ]
+        }
+      },
+        {
+        "path": "/users/{userId}/goalieStats/{goalieStatsId}",
+        "definition": {
+          "entityName": "GoalieStats",
+          "schema": {
+            "$ref": "#/backend/entities/GoalieStats"
+          },
+          "description": "Stores goalie statistics associated with a specific user. Only the user can access their own stats. Inherits authorization from the parent UserProfile document.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user."
+            },
+            {
+              "name": "goalieStatsId",
+              "description": "The unique identifier of the goalie stats."
             }
           ]
         }
@@ -370,3 +452,4 @@
     "reasoning": "Based on the requirements, the Firestore data structure is designed to prioritize security, scalability, and ease of maintenance. The core principle is Authorization Independence, achieved through denormalization where necessary, ensuring security rules are robust and efficient. The structure segregates data based on access needs and applies consistent access modeling patterns.\n\nUser profiles are stored in a private collection, accessible only to the authenticated user. PlayerStats are stored as a subcollection under user profiles to model the 1:1 relationship, ensuring that stats can only be accessed by the user themselves.\n\nMatches are stored in a separate collection, assumably accessible to all users. If match visibility were to change (e.g. only accessible to players), a membership map could be added to the `Match` entity to define access.\n\nThis design supports the QAPs (Rules are not filters) principle by ensuring that listing operations can be secured effectively. Since user profile data is private and matches are public, filtering isn't a primary concern at this stage of the design. If more complex list operations become necessary (e.g., listing matches by a specific team), indexing strategies can be applied without compromising security.\n\nAuthorization Independence is achieved by avoiding `get()` calls in security rules. Access to user profiles is based on `request.auth.uid` matching the `userId` in the path. Since the PlayerStats collection is nested under the UserProfile, access is implicitly controlled by the UserProfile access rules."
   }
 }
+    

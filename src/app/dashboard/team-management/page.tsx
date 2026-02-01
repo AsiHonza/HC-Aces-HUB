@@ -12,10 +12,11 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
-import { MoreHorizontal, Trash2, UserCog, Edit, ShieldCheck, User as UserIcon, Loader2 } from 'lucide-react'
+import { MoreHorizontal, Trash2, UserCog, Edit, ShieldCheck, User as UserIcon, Loader2, Contact } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from "@/hooks/use-toast"
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 interface UserProfile {
   id: string;
@@ -24,8 +25,16 @@ interface UserProfile {
   phoneNumber?: string;
   jerseyNumber?: number;
   role: 'admin' | 'classic';
+  playerType: 'player' | 'goalie' | 'member';
   dob?: string;
 }
+
+const playerTypeLabels: Record<UserProfile['playerType'], string> = {
+    player: 'Hráč',
+    goalie: 'Brankář',
+    member: 'Člen',
+};
+
 
 function TeamManagementContent() {
   const router = useRouter()
@@ -65,7 +74,10 @@ function TeamManagementContent() {
   }
 
   const confirmDelete = async () => {
-    if (!selectedUser || !firestore) return
+    if (!selectedUser || !firestore) {
+      setIsDeleteDialogOpen(false)
+      return;
+    }
     
     const userDocRef = doc(firestore, 'users', selectedUser.id);
     try {
@@ -96,7 +108,7 @@ function TeamManagementContent() {
       await updateDoc(userDocRef, { role: newRole });
       toast({
         title: 'Role změněna',
-        description: `Role uživatele ${user.name} byla změněna na ${newRole}.`,
+        description: `Role uživatele ${user.name} byla změněna na ${newRole === 'admin' ? 'Admin' : 'Hráč'}.`,
       })
     } catch (error: any) {
         toast({
@@ -109,15 +121,20 @@ function TeamManagementContent() {
   
   const handleUpdateUser = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!selectedUser || !firestore) return;
+    if (!selectedUser || !firestore) {
+        setIsEditDialogOpen(false);
+        setSelectedUser(null);
+        return;
+    };
 
     const formData = new FormData(e.currentTarget);
-    const updatedData = {
+    const updatedData: Partial<UserProfile> = {
         name: formData.get('name') as string,
         email: formData.get('email') as string,
         phoneNumber: formData.get('phoneNumber') as string,
-        jerseyNumber: Number(formData.get('jerseyNumber') as string) || null,
-        dob: formData.get('dob') as string || '',
+        jerseyNumber: Number(formData.get('jerseyNumber') as string) || undefined,
+        dob: formData.get('dob') as string || undefined,
+        playerType: formData.get('playerType') as UserProfile['playerType']
     };
     
     const userDocRef = doc(firestore, 'users', selectedUser.id);
@@ -166,6 +183,7 @@ function TeamManagementContent() {
               <TableRow>
                 <TableHead>Hráč</TableHead>
                 <TableHead className="hidden md:table-cell">Kontakt</TableHead>
+                <TableHead className="hidden sm:table-cell">Pozice</TableHead>
                 <TableHead className="text-center">Role</TableHead>
                 <TableHead><span className="sr-only">Akce</span></TableHead>
               </TableRow>
@@ -189,9 +207,12 @@ function TeamManagementContent() {
                      <div>{user.email}</div>
                      <div className="text-sm text-muted-foreground">{user.phoneNumber}</div>
                   </TableCell>
+                  <TableCell className="hidden sm:table-cell">
+                     {user.playerType && <Badge variant="outline">{playerTypeLabels[user.playerType]}</Badge>}
+                  </TableCell>
                   <TableCell className="text-center">
                     <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
-                      {user.role === 'admin' ? 'Admin' : 'Hráč'}
+                      {user.role === 'admin' ? 'Admin' : 'Uživatel'}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
@@ -210,7 +231,7 @@ function TeamManagementContent() {
                              <DropdownMenuSub>
                                 <DropdownMenuSubTrigger>
                                     <UserCog className="mr-2 h-4 w-4" />
-                                    <span>Změnit roli</span>
+                                    <span>Změnit admin roli</span>
                                 </DropdownMenuSubTrigger>
                                 <DropdownMenuSubContent>
                                     <DropdownMenuRadioGroup value={user.role} onValueChange={(newRole) => handleRoleChange(user.id, newRole as 'admin' | 'classic')}>
@@ -218,7 +239,7 @@ function TeamManagementContent() {
                                             <ShieldCheck className="mr-2 h-4 w-4 text-primary" /> Admin
                                         </DropdownMenuRadioItem>
                                         <DropdownMenuRadioItem value="classic">
-                                            <UserIcon className="mr-2 h-4 w-4" /> Hráč
+                                            <UserIcon className="mr-2 h-4 w-4" /> Uživatel
                                         </DropdownMenuRadioItem>
                                     </DropdownMenuRadioGroup>
                                 </DropdownMenuSubContent>
@@ -270,6 +291,19 @@ function TeamManagementContent() {
                     <Label htmlFor="dob-edit" className="text-right">Datum nar.</Label>
                     <Input id="dob-edit" name="dob" type="date" defaultValue={selectedUser.dob ?? ''} className="col-span-3" />
                   </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="playerType-edit" className="text-right">Pozice</Label>
+                    <Select name="playerType" defaultValue={selectedUser.playerType}>
+                      <SelectTrigger className="col-span-3">
+                        <SelectValue placeholder="Vyberte pozici" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="player">Hráč</SelectItem>
+                        <SelectItem value="goalie">Brankář</SelectItem>
+                        <SelectItem value="member">Člen</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <DialogFooter>
                   <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>Zrušit</Button>
@@ -306,3 +340,5 @@ export default function TeamManagementPage() {
         </Suspense>
     )
 }
+
+    

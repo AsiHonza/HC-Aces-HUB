@@ -5,6 +5,7 @@ export const registerSchema = z.object({
   email: z.string().email({ message: 'Neplatná e-mailová adresa.' }),
   phoneNumber: z.string().min(9, { message: 'Telefonní číslo musí mít alespoň 9 znaků.' }),
   jerseyNumber: z.string().optional(),
+  playerType: z.enum(['player', 'goalie', 'member'], { required_error: 'Prosím, vyberte svou pozici.' }),
   password: z.string().min(6, { message: 'Heslo musí mít alespoň 6 znaků.' }),
 });
 
@@ -19,3 +20,5 @@ export const profileSchema = z.object({
     jerseyNumber: z.string().optional().nullable(),
     dob: z.string().optional().nullable(),
   });
+
+    

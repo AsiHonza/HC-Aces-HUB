@@ -35,10 +35,11 @@ interface UserProfile {
   jerseyNumber?: number;
   phoneNumber?: string;
   role: 'admin' | 'classic';
+  playerType: 'player' | 'goalie' | 'member';
 }
 
-interface PlayerStats {
-  id: string; // Document ID from playerStats subcollection
+interface SkaterStats {
+  id: string;
   userProfileId: string;
   seasonGoals: number;
   seasonAssists: number;
@@ -49,6 +50,23 @@ interface PlayerStats {
   historicalGoals: number;
   historicalAssists: number;
   historicalGamesPlayed: number;
+}
+
+interface GoalieStats {
+  id: string;
+  userProfileId: string;
+  seasonGamesPlayed: number;
+  seasonWins: number;
+  seasonShotsAgainst: number;
+  seasonSaves: number;
+  playoffGamesPlayed: number;
+  playoffWins: number;
+  playoffShotsAgainst: number;
+  playoffSaves: number;
+  historicalGamesPlayed: number;
+  historicalWins: number;
+  historicalShotsAgainst: number;
+  historicalSaves: number;
 }
 
 interface Match {
@@ -63,6 +81,9 @@ interface Match {
   team2Score?: number;
   scorers?: { goal: string; assist: string | null }[];
   lineup?: Lineup;
+  goalieId?: string;
+  goalieSaves?: number;
+  goalieShotsAgainst?: number;
 }
 
 interface Attendance {
@@ -88,6 +109,8 @@ interface AppSettings {
 
 function RecordResultForm({ match, allUsers, onSave, onCancel }: { match: Match, allUsers: UserProfile[], onSave: (e: React.FormEvent<HTMLFormElement>) => Promise<void>, onCancel: () => void }) {
     const [goalCount, setGoalCount] = useState(0)
+    const skaters = useMemo(() => allUsers.filter(u => u.playerType === 'player'), [allUsers]);
+    const goalies = useMemo(() => allUsers.filter(u => u.playerType === 'goalie'), [allUsers]);
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         await onSave(e);
@@ -98,7 +121,7 @@ function RecordResultForm({ match, allUsers, onSave, onCancel }: { match: Match,
              <DialogHeader>
                   <DialogTitle>Zapsat výsledek zápasu</DialogTitle>
                   <DialogDescription>
-                    Zadejte konečné skóre a vyberte střelce gólů a asistence.
+                    Zadejte konečné skóre a statistiky hráčů.
                   </DialogDescription>
               </DialogHeader>
             <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-4">
@@ -121,7 +144,7 @@ function RecordResultForm({ match, allUsers, onSave, onCancel }: { match: Match,
                                 <SelectValue placeholder={`Gól ${index + 1}`} />
                             </SelectTrigger>
                             <SelectContent>
-                                {allUsers.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+                                {skaters.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
                             </SelectContent>
                         </Select>
                         <Select name={`assist-${index}`}>
@@ -130,11 +153,34 @@ function RecordResultForm({ match, allUsers, onSave, onCancel }: { match: Match,
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="none">Žádná</SelectItem>
-                                {allUsers.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+                                {skaters.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
                             </SelectContent>
                         </Select>
                     </div>
                 ))}
+                <p className="font-medium mt-4">Statistiky brankáře</p>
+                <div className="grid grid-cols-2 gap-2 items-center">
+                     <Select name="goalieId">
+                        <SelectTrigger>
+                            <SelectValue placeholder="Vyberte brankáře" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="none">Žádný</SelectItem>
+                            {goalies.map(g => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                </div>
+                 <div className="grid grid-cols-2 gap-2 items-center">
+                    <div className="grid gap-1">
+                        <Label htmlFor="goalieShotsAgainst">Střely</Label>
+                        <Input id="goalieShotsAgainst" name="goalieShotsAgainst" type="number" min="0" placeholder="Počet střel na bránu" />
+                    </div>
+                    <div className="grid gap-1">
+                        <Label htmlFor="goalieSaves">Zásahy</Label>
+                        <Input id="goalieSaves" name="goalieSaves" type="number" min="0" placeholder="Počet zásahů" />
+                    </div>
+                </div>
+
             </div>
             <DialogFooter className="pt-4">
                 <Button type="button" variant="outline" onClick={onCancel}>Zrušit</Button>
@@ -184,8 +230,11 @@ function DashboardPageContent() {
   const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
   const { data: userProfile, isLoading: isUserProfileLoading } = useDoc<UserProfile>(userDocRef);
 
-  const playerStatsCollectionRef = useMemoFirebase(() => user ? collection(firestore, 'users', user.uid, 'playerStats') : null, [firestore, user]);
-  const { data: playerStatsData, isLoading: isPlayerStatsLoading } = useCollection<PlayerStats>(playerStatsCollectionRef);
+  const skaterStatsCollectionRef = useMemoFirebase(() => user ? collection(firestore, 'users', user.uid, 'skaterStats') : null, [firestore, user]);
+  const { data: skaterStatsData, isLoading: isSkaterStatsLoading } = useCollection<SkaterStats>(skaterStatsCollectionRef);
+  
+  const goalieStatsCollectionRef = useMemoFirebase(() => user ? collection(firestore, 'users', user.uid, 'goalieStats') : null, [firestore, user]);
+  const { data: goalieStatsData, isLoading: isGoalieStatsLoading } = useCollection<GoalieStats>(goalieStatsCollectionRef);
   
   // Fetch matches
   const matchesQuery = useMemoFirebase(() => {
@@ -198,8 +247,11 @@ function DashboardPageContent() {
   const usersRef = useMemoFirebase(() => firestore && user ? collection(firestore, 'users'): null, [firestore, user]);
   const { data: allUsers, isLoading: areUsersLoading } = useCollection<UserProfile>(usersRef);
 
-  const allStatsRef = useMemoFirebase(() => firestore && user ? collectionGroup(firestore, 'playerStats'): null, [firestore, user]);
-  const { data: allStats, isLoading: areStatsLoading } = useCollection<PlayerStats>(allStatsRef);
+  const allSkaterStatsRef = useMemoFirebase(() => firestore && user ? collectionGroup(firestore, 'skaterStats'): null, [firestore, user]);
+  const { data: allSkaterStats, isLoading: areSkaterStatsLoading } = useCollection<SkaterStats>(allSkaterStatsRef);
+
+  const allGoalieStatsRef = useMemoFirebase(() => firestore && user ? collectionGroup(firestore, 'goalieStats'): null, [firestore, user]);
+  const { data: allGoalieStats, isLoading: areGoalieStatsLoading } = useCollection<GoalieStats>(allGoalieStatsRef);
 
   // Fetch attendances for upcoming matches
     const attendancesQuery = useMemoFirebase(() => {
@@ -220,15 +272,18 @@ function DashboardPageContent() {
   ]);
   const [editableLeagueStandings, setEditableLeagueStandings] = useState(leagueStandings);
 
-  const playerStats = useMemo(() => playerStatsData?.[0], [playerStatsData]);
+  const skaterStats = useMemo(() => skaterStatsData?.[0], [skaterStatsData]);
+  const goalieStats = useMemo(() => goalieStatsData?.[0], [goalieStatsData]);
 
   const teamScoring = useMemo(() => {
-    if (!allUsers || !allStats) return [];
+    if (!allUsers || !allSkaterStats) return [];
     
-    const statsMap = new Map<string, PlayerStats>();
-    allStats.forEach(stat => statsMap.set(stat.userProfileId, stat));
+    const statsMap = new Map<string, SkaterStats>();
+    allSkaterStats.forEach(stat => statsMap.set(stat.userProfileId, stat));
 
-    return allUsers.map(u => {
+    return allUsers
+      .filter(u => u.playerType === 'player')
+      .map(u => {
       const stats = statsMap.get(u.id);
       return {
           id: u.id,
@@ -253,7 +308,49 @@ function DashboardPageContent() {
           },
       };
     });
-  }, [allUsers, allStats]);
+  }, [allUsers, allSkaterStats]);
+
+  const goalieLeaderboard = useMemo(() => {
+    if (!allUsers || !allGoalieStats) return [];
+
+    const statsMap = new Map<string, GoalieStats>();
+    allGoalieStats.forEach(stat => statsMap.set(stat.userProfileId, stat));
+
+    return allUsers
+      .filter(u => u.playerType === 'goalie')
+      .map(u => {
+        const stats = statsMap.get(u.id);
+        const seasonSavePct = (stats?.seasonShotsAgainst ?? 0) > 0 ? ((stats?.seasonSaves ?? 0) / stats!.seasonShotsAgainst) * 100 : 0;
+        const playoffSavePct = (stats?.playoffShotsAgainst ?? 0) > 0 ? ((stats?.playoffSaves ?? 0) / stats!.playoffShotsAgainst) * 100 : 0;
+        const historicalSavePct = (stats?.historicalShotsAgainst ?? 0) > 0 ? ((stats?.historicalSaves ?? 0) / stats!.historicalShotsAgainst) * 100 : 0;
+
+        return {
+          id: u.id,
+          name: u.name,
+          season: {
+            gamesPlayed: stats?.seasonGamesPlayed ?? 0,
+            wins: stats?.seasonWins ?? 0,
+            shotsAgainst: stats?.seasonShotsAgainst ?? 0,
+            saves: stats?.seasonSaves ?? 0,
+            savePercentage: seasonSavePct,
+          },
+          playoff: {
+            gamesPlayed: stats?.playoffGamesPlayed ?? 0,
+            wins: stats?.playoffWins ?? 0,
+            shotsAgainst: stats?.playoffShotsAgainst ?? 0,
+            saves: stats?.playoffSaves ?? 0,
+            savePercentage: playoffSavePct,
+          },
+          history: {
+            gamesPlayed: stats?.historicalGamesPlayed ?? 0,
+            wins: stats?.historicalWins ?? 0,
+            shotsAgainst: stats?.historicalShotsAgainst ?? 0,
+            saves: stats?.historicalSaves ?? 0,
+            savePercentage: historicalSavePct,
+          },
+        };
+      });
+  }, [allUsers, allGoalieStats]);
 
   const upcomingMatches = useMemo(() => allMatches?.filter(match => !match.isPlayed) ?? [], [allMatches]);
   
@@ -266,6 +363,16 @@ function DashboardPageContent() {
       }));
       return data.sort((a, b) => b.points - a.points || b.goals - a.goals).map((player, index) => ({ ...player, rank: index + 1 }));
   }, [teamScoring, scoringView]);
+
+  const sortedGoalieLeaderboard = useMemo(() => {
+    if (!goalieLeaderboard) return [];
+    const data = goalieLeaderboard.map(goalie => ({
+        id: goalie.id,
+        name: goalie.name,
+        ...goalie[scoringView]
+    }));
+    return data.sort((a, b) => b.savePercentage - a.savePercentage || b.wins - a.wins).map((goalie, index) => ({...goalie, rank: index + 1}));
+  }, [goalieLeaderboard, scoringView]);
 
   const sortedLeagueStandings = useMemo(() => {
       const data = isLeagueEditMode ? editableLeagueStandings : leagueStandings;
@@ -316,7 +423,7 @@ function DashboardPageContent() {
   const isPlayoffEnabled = leagueSettings?.isPlayoffEnabled ?? false;
   const isScoringInPlayoffMode = leagueSettings?.isScoringInPlayoffMode ?? false;
   const playoffSeries = leagueSettings?.playoffSeries ?? [];
-  const isLoading = isUserProfileLoading || isPlayerStatsLoading || areMatchesLoading || areUsersLoading || areStatsLoading || attendancesLoading || leagueSettingsLoading;
+  const isLoading = isUserProfileLoading || isSkaterStatsLoading || isGoalieStatsLoading || areMatchesLoading || areUsersLoading || areSkaterStatsLoading || areGoalieStatsLoading || attendancesLoading || leagueSettingsLoading;
 
 
   useEffect(() => {
@@ -363,23 +470,43 @@ function DashboardPageContent() {
 
   const nextMatch = upcomingMatches?.[0];
   
-  const myStatsToDisplay = (() => {
-    if (!playerStats) return { goals: 0, assists: 0, gamesPlayed: 0 };
-    switch(myStatsView) {
-        case 'playoff': return { goals: playerStats.playoffGoals, assists: playerStats.playoffAssists, gamesPlayed: playerStats.playoffGamesPlayed };
-        case 'history': return { goals: playerStats.historicalGoals, assists: playerStats.historicalAssists, gamesPlayed: playerStats.historicalGamesPlayed };
-        case 'season':
-        default:
-            return { goals: playerStats.seasonGoals, assists: playerStats.seasonAssists, gamesPlayed: playerStats.seasonGamesPlayed };
+  const myStatsToDisplay = useMemo(() => {
+    if (userProfile?.playerType === 'player' && skaterStats) {
+        switch(myStatsView) {
+            case 'playoff': return { goals: skaterStats.playoffGoals, assists: skaterStats.playoffAssists, gamesPlayed: skaterStats.playoffGamesPlayed };
+            case 'history': return { goals: skaterStats.historicalGoals, assists: skaterStats.historicalAssists, gamesPlayed: skaterStats.historicalGamesPlayed };
+            case 'season':
+            default:
+                return { goals: skaterStats.seasonGoals, assists: skaterStats.seasonAssists, gamesPlayed: skaterStats.seasonGamesPlayed };
+        }
     }
-  })();
+    return { goals: 0, assists: 0, gamesPlayed: 0 };
+  }, [myStatsView, skaterStats, userProfile]);
 
-  const stats = [
+  const myGoalieStatsToDisplay = useMemo(() => {
+    if (userProfile?.playerType === 'goalie' && goalieStats) {
+         switch(myStatsView) {
+            case 'playoff': return { gamesPlayed: goalieStats.playoffGamesPlayed, wins: goalieStats.playoffWins, savePct: goalieStats.playoffShotsAgainst > 0 ? (goalieStats.playoffSaves / goalieStats.playoffShotsAgainst) * 100 : 0 };
+            case 'history': return { gamesPlayed: goalieStats.historicalGamesPlayed, wins: goalieStats.historicalWins, savePct: goalieStats.historicalShotsAgainst > 0 ? (goalieStats.historicalSaves / goalieStats.historicalShotsAgainst) * 100 : 0 };
+            case 'season':
+            default:
+                 return { gamesPlayed: goalieStats.seasonGamesPlayed, wins: goalieStats.seasonWins, savePct: goalieStats.seasonShotsAgainst > 0 ? (goalieStats.seasonSaves / goalieStats.seasonShotsAgainst) * 100 : 0 };
+        }
+    }
+    return { gamesPlayed: 0, wins: 0, savePct: 0 };
+  }, [myStatsView, goalieStats, userProfile]);
+
+
+  const stats = userProfile?.playerType === 'player' ? [
     { metric: 'Góly', value: myStatsToDisplay.goals ?? 0 },
     { metric: 'Asistence', value: myStatsToDisplay.assists ?? 0 },
     { metric: 'Body', value: (myStatsToDisplay.goals ?? 0) + (myStatsToDisplay.assists ?? 0) },
     { metric: 'Odehrané zápasy', value: myStatsToDisplay.gamesPlayed ?? 0 },
-  ]
+  ] : userProfile?.playerType === 'goalie' ? [
+    { metric: 'Zápasy', value: myGoalieStatsToDisplay.gamesPlayed },
+    { metric: 'Výhry', value: myGoalieStatsToDisplay.wins },
+    { metric: 'Úspěšnost', value: `${myGoalieStatsToDisplay.savePct.toFixed(2)} %` },
+  ] : [];
   
   const handleShareMatch = (matchId: string) => {
     const url = new URL(window.location.origin + window.location.pathname);
@@ -427,7 +554,10 @@ function DashboardPageContent() {
   };
 
   const handleSaveLineup = async (lineupToSave: Lineup) => {
-    if (!lineupMatch || !firestore) return;
+    if (!lineupMatch || !firestore) {
+      setIsLineupBuilderOpen(false);
+      return;
+    };
     const matchRef = doc(firestore, 'matches', lineupMatch.id);
     try {
       await updateDoc(matchRef, { lineup: lineupToSave });
@@ -444,7 +574,10 @@ function DashboardPageContent() {
   };
 
   const confirmDeleteMatch = async () => {
-    if (!selectedMatch || !firestore) return;
+    if (!selectedMatch || !firestore) {
+      setIsDeleteDialogOpen(false);
+      return;
+    };
     
     const matchRef = doc(firestore, 'matches', selectedMatch.id);
     try {
@@ -508,7 +641,10 @@ function DashboardPageContent() {
 
   const handleMatchUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!selectedMatch || !firestore) return;
+    if (!selectedMatch || !firestore) {
+      setIsEditDialogOpen(false);
+      return;
+    };
 
     const formData = new FormData(e.currentTarget);
     const timeStr = formData.get('time') as string;
@@ -546,7 +682,10 @@ function DashboardPageContent() {
 
   const handleMatchAdd = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!firestore) return;
+    if (!firestore) {
+        setIsAddDialogOpen(false);
+        return;
+    };
 
     const formData = new FormData(e.currentTarget);
     const timeStr = formData.get('time') as string;
@@ -567,9 +706,6 @@ function DashboardPageContent() {
           dateTime: Timestamp.fromDate(newDateTime),
           isPlayed: false,
           type: formData.get('type') as 'regular' | 'playoff' | 'friendly',
-          team1Score: null,
-          team2Score: null,
-          scorers: [],
       };
       
       const matchesCollection = collection(firestore, 'matches')
@@ -587,11 +723,18 @@ function DashboardPageContent() {
 
   const handleResultSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!selectedMatch || !firestore || !allStats || !allAttendances) return;
+    if (!selectedMatch || !firestore || !allSkaterStats || !allAttendances || !allGoalieStats) {
+      setIsResultDialogOpen(false);
+      return;
+    };
 
     const formData = new FormData(e.currentTarget);
     const team1Score = parseInt(formData.get('team1Score') as string, 10);
     const team2Score = parseInt(formData.get('team2Score') as string, 10);
+    const goalieId = formData.get('goalieId') as string;
+    const goalieSaves = parseInt(formData.get('goalieSaves') as string, 10) || 0;
+    const goalieShotsAgainst = parseInt(formData.get('goalieShotsAgainst') as string, 10) || 0;
+
 
     const scorersData = [];
     for (let i = 0; i < team1Score; i++) {
@@ -613,12 +756,15 @@ function DashboardPageContent() {
         team1Score,
         team2Score,
         scorers: scorersData,
+        goalieId: goalieId && goalieId !== 'none' ? goalieId : null,
+        goalieSaves,
+        goalieShotsAgainst,
     });
 
     if (selectedMatch.type !== 'friendly') {
-        const goalsField = selectedMatch.type === 'playoff' ? 'playoffGoals' : 'seasonGoals';
-        const assistsField = selectedMatch.type === 'playoff' ? 'playoffAssists' : 'seasonAssists';
-        const gamesPlayedField = selectedMatch.type === 'playoff' ? 'playoffGamesPlayed' : 'seasonGamesPlayed';
+        const skaterGoalsField = selectedMatch.type === 'playoff' ? 'playoffGoals' : 'seasonGoals';
+        const skaterAssistsField = selectedMatch.type === 'playoff' ? 'playoffAssists' : 'seasonAssists';
+        const skaterGamesPlayedField = selectedMatch.type === 'playoff' ? 'playoffGamesPlayed' : 'seasonGamesPlayed';
 
         const playerStatUpdates = new Map<string, { goals: number, assists: number }>();
         scorersData.forEach(s => {
@@ -632,29 +778,71 @@ function DashboardPageContent() {
             }
         });
 
-        const allStatsMap = new Map(allStats.map(s => [s.userProfileId, s]));
+        const allSkaterStatsMap = new Map(allSkaterStats.map(s => [s.userProfileId, s]));
 
         for (const [userId, updates] of playerStatUpdates.entries()) {
-            const userStats = allStatsMap.get(userId);
+            const userStats = allSkaterStatsMap.get(userId);
             if (userStats) {
-                const statDocRef = doc(firestore, 'users', userId, 'playerStats', userStats.id);
+                const statDocRef = doc(firestore, 'users', userId, 'skaterStats', userStats.id);
                 const update: any = {};
-                update[goalsField] = (userStats[goalsField] || 0) + updates.goals;
-                update[assistsField] = (userStats[assistsField] || 0) + updates.assists;
+                update[skaterGoalsField] = (userStats[skaterGoalsField] || 0) + updates.goals;
+                update[skaterAssistsField] = (userStats[skaterAssistsField] || 0) + updates.assists;
                 batch.update(statDocRef, update);
             }
         }
 
         const matchAttendees = attendancesByMatch.get(selectedMatch.id) || [];
         matchAttendees.forEach(att => {
-            const userStats = allStatsMap.get(att.userId);
-            if (att.status === 'going' && userStats) {
-                const statDocRef = doc(firestore, 'users', att.userId, 'playerStats', userStats.id);
-                const update: any = {};
-                update[gamesPlayedField] = (userStats[gamesPlayedField] || 0) + 1;
-                batch.update(statDocRef, update);
+            if (att.status !== 'going') return;
+            const userForStat = allUsers?.find(u => u.id === att.userId);
+            if (userForStat?.playerType === 'player') {
+                const userStats = allSkaterStatsMap.get(att.userId);
+                if (userStats) {
+                    const statDocRef = doc(firestore, 'users', att.userId, 'skaterStats', userStats.id);
+                    batch.update(statDocRef, { [skaterGamesPlayedField]: (userStats[skaterGamesPlayedField] || 0) + 1 });
+                }
             }
         });
+        
+        if (goalieId && goalieId !== 'none') {
+            const allGoalieStatsMap = new Map(allGoalieStats.map(s => [s.userProfileId, s]));
+            const goalieStats = allGoalieStatsMap.get(goalieId);
+            const isWin = team1Score > team2Score;
+            
+            const goalieGamesPlayedField = selectedMatch.type === 'playoff' ? 'playoffGamesPlayed' : 'seasonGamesPlayed';
+            const goalieWinsField = selectedMatch.type === 'playoff' ? 'playoffWins' : 'seasonWins';
+            const goalieSavesField = selectedMatch.type === 'playoff' ? 'playoffSaves' : 'seasonSaves';
+            const goalieShotsAgainstField = selectedMatch.type === 'playoff' ? 'playoffShotsAgainst' : 'seasonShotsAgainst';
+            
+            if (goalieStats) {
+                const statDocRef = doc(firestore, 'users', goalieId, 'goalieStats', goalieStats.id);
+                const update: any = {
+                    [goalieGamesPlayedField]: (goalieStats[goalieGamesPlayedField] || 0) + 1,
+                    [goalieWinsField]: (goalieStats[goalieWinsField] || 0) + (isWin ? 1 : 0),
+                    [goalieSavesField]: (goalieStats[goalieSavesField] || 0) + goalieSaves,
+                    [goalieShotsAgainstField]: (goalieStats[goalieShotsAgainstField] || 0) + goalieShotsAgainst,
+                };
+                batch.update(statDocRef, update);
+            } else {
+                // Create new goalie stats doc if it doesn't exist
+                 const statDocRef = doc(firestore, 'users', goalieId, 'goalieStats', 'stats');
+                 batch.set(statDocRef, {
+                    userProfileId: goalieId,
+                    seasonGamesPlayed: selectedMatch.type !== 'playoff' ? 1 : 0,
+                    seasonWins: selectedMatch.type !== 'playoff' && isWin ? 1 : 0,
+                    seasonSaves: selectedMatch.type !== 'playoff' ? goalieSaves : 0,
+                    seasonShotsAgainst: selectedMatch.type !== 'playoff' ? goalieShotsAgainst : 0,
+                    playoffGamesPlayed: selectedMatch.type === 'playoff' ? 1 : 0,
+                    playoffWins: selectedMatch.type === 'playoff' && isWin ? 1 : 0,
+                    playoffSaves: selectedMatch.type === 'playoff' ? goalieSaves : 0,
+                    playoffShotsAgainst: selectedMatch.type === 'playoff' ? goalieShotsAgainst : 0,
+                    historicalGamesPlayed: 0,
+                    historicalWins: 0,
+                    historicalSaves: 0,
+                    historicalShotsAgainst: 0
+                 });
+            }
+        }
     }
 
     try {
@@ -676,7 +864,10 @@ function DashboardPageContent() {
   };
 
   const handleSaveLeague = async () => {
-    if (!firestore) return;
+    if (!firestore) {
+        setIsLeagueEditMode(false);
+        return;
+    };
     
     let seriesToSave = editablePlayoffSeries;
     if (editableIsPlayoffEnabled && seriesToSave.length === 0) {
@@ -932,16 +1123,20 @@ function DashboardPageContent() {
                         <TabsTrigger value="history">Historie</TabsTrigger>
                     </TabsList>
                     <div className="mt-4">
-                        <Table>
-                            <TableBody>
-                                {stats.map(stat => (
-                                <TableRow key={stat.metric}>
-                                    <TableCell className="font-medium text-base">{stat.metric}</TableCell>
-                                    <TableCell className="text-right font-mono text-lg font-bold">{stat.value}</TableCell>
-                                </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
+                        {stats.length > 0 ? (
+                             <Table>
+                                <TableBody>
+                                    {stats.map(stat => (
+                                    <TableRow key={stat.metric}>
+                                        <TableCell className="font-medium text-base">{stat.metric}</TableCell>
+                                        <TableCell className="text-right font-mono text-lg font-bold">{stat.value}</TableCell>
+                                    </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        ) : (
+                            <p className="text-muted-foreground text-center py-4">Pro vaši roli se nezaznamenávají statistiky.</p>
+                        )}
                     </div>
                 </Tabs>
             </CardContent>
@@ -1087,6 +1282,50 @@ function DashboardPageContent() {
                 </CardContent>
             </Card>
 
+            <Card>
+                <CardHeader>
+                     <div>
+                        <CardTitle className="flex items-center gap-2 font-headline"><Shield className="text-primary"/>Statistiky brankářů</CardTitle>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    <Tabs value={scoringView} onValueChange={(value) => setScoringView(value as any)} className="w-full">
+                        <TabsList className="grid w-full grid-cols-3">
+                            <TabsTrigger value="season">Sezóna</TabsTrigger>
+                            <TabsTrigger value="playoff" disabled={!isScoringInPlayoffMode}>Play-off</TabsTrigger>
+                            <TabsTrigger value="history">Historie</TabsTrigger>
+                        </TabsList>
+                        <div className="mt-4">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Brankář</TableHead>
+                                        <TableHead className="text-center">Z</TableHead>
+                                        <TableHead className="text-center">V</TableHead>
+                                        <TableHead className="text-center hidden sm:table-cell">Střely</TableHead>
+                                        <TableHead className="text-center hidden sm:table-cell">Zásahy</TableHead>
+                                        <TableHead className="text-right">Úsp%</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {sortedGoalieLeaderboard.map((goalie) => (
+                                        <TableRow key={goalie.id}>
+                                            <TableCell className="font-medium py-2 px-1 sm:px-4">{goalie.name}</TableCell>
+                                            <TableCell className="text-center font-mono py-2 px-1 sm:px-4">{goalie.gamesPlayed}</TableCell>
+                                            <TableCell className="text-center font-mono py-2 px-1 sm:px-4">{goalie.wins}</TableCell>
+                                            <TableCell className="text-center font-mono hidden sm:table-cell py-2 px-1 sm:px-4">{goalie.shotsAgainst}</TableCell>
+                                            <TableCell className="text-center font-mono hidden sm:table-cell py-2 px-1 sm:px-4">{goalie.saves}</TableCell>
+                                            <TableCell className="text-right font-mono font-bold py-2 px-1 sm:px-4">{goalie.savePercentage.toFixed(2)}%</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </Tabs>
+                </CardContent>
+            </Card>
+        </div>
+         <div className="lg:col-span-3 mt-8">
             <Card>
                 <CardHeader className="flex-row items-start justify-between">
                      <div>
@@ -1328,10 +1567,10 @@ function DashboardPageContent() {
       </Dialog>
 
         <Dialog open={isLineupBuilderOpen} onOpenChange={(isOpen) => {
-            setIsLineupBuilderOpen(isOpen);
             if (!isOpen) {
-                setLineupMatch(null);
+              setLineupMatch(null);
             }
+            setIsLineupBuilderOpen(isOpen);
         }}>
             <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
                  {lineupMatch && allUsers ? (
@@ -1357,11 +1596,11 @@ function DashboardPageContent() {
             </DialogContent>
         </Dialog>
         <Dialog open={isLineupViewOpen} onOpenChange={(isOpen) => {
-            setIsLineupViewOpen(isOpen);
             if (!isOpen) {
-                setViewLineupData(null);
-                setLineupMatch(null);
+              setViewLineupData(null);
+              setLineupMatch(null);
             }
+            setIsLineupViewOpen(isOpen);
         }}>
             <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
                  <DialogHeader>
@@ -1388,3 +1627,5 @@ export default function DashboardPage() {
     </Suspense>
   )
 }
+
+    

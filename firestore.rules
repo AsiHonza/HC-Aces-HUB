@@ -59,15 +59,26 @@ service cloud.firestore {
       return request.resource.data.id == resource.data.id;
     }
 
-    // Validates that new PlayerStats correctly link back to their parent user
-    function isCreatingOwnPlayerStats(userId) {
+    // Validates that new SkaterStats correctly link back to their parent user
+    function isCreatingOwnSkaterStats(userId) {
       return request.resource.data.userProfileId == userId;
     }
+    
+    // Validates that new GoalieStats correctly link back to their parent user
+    function isCreatingOwnGoalieStats(userId) {
+        return request.resource.data.userProfileId == userId;
+    }
 
-    // Validates that the user link ('userProfileId') on PlayerStats is immutable
-    function isUpdatingOwnPlayerStats() {
+    // Validates that the user link ('userProfileId') on SkaterStats is immutable
+    function isUpdatingOwnSkaterStats() {
       return request.resource.data.userProfileId == resource.data.userProfileId;
     }
+    
+    // Validates that the user link ('userProfileId') on GoalieStats is immutable
+    function isUpdatingOwnGoalieStats() {
+      return request.resource.data.userProfileId == resource.data.userProfileId;
+    }
+
 
     match /settings/{settingId} {
       allow read: if isSignedIn();
@@ -83,17 +94,29 @@ service cloud.firestore {
       allow delete: if isExistingOwner(userId) || isAdmin();
     }
 
-    match /users/{userId}/playerStats/{playerStatsId} {
+    match /users/{userId}/skaterStats/{skaterStatsId} {
       allow get: if isOwner(userId) || isAdmin();
       // list is handled by the collection group rule below
-      allow create: if isOwner(userId) && isCreatingOwnPlayerStats(userId);
-      allow update: if (isExistingOwner(userId) && isUpdatingOwnPlayerStats()) || isAdmin();
+      allow create: if isOwner(userId) && isCreatingOwnSkaterStats(userId);
+      allow update: if (isExistingOwner(userId) && isUpdatingOwnSkaterStats()) || isAdmin();
+      allow delete: if isExistingOwner(userId) || isAdmin();
+    }
+    
+     match /users/{userId}/goalieStats/{goalieStatsId} {
+      allow get: if isOwner(userId) || isAdmin();
+      // list is handled by the collection group rule below
+      allow create: if isOwner(userId) && isCreatingOwnGoalieStats(userId);
+      allow update: if (isExistingOwner(userId) && isUpdatingOwnGoalieStats()) || isAdmin();
       allow delete: if isExistingOwner(userId) || isAdmin();
     }
 
-    // This rule allows the collection group query for 'playerStats' used in the dashboard leaderboard.
-    // It allows any signed-in user to read and list documents from any 'playerStats' collection.
-    match /{path=**}/playerStats/{statsId} {
+    // This rule allows the collection group query for 'skaterStats' used in the dashboard leaderboard.
+    // It allows any signed-in user to read and list documents from any 'skaterStats' collection.
+    match /{path=**}/skaterStats/{statsId} {
+        allow get, list: if isSignedIn();
+    }
+    
+    match /{path=**}/goalieStats/{statsId} {
         allow get, list: if isSignedIn();
     }
 
@@ -112,3 +135,5 @@ service cloud.firestore {
     }
   }
 }
+
+    

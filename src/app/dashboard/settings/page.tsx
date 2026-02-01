@@ -24,10 +24,11 @@ interface UserProfile {
     phoneNumber?: string;
     jerseyNumber?: number;
     role?: 'admin' | 'classic';
+    playerType: 'player' | 'goalie' | 'member';
     dob?: string;
 }
 
-interface PlayerStats {
+interface SkaterStats {
   id: string;
   userProfileId: string;
   seasonGoals: number;
@@ -39,6 +40,23 @@ interface PlayerStats {
   historicalGoals: number;
   historicalAssists: number;
   historicalGamesPlayed: number;
+}
+
+interface GoalieStats {
+  id: string;
+  userProfileId: string;
+  seasonGamesPlayed: number;
+  seasonWins: number;
+  seasonShotsAgainst: number;
+  seasonSaves: number;
+  playoffGamesPlayed: number;
+  playoffWins: number;
+  playoffShotsAgainst: number;
+  playoffSaves: number;
+  historicalGamesPlayed: number;
+  historicalWins: number;
+  historicalShotsAgainst: number;
+  historicalSaves: number;
 }
 
 interface AppSettings {
@@ -71,7 +89,7 @@ function SettingsForm() {
   const firestore = useFirestore()
 
   const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
-  const { data: userProfile, isLoading } = useDoc(userDocRef);
+  const { data: userProfile, isLoading } = useDoc<UserProfile>(userDocRef);
 
   const [state, setState] = useState(initialFormState);
 
@@ -195,8 +213,11 @@ function AdminSettings() {
     const leagueSettingsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'league') : null, [firestore]);
     const { data: leagueSettings, isLoading: leagueSettingsLoading } = useDoc<AppSettings>(leagueSettingsRef);
 
-    const allStatsRef = useMemoFirebase(() => firestore ? collectionGroup(firestore, 'playerStats'): null, [firestore]);
-    const { data: allStats, isLoading: allStatsLoading } = useCollection<PlayerStats>(allStatsRef);
+    const allSkaterStatsRef = useMemoFirebase(() => firestore ? collectionGroup(firestore, 'skaterStats'): null, [firestore]);
+    const { data: allSkaterStats, isLoading: allSkaterStatsLoading } = useCollection<SkaterStats>(allSkaterStatsRef);
+
+    const allGoalieStatsRef = useMemoFirebase(() => firestore ? collectionGroup(firestore, 'goalieStats'): null, [firestore]);
+    const { data: allGoalieStats, isLoading: allGoalieStatsLoading } = useCollection<GoalieStats>(allGoalieStatsRef);
 
     const handleTogglePlayoffScoringMode = async (checked: boolean) => {
         if (!firestore) return;
@@ -205,16 +226,29 @@ function AdminSettings() {
             await updateDoc(settingsRef, { isScoringInPlayoffMode: checked });
             toast({ title: `Režim statistik play-off ${checked ? 'zapnut' : 'vypnut'}.` });
 
-            if (!checked && allStats) {
+            if (!checked) {
                 const batch = writeBatch(firestore);
-                allStats.forEach(stat => {
-                    const statRef = doc(firestore, 'users', stat.userProfileId, 'playerStats', stat.id);
-                    batch.update(statRef, {
-                        playoffGoals: 0,
-                        playoffAssists: 0,
-                        playoffGamesPlayed: 0,
+                 if (allSkaterStats) {
+                    allSkaterStats.forEach(stat => {
+                        const statRef = doc(firestore, 'users', stat.userProfileId, 'skaterStats', stat.id);
+                        batch.update(statRef, {
+                            playoffGoals: 0,
+                            playoffAssists: 0,
+                            playoffGamesPlayed: 0,
+                        });
                     });
-                });
+                }
+                if (allGoalieStats) {
+                    allGoalieStats.forEach(stat => {
+                        const statRef = doc(firestore, 'users', stat.userProfileId, 'goalieStats', stat.id);
+                        batch.update(statRef, {
+                            playoffGamesPlayed: 0,
+                            playoffWins: 0,
+                            playoffSaves: 0,
+                            playoffShotsAgainst: 0,
+                        });
+                    });
+                }
                 await batch.commit();
                 toast({ description: "Statistiky play-off byly vynulovány." });
             }
@@ -224,15 +258,15 @@ function AdminSettings() {
     };
 
     const handleArchiveSeason = async () => {
-        if (!firestore || !allStats) {
+        if (!firestore || !allSkaterStats || !allGoalieStats) {
             toast({ variant: 'destructive', title: 'Chyba', description: 'Data statistik nejsou načtena.' });
             return;
         }
         
         const batch = writeBatch(firestore);
 
-        allStats.forEach(stat => {
-            const statRef = doc(firestore, 'users', stat.userProfileId, 'playerStats', stat.id);
+        allSkaterStats.forEach(stat => {
+            const statRef = doc(firestore, 'users', stat.userProfileId, 'skaterStats', stat.id);
             batch.update(statRef, {
                 historicalGoals: (stat.historicalGoals || 0) + (stat.seasonGoals || 0) + (stat.playoffGoals || 0),
                 historicalAssists: (stat.historicalAssists || 0) + (stat.seasonAssists || 0) + (stat.playoffAssists || 0),
@@ -245,6 +279,25 @@ function AdminSettings() {
                 playoffGamesPlayed: 0,
             });
         });
+
+        allGoalieStats.forEach(stat => {
+            const statRef = doc(firestore, 'users', stat.userProfileId, 'goalieStats', stat.id);
+            batch.update(statRef, {
+                historicalGamesPlayed: (stat.historicalGamesPlayed || 0) + (stat.seasonGamesPlayed || 0) + (stat.playoffGamesPlayed || 0),
+                historicalWins: (stat.historicalWins || 0) + (stat.seasonWins || 0) + (stat.playoffWins || 0),
+                historicalSaves: (stat.historicalSaves || 0) + (stat.seasonSaves || 0) + (stat.playoffSaves || 0),
+                historicalShotsAgainst: (stat.historicalShotsAgainst || 0) + (stat.seasonShotsAgainst || 0) + (stat.playoffShotsAgainst || 0),
+                seasonGamesPlayed: 0,
+                seasonWins: 0,
+                seasonSaves: 0,
+                seasonShotsAgainst: 0,
+                playoffGamesPlayed: 0,
+                playoffWins: 0,
+                playoffSaves: 0,
+                playoffShotsAgainst: 0,
+            });
+        });
+
 
         const settingsRef = doc(firestore, 'settings', 'league');
         batch.set(settingsRef, { 
@@ -261,7 +314,7 @@ function AdminSettings() {
         }
     };
 
-    if (leagueSettingsLoading || allStatsLoading) {
+    if (leagueSettingsLoading || allSkaterStatsLoading || allGoalieStatsLoading) {
         return <div className="p-6"><Loader2 className="animate-spin" /> Načítání administrace...</div>
     }
 
