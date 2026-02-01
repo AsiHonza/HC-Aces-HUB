@@ -1,0 +1,115 @@
+/**
+ * Core Philosophy: This ruleset enforces a strict user-ownership model for all
+ * user-specific data, while allowing public read access for shared data like matches.
+ * The primary goal is to ensure that users can only access and manage their own
+ * information, preventing any unauthorized access to other users' data.
+ *
+ * Data Structure: Private user data, including profiles and player statistics, is
+ * hierarchically organized under the /users/{userId} path. This structure naturally
+ * scopes access control. Publicly shared data, such as hockey matches, is stored in a
+ * separate top-level collection (/matches) to enable simple, performant public queries.
+ *
+ * Key Security Decisions:
+ * - User Isolation: A user can only read or write data within their own
+ *   document tree (i.e., /users/{their-own-userId}/...).
+ * - No User Listing: It is not possible for any client to list all documents in
+ *   the top-level /users collection, protecting user privacy.
+ * - Public Reads on Matches: The /matches collection is publicly readable by anyone,
+ *   including unauthenticated users, to allow for easy viewing of game schedules.
+ * - Write Protection on Matches: Writes to the /matches collection are currently
+ *   disabled pending the addition of an ownership or administrative role field to
+ *   the Match entity. This is a secure default.
+ * - Denormalization for Authorization: Rules rely on the {userId} wildcard in the
+ *   path for authorization, avoiding costly and slow `get()` calls to other documents.
+ *   Furthermore, documents within the user's tree are required to contain a field
+ *   linking back to the userId to ensure relational integrity.
+ * - Structural Segregation: User-private data (/users) and public data (/matches)
+ *   are stored in separate top-level collections. This is a secure and performant
+ *   pattern that simplifies rules for list operations.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions for improved readability and reusability
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Checks if the requesting user's UID matches the document's owner ID
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Checks for ownership on an existing document, critical for update/delete
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    // Validates that a new UserProfile document has an 'id' field matching its path userId
+    function isCreatingOwnProfile(userId) {
+      return request.resource.data.id == userId;
+    }
+
+    // Validates that the 'id' field of a UserProfile is immutable on update
+    function isUpdatingOwnProfile() {
+      return request.resource.data.id == resource.data.id;
+    }
+
+    // Validates that new PlayerStats correctly link back to their parent user
+    function isCreatingOwnPlayerStats(userId) {
+      return request.resource.data.userProfileId == userId;
+    }
+
+    // Validates that the user link ('userProfileId') on PlayerStats is immutable
+    function isUpdatingOwnPlayerStats() {
+      return request.resource.data.userProfileId == resource.data.userProfileId;
+    }
+
+    /**
+     * @description Controls access to a user's own profile document.
+     * @path /users/{userId}
+     * @allow (get, create, update, delete) A signed-in user with auth.uid = 'user_abc' can perform all operations on the document at /users/user_abc.
+     * @deny (get, list) A signed-in user with auth.uid = 'user_xyz' cannot read or list documents under /users/user_abc. Listing the entire /users collection is denied for everyone.
+     * @principle Restricts access to a user's own data tree and prevents enumeration of all users in the system.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isOwner(userId) && isCreatingOwnProfile(userId);
+      allow update: if isExistingOwner(userId) && isUpdatingOwnProfile();
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Controls access to a user's personal player statistics.
+     * @path /users/{userId}/playerStats/{playerStatsId}
+     * @allow (get, list, create, update, delete) A signed-in user with auth.uid = 'user_abc' can manage their own stats under /users/user_abc/playerStats/.
+     * @deny (any) A signed-in user with auth.uid = 'user_xyz' cannot perform any operation on documents under /users/user_abc/playerStats/.
+     * @principle Enforces inherited ownership from the parent document, ensuring a user can only manage their own subcollection data.
+     */
+    match /users/{userId}/playerStats/{playerStatsId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) && isCreatingOwnPlayerStats(userId);
+      allow update: if isExistingOwner(userId) && isUpdatingOwnPlayerStats();
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Manages access to hockey match information.
+     * @path /matches/{matchId}
+     * @allow (get, list) Any user, including unauthenticated visitors, can read match data.
+     * @deny (create, update, delete) All write operations are currently denied for everyone because the data model lacks an owner/admin field for authorization.
+     * @principle Provides public read access for shared data while defaulting to a secure, write-denied state until an ownership model is implemented.
+     */
+    match /matches/{matchId} {
+      allow get: if true;
+      allow list: if true;
+      // CRITICAL: Cannot implement owner-only writes. The 'Match' entity is missing an 'ownerId' or 'authorId' field.
+      allow create: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow update: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+    }
+  }
+}
