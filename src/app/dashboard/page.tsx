@@ -101,10 +101,20 @@ interface PlayoffSeries {
   losses: number;
 }
 
+interface LeagueStanding {
+    id: string;
+    rank?: number;
+    name: string;
+    points: number;
+    gf: number;
+    ga: number;
+}
+
 interface AppSettings {
   isPlayoffEnabled: boolean;
   isScoringInPlayoffMode: boolean;
   playoffSeries: PlayoffSeries[];
+  leagueStandings?: LeagueStanding[];
 }
 
 function RecordResultForm({ match, allUsers, onSave, onCancel }: { match: Match, allUsers: UserProfile[], onSave: (e: React.FormEvent<HTMLFormElement>) => Promise<void>, onCancel: () => void }) {
@@ -215,6 +225,7 @@ function DashboardPageContent() {
 
   const [leagueView, setLeagueView] = useState<'regular' | 'playoff'>('regular');
   const [editablePlayoffSeries, setEditablePlayoffSeries] = useState<PlayoffSeries[]>([]);
+  const [editableLeagueStandings, setEditableLeagueStandings] = useState<LeagueStanding[]>([]);
   const [editableIsPlayoffEnabled, setEditableIsPlayoffEnabled] = useState(false);
 
   const [myStatsView, setMyStatsView] = useState<'season' | 'playoff' | 'history'>('season');
@@ -263,17 +274,36 @@ function DashboardPageContent() {
     const leagueSettingsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'league') : null, [firestore]);
     const { data: leagueSettings, isLoading: leagueSettingsLoading } = useDoc<AppSettings>(leagueSettingsRef);
 
-  const [leagueStandings, setLeagueStandings] = useState([
-    { rank: 1, name: 'Aces', points: 45, gf: 120, ga: 85 },
-    { rank: 2, name: 'HC Draci', points: 42, gf: 115, ga: 90 },
-    { rank: 3, name: 'Rytíři', points: 38, gf: 100, ga: 95 },
-    { rank: 4, name: 'Kometa', points: 35, gf: 95, ga: 105 },
-    { rank: 5, name: 'Lvi', points: 30, gf: 90, ga: 110 },
-  ]);
-  const [editableLeagueStandings, setEditableLeagueStandings] = useState(leagueStandings);
+  const leagueStandings = useMemo(() => leagueSettings?.leagueStandings ?? [], [leagueSettings]);
+  
+  const myStatsToDisplay = useMemo(() => {
+    if (userProfile?.playerType === 'player' && skaterStatsData?.[0]) {
+        const stats = skaterStatsData[0];
+        switch(myStatsView) {
+            case 'playoff': return { goals: stats.playoffGoals, assists: stats.playoffAssists, gamesPlayed: stats.playoffGamesPlayed };
+            case 'history': return { goals: stats.historicalGoals, assists: stats.historicalAssists, gamesPlayed: stats.historicalGamesPlayed };
+            case 'season':
+            default:
+                return { goals: stats.seasonGoals, assists: stats.seasonAssists, gamesPlayed: stats.seasonGamesPlayed };
+        }
+    }
+    return { goals: 0, assists: 0, gamesPlayed: 0 };
+  }, [myStatsView, skaterStatsData, userProfile]);
 
-  const skaterStats = useMemo(() => skaterStatsData?.[0], [skaterStatsData]);
-  const goalieStats = useMemo(() => goalieStatsData?.[0], [goalieStatsData]);
+  const myGoalieStatsToDisplay = useMemo(() => {
+    if (userProfile?.playerType === 'goalie' && goalieStatsData?.[0]) {
+        const stats = goalieStatsData[0];
+        switch(myStatsView) {
+            case 'playoff': return { gamesPlayed: stats.playoffGamesPlayed, wins: stats.playoffWins, savePct: stats.playoffShotsAgainst > 0 ? (stats.playoffSaves / stats.playoffShotsAgainst) * 100 : 0 };
+            case 'history': return { gamesPlayed: stats.historicalGamesPlayed, wins: stats.historicalWins, savePct: stats.historicalShotsAgainst > 0 ? (stats.historicalSaves / stats.historicalShotsAgainst) * 100 : 0 };
+            case 'season':
+            default:
+                return { gamesPlayed: stats.seasonGamesPlayed, wins: stats.seasonWins, savePct: stats.seasonShotsAgainst > 0 ? (stats.seasonSaves / stats.seasonShotsAgainst) * 100 : 0 };
+        }
+    }
+    return { gamesPlayed: 0, wins: 0, savePct: 0 };
+  }, [myStatsView, goalieStatsData, userProfile]);
+
 
   const teamScoring = useMemo(() => {
     if (!allUsers || !allSkaterStats) return [];
@@ -424,33 +454,6 @@ function DashboardPageContent() {
   const isScoringInPlayoffMode = leagueSettings?.isScoringInPlayoffMode ?? false;
   const playoffSeries = leagueSettings?.playoffSeries ?? [];
   const isLoading = isUserProfileLoading || isSkaterStatsLoading || isGoalieStatsLoading || areMatchesLoading || areUsersLoading || areSkaterStatsLoading || areGoalieStatsLoading || attendancesLoading || leagueSettingsLoading;
-
-  const myStatsToDisplay = useMemo(() => {
-    if (userProfile?.playerType === 'player' && skaterStats) {
-        switch(myStatsView) {
-            case 'playoff': return { goals: skaterStats.playoffGoals, assists: skaterStats.playoffAssists, gamesPlayed: skaterStats.playoffGamesPlayed };
-            case 'history': return { goals: skaterStats.historicalGoals, assists: skaterStats.historicalAssists, gamesPlayed: skaterStats.historicalGamesPlayed };
-            case 'season':
-            default:
-                return { goals: skaterStats.seasonGoals, assists: skaterStats.seasonAssists, gamesPlayed: skaterStats.seasonGamesPlayed };
-        }
-    }
-    return { goals: 0, assists: 0, gamesPlayed: 0 };
-  }, [myStatsView, skaterStats, userProfile]);
-
-  const myGoalieStatsToDisplay = useMemo(() => {
-    if (userProfile?.playerType === 'goalie' && goalieStats) {
-         switch(myStatsView) {
-            case 'playoff': return { gamesPlayed: goalieStats.playoffGamesPlayed, wins: goalieStats.playoffWins, savePct: goalieStats.playoffShotsAgainst > 0 ? (goalieStats.playoffSaves / goalieStats.playoffShotsAgainst) * 100 : 0 };
-            case 'history': return { gamesPlayed: goalieStats.historicalGamesPlayed, wins: goalieStats.historicalWins, savePct: goalieStats.historicalShotsAgainst > 0 ? (goalieStats.historicalSaves / goalieStats.historicalShotsAgainst) * 100 : 0 };
-            case 'season':
-            default:
-                 return { gamesPlayed: goalieStats.seasonGamesPlayed, wins: goalieStats.seasonWins, savePct: goalieStats.seasonShotsAgainst > 0 ? (goalieStats.seasonSaves / goalieStats.seasonShotsAgainst) * 100 : 0 };
-        }
-    }
-    return { gamesPlayed: 0, wins: 0, savePct: 0 };
-  }, [myStatsView, goalieStats, userProfile]);
-
 
   useEffect(() => {
     setOptimisticAttendances(new Map());
@@ -856,7 +859,7 @@ function DashboardPageContent() {
 };
 
   const handleEditLeagueClick = () => {
-    setEditableLeagueStandings(leagueStandings.map(t => ({...t})));
+    setEditableLeagueStandings(JSON.parse(JSON.stringify(leagueStandings)));
     setEditableIsPlayoffEnabled(isPlayoffEnabled);
     setEditablePlayoffSeries(playoffSeries.map(s => ({...s})));
     setIsLeagueEditMode(true);
@@ -876,12 +879,12 @@ function DashboardPageContent() {
     const updatedSettings = {
         isPlayoffEnabled: editableIsPlayoffEnabled,
         playoffSeries: seriesToSave,
+        leagueStandings: editableLeagueStandings,
     };
 
     try {
         const settingsRef = doc(firestore, 'settings', 'league');
         await setDoc(settingsRef, updatedSettings, { merge: true });
-        setLeagueStandings(editableLeagueStandings);
         toast({ title: 'Nastavení ligy uloženo.' });
     } catch (error) {
         toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se uložit nastavení ligy.' });
@@ -897,11 +900,35 @@ function DashboardPageContent() {
   const handleCancelLeague = () => {
     setIsLeagueEditMode(false);
   };
+  
+  const handleTeamNameChange = (teamId: string, newName: string) => {
+    setEditableLeagueStandings(current => current.map(t => 
+        t.id === teamId ? { ...t, name: newName } : t
+    ));
+  };
 
-  const handleLeagueChange = (teamName: string, stat: 'points' | 'gf' | 'ga', delta: number) => {
+  const handleDeleteTeam = (teamId: string) => {
+    setEditableLeagueStandings(current => current.filter(t => t.id !== teamId));
+  };
+
+  const handleAddNewTeam = () => {
+    setEditableLeagueStandings(current => [
+        ...current,
+        {
+            id: crypto.randomUUID(),
+            name: 'Nový tým',
+            points: 0,
+            gf: 0,
+            ga: 0,
+        }
+    ]);
+  };
+
+
+  const handleLeagueChange = (teamId: string, stat: 'points' | 'gf' | 'ga', delta: number) => {
     setEditableLeagueStandings(currentStandings =>
       currentStandings.map(t => {
-        if (t.name === teamName) {
+        if (t.id === teamId) {
           const newStatValue = t[stat] + delta;
           return {
             ...t,
@@ -1379,44 +1406,64 @@ function DashboardPageContent() {
                                         <TableHead className="text-center hidden sm:table-cell">GF</TableHead>
                                         <TableHead className="text-center hidden sm:table-cell">GA</TableHead>
                                         <TableHead className="text-center w-auto px-2 sm:px-4">B</TableHead>
+                                        {isLeagueEditMode && <TableHead className="w-[50px]"><span className="sr-only">Akce</span></TableHead>}
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {sortedLeagueStandings.map((team) => (
-                                        <TableRow key={team.name} className={team.name === 'Aces' ? 'bg-primary/10' : ''}>
+                                        <TableRow key={team.id} className={team.name === 'Aces' ? 'bg-primary/10' : ''}>
                                             <TableCell className="font-medium px-2 sm:px-4">{team.rank}</TableCell>
-                                            <TableCell>{team.name}</TableCell>
+                                            <TableCell>
+                                                {isLeagueEditMode ? (
+                                                    <Input value={team.name} onChange={(e) => handleTeamNameChange(team.id, e.target.value)} className="h-8" />
+                                                ) : ( team.name )}
+                                            </TableCell>
                                             <TableCell className="text-center font-mono hidden sm:table-cell">
                                                 {isLeagueEditMode ? (
                                                     <div className="flex items-center justify-center gap-1 sm:gap-2">
-                                                        <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.name, 'gf', -1)}><Minus className="h-4 w-4" /></Button>
+                                                        <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.id, 'gf', -1)}><Minus className="h-4 w-4" /></Button>
                                                         <span className="w-8 text-center">{team.gf}</span>
-                                                        <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.name, 'gf', 1)}><Plus className="h-4 w-4" /></Button>
+                                                        <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.id, 'gf', 1)}><Plus className="h-4 w-4" /></Button>
                                                     </div>
                                                 ) : ( team.gf )}
                                             </TableCell>
                                             <TableCell className="text-center font-mono hidden sm:table-cell">
                                                 {isLeagueEditMode ? (
                                                     <div className="flex items-center justify-center gap-1 sm:gap-2">
-                                                        <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.name, 'ga', -1)}><Minus className="h-4 w-4" /></Button>
+                                                        <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.id, 'ga', -1)}><Minus className="h-4 w-4" /></Button>
                                                         <span className="w-8 text-center">{team.ga}</span>
-                                                        <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.name, 'ga', 1)}><Plus className="h-4 w-4" /></Button>
+                                                        <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.id, 'ga', 1)}><Plus className="h-4 w-4" /></Button>
                                                     </div>
                                                 ) : ( team.ga )}
                                             </TableCell>
                                             <TableCell className="text-center font-mono px-2 sm:px-4">
                                                 {isLeagueEditMode ? (
                                                     <div className="flex items-center justify-center gap-1 sm:gap-2">
-                                                        <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.name, 'points', -1)}><Minus className="h-4 w-4" /></Button>
+                                                        <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.id, 'points', -1)}><Minus className="h-4 w-4" /></Button>
                                                         <span className="w-8 text-center">{team.points}</span>
-                                                        <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.name, 'points', 1)}><Plus className="h-4 w-4" /></Button>
+                                                        <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.id, 'points', 1)}><Plus className="h-4 w-4" /></Button>
                                                     </div>
                                                 ) : ( <span className="font-bold">{team.points}</span> )}
                                             </TableCell>
+                                            {isLeagueEditMode && (
+                                                <TableCell className="px-2 sm:px-4 text-right">
+                                                    <Button variant="ghost" size="icon" onClick={() => handleDeleteTeam(team.id)} disabled={team.name === 'Aces'}>
+                                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                                    </Button>
+                                                </TableCell>
+                                            )}
                                         </TableRow>
                                     ))}
                                 </TableBody>
                             </Table>
+                             {isLeagueEditMode && (
+                                <div className="mt-4">
+                                    <Button variant="outline" onClick={handleAddNewTeam}>
+                                        <Plus className="mr-2 h-4 w-4" />
+                                        Přidat tým
+                                    </Button>
+                                </div>
+                            )}
                         </TabsContent>
                          <TabsContent value="playoff" className={cn(leagueView !== 'playoff' && 'hidden')}>
                           {(() => {
@@ -1626,3 +1673,5 @@ export default function DashboardPage() {
     </Suspense>
   )
 }
+
+    
