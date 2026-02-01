@@ -35,6 +35,7 @@ export async function register(prevState: any, formData: FormData) {
   const params = new URLSearchParams()
   params.set('name', data.name)
   params.set('email', data.email)
+  params.set('phone', data.phone)
   if (data.jerseyNumber) {
     params.set('jerseyNumber', data.jerseyNumber)
   }
@@ -74,18 +75,19 @@ export async function login(prevState: any, formData: FormData) {
   }
   
   // Simulate fetching user data from a database
-  let user: {name: string, email: string, jerseyNumber?: string, role: string};
+  let user: {name: string, email: string, phone: string, jerseyNumber?: string, role: string};
 
   if (email === 'adam.hrac@email.com') {
-    user = { name: 'Adam Hráč', email: email, jerseyNumber: '88', role: 'classic' };
+    user = { name: 'Adam Hráč', email: email, phone: '+420 222 333 444', jerseyNumber: '88', role: 'classic' };
   } else if (email === 'janmlcak6@gmail.com') {
-    user = { name: 'Jan Mlcak', email: email, jerseyNumber: '10', role: 'admin' };
+    user = { name: 'Jan Mlcak', email: email, phone: '+420 111 222 333', jerseyNumber: '10', role: 'admin' };
   } else {
     // Basic name generation from email for other users
     const nameFromEmail = email.split('@')[0].replace(/[._0-9]/g, ' ').trim();
     user = {
       name: nameFromEmail.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '),
       email: email,
+      phone: '+420 777 888 999',
       jerseyNumber: '99',
       role: 'classic'
     }
@@ -94,6 +96,7 @@ export async function login(prevState: any, formData: FormData) {
   const params = new URLSearchParams()
   params.set('name', user.name)
   params.set('email', user.email)
+  params.set('phone', user.phone)
   if (user.jerseyNumber) {
     params.set('jerseyNumber', user.jerseyNumber)
   }
@@ -105,6 +108,7 @@ export async function login(prevState: any, formData: FormData) {
 
 const profileSchema = z.object({
   name: z.string().min(2, { message: 'Jméno musí mít alespoň 2 znaky.' }),
+  phone: z.string().min(9, { message: 'Telefonní číslo musí mít alespoň 9 znaků.' }).optional(),
   jerseyNumber: z.string().optional(),
   dob: z.string().optional(),
 });
@@ -125,7 +129,7 @@ export async function updateProfile(currentParams: {[key: string]: string}, prev
   // Simulate database operation
   await new Promise((resolve) => setTimeout(resolve, 1000));
 
-  const { name, jerseyNumber, dob } = validatedFields.data;
+  const { name, jerseyNumber, dob, phone } = validatedFields.data;
   
   const params = new URLSearchParams(currentParams);
   params.set('name', name);
@@ -139,6 +143,12 @@ export async function updateProfile(currentParams: {[key: string]: string}, prev
     params.set('dob', dob);
   } else {
     params.delete('dob');
+  }
+  
+  if (phone) {
+    params.set('phone', phone);
+  } else {
+    params.delete('phone');
   }
 
   params.set('updated', 'true');

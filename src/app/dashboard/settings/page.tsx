@@ -35,6 +35,7 @@ function SettingsForm() {
 
   const name = searchParams.get('name') || 'Adam Hráč'
   const email = searchParams.get('email') || 'adam.hrac@email.com'
+  const phone = searchParams.get('phone') || ''
   const jerseyNumber = searchParams.get('jerseyNumber') || ''
   const dob = searchParams.get('dob') || ''
   
@@ -86,6 +87,12 @@ function SettingsForm() {
         <div className="grid gap-2">
           <Label htmlFor="email">Email</Label>
           <Input id="email" type="email" defaultValue={email} disabled />
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="phone">Telefonní číslo</Label>
+          <Input id="phone" name="phone" type="tel" defaultValue={phone} />
+           {state.errors?.phone && <p className="text-sm text-destructive">{state.errors.phone[0]}</p>}
         </div>
 
         <div className="grid gap-2">
