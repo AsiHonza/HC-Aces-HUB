@@ -374,9 +374,9 @@ function DashboardPageContent() {
                             <TableRow>
                                 <TableHead className="w-[50px]">#</TableHead>
                                 <TableHead>Tým</TableHead>
-                                <TableHead className="text-center w-[120px]">B</TableHead>
                                 <TableHead className="text-center w-[120px]">GF</TableHead>
                                 <TableHead className="text-center w-[120px]">GA</TableHead>
+                                <TableHead className="text-center w-[120px]">B</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -384,17 +384,6 @@ function DashboardPageContent() {
                                 <TableRow key={team.name} className={team.name === 'Aces' ? 'bg-primary/10' : ''}>
                                     <TableCell className="font-medium">{team.rank}</TableCell>
                                     <TableCell>{team.name}</TableCell>
-                                    <TableCell className="text-center font-mono">
-                                        {isLeagueEditMode ? (
-                                            <div className="flex items-center justify-center gap-2">
-                                                <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.name, 'points', -1)}><Minus className="h-4 w-4" /></Button>
-                                                <span className="w-8 text-center">{team.points}</span>
-                                                <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.name, 'points', 1)}><Plus className="h-4 w-4" /></Button>
-                                            </div>
-                                        ) : (
-                                            <span className="font-bold">{team.points}</span>
-                                        )}
-                                    </TableCell>
                                     <TableCell className="text-center font-mono">
                                         {isLeagueEditMode ? (
                                             <div className="flex items-center justify-center gap-2">
@@ -415,6 +404,17 @@ function DashboardPageContent() {
                                             </div>
                                         ) : (
                                             team.ga
+                                        )}
+                                    </TableCell>
+                                    <TableCell className="text-center font-mono">
+                                        {isLeagueEditMode ? (
+                                            <div className="flex items-center justify-center gap-2">
+                                                <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.name, 'points', -1)}><Minus className="h-4 w-4" /></Button>
+                                                <span className="w-8 text-center">{team.points}</span>
+                                                <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.name, 'points', 1)}><Plus className="h-4 w-4" /></Button>
+                                            </div>
+                                        ) : (
+                                            <span className="font-bold">{team.points}</span>
                                         )}
                                     </TableCell>
                                 </TableRow>
