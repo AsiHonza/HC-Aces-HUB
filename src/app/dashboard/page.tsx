@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar as CalendarIcon, MapPin, Users, Trophy, BarChart, Sword, Pencil, Check, X, Flame, Shield, Plus, Minus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal } from "lucide-react"
+import { Calendar as CalendarIcon, MapPin, Users, Trophy, BarChart, Sword, Pencil, Check, X, Flame, Shield, Plus, Minus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal, FileText } from "lucide-react"
 import { cn } from '@/lib/utils'
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase'
 import { doc, collection, collectionGroup, updateDoc, query, Timestamp, addDoc, deleteDoc, writeBatch, orderBy, where, limit, setDoc } from 'firebase/firestore'
@@ -25,6 +25,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Switch } from "@/components/ui/switch"
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel'
+import { LineupBuilder } from '@/components/lineup-builder'
 
 
 // Types based on backend.json
@@ -173,6 +174,9 @@ function DashboardPageContent() {
   const [myStatsView, setMyStatsView] = useState<'season' | 'playoff' | 'history'>('season');
   const [scoringView, setScoringView] = useState<'season' | 'playoff' | 'history'>('season');
 
+  const [isLineupBuilderOpen, setIsLineupBuilderOpen] = useState(false);
+  const [lineupMatch, setLineupMatch] = useState<Match | null>(null);
+
 
   // Fetch current user's profile and stats
   const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
@@ -209,15 +213,6 @@ function DashboardPageContent() {
     const isPlayoffEnabled = leagueSettings?.isPlayoffEnabled ?? false;
     const isScoringInPlayoffMode = leagueSettings?.isScoringInPlayoffMode ?? false;
     const playoffSeries = leagueSettings?.playoffSeries ?? [];
-  
-  const upcomingMatches = useMemo(() => {
-    if (!allMatches || !user) return [];
-    return allMatches
-      .filter(match => !match.isPlayed);
-  }, [allMatches, user]);
-
-  const nextMatch = useMemo(() => upcomingMatches?.[0], [upcomingMatches]);
-  const otherUpcomingMatches = useMemo(() => upcomingMatches?.slice(1) || [], [upcomingMatches]);
 
   const teamScoring = useMemo(() => {
     if (!allUsers || !allStats) return [];
@@ -273,12 +268,22 @@ function DashboardPageContent() {
 
   const leagueData = isLeagueEditMode ? editableLeagueStandings : leagueStandings;
   
-  const sortedLeagueStandings = useMemo(() => {
-    if (!leagueData) return [];
-    return [...leagueData]
-      .sort((a, b) => b.points - a.points)
-      .map((team, index) => ({ ...team, rank: index + 1 }));
-  }, [leagueData]);
+    const sortedLeagueStandings = useMemo(() => {
+        if (!leagueData) return [];
+        return [...leagueData]
+        .sort((a, b) => b.points - a.points)
+        .map((team, index) => ({ ...team, rank: index + 1 }));
+    }, [leagueData]);
+
+  const upcomingMatches = useMemo(() => {
+    if (!allMatches || !user) return [];
+    return allMatches
+      .filter(match => !match.isPlayed);
+  }, [allMatches, user]);
+
+  const nextMatch = useMemo(() => upcomingMatches?.[0], [upcomingMatches]);
+  const otherUpcomingMatches = useMemo(() => upcomingMatches?.slice(1) || [], [upcomingMatches]);
+
 
   const attendancesByMatch = useMemo(() => {
     if (!allAttendances) return new Map<string, Attendance[]>();
@@ -410,6 +415,11 @@ function DashboardPageContent() {
     setSelectedMatch(match);
     setIsResultDialogOpen(true);
   }
+
+  const handleBuildLineup = (match: Match) => {
+    setLineupMatch(match);
+    setIsLineupBuilderOpen(true);
+  };
 
   const confirmDeleteMatch = async () => {
     if (!selectedMatch || !firestore) return;
@@ -763,6 +773,9 @@ function DashboardPageContent() {
                             </DropdownMenuItem>
                             {userProfile?.role === 'admin' && (
                                 <>
+                                    <DropdownMenuItem onClick={() => handleBuildLineup(match)}>
+                                        <FileText className="mr-2 h-4 w-4" /> Tvořit sestavu
+                                    </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => handleRecordResult(match)}>
                                         <ClipboardEdit className="mr-2 h-4 w-4" /> Zapsat výsledek
                                     </DropdownMenuItem>
@@ -1281,6 +1294,24 @@ function DashboardPageContent() {
               </DialogFooter>
           </DialogContent>
       </Dialog>
+
+        <Dialog open={isLineupBuilderOpen} onOpenChange={setIsLineupBuilderOpen}>
+            <DialogContent className="max-w-4xl h-[90vh]">
+                 {lineupMatch && allUsers && (
+                    <>
+                        <DialogHeader>
+                            <DialogTitle>Tvorba sestavy: {lineupMatch.team1} vs {lineupMatch.team2}</DialogTitle>
+                            <DialogDescription>
+                                Přetáhněte hráče na jejich pozice na hřišti.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <LineupBuilder
+                            players={allUsers.filter(u => (attendancesByMatch.get(lineupMatch.id) || []).some(a => a.userId === u.id && a.status === 'going'))}
+                        />
+                    </>
+                )}
+            </DialogContent>
+        </Dialog>
     </div>
   )
 }
