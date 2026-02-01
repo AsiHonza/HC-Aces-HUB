@@ -14,8 +14,7 @@
  *   document tree (i.e., /users/{their-own-userId}/...).
  * - User Listing for Leaderboard: Signed-in users can list all user profiles to
  *   populate leaderboards and team views.
- * - Public Reads on Matches: The /matches collection is publicly readable by anyone,
- *   including unauthenticated users, to allow for easy viewing of game schedules.
+ * - Reads on Matches: The /matches collection is readable by any authenticated user.
  * - Write Protection on Matches: Writes to the /matches collection are currently
  *   restricted to admins.
  * - Denormalization for Authorization: Rules rely on the {userId} wildcard in the
@@ -94,8 +93,8 @@ service cloud.firestore {
     }
 
     match /matches/{matchId} {
-      allow get: if true;
-      allow list: if true;
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
       allow create, update, delete: if isAdmin();
     }
   }
