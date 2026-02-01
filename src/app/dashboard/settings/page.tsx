@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, Suspense, useState, useEffect } from 'react'
+import { useActionState, Suspense, useEffect } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { updateProfile } from '@/lib/actions'
 import { Button } from "@/components/ui/button"
@@ -8,11 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Calendar } from "@/components/ui/calendar"
-import { Calendar as CalendarIcon, Loader2 } from "lucide-react"
-import { format } from "date-fns"
-import { cn } from "@/lib/utils"
+import { Loader2 } from "lucide-react"
 import { useFormStatus } from 'react-dom'
 import { useToast } from "@/hooks/use-toast"
 
@@ -40,10 +36,8 @@ function SettingsForm() {
   const name = searchParams.get('name') || 'Adam Hráč'
   const email = searchParams.get('email') || 'adam.hrac@email.com'
   const jerseyNumber = searchParams.get('jerseyNumber') || ''
-  const dob = searchParams.get('dob')
+  const dob = searchParams.get('dob') || ''
   
-  const [date, setDate] = useState<Date | undefined>(dob ? new Date(dob) : undefined)
-
   const fallback = name.split(' ').map(n => n[0]).join('').toUpperCase()
   
   useEffect(() => {
@@ -101,33 +95,7 @@ function SettingsForm() {
         
         <div className="grid gap-2">
             <Label htmlFor="dob">Datum narození</Label>
-            <input type="hidden" name="dob" value={date ? format(date, 'yyyy-MM-dd') : ''} />
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  id="dob"
-                  variant={"outline"}
-                  className={cn(
-                    "w-[280px] justify-start text-left font-normal",
-                    !date && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {date ? format(date, "PPP") : <span>Vyberte datum</span>}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0">
-                <Calendar
-                  mode="single"
-                  selected={date}
-                  onSelect={setDate}
-                  initialFocus
-                  captionLayout="dropdown-buttons"
-                  fromYear={1950}
-                  toYear={new Date().getFullYear()}
-                />
-              </PopoverContent>
-            </Popover>
+            <Input id="dob" name="dob" type="date" defaultValue={dob} className="w-[280px]" />
         </div>
       </CardContent>
       <CardFooter className="border-t px-6 py-4">
