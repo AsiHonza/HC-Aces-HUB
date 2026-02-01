@@ -7,7 +7,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -19,6 +18,7 @@ import { format, parse } from 'date-fns'
 import { cs } from 'date-fns/locale'
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel'
 import Link from 'next/link'
+import { useToast } from "@/hooks/use-toast"
 
 // Types based on backend.json
 interface UserProfile {
@@ -112,6 +112,7 @@ function RecordResultForm({ match, allUsers, onSave, onCancel }: { match: Match,
 function DashboardPageContent() {
   const { user, isUserLoading } = useUser()
   const firestore = useFirestore()
+  const { toast } = useToast()
   
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -122,6 +123,8 @@ function DashboardPageContent() {
   const [isScoringEditMode, setIsScoringEditMode] = useState(false);
   const [isLeagueEditMode, setIsLeagueEditMode] = useState(false);
   
+  const [optimisticAttendances, setOptimisticAttendances] = useState<Map<string, 'going' | 'not-going' | 'unknown'>>(new Map());
+
   // Fetch current user's profile and stats
   const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
   const { data: userProfile, isLoading: isUserProfileLoading } = useDoc<UserProfile>(userDocRef);
@@ -180,6 +183,19 @@ function DashboardPageContent() {
     });
     return map;
   }, [allAttendances, user]);
+
+  const userAttendancesWithOptimistic = useMemo(() => {
+      const merged = new Map(userAttendances);
+      optimisticAttendances.forEach((status, matchId) => {
+          merged.set(matchId, status);
+      });
+      return merged;
+  }, [userAttendances, optimisticAttendances]);
+
+  useEffect(() => {
+    // When fresh data arrives from Firestore, clear any optimistic updates
+    setOptimisticAttendances(new Map());
+  }, [allAttendances]);
 
   const usersMap = useMemo(() => {
     if (!allUsers) return new Map<string, UserProfile>();
@@ -242,6 +258,12 @@ function DashboardPageContent() {
 
   const handleAttendanceChange = (matchId: string, status: 'going' | 'not-going') => {
     if (!user || !firestore) return;
+
+    const originalStatus = userAttendances.get(matchId) || 'unknown';
+    
+    // Optimistic update
+    setOptimisticAttendances(prev => new Map(prev).set(matchId, status));
+
     const attendanceRef = doc(firestore, 'matches', matchId, 'attendees', user.uid);
     const data = {
         userId: user.uid,
@@ -250,6 +272,22 @@ function DashboardPageContent() {
     };
     setDoc(attendanceRef, data, { merge: true })
         .catch(async (error) => {
+            // Revert optimistic update on error
+            setOptimisticAttendances(prev => {
+                const newMap = new Map(prev);
+                if (originalStatus === 'unknown') {
+                    newMap.delete(matchId);
+                } else {
+                    newMap.set(matchId, originalStatus);
+                }
+                return newMap;
+            });
+            toast({
+                variant: 'destructive',
+                title: "Chyba",
+                description: "Nepodařilo se uložit vaši účast. Zkuste to prosím znovu.",
+            });
+
             const contextualError = new FirestorePermissionError({
                 operation: 'write',
                 path: attendanceRef.path,
@@ -562,7 +600,7 @@ function DashboardPageContent() {
               <CarouselContent>
                 {upcomingMatches.map((match) => {
                   const opponent = match.team1 === 'Aces' ? match.team2 : match.team1;
-                  const attendance = userAttendances.get(match.id) || 'unknown';
+                  const attendance = userAttendancesWithOptimistic.get(match.id) || 'unknown';
                   const attendeesForMatch = (attendancesByMatch.get(match.id) || []).filter(a => a.status === 'going');
                   const attendeeCount = attendeesForMatch.length;
 
@@ -607,34 +645,34 @@ function DashboardPageContent() {
                             <div className="flex w-full items-center justify-between">
                                 <div>
                                     <p className="text-base font-medium mb-2">Tvoje účast:</p>
-                                    <RadioGroup value={attendance} onValueChange={(value) => handleAttendanceChange(match.id, value as any)} className="flex gap-4">
-                                        <Label
-                                        htmlFor={`going-${match.id}`}
-                                        className={cn(
-                                            "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border h-10 px-4 cursor-pointer",
-                                            attendance === 'going'
-                                            ? "bg-green-500/10 border-green-500 text-green-600 dark:text-green-400 dark:border-green-400 hover:bg-green-500/20"
-                                            : "border-input bg-background hover:bg-accent hover:text-accent-foreground"
-                                        )}
+                                    <div className="flex gap-4">
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => handleAttendanceChange(match.id, 'going')}
+                                            className={cn(
+                                                "h-10 px-4",
+                                                attendance === 'going'
+                                                ? "bg-green-500/10 border-green-500 text-green-600 dark:text-green-400 dark:border-green-400 hover:bg-green-500/20 hover:text-green-600"
+                                                : "hover:bg-accent hover:text-accent-foreground"
+                                            )}
                                         >
-                                        <RadioGroupItem value="going" id={`going-${match.id}`} className="sr-only" />
-                                        <Check className="h-5 w-5" />
-                                        Jdu
-                                        </Label>
-                                        <Label
-                                        htmlFor={`not-going-${match.id}`}
-                                        className={cn(
-                                            "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border h-10 px-4 cursor-pointer",
-                                            attendance === 'not-going'
-                                            ? "bg-destructive/10 border-destructive text-destructive hover:bg-destructive/20"
-                                            : "border-input bg-background hover:bg-accent hover:text-accent-foreground"
-                                        )}
+                                            <Check className="h-4 w-4" />
+                                            Jdu
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => handleAttendanceChange(match.id, 'not-going')}
+                                            className={cn(
+                                                "h-10 px-4",
+                                                attendance === 'not-going'
+                                                ? "bg-destructive/10 border-destructive text-destructive hover:bg-destructive/20 hover:text-destructive"
+                                                : "hover:bg-accent hover:text-accent-foreground"
+                                            )}
                                         >
-                                        <RadioGroupItem value="not-going" id={`not-going-${match.id}`} className="sr-only" />
-                                        <X className="h-5 w-5" />
-                                        Nejdu
-                                        </Label>
-                                    </RadioGroup>
+                                            <X className="h-4 w-4" />
+                                            Nejdu
+                                        </Button>
+                                    </div>
                                 </div>
                                 <Dialog>
                                     <DialogTrigger asChild>
