@@ -23,7 +23,13 @@ export async function register(prevState: any, formData: FormData) {
     }
   }
 
-  // Simulate database operation
+  const data = validatedFields.data;
+  const role = data.email === 'janmlcak6@gmail.com' ? 'admin' : 'classic';
+
+  // Simulate database operation, now including the role
+  const userToSave = { ...data, role };
+  
+  // In a real app, you would save `userToSave` to your database.
   await new Promise((resolve) => setTimeout(resolve, 1000))
 
   redirect('/welcome')
