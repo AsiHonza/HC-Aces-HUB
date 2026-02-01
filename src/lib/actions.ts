@@ -38,6 +38,7 @@ export async function register(prevState: any, formData: FormData) {
   if (data.jerseyNumber) {
     params.set('jerseyNumber', data.jerseyNumber)
   }
+  params.set('role', role)
 
   redirect(`/welcome?${params.toString()}`)
 }
@@ -73,19 +74,20 @@ export async function login(prevState: any, formData: FormData) {
   }
   
   // Simulate fetching user data from a database
-  let user: {name: string, email: string, jerseyNumber?: string};
+  let user: {name: string, email: string, jerseyNumber?: string, role: string};
 
   if (email === 'adam.hrac@email.com') {
-    user = { name: 'Adam Hráč', email: email, jerseyNumber: '88' };
+    user = { name: 'Adam Hráč', email: email, jerseyNumber: '88', role: 'classic' };
   } else if (email === 'janmlcak6@gmail.com') {
-    user = { name: 'Jan Mlcak', email: email, jerseyNumber: '10' };
+    user = { name: 'Jan Mlcak', email: email, jerseyNumber: '10', role: 'admin' };
   } else {
     // Basic name generation from email for other users
     const nameFromEmail = email.split('@')[0].replace(/[._0-9]/g, ' ').trim();
     user = {
       name: nameFromEmail.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '),
       email: email,
-      jerseyNumber: '99'
+      jerseyNumber: '99',
+      role: 'classic'
     }
   }
   
@@ -95,6 +97,7 @@ export async function login(prevState: any, formData: FormData) {
   if (user.jerseyNumber) {
     params.set('jerseyNumber', user.jerseyNumber)
   }
+  params.set('role', user.role)
 
   redirect(`/welcome?${params.toString()}`)
 }
