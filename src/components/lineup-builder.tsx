@@ -9,6 +9,7 @@ import { Button } from './ui/button';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from './ui/select';
 import { ScrollArea } from './ui/scroll-area';
+import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
 
 
 export interface Player {
@@ -24,6 +25,7 @@ export interface Lineup {
   LO1: Player | null; PO1: Player | null;
   LK2: Player | null; C2: Player | null; PK2: Player | null;
   LO2: Player | null; PO2: Player | null;
+  LK3: Player | null; C3: Player | null; PK3: Player | null;
   B1: Player | null;
 }
 
@@ -32,6 +34,7 @@ export const initialLineup: Lineup = {
   LO1: null, PO1: null,
   LK2: null, C2: null, PK2: null,
   LO2: null, PO2: null,
+  LK3: null, C3: null, PK3: null,
   B1: null,
 };
 
@@ -40,6 +43,7 @@ const positionNames: Record<keyof Lineup, string> = {
     LO1: "Levý obránce (1)", PO1: "Pravý obránce (1)",
     LK2: "Levé křídlo (2)", C2: "Centr (2)", PK2: "Pravé křídlo (2)",
     LO2: "Levý obránce (2)", PO2: "Pravý obránce (2)",
+    LK3: "Levé křídlo (3)", C3: "Centr (3)", PK3: "Pravé křídlo (3)",
     B1: "Brankář",
 }
 
@@ -67,19 +71,20 @@ const RinkBackground = () => (
     </div>
 )
 
-const PlayerCard = ({ player, isDragging, isGhost }: { player: Player, isDragging?: boolean, isGhost?: boolean }) => (
+const PlayerCard = ({ player, isDragging, isGhost, isSmall }: { player: Player, isDragging?: boolean, isGhost?: boolean, isSmall?: boolean }) => (
     <Card className={cn(
-        "p-2 flex items-center gap-2 w-48 bg-card/80 backdrop-blur-sm", 
+        "p-2 flex items-center gap-2 w-48 bg-card/80 backdrop-blur-sm",
         isDragging && "bg-primary/20 shadow-lg",
-        isGhost && "opacity-50"
+        isGhost && "opacity-50",
+        isSmall && "w-40 p-1 gap-1"
     )}>
-        <Avatar className="h-8 w-8">
+        <Avatar className={cn("h-8 w-8", isSmall && "h-6 w-6")}>
             <AvatarImage src={player.photoURL ?? `https://picsum.photos/seed/${player.email}/100/100`} data-ai-hint="player portrait" alt={player.name} />
             <AvatarFallback>{player.name.split(' ').map(n=>n[0]).join('')}</AvatarFallback>
         </Avatar>
         <div>
-            <p className="font-medium text-sm leading-tight">{player.name}</p>
-            {player.jerseyNumber != null && <p className="text-xs text-muted-foreground">#{player.jerseyNumber}</p>}
+            <p className={cn("font-medium text-sm leading-tight", isSmall && "text-xs")}>{player.name}</p>
+            {player.jerseyNumber != null && <p className={cn("text-xs text-muted-foreground", isSmall && "text-[10px]")}>#{player.jerseyNumber}</p>}
         </div>
     </Card>
 )
@@ -91,11 +96,26 @@ function getPlayersInLineup(lineup: Lineup): string[] {
 export function LineupBuilder({ players, initialData, onSave, onCancel }: { players: Player[], initialData?: Lineup | null, onSave: (lineup: Lineup) => void, onCancel: () => void }) {
   const [lineup, setLineup] = useState<Lineup>(initialData || initialLineup);
   const isMobile = useIsMobile();
-  
+  const [formationCount, setFormationCount] = useState<'2' | '3'>(() => 
+    initialData?.LK3 || initialData?.C3 || initialData?.PK3 ? '3' : '2'
+  );
+
   const [availablePlayers, setAvailablePlayers] = useState<Player[]>(() => {
     const playersInLineup = getPlayersInLineup(initialData || initialLineup);
     return players.filter(p => !playersInLineup.includes(p.id));
   });
+
+  const handleFormationChange = (val: string) => {
+      const newCount = val as '2' | '3';
+      if (newCount === '2' && formationCount === '3') {
+          const playersToReturn = [lineup.LK3, lineup.C3, lineup.PK3].filter(Boolean) as Player[];
+          if (playersToReturn.length > 0) {
+              setAvailablePlayers(prev => [...prev, ...playersToReturn].sort((a, b) => a.name.localeCompare(b.name)));
+              setLineup(prev => ({ ...prev, LK3: null, C3: null, PK3: null }));
+          }
+      }
+      setFormationCount(newCount);
+  };
 
   const onDragEnd: OnDragEndResponder = (result) => {
     const { source, destination } = result;
@@ -154,7 +174,7 @@ export function LineupBuilder({ players, initialData, onSave, onCancel }: { play
   };
 
 
-  const PositionDropzone = ({ positionKey }: { positionKey: keyof Lineup }) => {
+  const PositionDropzone = ({ positionKey, isSmall }: { positionKey: keyof Lineup, isSmall?: boolean }) => {
     const player = lineup[positionKey];
     return (
         <Droppable droppableId={`pos-${positionKey}`}>
@@ -162,17 +182,17 @@ export function LineupBuilder({ players, initialData, onSave, onCancel }: { play
             <div
                 ref={provided.innerRef}
                 {...provided.droppableProps}
-                className={cn( "h-20 w-48 rounded-lg border-2 border-dashed flex flex-col items-center justify-center transition-colors", snapshot.isDraggingOver ? "border-primary bg-primary/20" : "border-muted-foreground/50 bg-background/50 backdrop-blur-sm" )}
+                className={cn( "h-20 w-48 rounded-lg border-2 border-dashed flex flex-col items-center justify-center transition-colors", snapshot.isDraggingOver ? "border-primary bg-primary/20" : "border-muted-foreground/50 bg-background/50 backdrop-blur-sm", isSmall && "h-16 w-40" )}
             >
                 {player ? (
                     <Draggable draggableId={player.id} index={0}>
                         {(provided, snapshot) => (
                             <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
-                                <PlayerCard player={player} isDragging={snapshot.isDragging} />
+                                <PlayerCard player={player} isDragging={snapshot.isDragging} isSmall={isSmall} />
                             </div>
                         )}
                     </Draggable>
-                ): ( <p className="text-muted-foreground font-semibold">{positionNames[positionKey]}</p> )}
+                ): ( <p className={cn("text-muted-foreground font-semibold", isSmall && "text-sm")}>{positionNames[positionKey]}</p> )}
                 {provided.placeholder}
             </div>
             )}
@@ -203,67 +223,78 @@ export function LineupBuilder({ players, initialData, onSave, onCancel }: { play
     )
   }
 
-  const DesktopBuilder = () => (
-    <DragDropContext onDragEnd={onDragEnd}>
-        <div className="flex h-full gap-4">
-            <Card className="w-64 flex flex-col">
-                <h3 className="p-4 font-semibold">Dostupní hráči</h3>
-                <CardContent className="p-2 flex-1 overflow-hidden">
-                     <Droppable droppableId="availablePlayers">
-                        {(provided, snapshot) => (
-                        <div
-                            ref={provided.innerRef}
-                            {...provided.droppableProps}
-                            className={cn( "p-2 rounded-lg bg-muted min-h-[500px] h-full overflow-y-auto space-y-2 transition-colors", snapshot.isDraggingOver && 'bg-primary/10' )}
-                        >
-                            {availablePlayers.map((player, index) => (
-                            <Draggable key={player.id} draggableId={player.id} index={index}>
-                                {(provided, snapshot) => (
-                                <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
-                                    <PlayerCard player={player} isDragging={snapshot.isDragging} isGhost={snapshot.isDragging}/>
+  const DesktopBuilder = () => {
+    const isSmall = formationCount === '3';
+    return (
+        <DragDropContext onDragEnd={onDragEnd}>
+            <div className="flex h-full gap-4 p-4">
+                <Card className="w-64 flex flex-col">
+                    <h3 className="p-4 font-semibold">Dostupní hráči</h3>
+                    <CardContent className="p-2 flex-1 overflow-hidden">
+                        <Droppable droppableId="availablePlayers">
+                            {(provided, snapshot) => (
+                            <div
+                                ref={provided.innerRef}
+                                {...provided.droppableProps}
+                                className={cn( "p-2 rounded-lg bg-muted min-h-[500px] h-full overflow-y-auto space-y-2 transition-colors", snapshot.isDraggingOver && 'bg-primary/10' )}
+                            >
+                                {availablePlayers.map((player, index) => (
+                                <Draggable key={player.id} draggableId={player.id} index={index}>
+                                    {(provided, snapshot) => (
+                                    <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
+                                        <PlayerCard player={player} isDragging={snapshot.isDragging} isGhost={snapshot.isDragging}/>
+                                    </div>
+                                    )}
+                                </Draggable>
+                                ))}
+                                {provided.placeholder}
+                            </div>
+                            )}
+                        </Droppable>
+                    </CardContent>
+                </Card>
+                <div className="flex-1 relative rounded-lg overflow-hidden">
+                    <RinkBackground />
+                    <div className={cn("relative z-10 h-full flex flex-col justify-around p-4", isSmall && "p-2 justify-evenly")}>
+                        <div className={cn("space-y-4", isSmall && "space-y-2")}>
+                            <div className="flex justify-around items-center">
+                                <PositionDropzone positionKey="LK1" isSmall={isSmall} />
+                                <PositionDropzone positionKey="C1" isSmall={isSmall} />
+                                <PositionDropzone positionKey="PK1" isSmall={isSmall} />
+                            </div>
+                            <div className="flex justify-around items-center">
+                                <PositionDropzone positionKey="LK2" isSmall={isSmall} />
+                                <PositionDropzone positionKey="C2" isSmall={isSmall} />
+                                <PositionDropzone positionKey="PK2" isSmall={isSmall} />
+                            </div>
+                             {formationCount === '3' && (
+                                <div className="flex justify-around items-center">
+                                    <PositionDropzone positionKey="LK3" isSmall={isSmall} />
+                                    <PositionDropzone positionKey="C3" isSmall={isSmall} />
+                                    <PositionDropzone positionKey="PK3" isSmall={isSmall} />
                                 </div>
-                                )}
-                            </Draggable>
-                            ))}
-                            {provided.placeholder}
+                            )}
                         </div>
-                        )}
-                    </Droppable>
-                </CardContent>
-            </Card>
-            <div className="flex-1 relative rounded-lg overflow-hidden">
-                <RinkBackground />
-                <div className="relative z-10 h-full flex flex-col justify-around p-4">
-                    <div className="space-y-4">
-                        <div className="flex justify-around items-center">
-                            <PositionDropzone positionKey="LK1" />
-                            <PositionDropzone positionKey="C1" />
-                            <PositionDropzone positionKey="PK1" />
+                        <div className={cn("space-y-4", isSmall && "space-y-2")}>
+                            <div className="flex justify-around items-center">
+                                <PositionDropzone positionKey="LO1" isSmall={isSmall} />
+                                <PositionDropzone positionKey="PO1" isSmall={isSmall} />
+                            </div>
+                            <div className="flex justify-around items-center">
+                                <PositionDropzone positionKey="LO2" isSmall={isSmall} />
+                                <PositionDropzone positionKey="PO2" isSmall={isSmall} />
+                            </div>
                         </div>
                         <div className="flex justify-around items-center">
-                            <PositionDropzone positionKey="LK2" />
-                            <PositionDropzone positionKey="C2" />
-                            <PositionDropzone positionKey="PK2" />
+                            <PositionDropzone positionKey="B1" isSmall={isSmall}/>
                         </div>
-                    </div>
-                    <div className="space-y-4">
-                        <div className="flex justify-around items-center">
-                            <PositionDropzone positionKey="LO1" />
-                            <PositionDropzone positionKey="PO1" />
-                        </div>
-                        <div className="flex justify-around items-center">
-                            <PositionDropzone positionKey="LO2" />
-                            <PositionDropzone positionKey="PO2" />
-                        </div>
-                    </div>
-                    <div className="flex justify-around items-center">
-                        <PositionDropzone positionKey="B1" />
                     </div>
                 </div>
             </div>
-        </div>
-    </DragDropContext>
-  )
+        </DragDropContext>
+    );
+  }
+
 
   const MobileBuilder = () => (
     <div className="flex flex-col h-full p-2 gap-4">
@@ -277,6 +308,13 @@ export function LineupBuilder({ players, initialData, onSave, onCancel }: { play
                 <MobilePositionSelector positionKey="LK2" />
                 <MobilePositionSelector positionKey="C2" />
                 <MobilePositionSelector positionKey="PK2" />
+                {formationCount === '3' && (
+                    <>
+                        <MobilePositionSelector positionKey="LK3" />
+                        <MobilePositionSelector positionKey="C3" />
+                        <MobilePositionSelector positionKey="PK3" />
+                    </>
+                )}
                 <h4 className="font-semibold text-center pt-4">Obrana</h4>
                 <MobilePositionSelector positionKey="LO1" />
                 <MobilePositionSelector positionKey="PO1" />
@@ -313,6 +351,14 @@ export function LineupBuilder({ players, initialData, onSave, onCancel }: { play
 
   return (
     <div className="flex h-full flex-col">
+        <div className="p-4 border-b">
+             <Tabs value={formationCount} onValueChange={handleFormationChange} className="w-full max-w-sm mx-auto">
+                <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="2">2 útočné formace</TabsTrigger>
+                    <TabsTrigger value="3">3 útočné formace</TabsTrigger>
+                </TabsList>
+            </Tabs>
+        </div>
         <div className="flex-1 overflow-auto">
             {isMobile ? <MobileBuilder /> : <DesktopBuilder />}
         </div>
@@ -326,12 +372,19 @@ export function LineupBuilder({ players, initialData, onSave, onCancel }: { play
 
 
 export function LineupDisplay({ lineup }: { lineup: Lineup }) {
+    const hasThirdLine = !!(lineup.LK3 || lineup.C3 || lineup.PK3);
+    const isSmall = hasThirdLine;
 
-    const PositionDisplay = ({ positionKey }: { positionKey: keyof Lineup }) => {
+    const PositionDisplay = ({ positionKey, isSmall }: { positionKey: keyof Lineup, isSmall?: boolean }) => {
         const player = lineup[positionKey];
+        // Don't render empty third line positions
+        if (!player && ['LK3', 'C3', 'PK3'].includes(positionKey) && !hasThirdLine) {
+            return null;
+        }
+
         return (
-            <div className="h-20 w-48 rounded-lg bg-background/50 backdrop-blur-sm flex flex-col items-center justify-center">
-                 {player ? <PlayerCard player={player} /> : <p className="text-muted-foreground font-semibold">{positionNames[positionKey]}</p>}
+            <div className={cn("h-20 w-48 rounded-lg bg-background/50 backdrop-blur-sm flex flex-col items-center justify-center", isSmall && "h-16 w-40")}>
+                 {player ? <PlayerCard player={player} isSmall={isSmall}/> : <p className={cn("text-muted-foreground font-semibold", isSmall && "text-sm")}>{positionNames[positionKey]}</p>}
             </div>
         )
     }
@@ -339,31 +392,38 @@ export function LineupDisplay({ lineup }: { lineup: Lineup }) {
     return (
         <div className="flex-1 relative rounded-lg overflow-hidden">
             <RinkBackground />
-            <div className="relative z-10 h-full flex flex-col justify-around p-4">
-                <div className="space-y-4">
+            <div className={cn("relative z-10 h-full flex flex-col justify-around p-4", isSmall && "p-2 justify-evenly")}>
+                <div className={cn("space-y-4", isSmall && "space-y-2")}>
                     <div className="flex justify-around items-center">
-                        <PositionDisplay positionKey="LK1" />
-                        <PositionDisplay positionKey="C1" />
-                        <PositionDisplay positionKey="PK1" />
+                        <PositionDisplay positionKey="LK1" isSmall={isSmall} />
+                        <PositionDisplay positionKey="C1" isSmall={isSmall} />
+                        <PositionDisplay positionKey="PK1" isSmall={isSmall} />
                     </div>
                     <div className="flex justify-around items-center">
-                        <PositionDisplay positionKey="LK2" />
-                        <PositionDisplay positionKey="C2" />
-                        <PositionDisplay positionKey="PK2" />
+                        <PositionDisplay positionKey="LK2" isSmall={isSmall} />
+                        <PositionDisplay positionKey="C2" isSmall={isSmall} />
+                        <PositionDisplay positionKey="PK2" isSmall={isSmall} />
                     </div>
+                     {hasThirdLine && (
+                        <div className="flex justify-around items-center">
+                            <PositionDisplay positionKey="LK3" isSmall={isSmall} />
+                            <PositionDisplay positionKey="C3" isSmall={isSmall} />
+                            <PositionDisplay positionKey="PK3" isSmall={isSmall} />
+                        </div>
+                    )}
                 </div>
-                <div className="space-y-4">
+                <div className={cn("space-y-4", isSmall && "space-y-2")}>
                     <div className="flex justify-around items-center">
-                        <PositionDisplay positionKey="LO1" />
-                        <PositionDisplay positionKey="PO1" />
+                        <PositionDisplay positionKey="LO1" isSmall={isSmall} />
+                        <PositionDisplay positionKey="PO1" isSmall={isSmall} />
                     </div>
                     <div className="flex justify-around items-center">
-                        <PositionDisplay positionKey="LO2" />
-                        <PositionDisplay positionKey="PO2" />
+                        <PositionDisplay positionKey="LO2" isSmall={isSmall} />
+                        <PositionDisplay positionKey="PO2" isSmall={isSmall} />
                     </div>
                 </div>
                 <div className="flex justify-around items-center">
-                    <PositionDisplay positionKey="B1" />
+                    <PositionDisplay positionKey="B1" isSmall={isSmall}/>
                 </div>
             </div>
         </div>
