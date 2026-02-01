@@ -299,6 +299,16 @@ function DashboardPageContent() {
   ]);
   const [editableLeagueStandings, setEditableLeagueStandings] = useState(leagueStandings);
 
+  const scoringData = isScoringEditMode ? editableScoring : teamScoring;
+  const sortedTeamScoring = useMemo(() => [...scoringData]
+    .sort((a, b) => b.points - a.points)
+    .map((player, index) => ({ ...player, rank: index + 1 })), [scoringData]);
+  
+  const leagueData = isLeagueEditMode ? editableLeagueStandings : leagueStandings;
+  const sortedLeagueStandings = useMemo(() => [...leagueData]
+    .sort((a, b) => b.points - a.points)
+    .map((team, index) => ({ ...team, rank: index + 1 })), [leagueData]);
+
   const isLoading = isUserLoading || isUserProfileLoading || isPlayerStatsLoading || areMatchesLoading || areUsersLoading || areStatsLoading || attendancesLoading;
 
   const handleShareMatch = (matchId: string) => {
@@ -662,16 +672,6 @@ function DashboardPageContent() {
     { metric: 'Odehrané zápasy', value: playerStats?.gamesPlayed ?? 0 },
   ]
   
-  const scoringData = isScoringEditMode ? editableScoring : teamScoring;
-  const sortedTeamScoring = [...scoringData]
-    .sort((a, b) => b.points - a.points)
-    .map((player, index) => ({ ...player, rank: index + 1 }));
-  
-  const leagueData = isLeagueEditMode ? editableLeagueStandings : leagueStandings;
-  const sortedLeagueStandings = useMemo(() => [...leagueData]
-    .sort((a, b) => b.points - a.points)
-    .map((team, index) => ({ ...team, rank: index + 1 })), [leagueData]);
-
   const renderMatchCard = (match: Match) => {
     const opponent = match.team1 === 'Aces' ? match.team2 : match.team1;
     const attendance = userAttendancesWithOptimistic.get(match.id)?.status;
@@ -1121,6 +1121,7 @@ function DashboardPageContent() {
                                                               <span>{series.wins}</span>
                                                               <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handlePlayoffScoreChange(index, 'wins', 1)}><Plus className="h-4 w-4" /></Button>
                                                               <span className="px-2">:</span>
+                                                              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handlePlayoffScoreChange(index, 'losses', -1)}><Minus className="h-4 w-4" /></Button>
                                                               <span>{series.losses}</span>
                                                               <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handlePlayoffScoreChange(index, 'losses', 1)}><Plus className="h-4 w-4" /></Button>
                                                           </>
@@ -1243,3 +1244,4 @@ export default function DashboardPage() {
     </Suspense>
   )
 }
+
