@@ -31,8 +31,15 @@ export async function register(prevState: any, formData: FormData) {
   
   // In a real app, you would save `userToSave` to your database.
   await new Promise((resolve) => setTimeout(resolve, 1000))
+  
+  const params = new URLSearchParams()
+  params.set('name', data.name)
+  params.set('email', data.email)
+  if (data.jerseyNumber) {
+    params.set('jerseyNumber', data.jerseyNumber)
+  }
 
-  redirect('/welcome')
+  redirect(`/welcome?${params.toString()}`)
 }
 
 const loginSchema = z.object({
@@ -55,14 +62,39 @@ export async function login(prevState: any, formData: FormData) {
   // Simulate database operation & password check
   await new Promise((resolve) => setTimeout(resolve, 1000))
 
+  const { email } = validatedFields.data;
+
   // Example of error handling from server
-  const email = formData.get('email');
   if (email === 'error@example.com') {
     return {
       errors: {},
       message: 'Nesprávný e-mail nebo heslo.'
     }
   }
+  
+  // Simulate fetching user data from a database
+  let user: {name: string, email: string, jerseyNumber?: string};
 
-  redirect('/welcome')
+  if (email === 'adam.hrac@email.com') {
+    user = { name: 'Adam Hráč', email: email, jerseyNumber: '88' };
+  } else if (email === 'janmlcak6@gmail.com') {
+    user = { name: 'Jan Mlcak', email: email, jerseyNumber: '10' };
+  } else {
+    // Basic name generation from email for other users
+    const nameFromEmail = email.split('@')[0].replace(/[._0-9]/g, ' ').trim();
+    user = {
+      name: nameFromEmail.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '),
+      email: email,
+      jerseyNumber: '99'
+    }
+  }
+  
+  const params = new URLSearchParams()
+  params.set('name', user.name)
+  params.set('email', user.email)
+  if (user.jerseyNumber) {
+    params.set('jerseyNumber', user.jerseyNumber)
+  }
+
+  redirect(`/welcome?${params.toString()}`)
 }
