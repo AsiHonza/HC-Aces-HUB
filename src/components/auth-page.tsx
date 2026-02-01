@@ -80,13 +80,11 @@ function RegisterForm() {
     
     const validatedFields = registerSchema.safeParse(Object.fromEntries(formData.entries()));
     if (!validatedFields.success) {
-      // This is a client-side validation, should match server's
-      // The server action will handle the final validation
       dispatch(formData);
       return;
     }
     
-    const { name, email, password, phone, jerseyNumber } = validatedFields.data;
+    const { name, email, password, phoneNumber, jerseyNumber } = validatedFields.data;
 
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -100,8 +98,8 @@ function RegisterForm() {
         id: user.uid,
         name,
         email,
-        phone,
-        jerseyNumber: jerseyNumber || null,
+        phoneNumber,
+        jerseyNumber: jerseyNumber ? Number(jerseyNumber) : null,
         role: email === 'janmlcak6@gmail.com' ? 'admin' : 'classic',
         dob: null,
       });
@@ -140,9 +138,9 @@ function RegisterForm() {
         {state.errors?.email && <p className="text-sm text-destructive">{state.errors.email[0]}</p>}
       </div>
       <div className="space-y-2">
-        <Label htmlFor="phone">Telefonní číslo</Label>
-        <Input id="phone" name="phone" type="tel" placeholder="+420 123 456 789" required />
-        {state.errors?.phone && <p className="text-sm text-destructive">{state.errors.phone[0]}</p>}
+        <Label htmlFor="phoneNumber">Telefonní číslo</Label>
+        <Input id="phoneNumber" name="phoneNumber" type="tel" placeholder="+420 123 456 789" required />
+        {state.errors?.phoneNumber && <p className="text-sm text-destructive">{state.errors.phoneNumber[0]}</p>}
       </div>
       <div className="space-y-2">
         <Label htmlFor="jerseyNumber">Číslo dresu (nepovinné)</Label>

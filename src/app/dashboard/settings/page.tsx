@@ -1,8 +1,8 @@
 'use client'
 
-import { useActionState, Suspense, useEffect } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { updateProfile } from '@/lib/actions'
+import { updateProfile as validateProfile } from '@/lib/actions'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -11,7 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Loader2 } from "lucide-react"
 import { useFormStatus } from 'react-dom'
 import { useToast } from "@/hooks/use-toast"
-import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase'
+import { useFirebase, useFirestore, useDoc, useMemoFirebase } from '@/firebase'
 import { doc, updateDoc } from 'firebase/firestore'
 import { updateProfile as updateFirebaseProfile } from 'firebase/auth'
 
@@ -41,6 +41,8 @@ function SettingsForm() {
   const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
   const { data: userProfile, isLoading } = useDoc(userDocRef);
 
+  const [state, setState] = useState(initialFormState);
+
   const fallback = userProfile?.name?.split(' ').map(n => n[0]).join('').toUpperCase() || ''
 
   useEffect(() => {
@@ -53,9 +55,6 @@ function SettingsForm() {
       window.history.replaceState({}, '', newPath)
     }
   }, [searchParams, toast])
-
-  const actionWithParams = updateProfile.bind(null, user?.uid || '')
-  const [state, dispatch] = useActionState(actionWithParams, initialFormState)
   
   useEffect(() => {
     if (state.success === false && state.message) {
@@ -73,15 +72,14 @@ function SettingsForm() {
       return;
     }
     
-    // This will trigger the server action for validation
-    const validationResult = await updateProfile(user.uid, null, formData);
+    const validationResult = await validateProfile(user.uid, null, formData);
     if (validationResult && !validationResult.success) {
         setState(validationResult);
         return;
     }
 
     const name = formData.get('name') as string
-    const phone = formData.get('phone') as string
+    const phoneNumber = formData.get('phoneNumber') as string
     const jerseyNumber = formData.get('jerseyNumber') as string
     const dob = formData.get('dob') as string
 
@@ -89,8 +87,8 @@ function SettingsForm() {
       const userDocRef = doc(firestore, 'users', user.uid)
       await updateDoc(userDocRef, {
         name,
-        phone: phone || null,
-        jerseyNumber: jerseyNumber || null,
+        phoneNumber: phoneNumber || null,
+        jerseyNumber: jerseyNumber ? Number(jerseyNumber) : null,
         dob: dob || null,
       })
       await updateFirebaseProfile(auth.currentUser, { displayName: name });
@@ -134,19 +132,21 @@ function SettingsForm() {
         </div>
 
         <div className="grid gap-2">
-          <Label htmlFor="phone">Telefonní číslo</Label>
-          <Input id="phone" name="phone" type="tel" defaultValue={userProfile?.phone || ''} />
-           {state.errors?.phone && <p className="text-sm text-destructive">{state.errors.phone[0]}</p>}
+          <Label htmlFor="phoneNumber">Telefonní číslo</Label>
+          <Input id="phoneNumber" name="phoneNumber" type="tel" defaultValue={userProfile?.phoneNumber || ''} />
+           {state.errors?.phoneNumber && <p className="text-sm text-destructive">{state.errors.phoneNumber[0]}</p>}
         </div>
 
         <div className="grid gap-2">
           <Label htmlFor="jerseyNumber">Číslo dresu</Label>
           <Input id="jerseyNumber" name="jerseyNumber" type="number" defaultValue={userProfile?.jerseyNumber || ''} />
+           {state.errors?.jerseyNumber && <p className="text-sm text-destructive">{state.errors.jerseyNumber[0]}</p>}
         </div>
         
         <div className="grid gap-2">
             <Label htmlFor="dob">Datum narození</Label>
             <Input id="dob" name="dob" type="date" defaultValue={userProfile?.dob || ''} className="w-[280px]" />
+             {state.errors?.dob && <p className="text-sm text-destructive">{state.errors.dob[0]}</p>}
         </div>
       </CardContent>
       <CardFooter className="border-t px-6 py-4">

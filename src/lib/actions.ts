@@ -61,8 +61,9 @@ export async function updateProfile(uid: string, prevState: any, formData: FormD
     };
   }
   
-  const params = new URLSearchParams();
-  params.set('updated', 'true');
-  
-  redirect(`/dashboard/settings?${params.toString()}`);
+  return {
+    errors: {},
+    message: '',
+    success: true,
+  };
 }
