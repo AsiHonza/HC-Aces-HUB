@@ -11,6 +11,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Loader2 } from "lucide-react"
 import { useFormStatus } from 'react-dom'
 import { useToast } from "@/hooks/use-toast"
+import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase'
+import { doc, updateDoc } from 'firebase/firestore'
+import { updateProfile as updateFirebaseProfile } from 'firebase/auth'
 
 function SubmitButton() {
   const { pending } = useFormStatus()
@@ -32,33 +35,30 @@ function SettingsForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { toast } = useToast()
+  const { user, auth } = useFirebase()
+  const firestore = useFirestore()
 
-  const name = searchParams.get('name') || 'Adam Hráč'
-  const email = searchParams.get('email') || 'adam.hrac@email.com'
-  const phone = searchParams.get('phone') || ''
-  const jerseyNumber = searchParams.get('jerseyNumber') || ''
-  const dob = searchParams.get('dob') || ''
-  
-  const fallback = name.split(' ').map(n => n[0]).join('').toUpperCase()
-  
+  const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
+  const { data: userProfile, isLoading } = useDoc(userDocRef);
+
+  const fallback = userProfile?.name?.split(' ').map(n => n[0]).join('').toUpperCase() || ''
+
   useEffect(() => {
     if (searchParams.get('updated') === 'true') {
       toast({
         title: "Úspěch!",
         description: "Profil byl úspěšně aktualizován.",
       })
-      // Remove the 'updated' param from URL without reloading
-      const newParams = new URLSearchParams(Array.from(searchParams.entries()))
-      newParams.delete('updated')
-      router.replace(`/dashboard/settings?${newParams.toString()}`, { scroll: false })
+      const newPath = window.location.pathname
+      window.history.replaceState({}, '', newPath)
     }
-  }, [searchParams, router, toast])
+  }, [searchParams, toast])
 
-  const actionWithParams = updateProfile.bind(null, Object.fromEntries(searchParams.entries()))
+  const actionWithParams = updateProfile.bind(null, user?.uid || '')
   const [state, dispatch] = useActionState(actionWithParams, initialFormState)
-
+  
   useEffect(() => {
-    if (!state.success && state.message) {
+    if (state.success === false && state.message) {
       toast({
         variant: 'destructive',
         title: "Chyba",
@@ -67,12 +67,56 @@ function SettingsForm() {
     }
   }, [state, toast])
 
+  const handleUpdate = async (formData: FormData) => {
+    if (!user || !firestore || !auth?.currentUser) {
+      toast({ variant: 'destructive', title: "Chyba", description: "Musíte být přihlášen." });
+      return;
+    }
+    
+    // This will trigger the server action for validation
+    const validationResult = await updateProfile(user.uid, null, formData);
+    if (validationResult && !validationResult.success) {
+        setState(validationResult);
+        return;
+    }
+
+    const name = formData.get('name') as string
+    const phone = formData.get('phone') as string
+    const jerseyNumber = formData.get('jerseyNumber') as string
+    const dob = formData.get('dob') as string
+
+    try {
+      const userDocRef = doc(firestore, 'users', user.uid)
+      await updateDoc(userDocRef, {
+        name,
+        phone: phone || null,
+        jerseyNumber: jerseyNumber || null,
+        dob: dob || null,
+      })
+      await updateFirebaseProfile(auth.currentUser, { displayName: name });
+      
+      router.push('/dashboard/settings?updated=true', { scroll: false })
+      router.refresh();
+
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Chyba aktualizace',
+        description: error.message,
+      })
+    }
+  }
+  
+  if (isLoading) {
+      return <div className="p-6"><Loader2 className="animate-spin" /> Načítání profilu...</div>
+  }
+
   return (
-    <form action={dispatch}>
+    <form action={handleUpdate}>
       <CardContent className="grid gap-6">
         <div className="flex items-center gap-6">
           <Avatar className="h-24 w-24 border-4 border-primary shadow-lg">
-            <AvatarImage src={`https://picsum.photos/seed/${email}/400/400`} data-ai-hint="player portrait" alt={name} />
+            <AvatarImage src={`https://picsum.photos/seed/${userProfile?.email}/400/400`} data-ai-hint="player portrait" alt={userProfile?.name || ''} />
             <AvatarFallback className="text-3xl">{fallback}</AvatarFallback>
           </Avatar>
           <Button type="button" variant="outline">Změnit obrázek</Button>
@@ -80,29 +124,29 @@ function SettingsForm() {
         
         <div className="grid gap-2">
           <Label htmlFor="name">Jméno a příjmení</Label>
-          <Input id="name" name="name" defaultValue={name} />
+          <Input id="name" name="name" defaultValue={userProfile?.name} />
           {state.errors?.name && <p className="text-sm text-destructive">{state.errors.name[0]}</p>}
         </div>
 
         <div className="grid gap-2">
           <Label htmlFor="email">Email</Label>
-          <Input id="email" type="email" defaultValue={email} disabled />
+          <Input id="email" type="email" defaultValue={userProfile?.email} disabled />
         </div>
 
         <div className="grid gap-2">
           <Label htmlFor="phone">Telefonní číslo</Label>
-          <Input id="phone" name="phone" type="tel" defaultValue={phone} />
+          <Input id="phone" name="phone" type="tel" defaultValue={userProfile?.phone || ''} />
            {state.errors?.phone && <p className="text-sm text-destructive">{state.errors.phone[0]}</p>}
         </div>
 
         <div className="grid gap-2">
           <Label htmlFor="jerseyNumber">Číslo dresu</Label>
-          <Input id="jerseyNumber" name="jerseyNumber" type="number" defaultValue={jerseyNumber} />
+          <Input id="jerseyNumber" name="jerseyNumber" type="number" defaultValue={userProfile?.jerseyNumber || ''} />
         </div>
         
         <div className="grid gap-2">
             <Label htmlFor="dob">Datum narození</Label>
-            <Input id="dob" name="dob" type="date" defaultValue={dob} className="w-[280px]" />
+            <Input id="dob" name="dob" type="date" defaultValue={userProfile?.dob || ''} className="w-[280px]" />
         </div>
       </CardContent>
       <CardFooter className="border-t px-6 py-4">

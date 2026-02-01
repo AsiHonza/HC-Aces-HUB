@@ -1,23 +1,19 @@
 'use client'
 
 import { useEffect, Suspense } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { Logo } from '@/components/icons/logo'
 
 function WelcomeContent() {
   const router = useRouter()
-  const searchParams = useSearchParams()
 
   useEffect(() => {
-    // Create a new URLSearchParams object from the existing one to pass to the next page
-    const params = new URLSearchParams(Array.from(searchParams.entries()))
-    
     const timer = setTimeout(() => {
-      router.replace(`/dashboard?${params.toString()}`)
+      router.replace(`/dashboard`)
     }, 2500)
 
     return () => clearTimeout(timer)
-  }, [router, searchParams])
+  }, [router])
 
   return (
     <div className="flex h-screen w-full flex-col items-center justify-center bg-background">
@@ -30,7 +26,6 @@ function WelcomeContent() {
 }
 
 export default function WelcomePage() {
-  // Wrap the component that uses useSearchParams in Suspense
   return (
     <Suspense fallback={<div className="flex h-screen w-full items-center justify-center">Načítání...</div>}>
       <WelcomeContent />

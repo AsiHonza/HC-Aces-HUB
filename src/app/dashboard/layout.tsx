@@ -1,21 +1,40 @@
 'use client'
 
 import { Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
 import { Logo } from "@/components/icons/logo"
 import Link from "next/link"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Power, User, Users } from "lucide-react"
+import { useUser, useAuth } from '@/firebase'
+import { signOut } from 'firebase/auth'
+import { useRouter } from 'next/navigation'
 
 function UserNav() {
-  const searchParams = useSearchParams()
-  const name = searchParams.get('name') || 'Adam Hráč'
-  const email = searchParams.get('email') || 'adam.hrac@email.com'
+  const { user, isUserLoading } = useUser()
+  const auth = useAuth()
+  const router = useRouter()
+
+  const handleLogout = async () => {
+    if (auth) {
+      await signOut(auth);
+    }
+    router.push('/');
+  };
+
+  if (isUserLoading) {
+    return <div className="h-10 w-10 rounded-full bg-muted animate-pulse" />
+  }
+
+  const name = user?.displayName || 'Uživatel'
+  const email = user?.email || ''
   const fallback = name.split(' ').map(n => n[0]).join('').toUpperCase()
-  const params = new URLSearchParams(Array.from(searchParams.entries()))
-  const role = searchParams.get('role')
+  // const role = 'admin' // TODO: Get role from user claims
+  
+  // Hardcoded role for demo
+  const role = user?.email === 'janmlcak6@gmail.com' ? 'admin' : 'classic';
+
 
   return (
     <DropdownMenu>
@@ -37,24 +56,22 @@ function UserNav() {
         <DropdownMenuSeparator />
         {role === 'admin' && (
             <DropdownMenuItem asChild>
-                <Link href={`/dashboard/team-management?${params.toString()}`}>
+                <Link href="/dashboard/team-management">
                     <Users className="mr-2 h-4 w-4" />
                     <span>Správa týmu</span>
                 </Link>
             </DropdownMenuItem>
         )}
         <DropdownMenuItem asChild>
-          <Link href={`/dashboard/settings?${params.toString()}`}>
+          <Link href="/dashboard/settings">
             <User className="mr-2 h-4 w-4" />
             <span>Nastavení</span>
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link href="/">
-            <Power className="mr-2 h-4 w-4" />
-            <span>Odhlásit se</span>
-          </Link>
+        <DropdownMenuItem onClick={handleLogout}>
+          <Power className="mr-2 h-4 w-4" />
+          <span>Odhlásit se</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -62,14 +79,11 @@ function UserNav() {
 }
 
 function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
-  const searchParams = useSearchParams()
-  const params = new URLSearchParams(Array.from(searchParams.entries()))
-  
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <header className="sticky top-0 z-10 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-16 items-center justify-between">
-          <Link href={`/dashboard?${params.toString()}`} className="flex items-center gap-2 font-bold text-lg text-foreground">
+          <Link href="/dashboard" className="flex items-center gap-2 font-bold text-lg text-foreground">
             <Logo className="h-8 w-8 text-primary" />
             <span className="font-headline">Aces Hockey Hub</span>
           </Link>

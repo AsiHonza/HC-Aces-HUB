@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useEffect } from 'react'
 import { useFormStatus } from 'react-dom'
 import { login, register } from '@/lib/actions'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -10,6 +10,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Logo } from '@/components/icons/logo'
 import { Loader2 } from 'lucide-react'
+import { useAuth, useFirestore, useUser } from '@/firebase'
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth'
+import { doc, setDoc } from 'firebase/firestore'
+import { useToast } from '@/hooks/use-toast'
+import { useRouter } from 'next/navigation'
 
 const initialLoginState = {
   errors: {},
@@ -18,9 +23,29 @@ const initialLoginState = {
 
 function LoginForm() {
   const [state, dispatch] = useActionState(login, initialLoginState)
+  const auth = useAuth()
+  const { toast } = useToast()
+  const router = useRouter()
+
+  const handleSubmit = async (formData: FormData) => {
+    if (!auth) return;
+    const email = formData.get('email') as string
+    const password = formData.get('password') as string
+    
+    try {
+      await signInWithEmailAndPassword(auth, email, password)
+      router.push('/welcome')
+    } catch (error: any) {
+       toast({
+        variant: 'destructive',
+        title: "Chyba přihlášení",
+        description: "Nesprávný e-mail nebo heslo.",
+      })
+    }
+  }
 
   return (
-    <form action={dispatch} className="space-y-4">
+    <form action={handleSubmit} className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="email">Email</Label>
         <Input id="email" name="email" type="email" placeholder="hrac@email.com" required />
@@ -44,9 +69,63 @@ const initialRegisterState = {
 
 function RegisterForm() {
   const [state, dispatch] = useActionState(register, initialRegisterState)
+  const auth = useAuth()
+  const firestore = useFirestore()
+  const { toast } = useToast()
+  const router = useRouter()
+
+  const handleSubmit = async (formData: FormData) => {
+     if (!auth || !firestore) return;
+    
+    const validatedFields = register.schema.safeParse(Object.fromEntries(formData.entries()));
+    if (!validatedFields.success) {
+      // This is a client-side validation, should match server's
+      // The server action will handle the final validation
+      dispatch(formData);
+      return;
+    }
+    
+    const { name, email, password, phone, jerseyNumber } = validatedFields.data;
+
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      const role = email === 'janmlcak6@gmail.com' ? 'admin' : 'classic';
+
+      await setDoc(doc(firestore, 'users', user.uid), {
+        id: user.uid,
+        name,
+        email,
+        phone,
+        jerseyNumber: jerseyNumber || null,
+        role: role,
+        dob: null,
+      });
+
+      // Also create initial player stats
+      await setDoc(doc(firestore, `users/${user.uid}/playerStats`, 'stats'), {
+        goals: 0,
+        assists: 0,
+        gamesPlayed: 0,
+        userProfileId: user.uid,
+      });
+
+
+      router.push('/welcome');
+
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: "Chyba registrace",
+        description: error.message,
+      });
+    }
+  }
+
 
   return (
-    <form action={dispatch} className="space-y-4">
+    <form action={handleSubmit} className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="name">Jméno a příjmení</Label>
         <Input id="name" name="name" placeholder="Adam Hráč" required />
@@ -96,6 +175,25 @@ function SubmitButton({ text, pendingText }: { text: string; pendingText: string
 
 
 export function AuthPage() {
+  const { user, isUserLoading } = useUser()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (!isUserLoading && user) {
+      router.replace('/dashboard')
+    }
+  }, [user, isUserLoading, router])
+
+
+  if (isUserLoading || user) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center p-4">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="mt-4">Načítání...</p>
+      </div>
+    )
+  }
+
   return (
     <>
       <div className="flex items-center gap-4 mb-6">
