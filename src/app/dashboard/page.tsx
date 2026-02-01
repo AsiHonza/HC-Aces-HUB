@@ -145,7 +145,7 @@ function RecordResultForm({ match, allUsers, onSave, onCancel }: { match: Match,
 }
 
 function DashboardPageContent() {
-  const { user, isUserLoading } = useUser()
+  const { user } = useUser()
   const firestore = useFirestore()
   const { toast } = useToast()
   const searchParams = useSearchParams()
@@ -254,6 +254,8 @@ function DashboardPageContent() {
       };
     });
   }, [allUsers, allStats]);
+
+  const upcomingMatches = useMemo(() => allMatches?.filter(match => !match.isPlayed) ?? [], [allMatches]);
   
   const sortedTeamScoring = useMemo(() => {
       if (!teamScoring) return [];
@@ -273,12 +275,7 @@ function DashboardPageContent() {
       .map((team, index) => ({ ...team, rank: index + 1 }));
   }, [leagueStandings, editableLeagueStandings, isLeagueEditMode]);
   
-  const upcomingMatches = useMemo(() => allMatches?.filter(match => !match.isPlayed) ?? [], [allMatches]);
   const otherUpcomingMatches = useMemo(() => upcomingMatches?.slice(1) || [], [upcomingMatches]);
-
-  const isPlayoffEnabled = leagueSettings?.isPlayoffEnabled ?? false;
-  const isScoringInPlayoffMode = leagueSettings?.isScoringInPlayoffMode ?? false;
-  const playoffSeries = leagueSettings?.playoffSeries ?? [];
   
   const attendancesByMatch = useMemo(() => {
     const map = new Map<string, Attendance[]>();
@@ -293,9 +290,11 @@ function DashboardPageContent() {
 
   const userAttendances = useMemo(() => {
     const map = new Map<string, Attendance>();
-    allAttendances?.filter(att => att.userId === user!.uid).forEach(att => {
-        map.set(att.matchId, att);
-    });
+    if(user && allAttendances){
+        allAttendances.filter(att => att.userId === user.uid).forEach(att => {
+            map.set(att.matchId, att);
+        });
+    }
     return map;
   }, [allAttendances, user]);
 
@@ -314,11 +313,18 @@ function DashboardPageContent() {
 
   const usersMap = useMemo(() => new Map(allUsers?.map(u => [u.id, u])), [allUsers]);
 
+  const isPlayoffEnabled = leagueSettings?.isPlayoffEnabled ?? false;
+  const isScoringInPlayoffMode = leagueSettings?.isScoringInPlayoffMode ?? false;
+  const playoffSeries = leagueSettings?.playoffSeries ?? [];
+  const isLoading = isUserProfileLoading || isPlayerStatsLoading || areMatchesLoading || areUsersLoading || areStatsLoading || attendancesLoading || leagueSettingsLoading;
+
+
   useEffect(() => {
     setOptimisticAttendances(new Map());
   }, [allAttendances]);
 
   useEffect(() => {
+    if (isLoading) return;
     const matchId = searchParams.get('matchId');
     if (!matchId || upcomingMatches.length === 0) return;
 
@@ -345,11 +351,9 @@ function DashboardPageContent() {
         }
     }, 200);
 
-  }, [upcomingMatches, otherUpcomingMatches, searchParams]);
+  }, [isLoading, upcomingMatches, otherUpcomingMatches, searchParams]);
   
-  const isLoading = isUserLoading || isUserProfileLoading || isPlayerStatsLoading || areMatchesLoading || areUsersLoading || areStatsLoading || attendancesLoading || leagueSettingsLoading;
-
-  if (isLoading) {
+  if (isLoading || !user) {
     return (
       <div className="flex justify-center items-center h-64">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -673,10 +677,6 @@ function DashboardPageContent() {
 
   const handleSaveLeague = async () => {
     if (!firestore) return;
-    setIsLeagueEditMode(false);
-    setLeagueStandings(editableLeagueStandings);
-    
-    const settingsRef = doc(firestore, 'settings', 'league');
     
     let seriesToSave = editablePlayoffSeries;
     if (editableIsPlayoffEnabled && seriesToSave.length === 0) {
@@ -689,13 +689,18 @@ function DashboardPageContent() {
     };
 
     try {
+        const settingsRef = doc(firestore, 'settings', 'league');
         await setDoc(settingsRef, updatedSettings, { merge: true });
+        setLeagueStandings(editableLeagueStandings);
         toast({ title: 'Nastavení ligy uloženo.' });
     } catch (error) {
         toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se uložit nastavení ligy.' });
+        const settingsRef = doc(firestore, 'settings', 'league');
         errorEmitter.emit('permission-error', new FirestorePermissionError({
             operation: 'write', path: settingsRef.path, requestResourceData: updatedSettings,
         }));
+    } finally {
+        setIsLeagueEditMode(false);
     }
   };
 
@@ -773,7 +778,7 @@ function DashboardPageContent() {
                 <CardHeader className="flex-row items-start justify-between pb-2">
                     <div className="space-y-1">
                         <CardTitle className="text-xl break-words pr-2">{opponent}</CardTitle>
-                        <CardDescription className="text-xs">{format(match.dateTime.toDate(), "EEEE, d. M. yyyy, HH:mm", { locale: cs })}</CardDescription>
+                        <CardDescription className="font-semibold text-foreground pt-1">{format(match.dateTime.toDate(), "EEEE, d. M. yyyy, HH:mm", { locale: cs })}</CardDescription>
                     </div>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -805,8 +810,8 @@ function DashboardPageContent() {
                     </DropdownMenu>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm">
-                    <div className="text-muted-foreground flex items-center gap-2">
-                        <MapPin className="h-4 w-4 shrink-0"/>
+                    <div className="flex items-center gap-2 font-semibold text-foreground">
+                        <MapPin className="h-4 w-4 shrink-0 text-primary"/>
                         <span className="truncate">{match.location}</span>
                     </div>
                 </CardContent>
@@ -1305,10 +1310,16 @@ function DashboardPageContent() {
                   <Button variant="outline" onClick={() => setIsAttendanceDialogOpen(false)}>Zrušit</Button>
                   <Button onClick={async () => {
                       if (attendanceData) {
-                          await handleAttendanceChange(attendanceData.matchId, attendanceData.status, attendanceNote);
+                          try {
+                            await handleAttendanceChange(attendanceData.matchId, attendanceData.status, attendanceNote);
+                          } finally {
+                            setIsAttendanceDialogOpen(false);
+                            setAttendanceNote('');
+                          }
+                      } else {
+                        setIsAttendanceDialogOpen(false);
+                        setAttendanceNote('');
                       }
-                      setIsAttendanceDialogOpen(false);
-                      setAttendanceNote('');
                   }}>
                       Potvrdit
                   </Button>
