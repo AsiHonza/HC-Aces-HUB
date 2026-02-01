@@ -129,14 +129,15 @@ function TeamManagementContent() {
         title: 'Profil aktualizován',
         description: `Profil uživatele ${updatedData.name} byl úspěšně aktualizován.`,
       });
-      setIsEditDialogOpen(false);
-      setSelectedUser(null);
     } catch (error: any) {
       toast({
           variant: 'destructive',
           title: 'Chyba',
           description: `Nepodařilo se aktualizovat profil: ${error.message}`,
       });
+    } finally {
+        setIsEditDialogOpen(false);
+        setSelectedUser(null);
     }
   }
   

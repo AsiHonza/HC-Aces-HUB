@@ -212,9 +212,14 @@ function DashboardPageContent() {
     const leagueSettingsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'league') : null, [firestore]);
     const { data: leagueSettings, isLoading: leagueSettingsLoading } = useDoc<AppSettings>(leagueSettingsRef);
 
-    const isPlayoffEnabled = leagueSettings?.isPlayoffEnabled ?? false;
-    const isScoringInPlayoffMode = leagueSettings?.isScoringInPlayoffMode ?? false;
-    const playoffSeries = leagueSettings?.playoffSeries ?? [];
+  const [leagueStandings, setLeagueStandings] = useState([
+    { rank: 1, name: 'Aces', points: 45, gf: 120, ga: 85 },
+    { rank: 2, name: 'HC Draci', points: 42, gf: 115, ga: 90 },
+    { rank: 3, name: 'Rytíři', points: 38, gf: 100, ga: 95 },
+    { rank: 4, name: 'Kometa', points: 35, gf: 95, ga: 105 },
+    { rank: 5, name: 'Lvi', points: 30, gf: 90, ga: 110 },
+  ]);
+  const [editableLeagueStandings, setEditableLeagueStandings] = useState(leagueStandings);
 
   const teamScoring = useMemo(() => {
     if (!allUsers || !allStats) return [];
@@ -258,71 +263,79 @@ function DashboardPageContent() {
       }));
       return data.sort((a, b) => b.points - a.points || b.goals - a.goals).map((player, index) => ({ ...player, rank: index + 1 }));
   }, [teamScoring, scoringView]);
+
+  const sortedLeagueStandings = useMemo(() => {
+      const data = isLeagueEditMode ? editableLeagueStandings : leagueStandings;
+      if (!data) return [];
+      return [...data]
+      .sort((a, b) => b.points - a.points)
+      .map((team, index) => ({ ...team, rank: index + 1 }));
+  }, [leagueStandings, editableLeagueStandings, isLeagueEditMode]);
   
-  const [leagueStandings, setLeagueStandings] = useState([
-    { rank: 1, name: 'Aces', points: 45, gf: 120, ga: 85 },
-    { rank: 2, name: 'HC Draci', points: 42, gf: 115, ga: 90 },
-    { rank: 3, name: 'Rytíři', points: 38, gf: 100, ga: 95 },
-    { rank: 4, name: 'Kometa', points: 35, gf: 95, ga: 105 },
-    { rank: 5, name: 'Lvi', points: 30, gf: 90, ga: 110 },
-  ]);
-  const [editableLeagueStandings, setEditableLeagueStandings] = useState(leagueStandings);
+  const isPlayoffEnabled = leagueSettings?.isPlayoffEnabled ?? false;
+  const isScoringInPlayoffMode = leagueSettings?.isScoringInPlayoffMode ?? false;
+  const playoffSeries = leagueSettings?.playoffSeries ?? [];
   
-    const sortedLeagueStandings = useMemo(() => {
-        const data = isLeagueEditMode ? editableLeagueStandings : leagueStandings;
-        if (!data) return [];
-        return [...data]
-        .sort((a, b) => b.points - a.points)
-        .map((team, index) => ({ ...team, rank: index + 1 }));
-    }, [leagueStandings, editableLeagueStandings, isLeagueEditMode]);
+  const isLoading = isUserLoading || isUserProfileLoading || isPlayerStatsLoading || areMatchesLoading || areUsersLoading || areStatsLoading || attendancesLoading || leagueSettingsLoading;
+  
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    )
+  }
 
-  const upcomingMatches = useMemo(() => {
-    if (!allMatches || !user) return [];
-    return allMatches
-      .filter(match => !match.isPlayed);
-  }, [allMatches, user]);
+  const upcomingMatches = allMatches?.filter(match => !match.isPlayed) ?? [];
+  const nextMatch = upcomingMatches?.[0];
+  const otherUpcomingMatches = upcomingMatches?.slice(1) || [];
 
-  const nextMatch = useMemo(() => upcomingMatches?.[0], [upcomingMatches]);
-  const otherUpcomingMatches = useMemo(() => upcomingMatches?.slice(1) || [], [upcomingMatches]);
+  const attendancesByMatch = new Map<string, Attendance[]>();
+  allAttendances?.forEach(att => {
+      if (!attendancesByMatch.has(att.matchId)) {
+        attendancesByMatch.set(att.matchId, []);
+      }
+      attendancesByMatch.get(att.matchId)!.push(att);
+  });
 
+  const userAttendances = new Map<string, Attendance>();
+  allAttendances?.filter(att => att.userId === user!.uid).forEach(att => {
+      userAttendances.set(att.matchId, att);
+  });
 
-  const attendancesByMatch = useMemo(() => {
-    if (!allAttendances) return new Map<string, Attendance[]>();
-    const map = new Map<string, Attendance[]>();
-    allAttendances.forEach(att => {
-        if (!map.has(att.matchId)) {
-            map.set(att.matchId, []);
-        }
-        map.get(att.matchId)!.push(att);
-    });
-    return map;
-  }, [allAttendances]);
+  const userAttendancesWithOptimistic = new Map(userAttendances);
+  optimisticAttendances.forEach((optimisticAtt, matchId) => {
+      if (optimisticAtt.status === 'unknown') { 
+          userAttendancesWithOptimistic.delete(matchId);
+      } else {
+          const existingAtt = userAttendancesWithOptimistic.get(matchId) || { id: user!.uid, userId: user!.uid, matchId: matchId };
+          userAttendancesWithOptimistic.set(matchId, { 
+              ...existingAtt, 
+              ...optimisticAtt,
+          } as Attendance);
+      }
+  });
+  
+  const usersMap = new Map(allUsers?.map(u => [u.id, u]));
+  
+  const myStatsToDisplay = (() => {
+    if (!playerStats) return { goals: 0, assists: 0, gamesPlayed: 0 };
+    switch(myStatsView) {
+        case 'playoff': return { goals: playerStats.playoffGoals, assists: playerStats.playoffAssists, gamesPlayed: playerStats.playoffGamesPlayed };
+        case 'history': return { goals: playerStats.historicalGoals, assists: playerStats.historicalAssists, gamesPlayed: playerStats.historicalGamesPlayed };
+        case 'season':
+        default:
+            return { goals: playerStats.seasonGoals, assists: playerStats.seasonAssists, gamesPlayed: playerStats.seasonGamesPlayed };
+    }
+  })();
 
-  const userAttendances = useMemo(() => {
-    if (!allAttendances || !user) return new Map<string, Attendance>();
-    const map = new Map<string, Attendance>();
-    allAttendances.filter(att => att.userId === user.uid).forEach(att => {
-        map.set(att.matchId, att);
-    });
-    return map;
-  }, [allAttendances, user]);
-
-  const userAttendancesWithOptimistic = useMemo(() => {
-      const merged = new Map(userAttendances);
-      optimisticAttendances.forEach((optimisticAtt, matchId) => {
-          if (optimisticAtt.status === 'unknown') { 
-              merged.delete(matchId);
-          } else {
-              const existingAtt = merged.get(matchId) || { id: user!.uid, userId: user!.uid, matchId: matchId };
-              merged.set(matchId, { 
-                  ...existingAtt, 
-                  ...optimisticAtt,
-              } as Attendance);
-          }
-      });
-      return merged;
-  }, [userAttendances, optimisticAttendances, user]);
-
+  const stats = [
+    { metric: 'Góly', value: myStatsToDisplay.goals ?? 0 },
+    { metric: 'Asistence', value: myStatsToDisplay.assists ?? 0 },
+    { metric: 'Body', value: (myStatsToDisplay.goals ?? 0) + (myStatsToDisplay.assists ?? 0) },
+    { metric: 'Odehrané zápasy', value: myStatsToDisplay.gamesPlayed ?? 0 },
+  ]
+  
 
   useEffect(() => {
     // When fresh data arrives from Firestore, clear any optimistic updates
@@ -359,31 +372,6 @@ function DashboardPageContent() {
 
   }, [upcomingMatches, otherUpcomingMatches, searchParams]);
 
-  const usersMap = useMemo(() => {
-    if (!allUsers) return new Map<string, UserProfile>();
-    return new Map(allUsers.map(u => [u.id, u]));
-  }, [allUsers]);
-  
-  const myStatsToDisplay = useMemo(() => {
-    if (!playerStats) return { goals: 0, assists: 0, gamesPlayed: 0 };
-    switch(myStatsView) {
-        case 'playoff': return { goals: playerStats.playoffGoals, assists: playerStats.playoffAssists, gamesPlayed: playerStats.playoffGamesPlayed };
-        case 'history': return { goals: playerStats.historicalGoals, assists: playerStats.historicalAssists, gamesPlayed: playerStats.historicalGamesPlayed };
-        case 'season':
-        default:
-            return { goals: playerStats.seasonGoals, assists: playerStats.seasonAssists, gamesPlayed: playerStats.seasonGamesPlayed };
-    }
-  }, [playerStats, myStatsView]);
-
-  const stats = [
-    { metric: 'Góly', value: myStatsToDisplay.goals ?? 0 },
-    { metric: 'Asistence', value: myStatsToDisplay.assists ?? 0 },
-    { metric: 'Body', value: (myStatsToDisplay.goals ?? 0) + (myStatsToDisplay.assists ?? 0) },
-    { metric: 'Odehrané zápasy', value: myStatsToDisplay.gamesPlayed ?? 0 },
-  ]
-  
-
-  const isLoading = isUserLoading || isUserProfileLoading || isPlayerStatsLoading || areMatchesLoading || areUsersLoading || areStatsLoading || attendancesLoading || leagueSettingsLoading;
 
   const handleShareMatch = (matchId: string) => {
     const url = new URL(window.location.origin + window.location.pathname);
@@ -437,13 +425,14 @@ function DashboardPageContent() {
     try {
       await updateDoc(matchRef, { lineup: lineupToSave });
       toast({ title: "Sestava uložena." });
-      setIsLineupBuilderOpen(false);
-      setLineupMatch(null);
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Chyba', description: `Nepodařilo se uložit sestavu: ${error.message}` });
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         operation: 'update', path: matchRef.path, requestResourceData: { lineup: lineupToSave },
       }));
+    } finally {
+      setIsLineupBuilderOpen(false);
+      setLineupMatch(null);
     }
   };
 
@@ -759,14 +748,6 @@ function DashboardPageContent() {
           return newSeries;
       });
   };
-  
-  if (isLoading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-      </div>
-    )
-  }
   
   const fallback = userProfile?.name?.split(' ').map(n => n[0]).join('').toUpperCase() ?? ''
   
