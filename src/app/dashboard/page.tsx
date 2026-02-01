@@ -275,38 +275,41 @@ function DashboardPageContent() {
     const leagueSettingsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'league') : null, [firestore]);
     const { data: leagueSettings, isLoading: leagueSettingsLoading } = useDoc<AppSettings>(leagueSettingsRef);
     
-  const isPlayoffEnabled = leagueSettings?.isPlayoffEnabled ?? false;
-  const isScoringInPlayoffMode = leagueSettings?.isScoringInPlayoffMode ?? false;
-  const playoffSeries = leagueSettings?.playoffSeries ?? [];
-  const leagueStandings = useMemo(() => leagueSettings?.leagueStandings ?? [], [leagueSettings]);
-
-  const myStatsToDisplay = useMemo(() => {
-    if (userProfile?.playerType === 'player' && skaterStatsData?.[0]) {
-        const stats = skaterStatsData[0];
-        switch(myStatsView) {
-            case 'playoff': return { goals: stats.playoffGoals, assists: stats.playoffAssists, gamesPlayed: stats.playoffGamesPlayed };
-            case 'history': return { goals: stats.historicalGoals, assists: stats.historicalAssists, gamesPlayed: stats.historicalGamesPlayed };
-            case 'season':
-            default:
-                return { goals: stats.seasonGoals, assists: stats.seasonAssists, gamesPlayed: stats.seasonGamesPlayed };
+    const upcomingMatches = useMemo(() => allMatches?.filter(match => !match.isPlayed) ?? [], [allMatches]);
+    const otherUpcomingMatches = useMemo(() => upcomingMatches?.slice(1) || [], [upcomingMatches]);
+    
+    const isPlayoffEnabled = leagueSettings?.isPlayoffEnabled ?? false;
+    const isScoringInPlayoffMode = leagueSettings?.isScoringInPlayoffMode ?? false;
+    const playoffSeries = leagueSettings?.playoffSeries ?? [];
+    const leagueStandings = useMemo(() => leagueSettings?.leagueStandings ?? [], [leagueSettings]);
+    
+    const myStatsToDisplay = useMemo(() => {
+        if (userProfile?.playerType === 'player' && skaterStatsData?.[0]) {
+            const stats = skaterStatsData[0];
+            switch(myStatsView) {
+                case 'playoff': return { goals: stats.playoffGoals, assists: stats.playoffAssists, gamesPlayed: stats.playoffGamesPlayed };
+                case 'history': return { goals: stats.historicalGoals, assists: stats.historicalAssists, gamesPlayed: stats.historicalGamesPlayed };
+                case 'season':
+                default:
+                    return { goals: stats.seasonGoals, assists: stats.seasonAssists, gamesPlayed: stats.seasonGamesPlayed };
+            }
         }
-    }
-    return { goals: 0, assists: 0, gamesPlayed: 0 };
-  }, [myStatsView, skaterStatsData, userProfile]);
+        return { goals: 0, assists: 0, gamesPlayed: 0 };
+    }, [myStatsView, skaterStatsData, userProfile]);
 
-  const myGoalieStatsToDisplay = useMemo(() => {
-    if (userProfile?.playerType === 'goalie' && goalieStatsData?.[0]) {
-        const stats = goalieStatsData[0];
-        switch(myStatsView) {
-            case 'playoff': return { gamesPlayed: stats.playoffGamesPlayed, wins: stats.playoffWins, savePct: stats.playoffShotsAgainst > 0 ? (stats.playoffSaves / stats.playoffShotsAgainst) * 100 : 0 };
-            case 'history': return { gamesPlayed: stats.historicalGamesPlayed, wins: stats.historicalWins, savePct: stats.historicalShotsAgainst > 0 ? (stats.historicalSaves / stats.historicalShotsAgainst) * 100 : 0 };
-            case 'season':
-            default:
-                return { gamesPlayed: stats.seasonGamesPlayed, wins: stats.seasonWins, savePct: stats.seasonShotsAgainst > 0 ? (stats.seasonSaves / stats.seasonShotsAgainst) * 100 : 0 };
+    const myGoalieStatsToDisplay = useMemo(() => {
+        if (userProfile?.playerType === 'goalie' && goalieStatsData?.[0]) {
+            const stats = goalieStatsData[0];
+            switch(myStatsView) {
+                case 'playoff': return { gamesPlayed: stats.playoffGamesPlayed, wins: stats.playoffWins, savePct: stats.playoffShotsAgainst > 0 ? (stats.playoffSaves / stats.playoffShotsAgainst) * 100 : 0 };
+                case 'history': return { gamesPlayed: stats.historicalGamesPlayed, wins: stats.historicalWins, savePct: stats.historicalShotsAgainst > 0 ? (stats.historicalSaves / stats.historicalShotsAgainst) * 100 : 0 };
+                case 'season':
+                default:
+                    return { gamesPlayed: stats.seasonGamesPlayed, wins: stats.seasonWins, savePct: stats.seasonShotsAgainst > 0 ? (stats.seasonSaves / stats.seasonShotsAgainst) * 100 : 0 };
+            }
         }
-    }
-    return { gamesPlayed: 0, wins: 0, savePct: 0 };
-  }, [myStatsView, goalieStatsData, userProfile]);
+        return { gamesPlayed: 0, wins: 0, savePct: 0 };
+    }, [myStatsView, goalieStatsData, userProfile]);
   
   
   const isLoading = isUserProfileLoading || isSkaterStatsLoading || isGoalieStatsLoading || areMatchesLoading || areUsersLoading || areSkaterStatsLoading || areGoalieStatsLoading || attendancesLoading || leagueSettingsLoading;
@@ -429,8 +432,6 @@ function DashboardPageContent() {
         };
       });
   }, [allUsers, allGoalieStats]);
-
-  const upcomingMatches = useMemo(() => allMatches?.filter(match => !match.isPlayed) ?? [], [allMatches]);
   
   const sortedTeamScoring = useMemo(() => {
       if (!teamScoring) return [];
@@ -459,8 +460,6 @@ function DashboardPageContent() {
       .sort((a, b) => b.points - a.points)
       .map((team, index) => ({ ...team, rank: index + 1 }));
   }, [leagueStandings, editableLeagueStandings, isLeagueEditMode]);
-  
-  const otherUpcomingMatches = useMemo(() => upcomingMatches?.slice(1) || [], [upcomingMatches]);
   
   const attendancesByMatch = useMemo(() => {
     const map = new Map<string, Attendance[]>();
