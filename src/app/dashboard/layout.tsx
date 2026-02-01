@@ -113,7 +113,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         <div className="flex h-16 items-center justify-between px-4 sm:px-6">
           <Link href="/dashboard" className="flex items-center gap-2 font-bold text-lg text-foreground">
             <Logo className="h-8 w-8 text-primary" />
-            <span className="font-headline">Aces Hockey Hub</span>
+            <span className="font-headline">HC Aces</span>
           </Link>
           <UserNav />
         </div>

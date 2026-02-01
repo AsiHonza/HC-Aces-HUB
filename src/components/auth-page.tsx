@@ -239,7 +239,7 @@ export function AuthPage() {
       <div className="flex items-center gap-4 mb-6">
         <Logo className="h-12 w-12 text-primary" />
         <h1 className="text-3xl font-bold font-headline text-foreground">
-          Aces Hockey Hub
+          HC Aces
         </h1>
       </div>
       <Tabs defaultValue="login" className="w-full max-w-md">
