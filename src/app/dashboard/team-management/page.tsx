@@ -69,8 +69,6 @@ function TeamManagementContent() {
     
     const userDocRef = doc(firestore, 'users', selectedUser.id);
     try {
-      // Note: This deletes the Firestore document, but not the Firebase Auth user.
-      // A backend function would be required to delete the auth user.
       await deleteDoc(userDocRef);
       toast({
         title: 'Uživatel smazán',
@@ -82,10 +80,10 @@ function TeamManagementContent() {
         title: 'Chyba',
         description: `Nepodařilo se smazat uživatele: ${error.message}`,
       })
+    } finally {
+      setIsDeleteDialogOpen(false)
+      setSelectedUser(null)
     }
-    
-    setIsDeleteDialogOpen(false)
-    setSelectedUser(null)
   }
 
   const handleRoleChange = async (userId: string, newRole: 'admin' | 'classic') => {

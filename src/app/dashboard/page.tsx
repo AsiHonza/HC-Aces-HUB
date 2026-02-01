@@ -186,8 +186,7 @@ function DashboardPageContent() {
 
   const playerStatsCollectionRef = useMemoFirebase(() => user ? collection(firestore, 'users', user.uid, 'playerStats') : null, [firestore, user]);
   const { data: playerStatsData, isLoading: isPlayerStatsLoading } = useCollection<PlayerStats>(playerStatsCollectionRef);
-  const playerStats = useMemo(() => playerStatsData?.[0], [playerStatsData]);
-
+  
   // Fetch matches
   const matchesQuery = useMemoFirebase(() => {
       if (!firestore || !user) return null;
@@ -220,6 +219,8 @@ function DashboardPageContent() {
     { rank: 5, name: 'Lvi', points: 30, gf: 90, ga: 110 },
   ]);
   const [editableLeagueStandings, setEditableLeagueStandings] = useState(leagueStandings);
+
+  const playerStats = useMemo(() => playerStatsData?.[0], [playerStatsData]);
 
   const teamScoring = useMemo(() => {
     if (!allUsers || !allStats) return [];
@@ -279,10 +280,41 @@ function DashboardPageContent() {
   const isScoringInPlayoffMode = leagueSettings?.isScoringInPlayoffMode ?? false;
   const playoffSeries = leagueSettings?.playoffSeries ?? [];
   
-  const isLoading = isUserLoading || isUserProfileLoading || isPlayerStatsLoading || areMatchesLoading || areUsersLoading || areStatsLoading || attendancesLoading || leagueSettingsLoading;
+  const attendancesByMatch = useMemo(() => {
+    const map = new Map<string, Attendance[]>();
+    allAttendances?.forEach(att => {
+        if (!map.has(att.matchId)) {
+          map.set(att.matchId, []);
+        }
+        map.get(att.matchId)!.push(att);
+    });
+    return map;
+  }, [allAttendances]);
+
+  const userAttendances = useMemo(() => {
+    const map = new Map<string, Attendance>();
+    allAttendances?.filter(att => att.userId === user!.uid).forEach(att => {
+        map.set(att.matchId, att);
+    });
+    return map;
+  }, [allAttendances, user]);
+
+  const userAttendancesWithOptimistic = useMemo(() => {
+    const map = new Map(userAttendances);
+    optimisticAttendances.forEach((optimisticAtt, matchId) => {
+        if (optimisticAtt.status === 'unknown') { 
+            map.delete(matchId);
+        } else {
+            const existingAtt = map.get(matchId) || { id: user!.uid, userId: user!.uid, matchId: matchId };
+            map.set(matchId, { ...existingAtt, ...optimisticAtt } as Attendance);
+        }
+    });
+    return map;
+  }, [userAttendances, optimisticAttendances, user]);
+
+  const usersMap = useMemo(() => new Map(allUsers?.map(u => [u.id, u])), [allUsers]);
 
   useEffect(() => {
-    // When fresh data arrives from Firestore, clear any optimistic updates
     setOptimisticAttendances(new Map());
   }, [allAttendances]);
 
@@ -290,7 +322,6 @@ function DashboardPageContent() {
     const matchId = searchParams.get('matchId');
     if (!matchId || upcomingMatches.length === 0) return;
 
-    // Use a ref to the container of all upcoming matches for scrolling
     const container = upcomingMatchesRef.current;
     if (!container) return;
 
@@ -316,6 +347,8 @@ function DashboardPageContent() {
 
   }, [upcomingMatches, otherUpcomingMatches, searchParams]);
   
+  const isLoading = isUserLoading || isUserProfileLoading || isPlayerStatsLoading || areMatchesLoading || areUsersLoading || areStatsLoading || attendancesLoading || leagueSettingsLoading;
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -325,34 +358,6 @@ function DashboardPageContent() {
   }
 
   const nextMatch = upcomingMatches?.[0];
-
-  const attendancesByMatch = new Map<string, Attendance[]>();
-  allAttendances?.forEach(att => {
-      if (!attendancesByMatch.has(att.matchId)) {
-        attendancesByMatch.set(att.matchId, []);
-      }
-      attendancesByMatch.get(att.matchId)!.push(att);
-  });
-
-  const userAttendances = new Map<string, Attendance>();
-  allAttendances?.filter(att => att.userId === user!.uid).forEach(att => {
-      userAttendances.set(att.matchId, att);
-  });
-
-  const userAttendancesWithOptimistic = new Map(userAttendances);
-  optimisticAttendances.forEach((optimisticAtt, matchId) => {
-      if (optimisticAtt.status === 'unknown') { 
-          userAttendancesWithOptimistic.delete(matchId);
-      } else {
-          const existingAtt = userAttendancesWithOptimistic.get(matchId) || { id: user!.uid, userId: user!.uid, matchId: matchId };
-          userAttendancesWithOptimistic.set(matchId, { 
-              ...existingAtt, 
-              ...optimisticAtt,
-          } as Attendance);
-      }
-  });
-  
-  const usersMap = new Map(allUsers?.map(u => [u.id, u]));
   
   const myStatsToDisplay = (() => {
     if (!playerStats) return { goals: 0, assists: 0, gamesPlayed: 0 };
@@ -419,7 +424,6 @@ function DashboardPageContent() {
 
   const handleSaveLineup = async (lineupToSave: Lineup) => {
     if (!lineupMatch || !firestore) return;
-
     const matchRef = doc(firestore, 'matches', lineupMatch.id);
     try {
       await updateDoc(matchRef, { lineup: lineupToSave });
@@ -439,13 +443,18 @@ function DashboardPageContent() {
     if (!selectedMatch || !firestore) return;
     
     const matchRef = doc(firestore, 'matches', selectedMatch.id);
-    deleteDoc(matchRef).catch(async (error) => {
-      errorEmitter.emit('permission-error', new FirestorePermissionError({
-        operation: 'delete', path: matchRef.path
-      }));
-    });
-    setIsDeleteDialogOpen(false);
-    setSelectedMatch(null);
+    try {
+        await deleteDoc(matchRef)
+        toast({ title: "Zápas smazán." });
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se smazat zápas.' });
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            operation: 'delete', path: matchRef.path
+        }));
+    } finally {
+        setIsDeleteDialogOpen(false);
+        setSelectedMatch(null);
+    }
   };
 
   const handleAttendanceChange = (matchId: string, newStatus: 'going' | 'not-going', note: string) => {
@@ -455,13 +464,12 @@ function DashboardPageContent() {
         title: "Chyba",
         description: "Uživatel není přihlášen.",
       });
-      return;
+      return Promise.reject(new Error("User not logged in"));
     }
 
     const attendanceRef = doc(firestore, 'matches', matchId, 'attendees', user.uid);
     const originalAttendance = userAttendances.get(matchId);
 
-    // Optimistic update
     const optimisticData: Partial<Attendance> = { status: newStatus, note: note || '' };
     setOptimisticAttendances(prev => new Map(prev).set(matchId, optimisticData));
     
@@ -484,12 +492,13 @@ function DashboardPageContent() {
       note: note || '',
     };
 
-    setDoc(attendanceRef, data, { merge: true }).catch(async (error) => {
+    return setDoc(attendanceRef, data, { merge: true }).catch(async (error) => {
       revertOptimisticUpdate();
       toast({ variant: 'destructive', title: "Chyba", description: "Nepodařilo se uložit vaši účast." });
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         operation: 'write', path: attendanceRef.path, requestResourceData: data,
       }));
+      throw error;
     });
   };
 
@@ -516,15 +525,18 @@ function DashboardPageContent() {
         };
         
         const matchRef = doc(firestore, 'matches', selectedMatch.id);
-        updateDoc(matchRef, updatedData).catch(async (error) => {
-          errorEmitter.emit('permission-error', new FirestorePermissionError({
-            operation: 'update', path: matchRef.path, requestResourceData: updatedData,
-          }));
-        });
+        await updateDoc(matchRef, updatedData);
+        toast({ title: 'Zápas aktualizován' });
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se uložit zápas.' });
+        if(selectedMatch){
+             errorEmitter.emit('permission-error', new FirestorePermissionError({
+                operation: 'update', path: doc(firestore, 'matches', selectedMatch.id).path, requestResourceData: (error as any).requestResourceData,
+            }));
+        }
+    } finally {
         setIsEditDialogOpen(false);
         setSelectedMatch(null);
-    } catch (error) {
-        toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se uložit zápas. Zkontrolujte formát data.' });
     }
   };
 
@@ -557,14 +569,15 @@ function DashboardPageContent() {
       };
       
       const matchesCollection = collection(firestore, 'matches')
-      addDoc(matchesCollection, newMatchData).catch(async (error) => {
+      await addDoc(matchesCollection, newMatchData)
+      toast({ title: 'Zápas přidán.' });
+    } catch (error: any) {
+       toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se přidat zápas.' });
         errorEmitter.emit('permission-error', new FirestorePermissionError({
-          operation: 'create', path: matchesCollection.path, requestResourceData: newMatchData
+          operation: 'create', path: collection(firestore, 'matches').path, requestResourceData: (error as any).requestResourceData
         }));
-      });
-      setIsAddDialogOpen(false);
-    } catch (error) {
-       toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se přidat zápas. Zkontrolujte formát data.' });
+    } finally {
+        setIsAddDialogOpen(false);
     }
   };
 
@@ -590,7 +603,6 @@ function DashboardPageContent() {
 
     const batch = writeBatch(firestore);
 
-    // 1. Update the match document
     const matchRef = doc(firestore, 'matches', selectedMatch.id);
     batch.update(matchRef, {
         isPlayed: true,
@@ -604,7 +616,6 @@ function DashboardPageContent() {
         const assistsField = selectedMatch.type === 'playoff' ? 'playoffAssists' : 'seasonAssists';
         const gamesPlayedField = selectedMatch.type === 'playoff' ? 'playoffGamesPlayed' : 'seasonGamesPlayed';
 
-        // 2. Tally up goals and assists for each player
         const playerStatUpdates = new Map<string, { goals: number, assists: number }>();
         scorersData.forEach(s => {
             if (s.goal) {
@@ -619,7 +630,6 @@ function DashboardPageContent() {
 
         const allStatsMap = new Map(allStats.map(s => [s.userProfileId, s]));
 
-        // 3. Create batch updates for player goals/assists
         for (const [userId, updates] of playerStatUpdates.entries()) {
             const userStats = allStatsMap.get(userId);
             if (userStats) {
@@ -631,7 +641,6 @@ function DashboardPageContent() {
             }
         }
 
-        // 4. Update games played for attendees
         const matchAttendees = attendancesByMatch.get(selectedMatch.id) || [];
         matchAttendees.forEach(att => {
             const userStats = allStatsMap.get(att.userId);
@@ -662,7 +671,7 @@ function DashboardPageContent() {
     setIsLeagueEditMode(true);
   };
 
-  const handleSaveLeague = () => {
+  const handleSaveLeague = async () => {
     if (!firestore) return;
     setIsLeagueEditMode(false);
     setLeagueStandings(editableLeagueStandings);
@@ -679,16 +688,15 @@ function DashboardPageContent() {
         playoffSeries: seriesToSave,
     };
 
-    setDoc(settingsRef, updatedSettings, { merge: true })
-        .then(() => {
-            toast({ title: 'Nastavení ligy uloženo.' });
-        })
-        .catch((error) => {
-            toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se uložit nastavení ligy.' });
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-                operation: 'write', path: settingsRef.path, requestResourceData: updatedSettings,
-            }));
-        });
+    try {
+        await setDoc(settingsRef, updatedSettings, { merge: true });
+        toast({ title: 'Nastavení ligy uloženo.' });
+    } catch (error) {
+        toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se uložit nastavení ligy.' });
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            operation: 'write', path: settingsRef.path, requestResourceData: updatedSettings,
+        }));
+    }
   };
 
   const handleCancelLeague = () => {
@@ -1295,9 +1303,9 @@ function DashboardPageContent() {
               </div>
               <DialogFooter>
                   <Button variant="outline" onClick={() => setIsAttendanceDialogOpen(false)}>Zrušit</Button>
-                  <Button onClick={() => {
+                  <Button onClick={async () => {
                       if (attendanceData) {
-                          handleAttendanceChange(attendanceData.matchId, attendanceData.status, attendanceNote);
+                          await handleAttendanceChange(attendanceData.matchId, attendanceData.status, attendanceNote);
                       }
                       setIsAttendanceDialogOpen(false);
                       setAttendanceNote('');

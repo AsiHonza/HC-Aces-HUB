@@ -197,7 +197,6 @@ function HistoryPageContent() {
         const matchType = selectedMatch.type;
         
         if (matchType !== 'friendly') {
-            // Revert goals and assists
             const statsToRevert = new Map<string, { goals: number, assists: number }>();
             selectedMatch.scorers?.forEach(scorer => {
                 if (scorer.goal) {
@@ -227,7 +226,6 @@ function HistoryPageContent() {
                 }
             }
             
-            // Revert games played
             const matchAttendees = attendancesByMatch.get(selectedMatch.id) || [];
             matchAttendees.forEach(att => {
                 const userStats = allStatsMap.get(att.userId);
@@ -254,10 +252,10 @@ function HistoryPageContent() {
             toast({ title: "Zápas smazán." });
         } catch (error: any) {
             toast({ variant: 'destructive', title: "Chyba", description: `Nepodařilo se smazat zápas: ${error.message}` });
+        } finally {
+            setIsDeleteDialogOpen(false);
+            setSelectedMatch(null);
         }
-    
-        setIsDeleteDialogOpen(false);
-        setSelectedMatch(null);
     }
 
     const handleResultSave = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -287,7 +285,6 @@ function HistoryPageContent() {
         if (matchType !== 'friendly') {
             const statsDiff = new Map<string, { goals: number, assists: number }>();
 
-            // Revert old stats
             selectedMatch.scorers?.forEach(scorer => {
                 if (scorer.goal) {
                     const current = statsDiff.get(scorer.goal) || { goals: 0, assists: 0 };
@@ -299,7 +296,6 @@ function HistoryPageContent() {
                 }
             });
 
-            // Apply new stats
             newScorersData.forEach(scorer => {
                 if (scorer.goal) {
                     const current = statsDiff.get(scorer.goal) || { goals: 0, assists: 0 };
@@ -404,7 +400,7 @@ function HistoryPageContent() {
                                                 {userProfile?.role === 'admin' && (
                                                     <DropdownMenu>
                                                         <DropdownMenuTrigger asChild>
-                                                            <div
+                                                             <div
                                                               onClick={(e) => { e.preventDefault(); e.stopPropagation() }}
                                                               className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "h-8 w-8")}
                                                             >
@@ -412,10 +408,10 @@ function HistoryPageContent() {
                                                             </div>
                                                         </DropdownMenuTrigger>
                                                         <DropdownMenuContent align="end">
-                                                            <DropdownMenuItem onClick={() => handleEditMatch(match)}>
+                                                            <DropdownMenuItem onClick={(e) => {e.stopPropagation(); handleEditMatch(match)}}>
                                                                 <Pencil className="mr-2 h-4 w-4" /> Upravit
                                                             </DropdownMenuItem>
-                                                            <DropdownMenuItem onClick={() => handleDeleteMatch(match)} className="text-destructive">
+                                                            <DropdownMenuItem onClick={(e) => {e.stopPropagation(); handleDeleteMatch(match)}} className="text-destructive">
                                                                 <Trash2 className="mr-2 h-4 w-4" /> Smazat
                                                             </DropdownMenuItem>
                                                         </DropdownMenuContent>
