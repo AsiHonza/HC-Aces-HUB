@@ -312,32 +312,33 @@ function DashboardPageContent() {
       });
       return;
     }
-  
+
     const attendanceRef = doc(firestore, 'matches', matchId, 'attendees', user.uid);
     const originalAttendance = userAttendances.get(matchId);
-  
+
     const optimisticData: Partial<Attendance> = { status: newStatus, note: note || '' };
     setOptimisticAttendances(prev => new Map(prev).set(matchId, optimisticData));
-  
+
     const revertOptimisticUpdate = () => {
       setOptimisticAttendances(prev => {
         const newMap = new Map(prev);
         if (originalAttendance) {
           newMap.set(matchId, originalAttendance);
         } else {
-          newMap.delete(matchId);
+          // If there was no original, we can remove it or set to unknown
+           newMap.set(matchId, { status: 'unknown' });
         }
         return newMap;
       });
     };
-  
+
     const data = {
       userId: user.uid,
       matchId: matchId,
       status: newStatus,
-      note: note || null,
+      note: note || '',
     };
-  
+
     setDoc(attendanceRef, data, { merge: true }).catch(async (error) => {
       revertOptimisticUpdate();
       toast({ variant: 'destructive', title: "Chyba", description: "Nepodařilo se uložit vaši účast." });
@@ -705,7 +706,7 @@ function DashboardPageContent() {
                         <CardContent className="grid gap-6 md:grid-cols-5 items-center pt-6">
                             <div className="md:col-span-2 text-center md:text-left">
                             <p className="text-lg text-muted-foreground">Soupeř</p>
-                            <p className="text-4xl font-bold flex items-center gap-3 justify-center md:justify-start mt-1"><Users /> {opponent}</p>
+                            <p className="text-3xl md:text-4xl font-bold flex items-center gap-3 justify-center md:justify-start mt-1"><Users /> {opponent}</p>
                             </div>
                             
                             <div className="hidden md:flex justify-center items-center">
@@ -721,7 +722,7 @@ function DashboardPageContent() {
                             </div>
                         </CardContent>
                         <CardFooter className="flex-col items-start gap-4 pt-4 border-t">
-                            <div className="flex w-full items-center justify-between">
+                            <div className="flex flex-col sm:flex-row w-full items-start sm:items-center justify-between gap-4">
                                 <div>
                                     <p className="text-base font-medium mb-2">Tvoje účast:</p>
                                     <div className="flex gap-4">
@@ -862,8 +863,8 @@ function DashboardPageContent() {
                             <TableRow>
                                 <TableHead className="w-[40px]">#</TableHead>
                                 <TableHead>Hráč</TableHead>
-                                <TableHead className="text-center">G</TableHead>
-                                <TableHead className="text-center">A</TableHead>
+                                <TableHead className="text-center hidden sm:table-cell">G</TableHead>
+                                <TableHead className="text-center hidden sm:table-cell">A</TableHead>
                                 <TableHead className="text-right">B</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -872,7 +873,7 @@ function DashboardPageContent() {
                                 <TableRow key={player.id}>
                                     <TableCell className="font-medium">{player.rank}</TableCell>
                                     <TableCell>{player.name}</TableCell>
-                                    <TableCell className="text-center font-mono">
+                                    <TableCell className="text-center font-mono hidden sm:table-cell">
                                       {isScoringEditMode ? (
                                         <div className="flex items-center justify-center gap-2">
                                           <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleScoringChange(player.id, 'goals', -1)}>
@@ -887,7 +888,7 @@ function DashboardPageContent() {
                                         player.goals
                                       )}
                                     </TableCell>
-                                    <TableCell className="text-center font-mono">
+                                    <TableCell className="text-center font-mono hidden sm:table-cell">
                                       {isScoringEditMode ? (
                                         <div className="flex items-center justify-center gap-2">
                                           <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleScoringChange(player.id, 'assists', -1)}>
@@ -935,8 +936,8 @@ function DashboardPageContent() {
                             <TableRow>
                                 <TableHead className="w-[50px]">#</TableHead>
                                 <TableHead>Tým</TableHead>
-                                <TableHead className="text-center w-[120px]">GF</TableHead>
-                                <TableHead className="text-center w-[120px]">GA</TableHead>
+                                <TableHead className="text-center w-[120px] hidden sm:table-cell">GF</TableHead>
+                                <TableHead className="text-center w-[120px] hidden sm:table-cell">GA</TableHead>
                                 <TableHead className="text-center w-[120px]">B</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -945,7 +946,7 @@ function DashboardPageContent() {
                                 <TableRow key={team.name} className={team.name === 'Aces' ? 'bg-primary/10' : ''}>
                                     <TableCell className="font-medium">{team.rank}</TableCell>
                                     <TableCell>{team.name}</TableCell>
-                                    <TableCell className="text-center font-mono">
+                                    <TableCell className="text-center font-mono hidden sm:table-cell">
                                         {isLeagueEditMode ? (
                                             <div className="flex items-center justify-center gap-2">
                                                 <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.name, 'gf', -1)}><Minus className="h-4 w-4" /></Button>
@@ -956,7 +957,7 @@ function DashboardPageContent() {
                                             team.gf
                                         )}
                                     </TableCell>
-                                    <TableCell className="text-center font-mono">
+                                    <TableCell className="text-center font-mono hidden sm:table-cell">
                                         {isLeagueEditMode ? (
                                             <div className="flex items-center justify-center gap-2">
                                                 <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.name, 'ga', -1)}><Minus className="h-4 w-4" /></Button>
@@ -1087,5 +1088,3 @@ export default function DashboardPage() {
     </Suspense>
   )
 }
-
-    

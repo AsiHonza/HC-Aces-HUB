@@ -304,21 +304,23 @@ function HistoryPageContent() {
                         <Accordion type="single" collapsible className="w-full">
                             {matches.map(match => (
                                 <AccordionItem value={match.id} key={match.id}>
-                                    <AccordionTrigger className="hover:no-underline">
-                                        <div className="flex justify-between items-center w-full pr-4">
-                                            <div className="flex flex-col text-left">
-                                                <span className="text-sm text-muted-foreground">{format(match.dateTime.toDate(), "EEEE, d. MMMM yyyy", { locale: cs })}</span>
-                                                <span className="text-base md:text-lg font-semibold">{match.team1} vs {match.team2}</span>
+                                    <AccordionTrigger className="hover:no-underline text-left">
+                                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full pr-2 gap-2">
+                                            <div className="flex-1">
+                                                <p className="text-sm text-muted-foreground">{format(match.dateTime.toDate(), "EEEE, d. MMMM yyyy", { locale: cs })}</p>
+                                                <p className="font-semibold">{match.team1} vs {match.team2}</p>
                                             </div>
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-xl md:text-2xl font-bold font-mono">{match.team1Score} : {match.team2Score}</span>
-                                                <Badge variant={getResultBadgeVariant(match.team1Score, match.team2Score)}>{getResultText(match.team1Score, match.team2Score)}</Badge>
+                                            <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-lg sm:text-xl font-bold font-mono">{match.team1Score} : {match.team2Score}</span>
+                                                    <Badge variant={getResultBadgeVariant(match.team1Score, match.team2Score)}>{getResultText(match.team1Score, match.team2Score)}</Badge>
+                                                </div>
                                                 {userProfile?.role === 'admin' && (
-                                                    <div className="flex gap-2">
-                                                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); handleEditMatch(match); }}>
+                                                    <div className="flex gap-1">
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); handleEditMatch(match); }}>
                                                             <Pencil className="h-4 w-4" />
                                                         </Button>
-                                                        <Button variant="destructive" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); handleDeleteMatch(match); }}>
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={(e) => { e.stopPropagation(); handleDeleteMatch(match); }}>
                                                             <Trash2 className="h-4 w-4" />
                                                         </Button>
                                                     </div>
@@ -326,20 +328,20 @@ function HistoryPageContent() {
                                             </div>
                                         </div>
                                     </AccordionTrigger>
-                                    <AccordionContent className="pl-4 border-l ml-2">
+                                    <AccordionContent className="pl-4 border-l ml-2 text-sm">
                                         <div className="grid gap-4 pt-2">
                                             <h4 className="font-semibold flex items-center gap-2"><Trophy className="h-5 w-5 text-primary" />Kanadské bodování zápasu (Aces)</h4>
                                             {match.scorers && match.scorers.length > 0 ? (
                                                 <ul className="space-y-2">
                                                     {match.scorers.map((scorer, i) => (
-                                                        <li key={i} className="flex items-center gap-2 text-sm">
+                                                        <li key={i} className="flex items-center gap-2">
                                                            <Users className="h-4 w-4 text-muted-foreground" />
                                                            <span className="font-medium">{usersMap.get(scorer.goal) || 'Neznámý hráč'}</span>
                                                            {scorer.assist && <span className="text-muted-foreground">(as. {usersMap.get(scorer.assist) || 'Neznámý'})</span>}
                                                         </li>
                                                     ))}
                                                 </ul>
-                                            ) : <p className="text-sm text-muted-foreground">Žádné zaznamenané góly.</p>}
+                                            ) : <p className="text-muted-foreground">Žádné zaznamenané góly.</p>}
                                         </div>
                                     </AccordionContent>
                                 </AccordionItem>
@@ -390,5 +392,3 @@ export default function HistoryPage() {
         </Suspense>
     )
 }
-
-    
