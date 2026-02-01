@@ -19,8 +19,6 @@ import { format } from 'date-fns'
 import { cs } from 'date-fns/locale'
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel'
 import Link from 'next/link'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Calendar } from '@/components/ui/calendar'
 
 // Types based on backend.json
 interface UserProfile {
@@ -115,19 +113,8 @@ function DashboardPageContent() {
   const [isResultDialogOpen, setIsResultDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
 
-  const [addMatchDate, setAddMatchDate] = useState<Date | undefined>(new Date());
-  const [editMatchDate, setEditMatchDate] = useState<Date | undefined>();
-
   const [isScoringEditMode, setIsScoringEditMode] = useState(false);
   const [isLeagueEditMode, setIsLeagueEditMode] = useState(false);
-
-  useEffect(() => {
-    if (isEditDialogOpen && selectedMatch) {
-        setEditMatchDate(selectedMatch.dateTime.toDate());
-    } else if (!isAddDialogOpen) {
-      setAddMatchDate(new Date());
-    }
-  }, [isEditDialogOpen, selectedMatch, isAddDialogOpen]);
   
   // Fetch current user's profile and stats
   const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
@@ -232,16 +219,13 @@ function DashboardPageContent() {
   
   const handleMatchUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!selectedMatch || !firestore || !editMatchDate) return;
+    if (!selectedMatch || !firestore) return;
 
     const formData = new FormData(e.currentTarget);
     const timeStr = formData.get('time') as string;
-    
-    const [hours, minutes] = timeStr.split(':').map(Number);
+    const dateStr = formData.get('date') as string;
 
-    const newDateTime = new Date(editMatchDate);
-    newDateTime.setHours(hours);
-    newDateTime.setMinutes(minutes);
+    const newDateTime = new Date(`${dateStr}T${timeStr}`);
 
     const updatedData = {
         team2: formData.get('opponent') as string, // Assuming Aces is always team1 for simplicity
@@ -257,16 +241,13 @@ function DashboardPageContent() {
 
   const handleMatchAdd = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!firestore || !addMatchDate) return;
+    if (!firestore) return;
 
     const formData = new FormData(e.currentTarget);
     const timeStr = formData.get('time') as string;
+    const dateStr = formData.get('date') as string;
     
-    const [hours, minutes] = timeStr.split(':').map(Number);
-    
-    const newDateTime = new Date(addMatchDate);
-    newDateTime.setHours(hours);
-    newDateTime.setMinutes(minutes);
+    const newDateTime = new Date(`${dateStr}T${timeStr}`);
 
     const newMatchData = {
         team1: 'Aces',
@@ -491,22 +472,12 @@ function DashboardPageContent() {
                           <Input id="opponent-add" name="opponent" className="col-span-3" required />
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
-                          <Label className="text-right">Datum</Label>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button variant={"outline"} className={cn("col-span-3 justify-start text-left font-normal", !addMatchDate && "text-muted-foreground")}>
-                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                {addMatchDate ? format(addMatchDate, "dd.MM.yyyy") : <span>Vyberte datum</span>}
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0">
-                              <Calendar mode="single" selected={addMatchDate} onSelect={setAddMatchDate} initialFocus />
-                            </PopoverContent>
-                          </Popover>
+                          <Label htmlFor="date-add" className="text-right">Datum</Label>
+                          <Input id="date-add" name="date" type="date" className="col-span-3" required defaultValue={format(new Date(), 'yyyy-MM-dd')} />
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                           <Label htmlFor="time-add" className="text-right">Čas</Label>
-                          <Input id="time-add" name="time" defaultValue="18:00" className="col-span-3" required />
+                          <Input id="time-add" name="time" type="time" defaultValue="18:00" className="col-span-3" required />
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                           <Label htmlFor="location-add" className="text-right">Místo</Label>
@@ -798,22 +769,12 @@ function DashboardPageContent() {
                           <Input id="opponent" name="opponent" defaultValue={selectedMatch.team1 === 'Aces' ? selectedMatch.team2 : selectedMatch.team1} className="col-span-3" />
                       </div>
                       <div className="grid grid-cols-4 items-center gap-4">
-                          <Label className="text-right">Datum</Label>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button variant={"outline"} className={cn("col-span-3 justify-start text-left font-normal", !editMatchDate && "text-muted-foreground")}>
-                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                {editMatchDate ? format(editMatchDate, "dd.MM.yyyy", { locale: cs }) : <span>Vyberte datum</span>}
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0">
-                              <Calendar mode="single" selected={editMatchDate} onSelect={setEditMatchDate} initialFocus />
-                            </PopoverContent>
-                          </Popover>
+                          <Label htmlFor="date-edit" className="text-right">Datum</Label>
+                          <Input id="date-edit" name="date" type="date" defaultValue={format(selectedMatch.dateTime.toDate(), 'yyyy-MM-dd')} className="col-span-3" required />
                       </div>
                       <div className="grid grid-cols-4 items-center gap-4">
                           <Label htmlFor="time" className="text-right">Čas</Label>
-                          <Input id="time" name="time" defaultValue={format(selectedMatch.dateTime.toDate(), 'HH:mm')} className="col-span-3" />
+                          <Input id="time" name="time" type="time" defaultValue={format(selectedMatch.dateTime.toDate(), 'HH:mm')} className="col-span-3" required/>
                       </div>
                       <div className="grid grid-cols-4 items-center gap-4">
                           <Label htmlFor="location" className="text-right">Místo</Label>
