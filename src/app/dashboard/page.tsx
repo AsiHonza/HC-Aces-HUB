@@ -22,6 +22,10 @@ import Link from 'next/link'
 import { useToast } from "@/hooks/use-toast"
 import { Textarea } from '@/components/ui/textarea'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Switch } from "@/components/ui/switch"
+import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel'
+
 
 // Types based on backend.json
 interface UserProfile {
@@ -59,6 +63,13 @@ interface Attendance {
     matchId: string;
     status: 'going' | 'not-going' | 'unknown';
     note?: string;
+}
+
+interface PlayoffSeries {
+  round: 'Čtvrtfinále' | 'Semifinále' | 'Finále' | 'Vítěz';
+  opponent: string;
+  wins: number;
+  losses: number;
 }
 
 function RecordResultForm({ match, allUsers, onSave, onCancel }: { match: Match, allUsers: UserProfile[], onSave: (e: React.FormEvent<HTMLFormElement>) => Promise<void>, onCancel: () => void }) {
@@ -137,6 +148,12 @@ function DashboardPageContent() {
   const [highlightedMatchId, setHighlightedMatchId] = useState<string | null>(null);
   const [openAccordionValue, setOpenAccordionValue] = useState('');
 
+  const [leagueView, setLeagueView] = useState<'regular' | 'playoff'>('regular');
+  const [isPlayoffEnabled, setIsPlayoffEnabled] = useState(false);
+  const [playoffSeries, setPlayoffSeries] = useState<PlayoffSeries[]>([
+      { round: 'Čtvrtfinále', opponent: 'HC Draci', wins: 0, losses: 0 }
+  ]);
+  const [editablePlayoffSeries, setEditablePlayoffSeries] = useState<PlayoffSeries[]>([]);
 
   // Fetch current user's profile and stats
   const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
@@ -154,11 +171,10 @@ function DashboardPageContent() {
   const { data: allMatches, isLoading: areMatchesLoading } = useCollection<Match>(matchesQuery);
   
   const upcomingMatches = useMemo(() => {
-    if (!allMatches) return [];
+    if (!allMatches || !user) return [];
     return allMatches
-      .filter(match => !match.isPlayed)
-      .slice(0, 5);
-  }, [allMatches]);
+      .filter(match => !match.isPlayed);
+  }, [allMatches, user]);
 
   const nextMatch = useMemo(() => upcomingMatches?.[0], [upcomingMatches]);
   const otherUpcomingMatches = useMemo(() => upcomingMatches?.slice(1) || [], [upcomingMatches]);
@@ -237,7 +253,7 @@ function DashboardPageContent() {
             element.scrollIntoView({ behavior: 'smooth', block: 'center' });
             setHighlightedMatchId(matchId);
 
-            const timer = setTimeout(() => {
+            setTimeout(() => {
                 setHighlightedMatchId(null);
                 // Clear the matchId from URL without reloading
                 const newUrl = new URL(window.location.href);
@@ -562,11 +578,13 @@ function DashboardPageContent() {
 
   const handleEditLeagueClick = () => {
     setEditableLeagueStandings(leagueStandings.map(t => ({...t})));
+    setEditablePlayoffSeries(playoffSeries.map(s => ({...s})));
     setIsLeagueEditMode(true);
   };
 
   const handleSaveLeague = () => {
     setLeagueStandings(editableLeagueStandings);
+    setPlayoffSeries(editablePlayoffSeries);
     setIsLeagueEditMode(false);
   };
 
@@ -587,6 +605,44 @@ function DashboardPageContent() {
         return t;
       })
     );
+  };
+
+  const handlePlayoffOpponentChange = (index: number, newOpponent: string) => {
+      setEditablePlayoffSeries(currentSeries => {
+          const newSeries = [...currentSeries];
+          newSeries[index] = { ...newSeries[index], opponent: newOpponent };
+          return newSeries;
+      });
+  };
+
+  const handlePlayoffScoreChange = (index: number, field: 'wins' | 'losses', delta: number) => {
+      setEditablePlayoffSeries(currentSeries => {
+          const newSeries = [...currentSeries];
+          const seriesItem = { ...newSeries[index] };
+          
+          seriesItem[field] = Math.max(0, seriesItem[field] + delta);
+          
+          if (field === 'wins' && seriesItem.wins >= 3 && seriesItem.round !== 'Vítěz') {
+              if (seriesItem.round === 'Čtvrtfinále') {
+                  seriesItem.round = 'Semifinále';
+                  seriesItem.opponent = 'TBD';
+                  seriesItem.wins = 0;
+                  seriesItem.losses = 0;
+              } else if (seriesItem.round === 'Semifinále') {
+                  seriesItem.round = 'Finále';
+                  seriesItem.opponent = 'TBD';
+                  seriesItem.wins = 0;
+                  seriesItem.losses = 0;
+              } else if (seriesItem.round === 'Finále') {
+                   seriesItem.round = 'Vítěz';
+                   seriesItem.opponent = '';
+                   seriesItem.wins = 3;
+              }
+          }
+          
+          newSeries[index] = seriesItem;
+          return newSeries;
+      });
   };
   
   if (isLoading) {
@@ -612,9 +668,9 @@ function DashboardPageContent() {
     .map((player, index) => ({ ...player, rank: index + 1 }));
   
   const leagueData = isLeagueEditMode ? editableLeagueStandings : leagueStandings;
-  const sortedLeagueStandings = [...leagueData]
+  const sortedLeagueStandings = useMemo(() => [...leagueData]
     .sort((a, b) => b.points - a.points)
-    .map((team, index) => ({ ...team, rank: index + 1 }));
+    .map((team, index) => ({ ...team, rank: index + 1 })), [leagueData]);
 
   const renderMatchCard = (match: Match) => {
     const opponent = match.team1 === 'Aces' ? match.team2 : match.team1;
@@ -829,7 +885,7 @@ function DashboardPageContent() {
           </div>
           
             {nextMatch ? (
-                <div id={`match-${nextMatch.id}`} className={cn(highlightedMatchId === nextMatch.id && 'animate-highlight-card')}>
+                <div id={`match-${nextMatch.id}`} className={cn('relative', highlightedMatchId === nextMatch.id && 'animate-highlight-card')}>
                     {renderMatchCard(nextMatch)}
                 </div>
             ) : (
@@ -843,7 +899,7 @@ function DashboardPageContent() {
                         <AccordionContent className="pt-4">
                             <div className="space-y-4">
                                 {otherUpcomingMatches.map(match => (
-                                    <div id={`match-${match.id}`} key={match.id} className={cn(highlightedMatchId === match.id && 'animate-highlight-card')}>
+                                    <div id={`match-${match.id}`} key={match.id} className={cn('relative', highlightedMatchId === match.id && 'animate-highlight-card')}>
                                         {renderMatchCard(match)}
                                     </div>
                                 ))}
@@ -943,9 +999,22 @@ function DashboardPageContent() {
                 </CardContent>
             </Card>
 
-             <Card>
-                <CardHeader className="flex-row items-center justify-between">
-                    <CardTitle className="flex items-center gap-2 font-headline"><Shield className="text-primary"/>Tabulka soutěže</CardTitle>
+            <Card>
+                <CardHeader className="flex-row items-start justify-between">
+                     <div>
+                        <CardTitle className="flex items-center gap-2 font-headline"><Shield className="text-primary"/>Tabulka soutěže</CardTitle>
+                        {isLeagueEditMode && userProfile?.role === 'admin' && (
+                            <div className="flex items-center space-x-2 mt-4">
+                                <Switch
+                                    id="playoff-switch"
+                                    checked={isPlayoffEnabled}
+                                    onCheckedChange={setIsPlayoffEnabled}
+                                />
+                                <Label htmlFor="playoff-switch">Povolit zobrazení Play-off</Label>
+                            </div>
+                        )}
+                    </div>
+                    
                     {userProfile?.role === 'admin' && (
                       <div className="flex gap-2">
                         {isLeagueEditMode ? (
@@ -963,58 +1032,112 @@ function DashboardPageContent() {
                     )}
                 </CardHeader>
                 <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead className="w-[40px] px-2 sm:px-4">#</TableHead>
-                                <TableHead>Tým</TableHead>
-                                <TableHead className="text-center hidden sm:table-cell">GF</TableHead>
-                                <TableHead className="text-center hidden sm:table-cell">GA</TableHead>
-                                <TableHead className="text-center w-[100px] sm:w-auto px-2 sm:px-4">B</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {sortedLeagueStandings.map((team) => (
-                                <TableRow key={team.name} className={team.name === 'Aces' ? 'bg-primary/10' : ''}>
-                                    <TableCell className="font-medium px-2 sm:px-4">{team.rank}</TableCell>
-                                    <TableCell>{team.name}</TableCell>
-                                    <TableCell className="text-center font-mono hidden sm:table-cell">
-                                        {isLeagueEditMode ? (
-                                            <div className="flex items-center justify-center gap-1 sm:gap-2">
-                                                <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.name, 'gf', -1)}><Minus className="h-4 w-4" /></Button>
-                                                <span className="w-8 text-center">{team.gf}</span>
-                                                <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.name, 'gf', 1)}><Plus className="h-4 w-4" /></Button>
-                                            </div>
-                                        ) : (
-                                            team.gf
-                                        )}
-                                    </TableCell>
-                                    <TableCell className="text-center font-mono hidden sm:table-cell">
-                                        {isLeagueEditMode ? (
-                                            <div className="flex items-center justify-center gap-1 sm:gap-2">
-                                                <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.name, 'ga', -1)}><Minus className="h-4 w-4" /></Button>
-                                                <span className="w-8 text-center">{team.ga}</span>
-                                                <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.name, 'ga', 1)}><Plus className="h-4 w-4" /></Button>
-                                            </div>
-                                        ) : (
-                                            team.ga
-                                        )}
-                                    </TableCell>
-                                    <TableCell className="text-center font-mono px-2 sm:px-4">
-                                        {isLeagueEditMode ? (
-                                            <div className="flex items-center justify-center gap-1 sm:gap-2">
-                                                <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.name, 'points', -1)}><Minus className="h-4 w-4" /></Button>
-                                                <span className="w-8 text-center">{team.points}</span>
-                                                <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.name, 'points', 1)}><Plus className="h-4 w-4" /></Button>
-                                            </div>
-                                        ) : (
-                                            <span className="font-bold">{team.points}</span>
-                                        )}
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
+                    <Tabs value={leagueView} onValueChange={(value) => setLeagueView(value as 'regular' | 'playoff')} className="w-full">
+                        {isPlayoffEnabled && (
+                            <TabsList className="grid w-full grid-cols-2 mb-4">
+                                <TabsTrigger value="regular">Základní část</TabsTrigger>
+                                <TabsTrigger value="playoff">Play-off</TabsTrigger>
+                            </TabsList>
+                        )}
+                        <TabsContent value="regular" className={cn(!isPlayoffEnabled ? 'block' : (leagueView !== 'regular' && 'hidden'))}>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead className="w-[40px] px-2 sm:px-4">#</TableHead>
+                                        <TableHead>Tým</TableHead>
+                                        <TableHead className="text-center hidden sm:table-cell">GF</TableHead>
+                                        <TableHead className="text-center hidden sm:table-cell">GA</TableHead>
+                                        <TableHead className="text-center w-[100px] sm:w-auto px-2 sm:px-4">B</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {sortedLeagueStandings.map((team) => (
+                                        <TableRow key={team.name} className={team.name === 'Aces' ? 'bg-primary/10' : ''}>
+                                            <TableCell className="font-medium px-2 sm:px-4">{team.rank}</TableCell>
+                                            <TableCell>{team.name}</TableCell>
+                                            <TableCell className="text-center font-mono hidden sm:table-cell">
+                                                {isLeagueEditMode ? (
+                                                    <div className="flex items-center justify-center gap-1 sm:gap-2">
+                                                        <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.name, 'gf', -1)}><Minus className="h-4 w-4" /></Button>
+                                                        <span className="w-8 text-center">{team.gf}</span>
+                                                        <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.name, 'gf', 1)}><Plus className="h-4 w-4" /></Button>
+                                                    </div>
+                                                ) : ( team.gf )}
+                                            </TableCell>
+                                            <TableCell className="text-center font-mono hidden sm:table-cell">
+                                                {isLeagueEditMode ? (
+                                                    <div className="flex items-center justify-center gap-1 sm:gap-2">
+                                                        <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.name, 'ga', -1)}><Minus className="h-4 w-4" /></Button>
+                                                        <span className="w-8 text-center">{team.ga}</span>
+                                                        <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.name, 'ga', 1)}><Plus className="h-4 w-4" /></Button>
+                                                    </div>
+                                                ) : ( team.ga )}
+                                            </TableCell>
+                                            <TableCell className="text-center font-mono px-2 sm:px-4">
+                                                {isLeagueEditMode ? (
+                                                    <div className="flex items-center justify-center gap-1 sm:gap-2">
+                                                        <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.name, 'points', -1)}><Minus className="h-4 w-4" /></Button>
+                                                        <span className="w-8 text-center">{team.points}</span>
+                                                        <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.name, 'points', 1)}><Plus className="h-4 w-4" /></Button>
+                                                    </div>
+                                                ) : ( <span className="font-bold">{team.points}</span> )}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </TabsContent>
+                         <TabsContent value="playoff" className={cn(leagueView !== 'playoff' && 'hidden')}>
+                          {(() => {
+                              const seriesData = isLeagueEditMode ? editablePlayoffSeries : playoffSeries;
+                              if (!isPlayoffEnabled || seriesData.length === 0) {
+                                return <p className="text-muted-foreground text-center py-4">Play-off zatím nezačalo.</p>
+                              }
+                              return seriesData.map((series, index) => (
+                                  <div key={index} className="p-4 border rounded-lg mb-4 last:mb-0">
+                                      <div className="flex justify-between items-center mb-2">
+                                          <h4 className="font-bold text-lg">{series.round}</h4>
+                                          {series.round === 'Vítěz' && <Trophy className="h-6 w-6 text-yellow-400" />}
+                                      </div>
+                                      {series.round !== 'Vítěz' ? (
+                                          <>
+                                              <div className="flex justify-between items-center mb-4">
+                                                  <span className="text-muted-foreground">Soupeř</span>
+                                                  {isLeagueEditMode ? (
+                                                      <Input 
+                                                          className="w-1/2 text-right"
+                                                          value={series.opponent} 
+                                                          onChange={(e) => handlePlayoffOpponentChange(index, e.target.value)} />
+                                                  ) : (
+                                                      <span className="font-medium">{series.opponent}</span>
+                                                  )}
+                                              </div>
+                                              <div className="flex justify-between items-center">
+                                                  <span className="text-muted-foreground">Stav série</span>
+                                                  <div className="flex items-center gap-2 font-mono font-bold text-xl">
+                                                      {isLeagueEditMode ? (
+                                                          <>
+                                                              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handlePlayoffScoreChange(index, 'wins', -1)}><Minus className="h-4 w-4" /></Button>
+                                                              <span>{series.wins}</span>
+                                                              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handlePlayoffScoreChange(index, 'wins', 1)}><Plus className="h-4 w-4" /></Button>
+                                                              <span className="px-2">:</span>
+                                                              <span>{series.losses}</span>
+                                                              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handlePlayoffScoreChange(index, 'losses', 1)}><Plus className="h-4 w-4" /></Button>
+                                                          </>
+                                                      ) : (
+                                                          <span>{series.wins} : {series.losses}</span>
+                                                      )}
+                                                  </div>
+                                              </div>
+                                          </>
+                                      ) : (
+                                          <p className="text-center text-xl font-bold text-primary">Mistři!</p>
+                                      )}
+                                  </div>
+                              ));
+                          })()}
+                        </TabsContent>
+                    </Tabs>
                 </CardContent>
             </Card>
         </div>
