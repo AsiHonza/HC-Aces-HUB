@@ -81,8 +81,8 @@ function TeamManagementContent() {
     if (!selectedUser || !firestore) return;
     
     setIsSaving(true);
-    const userDocRef = doc(firestore, 'users', selectedUser.id);
     try {
+      const userDocRef = doc(firestore, 'users', selectedUser.id);
       await deleteDoc(userDocRef);
       toast({
         title: 'Uživatel smazán',
@@ -127,18 +127,17 @@ function TeamManagementContent() {
     if (!selectedUser || !firestore) return;
 
     setIsSaving(true);
-    const formData = new FormData(e.currentTarget);
-    const updatedData: Partial<UserProfile> = {
-        name: formData.get('name') as string,
-        email: formData.get('email') as string,
-        phoneNumber: formData.get('phoneNumber') as string,
-        jerseyNumber: Number(formData.get('jerseyNumber') as string) || undefined,
-        dob: formData.get('dob') as string || undefined,
-        playerType: formData.get('playerType') as UserProfile['playerType']
-    };
-    
-    const userDocRef = doc(firestore, 'users', selectedUser.id);
     try {
+      const formData = new FormData(e.currentTarget);
+      const updatedData: Partial<UserProfile> = {
+          name: formData.get('name') as string,
+          phoneNumber: formData.get('phoneNumber') as string,
+          jerseyNumber: Number(formData.get('jerseyNumber') as string) || undefined,
+          dob: formData.get('dob') as string || undefined,
+          playerType: formData.get('playerType') as UserProfile['playerType']
+      };
+      
+      const userDocRef = doc(firestore, 'users', selectedUser.id);
       await updateDoc(userDocRef, updatedData);
       toast({
         title: 'Profil aktualizován',
@@ -162,22 +161,23 @@ function TeamManagementContent() {
     if (!auth || !firestore) return;
 
     setIsSaving(true);
-    const formData = new FormData(e.currentTarget);
-    const name = formData.get('name') as string;
-    const email = formData.get('email') as string;
-    const password = formData.get('password') as string;
-    const phoneNumber = formData.get('phoneNumber') as string;
-    const jerseyNumber = formData.get('jerseyNumber') as string;
-    const playerType = formData.get('playerType') as UserProfile['playerType'];
-    const dob = formData.get('dob') as string;
-
-    if (!name || !email || !password || !playerType) {
-        toast({ variant: 'destructive', title: 'Chyba', description: 'Prosím, vyplňte všechna povinná pole.' });
-        setIsSaving(false);
-        return;
-    }
-
     try {
+        const formData = new FormData(e.currentTarget);
+        const name = formData.get('name') as string;
+        const jerseyNumber = formData.get('jerseyNumber') as string;
+        const playerType = formData.get('playerType') as UserProfile['playerType'];
+
+        if (!name || !playerType) {
+            toast({ variant: 'destructive', title: 'Chyba', description: 'Prosím, vyplňte jméno a pozici.' });
+            setIsSaving(false);
+            return;
+        }
+
+        const sanitizedName = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, '.');
+        const randomSuffix = Math.random().toString(36).substring(2, 8);
+        const email = `${sanitizedName}.${randomSuffix}@aces.test`;
+        const password = Math.random().toString(36).slice(-10) + 'A1!';
+
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
 
@@ -187,11 +187,11 @@ function TeamManagementContent() {
             id: user.uid,
             name,
             email,
-            phoneNumber: phoneNumber || null,
+            phoneNumber: null,
             jerseyNumber: jerseyNumber ? Number(jerseyNumber) : null,
             role: 'classic',
             playerType,
-            dob: dob || null,
+            dob: null,
         });
 
         if (playerType === 'player') {
@@ -204,17 +204,22 @@ function TeamManagementContent() {
             });
         }
 
-        toast({ title: 'Uživatel vytvořen', description: `Účet pro ${name} byl úspěšně vytvořen. Budete odhlášeni a přihlášeni jako nový uživatel.` });
-        router.push('/dashboard')
+        toast({ 
+            title: 'Testovací účet vytvořen', 
+            description: `Účet pro ${name} byl vytvořen. Budete přesměrován na přihlašovací stránku, abyste se mohli znovu přihlásit jako administrátor.`,
+            duration: 8000,
+        });
+        
+        router.push('/');
 
     } catch (error: any) {
         let description = "Neznámá chyba.";
         if (error.code === 'auth/email-already-in-use') {
-            description = 'Tato e-mailová adresa je již používána.';
+            description = 'Došlo k interní chybě při generování emailu, zkuste to znovu.';
         } else if (error.code === 'auth/weak-password') {
-            description = 'Heslo je příliš slabé. Musí mít alespoň 6 znaků.';
+            description = 'Došlo k interní chybě při generování hesla.';
         } else if (error.code === 'auth/invalid-email') {
-            description = 'Neplatný formát e-mailové adresy.';
+            description = 'Došlo k interní chybě při generování emailu.';
         }
         toast({ variant: 'destructive', title: 'Chyba při vytváření účtu', description });
     } finally {
@@ -352,7 +357,7 @@ function TeamManagementContent() {
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="email-edit" className="text-right">Email</Label>
-                    <Input id="email-edit" name="email" defaultValue={selectedUser.email} className="col-span-3" />
+                    <Input id="email-edit" name="email" defaultValue={selectedUser.email} className="col-span-3" disabled />
                   </div>
                    <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="phone-edit" className="text-right">Telefon</Label>
@@ -415,9 +420,9 @@ function TeamManagementContent() {
       <Dialog open={isAddDialogOpen} onOpenChange={(open) => !isSaving && setIsAddDialogOpen(open)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Vytvořit nový účet</DialogTitle>
+            <DialogTitle>Vytvořit nový testovací účet</DialogTitle>
             <DialogDescription>
-              Zadejte údaje pro vytvoření nového testovacího účtu.
+              Zadejte základní údaje pro vytvoření nového testovacího účtu.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreateUser}>
@@ -425,14 +430,6 @@ function TeamManagementContent() {
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="name-add" className="text-right">Jméno</Label>
                 <Input id="name-add" name="name" placeholder="Adam Hráč" className="col-span-3" required />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="email-add" className="text-right">Email</Label>
-                <Input id="email-add" name="email" type="email" placeholder="hrac@email.com" className="col-span-3" required />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="password-add" className="text-right">Heslo</Label>
-                <Input id="password-add" name="password" type="password" className="col-span-3" required />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="playerType-add" className="text-right">Pozice</Label>
@@ -448,16 +445,8 @@ function TeamManagementContent() {
                 </Select>
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="phone-add" className="text-right">Telefon</Label>
-                <Input id="phone-add" name="phoneNumber" placeholder="+420 123 456 789" className="col-span-3" />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="jersey-add" className="text-right">Číslo dresu</Label>
                 <Input id="jersey-add" name="jerseyNumber" type="number" placeholder="88" className="col-span-3" />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="dob-add" className="text-right">Datum nar.</Label>
-                <Input id="dob-add" name="dob" type="date" className="col-span-3" />
               </div>
             </div>
             <DialogFooter>
