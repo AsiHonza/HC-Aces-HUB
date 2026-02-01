@@ -19,8 +19,6 @@ import { cs } from 'date-fns/locale'
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel'
 import Link from 'next/link'
 import { useToast } from "@/hooks/use-toast"
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Calendar } from '@/components/ui/calendar'
 
 // Types based on backend.json
 interface UserProfile {
@@ -157,11 +155,12 @@ function DashboardPageContent() {
   const { data: allStats, isLoading: areStatsLoading } = useCollection<PlayerStats>(allStatsRef);
 
   // Fetch attendances for upcoming matches
-  const upcomingMatchIds = useMemo(() => upcomingMatches.map(m => m.id), [upcomingMatches]);
   const attendancesQuery = useMemoFirebase(() => {
-    if (!firestore || upcomingMatchIds.length === 0) return null;
-    return query(collectionGroup(firestore, 'attendees'), where('matchId', 'in', upcomingMatchIds));
-  }, [firestore, upcomingMatchIds]);
+    if (!firestore) return null;
+    // We query the entire collection group to avoid needing a composite index.
+    // The results are then filtered on the client by downstream memos.
+    return collectionGroup(firestore, 'attendees');
+  }, [firestore]);
   const { data: allAttendances, isLoading: attendancesLoading } = useCollection<Attendance>(attendancesQuery);
 
   const attendancesByMatch = useMemo(() => {
@@ -270,65 +269,40 @@ function DashboardPageContent() {
     const attendanceRef = doc(firestore, 'matches', matchId, 'attendees', user.uid);
     const originalStatus = userAttendances.get(matchId) || 'unknown';
   
-    if (newStatus === 'going') {
-      // Optimistically set UI to 'going'
-      setOptimisticAttendances(prev => new Map(prev).set(matchId, 'going'));
+    // Optimistically update the UI
+    setOptimisticAttendances(prev => new Map(prev).set(matchId, newStatus));
   
+    const revertOptimisticUpdate = () => {
+      setOptimisticAttendances(prev => {
+        const newMap = new Map(prev);
+        if (originalStatus === 'unknown') {
+          newMap.delete(matchId);
+        } else {
+          newMap.set(matchId, originalStatus);
+        }
+        return newMap;
+      });
+    };
+  
+    if (newStatus === 'going') {
       const data = {
         userId: user.uid,
         matchId: matchId,
         status: 'going',
       };
-  
       setDoc(attendanceRef, data).catch(async (error) => {
-        // Revert optimistic update on error
-        setOptimisticAttendances(prev => {
-          const newMap = new Map(prev);
-          if (originalStatus === 'unknown') {
-            newMap.delete(matchId);
-          } else {
-            newMap.set(matchId, originalStatus);
-          }
-          return newMap;
-        });
-  
-        toast({
-          variant: 'destructive',
-          title: "Chyba",
-          description: "Nepodařilo se uložit vaši účast.",
-        });
-  
+        revertOptimisticUpdate();
+        toast({ variant: 'destructive', title: "Chyba", description: "Nepodařilo se uložit vaši účast." });
         errorEmitter.emit('permission-error', new FirestorePermissionError({
-          operation: 'write',
-          path: attendanceRef.path,
-          requestResourceData: data,
+          operation: 'write', path: attendanceRef.path, requestResourceData: data,
         }));
       });
-    } else { // 'not-going', so we delete the attendance document
-      // Optimistically set UI to 'not-going' to provide feedback
-      setOptimisticAttendances(prev => new Map(prev).set(matchId, 'not-going'));
-  
+    } else { // 'not-going'
       deleteDoc(attendanceRef).catch(async (error) => {
-         // Revert optimistic update on error
-        setOptimisticAttendances(prev => {
-          const newMap = new Map(prev);
-          if (originalStatus === 'unknown') {
-            newMap.delete(matchId);
-          } else {
-            newMap.set(matchId, originalStatus);
-          }
-          return newMap;
-        });
-  
-        toast({
-          variant: 'destructive',
-          title: "Chyba",
-          description: "Nepodařilo se zrušit vaši účast.",
-        });
-  
+        revertOptimisticUpdate();
+        toast({ variant: 'destructive', title: "Chyba", description: "Nepodařilo se zrušit vaši účast." });
         errorEmitter.emit('permission-error', new FirestorePermissionError({
-          operation: 'delete',
-          path: attendanceRef.path,
+          operation: 'delete', path: attendanceRef.path,
         }));
       });
     }
@@ -702,29 +676,21 @@ function DashboardPageContent() {
                                     <p className="text-base font-medium mb-2">Tvoje účast:</p>
                                     <div className="flex gap-4">
                                         <Button
-                                            variant="outline"
+                                            variant={attendance === 'going' ? 'default' : 'outline'}
                                             onClick={() => handleAttendanceChange(match.id, 'going')}
-                                            className={cn(
-                                                "h-10 px-4",
-                                                attendance === 'going'
-                                                ? "bg-green-500/10 border-green-500 text-green-600 dark:text-green-400 dark:border-green-400 hover:bg-green-500/20 hover:text-green-600"
-                                                : "hover:bg-accent hover:text-accent-foreground"
+                                            className={cn( "h-10 px-4", attendance === 'going' && "bg-green-500/10 border-green-500 text-green-600 dark:text-green-400 dark:border-green-400 hover:bg-green-500/20 hover:text-green-600"
                                             )}
                                         >
-                                            <Check className="h-4 w-4" />
+                                            <Check className="h-4 w-4 mr-2" />
                                             Jdu
                                         </Button>
                                         <Button
-                                            variant="outline"
-                                            onClick={() => handleAttendanceChange(match.id, 'not-going')}
-                                            className={cn(
-                                                "h-10 px-4",
-                                                attendance === 'not-going'
-                                                ? "bg-destructive/10 border-destructive text-destructive hover:bg-destructive/20 hover:text-destructive"
-                                                : "hover:bg-accent hover:text-accent-foreground"
-                                            )}
+                                             variant={attendance === 'not-going' ? 'destructive' : 'outline'}
+                                             onClick={() => handleAttendanceChange(match.id, 'not-going')}
+                                             className={cn("h-10 px-4", attendance === 'not-going' && "bg-destructive/10 border-destructive text-destructive hover:bg-destructive/20 hover:text-destructive"
+                                             )}
                                         >
-                                            <X className="h-4 w-4" />
+                                            <X className="h-4 w-4 mr-2" />
                                             Nejdu
                                         </Button>
                                     </div>
