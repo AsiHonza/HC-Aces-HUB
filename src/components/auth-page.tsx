@@ -3,6 +3,7 @@
 import { useActionState, useEffect } from 'react'
 import { useFormStatus } from 'react-dom'
 import { login, register } from '@/lib/actions'
+import { registerSchema } from '@/lib/schemas'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -11,7 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Logo } from '@/components/icons/logo'
 import { Loader2 } from 'lucide-react'
 import { useAuth, useFirestore, useUser } from '@/firebase'
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth'
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth'
 import { doc, setDoc } from 'firebase/firestore'
 import { useToast } from '@/hooks/use-toast'
 import { useRouter } from 'next/navigation'
@@ -77,7 +78,7 @@ function RegisterForm() {
   const handleSubmit = async (formData: FormData) => {
      if (!auth || !firestore) return;
     
-    const validatedFields = register.schema.safeParse(Object.fromEntries(formData.entries()));
+    const validatedFields = registerSchema.safeParse(Object.fromEntries(formData.entries()));
     if (!validatedFields.success) {
       // This is a client-side validation, should match server's
       // The server action will handle the final validation
@@ -91,7 +92,9 @@ function RegisterForm() {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      const role = email === 'janmlcak6@gmail.com' ? 'admin' : 'classic';
+      if (auth.currentUser) {
+        await updateProfile(auth.currentUser, { displayName: name });
+      }
 
       await setDoc(doc(firestore, 'users', user.uid), {
         id: user.uid,
@@ -99,7 +102,7 @@ function RegisterForm() {
         email,
         phone,
         jerseyNumber: jerseyNumber || null,
-        role: role,
+        role: email === 'janmlcak6@gmail.com' ? 'admin' : 'classic',
         dob: null,
       });
 
