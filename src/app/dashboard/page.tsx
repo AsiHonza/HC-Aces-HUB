@@ -12,6 +12,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Calendar, MapPin, Users, Trophy, BarChart, Sword, Pencil, Check, X, Flame, Shield } from "lucide-react"
 import { cn } from '@/lib/utils'
+import { Textarea } from '@/components/ui/textarea'
 
 function DashboardPageContent() {
   const searchParams = useSearchParams()
@@ -22,6 +23,8 @@ function DashboardPageContent() {
 
   const [attendance, setAttendance] = useState('unknown');
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isTeamScoringEditDialogOpen, setIsTeamScoringEditDialogOpen] = useState(false);
+  const [isLeagueStandingsEditDialogOpen, setIsLeagueStandingsEditDialogOpen] = useState(false);
 
   const player = {
     name,
@@ -44,21 +47,21 @@ function DashboardPageContent() {
     location: 'Zimní stadion, Město',
   })
 
-  const teamScoring = [
+  const [teamScoring, setTeamScoring] = useState([
     { rank: 1, name: 'Adam Hráč', goals: 12, assists: 21, points: 33 },
     { rank: 2, name: 'Jan Mlcak', goals: 15, assists: 15, points: 30 },
     { rank: 3, name: 'Petr Novák', goals: 10, assists: 18, points: 28 },
     { rank: 4, name: 'Tomáš Dvořák', goals: 8, assists: 15, points: 23 },
     { rank: 5, name: 'Martin Černý', goals: 5, assists: 12, points: 17 },
-  ];
+  ]);
 
-  const leagueStandings = [
+  const [leagueStandings, setLeagueStandings] = useState([
     { rank: 1, name: 'Aces', points: 45, gf: 120, ga: 85 },
     { rank: 2, name: 'HC Draci', points: 42, gf: 115, ga: 90 },
     { rank: 3, name: 'Rytíři', points: 38, gf: 100, ga: 95 },
     { rank: 4, name: 'Kometa', points: 35, gf: 95, ga: 105 },
     { rank: 5, name: 'Lvi', points: 30, gf: 90, ga: 110 },
-  ];
+  ]);
 
   const fallback = name.split(' ').map(n => n[0]).join('').toUpperCase()
 
@@ -74,6 +77,40 @@ function DashboardPageContent() {
     setNextMatch(newMatchData);
     setIsEditDialogOpen(false);
   };
+
+  const handleTeamScoringUpdate = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    try {
+      const newData = JSON.parse(formData.get('scoringData') as string);
+      setTeamScoring(newData);
+      setIsTeamScoringEditDialogOpen(false);
+    } catch (error) {
+      console.error("Failed to parse team scoring JSON", error);
+      // In a real app, you might want to show a toast notification here
+    }
+  };
+
+  const handleLeagueStandingsUpdate = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    try {
+      const newData = JSON.parse(formData.get('standingsData') as string);
+      setLeagueStandings(newData);
+      setIsLeagueStandingsEditDialogOpen(false);
+    } catch (error) {
+      console.error("Failed to parse league standings JSON", error);
+       // In a real app, you might want to show a toast notification here
+    }
+  };
+
+  const sortedTeamScoring = [...teamScoring]
+    .sort((a, b) => b.points - a.points)
+    .map((player, index) => ({ ...player, rank: index + 1 }));
+
+  const sortedLeagueStandings = [...leagueStandings]
+    .sort((a, b) => b.points - a.points)
+    .map((team, index) => ({ ...team, rank: index + 1 }));
 
   return (
     <div className="container py-8">
@@ -202,8 +239,39 @@ function DashboardPageContent() {
 
         <div className="lg:col-span-3 grid gap-8 md:grid-cols-2">
             <Card>
-                <CardHeader>
+                <CardHeader className="flex-row items-center justify-between">
                     <CardTitle className="flex items-center gap-2 font-headline"><Flame className="text-primary"/>Kanadské bodování</CardTitle>
+                    {role === 'admin' && (
+                      <Dialog open={isTeamScoringEditDialogOpen} onOpenChange={setIsTeamScoringEditDialogOpen}>
+                        <DialogTrigger asChild>
+                          <Button variant="outline" size="icon">
+                            <Pencil className="h-4 w-4" />
+                            <span className="sr-only">Upravit bodování</span>
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Upravit kanadské bodování</DialogTitle>
+                            <DialogDescription>
+                              Upravte data v JSON formátu. Pořadí bude automaticky seřazeno.
+                            </DialogDescription>
+                          </DialogHeader>
+                          <form onSubmit={handleTeamScoringUpdate}>
+                            <div className="grid gap-4 py-4">
+                              <Textarea
+                                id="scoringData"
+                                name="scoringData"
+                                defaultValue={JSON.stringify(teamScoring, null, 2)}
+                                className="col-span-4 h-64 font-mono text-xs"
+                              />
+                            </div>
+                            <DialogFooter>
+                              <Button type="submit">Uložit změny</Button>
+                            </DialogFooter>
+                          </form>
+                        </DialogContent>
+                      </Dialog>
+                    )}
                 </CardHeader>
                 <CardContent>
                     <Table>
@@ -217,8 +285,8 @@ function DashboardPageContent() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {teamScoring.map((player) => (
-                                <TableRow key={player.rank}>
+                            {sortedTeamScoring.map((player) => (
+                                <TableRow key={player.name}>
                                     <TableCell className="font-medium">{player.rank}</TableCell>
                                     <TableCell>{player.name}</TableCell>
                                     <TableCell className="text-center font-mono">{player.goals}</TableCell>
@@ -232,8 +300,39 @@ function DashboardPageContent() {
             </Card>
 
              <Card>
-                <CardHeader>
+                <CardHeader className="flex-row items-center justify-between">
                     <CardTitle className="flex items-center gap-2 font-headline"><Shield className="text-primary"/>Tabulka soutěže</CardTitle>
+                    {role === 'admin' && (
+                      <Dialog open={isLeagueStandingsEditDialogOpen} onOpenChange={setIsLeagueStandingsEditDialogOpen}>
+                        <DialogTrigger asChild>
+                          <Button variant="outline" size="icon">
+                            <Pencil className="h-4 w-4" />
+                            <span className="sr-only">Upravit tabulku</span>
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Upravit tabulku soutěže</DialogTitle>
+                            <DialogDescription>
+                              Upravte data v JSON formátu. Pořadí bude automaticky seřazeno.
+                            </DialogDescription>
+                          </DialogHeader>
+                          <form onSubmit={handleLeagueStandingsUpdate}>
+                            <div className="grid gap-4 py-4">
+                              <Textarea
+                                id="standingsData"
+                                name="standingsData"
+                                defaultValue={JSON.stringify(leagueStandings, null, 2)}
+                                className="col-span-4 h-64 font-mono text-xs"
+                              />
+                            </div>
+                            <DialogFooter>
+                              <Button type="submit">Uložit změny</Button>
+                            </DialogFooter>
+                          </form>
+                        </DialogContent>
+                      </Dialog>
+                    )}
                 </CardHeader>
                 <CardContent>
                     <Table>
@@ -246,8 +345,8 @@ function DashboardPageContent() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {leagueStandings.map((team) => (
-                                <TableRow key={team.rank} className={team.name === 'Aces' ? 'bg-primary/10' : ''}>
+                            {sortedLeagueStandings.map((team) => (
+                                <TableRow key={team.name} className={team.name === 'Aces' ? 'bg-primary/10' : ''}>
                                     <TableCell className="font-medium">{team.rank}</TableCell>
                                     <TableCell>{team.name}</TableCell>
                                     <TableCell className="font-mono text-xs">{team.gf}:{team.ga}</TableCell>
@@ -271,3 +370,5 @@ export default function DashboardPage() {
     </Suspense>
   )
 }
+
+    
