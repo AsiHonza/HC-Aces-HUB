@@ -97,8 +97,7 @@ function TeamManagementContent() {
       })
     } finally {
       setIsSaving(false);
-      setIsDeleteDialogOpen(false)
-      setSelectedUser(null)
+      setIsDeleteDialogOpen(false);
     }
   }
 
@@ -153,7 +152,6 @@ function TeamManagementContent() {
     } finally {
         setIsSaving(false);
         setIsEditDialogOpen(false);
-        setSelectedUser(null);
     }
   }
 
@@ -342,7 +340,13 @@ function TeamManagementContent() {
       </Card>
       
       {/* Edit Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={(open) => !isSaving && setIsEditDialogOpen(open)}>
+      <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => {
+          if (isSaving) return;
+          setIsEditDialogOpen(isOpen);
+          if (!isOpen) {
+              setTimeout(() => setSelectedUser(null), 200);
+          }
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Upravit uživatele</DialogTitle>
@@ -400,7 +404,13 @@ function TeamManagementContent() {
       </Dialog>
 
       {/* Delete Alert Dialog */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={(open) => !isSaving && setIsDeleteDialogOpen(open)}>
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={(isOpen) => {
+          if (isSaving) return;
+          setIsDeleteDialogOpen(isOpen);
+          if (!isOpen) {
+              setTimeout(() => setSelectedUser(null), 200);
+          }
+      }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Opravdu chcete smazat tohoto uživatele?</AlertDialogTitle>

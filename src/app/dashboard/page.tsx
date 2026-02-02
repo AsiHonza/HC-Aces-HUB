@@ -242,24 +242,6 @@ function DashboardPageContent() {
   const [editableSkaterHistory, setEditableSkaterHistory] = useState<any[]>([]);
   const [editableGoalieHistory, setEditableGoalieHistory] = useState<any[]>([]);
 
-  useEffect(() => {
-    if (!isEditDialogOpen && !isResultDialogOpen && !isDeleteDialogOpen) {
-        const timer = setTimeout(() => {
-            setSelectedMatch(null);
-        }, 300);
-        return () => clearTimeout(timer);
-    }
-  }, [isEditDialogOpen, isResultDialogOpen, isDeleteDialogOpen]);
-
-  useEffect(() => {
-      if (!isLineupBuilderOpen) {
-          const timer = setTimeout(() => {
-              setLineupMatch(null);
-          }, 200);
-          return () => clearTimeout(timer);
-      }
-  }, [isLineupBuilderOpen]);
-
   // Fetch current user's profile and stats
   const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
   const { data: userProfile, isLoading: isUserProfileLoading } = useDoc<UserProfile>(userDocRef);
@@ -660,6 +642,20 @@ function DashboardPageContent() {
       }));
       throw error;
     });
+  };
+
+  const confirmAttendance = async () => {
+    if (!attendanceData) {
+        setIsAttendanceDialogOpen(false);
+        return;
+    }
+    try {
+        await handleAttendanceChange(attendanceData.matchId, attendanceData.status, attendanceNote);
+    } catch (error) {
+        // Error is handled inside handleAttendanceChange, but we still close the dialog.
+    } finally {
+        setIsAttendanceDialogOpen(false);
+    }
   };
 
   const handleMatchUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -1683,7 +1679,12 @@ function DashboardPageContent() {
             </Card>
         </div>
       </div>
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+      <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => {
+          setIsEditDialogOpen(isOpen);
+          if (!isOpen) {
+              setTimeout(() => setSelectedMatch(null), 200);
+          }
+      }}>
           <DialogContent>
               <DialogHeader>
                   <DialogTitle>Upravit zápas</DialogTitle>
@@ -1717,7 +1718,12 @@ function DashboardPageContent() {
               </form>}
           </DialogContent>
       </Dialog>
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={(isOpen) => {
+          setIsDeleteDialogOpen(isOpen);
+          if (!isOpen) {
+              setTimeout(() => setSelectedMatch(null), 200);
+          }
+      }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Opravdu chcete smazat tento zápas?</AlertDialogTitle>
@@ -1731,12 +1737,25 @@ function DashboardPageContent() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      <Dialog open={isResultDialogOpen} onOpenChange={setIsResultDialogOpen}>
+      <Dialog open={isResultDialogOpen} onOpenChange={(isOpen) => {
+          setIsResultDialogOpen(isOpen);
+          if (!isOpen) {
+              setTimeout(() => setSelectedMatch(null), 200);
+          }
+      }}>
           <DialogContent className="max-w-md">
               {selectedMatch && allUsers && <RecordResultForm match={selectedMatch} allUsers={allUsers} onSave={handleResultSave} onCancel={() => setIsResultDialogOpen(false)} />}
           </DialogContent>
       </Dialog>
-      <Dialog open={isAttendanceDialogOpen} onOpenChange={setIsAttendanceDialogOpen}>
+      <Dialog open={isAttendanceDialogOpen} onOpenChange={(isOpen) => {
+          setIsAttendanceDialogOpen(isOpen);
+          if (!isOpen) {
+              setTimeout(() => {
+                  setAttendanceData(null);
+                  setAttendanceNote('');
+              }, 200);
+          }
+      }}>
           <DialogContent>
               <DialogHeader>
                   <DialogTitle>Potvrdit účast</DialogTitle>
@@ -1755,26 +1774,19 @@ function DashboardPageContent() {
               </div>
               <DialogFooter>
                   <Button variant="outline" onClick={() => setIsAttendanceDialogOpen(false)}>Zrušit</Button>
-                  <Button onClick={async () => {
-                      if (attendanceData) {
-                          try {
-                            await handleAttendanceChange(attendanceData.matchId, attendanceData.status, attendanceNote);
-                          } finally {
-                            setIsAttendanceDialogOpen(false);
-                            setAttendanceNote('');
-                          }
-                      } else {
-                        setIsAttendanceDialogOpen(false);
-                        setAttendanceNote('');
-                      }
-                  }}>
+                  <Button onClick={confirmAttendance}>
                       Potvrdit
                   </Button>
               </DialogFooter>
           </DialogContent>
       </Dialog>
 
-        <Dialog open={isLineupBuilderOpen} onOpenChange={setIsLineupBuilderOpen}>
+        <Dialog open={isLineupBuilderOpen} onOpenChange={(isOpen) => {
+            setIsLineupBuilderOpen(isOpen);
+            if (!isOpen) {
+                setTimeout(() => setLineupMatch(null), 200);
+            }
+        }}>
             <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
                  {lineupMatch && allUsers ? (
                     <>
@@ -1799,11 +1811,13 @@ function DashboardPageContent() {
             </DialogContent>
         </Dialog>
         <Dialog open={isLineupViewOpen} onOpenChange={(isOpen) => {
-            if (!isOpen) {
-              setViewLineupData(null);
-              setLineupMatch(null);
-            }
             setIsLineupViewOpen(isOpen);
+            if (!isOpen) {
+                setTimeout(() => {
+                    setViewLineupData(null);
+                    setLineupMatch(null);
+                }, 200);
+            }
         }}>
             <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
                  <DialogHeader>

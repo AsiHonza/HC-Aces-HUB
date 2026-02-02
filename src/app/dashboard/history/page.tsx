@@ -354,7 +354,6 @@ function HistoryPageContent() {
             toast({ variant: 'destructive', title: "Chyba", description: `Nepodařilo se smazat zápas: ${error.message}` });
         } finally {
             setIsDeleteDialogOpen(false);
-            setSelectedMatch(null);
         }
     }
 
@@ -500,7 +499,6 @@ function HistoryPageContent() {
             toast({ variant: 'destructive', title: "Chyba", description: `Nepodařilo se uložit změny: ${error.message}` });
         } finally {
             setIsEditDialogOpen(false);
-            setSelectedMatch(null);
         }
     };
 
@@ -630,7 +628,12 @@ function HistoryPageContent() {
                 </CardContent>
             </Card>
 
-            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+            <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => {
+                setIsEditDialogOpen(isOpen);
+                if (!isOpen) {
+                    setTimeout(() => setSelectedMatch(null), 200);
+                }
+            }}>
                 <DialogContent className="max-w-md">
                     {selectedMatch && users && (
                         <EditResultForm 
@@ -643,7 +646,12 @@ function HistoryPageContent() {
                 </DialogContent>
             </Dialog>
 
-            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+            <AlertDialog open={isDeleteDialogOpen} onOpenChange={(isOpen) => {
+                setIsDeleteDialogOpen(isOpen);
+                if (!isOpen) {
+                    setTimeout(() => setSelectedMatch(null), 200);
+                }
+            }}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>Opravdu chcete smazat tento zápas?</AlertDialogTitle>
@@ -659,12 +667,14 @@ function HistoryPageContent() {
             </AlertDialog>
 
             <Dialog open={isLineupViewOpen} onOpenChange={(isOpen) => {
-                if (!isOpen) {
-                    setViewLineupData(null);
-                    setViewScorersData(undefined);
-                    setViewMatchTitle('');
-                }
                 setIsLineupViewOpen(isOpen);
+                if (!isOpen) {
+                    setTimeout(() => {
+                        setViewLineupData(null);
+                        setViewScorersData(undefined);
+                        setViewMatchTitle('');
+                    }, 200);
+                }
             }}>
                 <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
                     <DialogHeader>
