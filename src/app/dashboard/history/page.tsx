@@ -173,18 +173,6 @@ function HistoryPageContent() {
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
 
-    useEffect(() => {
-        // When a dialog is closed, wait for its closing animation to complete
-        // before clearing the selected match data. This prevents the dialog's
-        // content from unmounting abruptly and causing UI freezes.
-        if (!isEditDialogOpen && !isDeleteDialogOpen) {
-            const timer = setTimeout(() => {
-                setSelectedMatch(null);
-            }, 300); // A safe delay for animations
-            return () => clearTimeout(timer);
-        }
-    }, [isEditDialogOpen, isDeleteDialogOpen]);
-
     const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
     const { data: userProfile, isLoading: userProfileLoading } = useDoc<UserProfile>(userDocRef);
 
