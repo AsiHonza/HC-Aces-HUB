@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar as CalendarIcon, MapPin, Users, Trophy, BarChart, Sword, Pencil, Check, X, Flame, Shield, Plus, Minus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal, FileText, View } from "lucide-react"
+import { Calendar as CalendarIcon, MapPin, Users, Trophy, BarChart, Sword, Pencil, Check, X, Flame, Shield, Plus, Minus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal, FileText, View, Disc } from "lucide-react"
 import { cn } from '@/lib/utils'
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase'
 import { doc, collection, collectionGroup, updateDoc, query, Timestamp, addDoc, deleteDoc, writeBatch, orderBy, where, limit, setDoc } from 'firebase/firestore'
@@ -119,7 +119,7 @@ interface AppSettings {
   leagueStandings?: LeagueStanding[];
 }
 
-function RecordResultForm({ match, allUsers, onSave, onCancel, isSaving }: { match: Match, allUsers: UserProfile[], onSave: (e: React.FormEvent<HTMLFormElement>) => void, onCancel: () => void, isSaving: boolean }) {
+function RecordResultForm({ match, allUsers, onSave, onCancel, isSaving }: { match: Match, allUsers: UserProfile[], onSave: (e: React.FormEvent<HTMLFormElement>) => Promise<void>, onCancel: () => void, isSaving: boolean }) {
     const [goalCount, setGoalCount] = useState(0);
     const [selectedScorers, setSelectedScorers] = useState<Record<number, string | null>>({});
 
@@ -684,11 +684,11 @@ function DashboardPageContent() {
     setIsSaving(true);
     try {
         await handleAttendanceChange(attendanceData.matchId, attendanceData.status, attendanceNote);
-        setIsAttendanceDialogOpen(false);
     } catch (error) {
         // Error is handled inside handleAttendanceChange
     } finally {
         setIsSaving(false);
+        setIsAttendanceDialogOpen(false);
     }
   };
 
@@ -1229,7 +1229,7 @@ function DashboardPageContent() {
                                                 >
                                                     <Avatar>
                                                         <AvatarImage src={attendeeProfile.photoURL ?? `https://picsum.photos/seed/${attendeeProfile.email}/100/100`} data-ai-hint="player portrait" alt={attendeeProfile.name || ''} />
-                                                        <AvatarFallback>{attendeeProfile.name?.split(' ').map(n=>n[0]).join('')}</AvatarFallback>
+                                                        <AvatarFallback>{attendeeProfile.name?.split(' ').map(n=>n[0]).join('') ?? ''}</AvatarFallback>
                                                     </Avatar>
                                                     <div className="flex-1">
                                                         <p className="font-medium">{attendeeProfile.name}</p>
@@ -1428,9 +1428,14 @@ function DashboardPageContent() {
                                                 <ul className="space-y-1.5 text-sm">
                                                     {match.scorers?.map((scorer, i) => (
                                                         <li key={i} className="flex items-center gap-2 text-muted-foreground">
-                                                            <Trophy className="h-4 w-4 text-primary" />
+                                                            <Disc className="h-4 w-4 text-primary" />
                                                             <span className="font-medium text-foreground">{usersMap.get(scorer.goal)?.name || 'Neznámý hráč'}</span>
-                                                            {scorer.assist && <span className="">(as. {usersMap.get(scorer.assist)?.name || 'Neznámý'})</span>}
+                                                            {scorer.assist && (
+                                                                <span className="ml-2 flex items-center gap-1.5 text-muted-foreground">
+                                                                    <span className="font-bold text-accent text-base">A</span>
+                                                                    <span>{usersMap.get(scorer.assist)?.name || 'Neznámý'}</span>
+                                                                </span>
+                                                            )}
                                                         </li>
                                                     ))}
                                                 </ul>
