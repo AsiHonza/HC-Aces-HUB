@@ -283,7 +283,7 @@ function DashboardPageContent() {
     const isScoringInPlayoffMode = leagueSettings?.isScoringInPlayoffMode ?? false;
     const playoffSeries = leagueSettings?.playoffSeries ?? [];
     const leagueStandings = useMemo(() => leagueSettings?.leagueStandings ?? [], [leagueSettings]);
-    
+
     const myStatsToDisplay = useMemo(() => {
         if (userProfile?.playerType === 'player' && skaterStatsData?.[0]) {
             const stats = skaterStatsData[0];
@@ -312,161 +312,160 @@ function DashboardPageContent() {
         return { gamesPlayed: 0, wins: 0, savePct: 0 };
     }, [myStatsView, goalieStatsData, userProfile]);
   
-  
-  const teamScoring = useMemo(() => {
-    if (!allUsers || !allSkaterStats) return [];
-    
-    const statsMap = new Map<string, SkaterStats>();
-    allSkaterStats.forEach(stat => statsMap.set(stat.userProfileId, stat));
+    const teamScoring = useMemo(() => {
+        if (!allUsers || !allSkaterStats) return [];
+        
+        const statsMap = new Map<string, SkaterStats>();
+        allSkaterStats.forEach(stat => statsMap.set(stat.userProfileId, stat));
 
-    return allUsers
-      .filter(u => u.playerType === 'player')
-      .map(u => {
-      const stats = statsMap.get(u.id);
-      return {
-          id: u.id,
-          name: u.name,
-          season: {
-              goals: stats?.seasonGoals ?? 0,
-              assists: stats?.seasonAssists ?? 0,
-              gamesPlayed: stats?.seasonGamesPlayed ?? 0,
-              points: (stats?.seasonGoals ?? 0) + (stats?.seasonAssists ?? 0),
-          },
-          playoff: {
-              goals: stats?.playoffGoals ?? 0,
-              assists: stats?.playoffAssists ?? 0,
-              gamesPlayed: stats?.playoffGamesPlayed ?? 0,
-              points: (stats?.playoffGoals ?? 0) + (stats?.playoffAssists ?? 0),
-          },
-          history: {
-              goals: stats?.historicalGoals ?? 0,
-              assists: stats?.historicalAssists ?? 0,
-              gamesPlayed: stats?.historicalGamesPlayed ?? 0,
-              points: (stats?.historicalGoals ?? 0) + (stats?.historicalAssists ?? 0),
-          },
-      };
-    });
-  }, [allUsers, allSkaterStats]);
-
-  const goalieLeaderboard = useMemo(() => {
-    if (!allUsers || !allGoalieStats) return [];
-
-    const statsMap = new Map<string, GoalieStats>();
-    allGoalieStats.forEach(stat => statsMap.set(stat.userProfileId, stat));
-
-    return allUsers
-      .filter(u => u.playerType === 'goalie')
-      .map(u => {
+        return allUsers
+        .filter(u => u.playerType === 'player')
+        .map(u => {
         const stats = statsMap.get(u.id);
-        const seasonSavePct = (stats?.seasonShotsAgainst ?? 0) > 0 ? ((stats?.seasonSaves ?? 0) / stats!.seasonShotsAgainst) * 100 : 0;
-        const playoffSavePct = (stats?.playoffShotsAgainst ?? 0) > 0 ? ((stats?.playoffSaves ?? 0) / stats!.playoffShotsAgainst) * 100 : 0;
-        const historicalSavePct = (stats?.historicalShotsAgainst ?? 0) > 0 ? ((stats?.historicalSaves ?? 0) / stats!.historicalShotsAgainst) * 100 : 0;
-
         return {
-          id: u.id,
-          name: u.name,
-          season: {
-            gamesPlayed: stats?.seasonGamesPlayed ?? 0,
-            wins: stats?.seasonWins ?? 0,
-            shotsAgainst: stats?.seasonShotsAgainst ?? 0,
-            saves: stats?.seasonSaves ?? 0,
-            savePercentage: seasonSavePct,
-          },
-          playoff: {
-            gamesPlayed: stats?.playoffGamesPlayed ?? 0,
-            wins: stats?.playoffWins ?? 0,
-            shotsAgainst: stats?.playoffShotsAgainst ?? 0,
-            saves: stats?.playoffSaves ?? 0,
-            savePercentage: playoffSavePct,
-          },
-          history: {
-            gamesPlayed: stats?.historicalGamesPlayed ?? 0,
-            wins: stats?.historicalWins ?? 0,
-            shotsAgainst: stats?.historicalShotsAgainst ?? 0,
-            saves: stats?.historicalSaves ?? 0,
-            savePercentage: historicalSavePct,
-          },
+            id: u.id,
+            name: u.name,
+            season: {
+                goals: stats?.seasonGoals ?? 0,
+                assists: stats?.seasonAssists ?? 0,
+                gamesPlayed: stats?.seasonGamesPlayed ?? 0,
+                points: (stats?.seasonGoals ?? 0) + (stats?.seasonAssists ?? 0),
+            },
+            playoff: {
+                goals: stats?.playoffGoals ?? 0,
+                assists: stats?.playoffAssists ?? 0,
+                gamesPlayed: stats?.playoffGamesPlayed ?? 0,
+                points: (stats?.playoffGoals ?? 0) + (stats?.playoffAssists ?? 0),
+            },
+            history: {
+                goals: stats?.historicalGoals ?? 0,
+                assists: stats?.historicalAssists ?? 0,
+                gamesPlayed: stats?.historicalGamesPlayed ?? 0,
+                points: (stats?.historicalGoals ?? 0) + (stats?.historicalAssists ?? 0),
+            },
         };
-      });
-  }, [allUsers, allGoalieStats]);
-  
-  const sortedTeamScoring = useMemo(() => {
-      if (!teamScoring) return [];
-      const data = teamScoring.map(player => ({
-          id: player.id,
-          name: player.name,
-          ...player[scoringView]
-      }));
-      return data.sort((a, b) => b.points - a.points || b.goals - a.goals).map((player, index) => ({ ...player, rank: index + 1 }));
-  }, [teamScoring, scoringView]);
-
-  const sortedGoalieLeaderboard = useMemo(() => {
-    if (!goalieLeaderboard) return [];
-    const data = goalieLeaderboard.map(goalie => ({
-        id: goalie.id,
-        name: goalie.name,
-        ...goalie[scoringView]
-    }));
-    return data.sort((a, b) => b.savePercentage - a.savePercentage || b.wins - a.wins).map((goalie, index) => ({...goalie, rank: index + 1}));
-  }, [goalieLeaderboard, scoringView]);
-
-  const sortedLeagueStandings = useMemo(() => {
-      const data = isLeagueEditMode ? editableLeagueStandings : leagueStandings;
-      if (!data) return [];
-      return [...data]
-      .sort((a, b) => b.points - a.points)
-      .map((team, index) => ({ ...team, rank: index + 1 }));
-  }, [leagueStandings, editableLeagueStandings, isLeagueEditMode]);
-  
-  const attendancesByMatch = useMemo(() => {
-    const map = new Map<string, Attendance[]>();
-    allAttendances?.forEach(att => {
-        if (!map.has(att.matchId)) {
-          map.set(att.matchId, []);
-        }
-        map.get(att.matchId)!.push(att);
-    });
-    return map;
-  }, [allAttendances]);
-
-  const userAttendances = useMemo(() => {
-    const map = new Map<string, Attendance>();
-    if(user && allAttendances){
-        allAttendances.filter(att => att.userId === user.uid).forEach(att => {
-            map.set(att.matchId, att);
         });
-    }
-    return map;
-  }, [allAttendances, user]);
+    }, [allUsers, allSkaterStats]);
 
-  const userAttendancesWithOptimistic = useMemo(() => {
-    const map = new Map(userAttendances);
-    optimisticAttendances.forEach((optimisticAtt, matchId) => {
-        if (optimisticAtt.status === 'unknown') { 
-            map.delete(matchId);
-        } else {
-            const existingAtt = map.get(matchId) || { id: user!.uid, userId: user!.uid, matchId: matchId };
-            map.set(matchId, { ...existingAtt, ...optimisticAtt } as Attendance);
+    const goalieLeaderboard = useMemo(() => {
+        if (!allUsers || !allGoalieStats) return [];
+
+        const statsMap = new Map<string, GoalieStats>();
+        allGoalieStats.forEach(stat => statsMap.set(stat.userProfileId, stat));
+
+        return allUsers
+        .filter(u => u.playerType === 'goalie')
+        .map(u => {
+            const stats = statsMap.get(u.id);
+            const seasonSavePct = (stats?.seasonShotsAgainst ?? 0) > 0 ? ((stats?.seasonSaves ?? 0) / stats!.seasonShotsAgainst) * 100 : 0;
+            const playoffSavePct = (stats?.playoffShotsAgainst ?? 0) > 0 ? ((stats?.playoffSaves ?? 0) / stats!.playoffShotsAgainst) * 100 : 0;
+            const historicalSavePct = (stats?.historicalShotsAgainst ?? 0) > 0 ? ((stats?.historicalSaves ?? 0) / stats!.historicalShotsAgainst) * 100 : 0;
+
+            return {
+            id: u.id,
+            name: u.name,
+            season: {
+                gamesPlayed: stats?.seasonGamesPlayed ?? 0,
+                wins: stats?.seasonWins ?? 0,
+                shotsAgainst: stats?.seasonShotsAgainst ?? 0,
+                saves: stats?.seasonSaves ?? 0,
+                savePercentage: seasonSavePct,
+            },
+            playoff: {
+                gamesPlayed: stats?.playoffGamesPlayed ?? 0,
+                wins: stats?.playoffWins ?? 0,
+                shotsAgainst: stats?.playoffShotsAgainst ?? 0,
+                saves: stats?.playoffSaves ?? 0,
+                savePercentage: playoffSavePct,
+            },
+            history: {
+                gamesPlayed: stats?.historicalGamesPlayed ?? 0,
+                wins: stats?.historicalWins ?? 0,
+                shotsAgainst: stats?.historicalShotsAgainst ?? 0,
+                saves: stats?.historicalSaves ?? 0,
+                savePercentage: historicalSavePct,
+            },
+            };
+        });
+    }, [allUsers, allGoalieStats]);
+  
+    const sortedTeamScoring = useMemo(() => {
+        if (!teamScoring) return [];
+        const data = teamScoring.map(player => ({
+            id: player.id,
+            name: player.name,
+            ...player[scoringView]
+        }));
+        return data.sort((a, b) => b.points - a.points || b.goals - a.goals).map((player, index) => ({ ...player, rank: index + 1 }));
+    }, [teamScoring, scoringView]);
+
+    const sortedGoalieLeaderboard = useMemo(() => {
+        if (!goalieLeaderboard) return [];
+        const data = goalieLeaderboard.map(goalie => ({
+            id: goalie.id,
+            name: goalie.name,
+            ...goalie[scoringView]
+        }));
+        return data.sort((a, b) => b.savePercentage - a.savePercentage || b.wins - a.wins).map((goalie, index) => ({...goalie, rank: index + 1}));
+    }, [goalieLeaderboard, scoringView]);
+
+    const sortedLeagueStandings = useMemo(() => {
+        const data = isLeagueEditMode ? editableLeagueStandings : leagueStandings;
+        if (!data) return [];
+        return [...data]
+        .sort((a, b) => b.points - a.points)
+        .map((team, index) => ({ ...team, rank: index + 1 }));
+    }, [leagueStandings, editableLeagueStandings, isLeagueEditMode]);
+  
+    const attendancesByMatch = useMemo(() => {
+        const map = new Map<string, Attendance[]>();
+        allAttendances?.forEach(att => {
+            if (!map.has(att.matchId)) {
+            map.set(att.matchId, []);
+            }
+            map.get(att.matchId)!.push(att);
+        });
+        return map;
+    }, [allAttendances]);
+
+    const userAttendances = useMemo(() => {
+        const map = new Map<string, Attendance>();
+        if(user && allAttendances){
+            allAttendances.filter(att => att.userId === user.uid).forEach(att => {
+                map.set(att.matchId, att);
+            });
         }
-    });
-    return map;
-  }, [userAttendances, optimisticAttendances, user]);
+        return map;
+    }, [allAttendances, user]);
 
-  const usersMap = useMemo(() => new Map(allUsers?.map(u => [u.id, u])), [allUsers]);
+    const userAttendancesWithOptimistic = useMemo(() => {
+        const map = new Map(userAttendances);
+        optimisticAttendances.forEach((optimisticAtt, matchId) => {
+            if (optimisticAtt.status === 'unknown') { 
+                map.delete(matchId);
+            } else {
+                const existingAtt = map.get(matchId) || { id: user!.uid, userId: user!.uid, matchId: matchId };
+                map.set(matchId, { ...existingAtt, ...optimisticAtt } as Attendance);
+            }
+        });
+        return map;
+    }, [userAttendances, optimisticAttendances, user]);
+
+    const usersMap = useMemo(() => new Map(allUsers?.map(u => [u.id, u])), [allUsers]);
   
-  const stats = useMemo(() => userProfile?.playerType === 'player' ? [
-    { metric: 'Góly', value: myStatsToDisplay.goals ?? 0 },
-    { metric: 'Asistence', value: myStatsToDisplay.assists ?? 0 },
-    { metric: 'Body', value: (myStatsToDisplay.goals ?? 0) + (myStatsToDisplay.assists ?? 0) },
-    { metric: 'Odehrané zápasy', value: myStatsToDisplay.gamesPlayed ?? 0 },
-  ] : userProfile?.playerType === 'goalie' ? [
-    { metric: 'Zápasy', value: myGoalieStatsToDisplay.gamesPlayed },
-    { metric: 'Výhry', value: myGoalieStatsToDisplay.wins },
-    { metric: 'Úspěšnost', value: `${myGoalieStatsToDisplay.savePct.toFixed(2)} %` },
-  ] : [], [myStatsToDisplay.assists, myStatsToDisplay.gamesPlayed, myStatsToDisplay.goals, myGoalieStatsToDisplay.gamesPlayed, myGoalieStatsToDisplay.savePct, myGoalieStatsToDisplay.wins, userProfile?.playerType]);
+    const stats = useMemo(() => userProfile?.playerType === 'player' ? [
+        { metric: 'Góly', value: myStatsToDisplay.goals ?? 0 },
+        { metric: 'Asistence', value: myStatsToDisplay.assists ?? 0 },
+        { metric: 'Body', value: (myStatsToDisplay.goals ?? 0) + (myStatsToDisplay.assists ?? 0) },
+        { metric: 'Odehrané zápasy', value: myStatsToDisplay.gamesPlayed ?? 0 },
+    ] : userProfile?.playerType === 'goalie' ? [
+        { metric: 'Zápasy', value: myGoalieStatsToDisplay.gamesPlayed },
+        { metric: 'Výhry', value: myGoalieStatsToDisplay.wins },
+        { metric: 'Úspěšnost', value: `${myGoalieStatsToDisplay.savePct.toFixed(2)} %` },
+    ] : [], [myStatsToDisplay.assists, myStatsToDisplay.gamesPlayed, myStatsToDisplay.goals, myGoalieStatsToDisplay.gamesPlayed, myGoalieStatsToDisplay.savePct, myGoalieStatsToDisplay.wins, userProfile?.playerType]);
   
 
-  const isLoading = isUserProfileLoading || isSkaterStatsLoading || isGoalieStatsLoading || areMatchesLoading || areUsersLoading || areSkaterStatsLoading || areGoalieStatsLoading || attendancesLoading || leagueSettingsLoading;
+    const isLoading = isUserProfileLoading || isSkaterStatsLoading || isGoalieStatsLoading || areMatchesLoading || areUsersLoading || areSkaterStatsLoading || areGoalieStatsLoading || attendancesLoading || leagueSettingsLoading;
 
   useEffect(() => {
     setOptimisticAttendances(new Map());
@@ -1007,18 +1006,19 @@ function DashboardPageContent() {
                         <CardTitle className="text-xl break-words pr-2">{opponent}</CardTitle>
                         <CardDescription className="font-semibold pt-1">{format(match.dateTime.toDate(), "EEEE, d. M. yyyy, HH:mm", { locale: cs })}</CardDescription>
                     </div>
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-                                <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                             <DropdownMenuItem onClick={() => handleShareMatch(match.id)}>
-                                <Share2 className="mr-2 h-4 w-4" /> Sdílet
-                            </DropdownMenuItem>
-                            {userProfile?.role === 'admin' && (
-                                <>
+                    <div className="flex items-center">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => handleShareMatch(match.id)}>
+                            <Share2 className="h-4 w-4" />
+                            <span className="sr-only">Sdílet</span>
+                        </Button>
+                        {userProfile?.role === 'admin' && (
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                                        <MoreHorizontal className="h-4 w-4" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
                                     <DropdownMenuItem onClick={() => handleBuildLineup(match)}>
                                         <FileText className="mr-2 h-4 w-4" /> Tvořit/Upravit sestavu
                                     </DropdownMenuItem>
@@ -1031,10 +1031,10 @@ function DashboardPageContent() {
                                     <DropdownMenuItem onClick={() => handleDeleteMatch(match)} className="text-destructive">
                                         <Trash2 className="mr-2 h-4 w-4" /> Smazat
                                     </DropdownMenuItem>
-                                </>
-                            )}
-                        </DropdownMenuContent>
-                    </DropdownMenu>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        )}
+                    </div>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm">
                     <div className="flex items-center gap-2 font-semibold">
