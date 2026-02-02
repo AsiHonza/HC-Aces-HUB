@@ -85,15 +85,15 @@ const PlayerCard = ({ player, isDragging, isGhost, isSmall, stats }: { player: P
         isSmall && "w-40 p-1 gap-1"
     )}>
         {stats && (stats.goals > 0 || stats.assists > 0) && (
-            <div className="absolute -top-3 -right-3 flex flex-col gap-1 z-10">
+             <div className="absolute -top-2 -right-2 flex flex-col items-end gap-1.5 z-10">
                 {stats.goals > 0 && (
-                     <div className="flex items-center gap-1.5 bg-background border border-border rounded-full pl-2 pr-3 py-1 text-sm shadow-lg">
-                        <Goal className="h-4 w-4 text-primary" />
+                     <div className="flex items-center gap-1.5 bg-background border border-border rounded-full pl-2 pr-3 py-1.5 text-base shadow-lg">
+                        <Goal className="h-5 w-5 text-primary" />
                         <span className="font-bold leading-none">{stats.goals}</span>
                     </div>
                 )}
                  {stats.assists > 0 && (
-                    <div className="flex items-center gap-1.5 bg-background border border-border rounded-full pl-2 pr-3 py-1 text-sm shadow-lg">
+                    <div className="flex items-center gap-1.5 bg-background border border-border rounded-full pl-2 pr-3 py-1.5 text-base shadow-lg">
                         <span className="font-bold text-accent leading-none">A</span>
                         <span className="font-bold leading-none">{stats.assists}</span>
                     </div>
@@ -414,8 +414,7 @@ export function LineupBuilder({ players, initialData, onSave, onCancel }: { play
 
 
 export function LineupDisplay({ lineup, scorers }: { lineup: Lineup, scorers?: { goal: string; assist: string | null }[] }) {
-    const hasThirdLine = !!(lineup.LK3 || lineup.C3 || lineup.PK3);
-    const isSmall = hasThirdLine;
+    const isMobile = useIsMobile();
 
     const statsMap = useMemo(() => {
         const map = new Map<string, PlayerStats>();
@@ -436,59 +435,108 @@ export function LineupDisplay({ lineup, scorers }: { lineup: Lineup, scorers?: {
         return map;
     }, [scorers]);
 
-    const PositionDisplay = ({ positionKey, isSmall }: { positionKey: keyof Lineup, isSmall?: boolean }) => {
-        const player = lineup[positionKey];
-        // Don't render empty third line positions
-        if (!player && ['LK3', 'C3', 'PK3'].includes(positionKey) && !hasThirdLine) {
-            return null;
+    if (isMobile === null) {
+        return (
+            <div className="flex-1 flex items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        );
+    }
+
+    const MobileDisplay = () => {
+        const formations = [
+            { title: '1. Útočná formace', positions: ['LK1', 'C1', 'PK1'] as const },
+            { title: '1. Obranná dvojice', positions: ['LO1', 'PO1'] as const },
+            { title: '2. Útočná formace', positions: ['LK2', 'C2', 'PK2'] as const },
+            { title: '2. Obranná dvojice', positions: ['LO2', 'PO2'] as const },
+        ];
+        if (lineup.LK3 || lineup.C3 || lineup.PK3) {
+            formations.push({ title: '3. Útočná formace', positions: ['LK3', 'C3', 'PK3'] as const });
         }
+        formations.push({ title: 'Brankář', positions: ['B1'] as const });
 
         return (
-            <div className={cn("h-20 w-48 rounded-lg bg-background/50 backdrop-blur-sm flex flex-col items-center justify-center", isSmall && "h-16 w-40")}>
-                 {player ? <PlayerCard player={player} isSmall={isSmall} stats={statsMap.get(player.id)} /> : <p className={cn("text-muted-foreground font-semibold", isSmall && "text-sm")}>{positionNames[positionKey]}</p>}
-            </div>
+            <ScrollArea className="h-full w-full">
+                <div className="p-4 space-y-6">
+                    {formations.map((formation) => {
+                        const players = formation.positions.map(p => lineup[p]).filter(Boolean) as Player[];
+                        if (players.length === 0) return null;
+
+                        return (
+                             <div key={formation.title}>
+                                <h4 className="font-bold text-lg mb-3">{formation.title}</h4>
+                                <div className="space-y-2">
+                                {players.map(player => (
+                                    <PlayerCard key={player.id} player={player} stats={statsMap.get(player.id)} />
+                                ))}
+                                </div>
+                            </div>
+                        )
+                    })}
+                </div>
+            </ScrollArea>
         )
     }
 
-    return (
-        <div className="flex-1 relative rounded-lg overflow-auto">
-            <div className="relative min-w-[620px] h-full">
-                <RinkBackground />
-                <div className={cn("relative z-10 h-full flex flex-col justify-around p-4", isSmall && "p-2 justify-evenly")}>
-                    <div className={cn("space-y-4", isSmall && "space-y-2")}>
-                        <div className="flex justify-around items-center">
-                            <PositionDisplay positionKey="LK1" isSmall={isSmall} />
-                            <PositionDisplay positionKey="C1" isSmall={isSmall} />
-                            <PositionDisplay positionKey="PK1" isSmall={isSmall} />
-                        </div>
-                        <div className="flex justify-around items-center">
-                            <PositionDisplay positionKey="LK2" isSmall={isSmall} />
-                            <PositionDisplay positionKey="C2" isSmall={isSmall} />
-                            <PositionDisplay positionKey="PK2" isSmall={isSmall} />
-                        </div>
-                        {hasThirdLine && (
+    const DesktopDisplay = () => {
+        const hasThirdLine = !!(lineup.LK3 || lineup.C3 || lineup.PK3);
+        const isSmall = hasThirdLine;
+
+        const PositionDisplay = ({ positionKey, isSmall }: { positionKey: keyof Lineup, isSmall?: boolean }) => {
+            const player = lineup[positionKey];
+            if (!player && ['LK3', 'C3', 'PK3'].includes(positionKey) && !hasThirdLine) {
+                return null;
+            }
+
+            return (
+                <div className={cn("h-20 w-48 rounded-lg bg-background/50 backdrop-blur-sm flex flex-col items-center justify-center", isSmall && "h-16 w-40")}>
+                     {player ? <PlayerCard player={player} isSmall={isSmall} stats={statsMap.get(player.id)} /> : <p className={cn("text-muted-foreground font-semibold", isSmall && "text-sm")}>{positionNames[positionKey]}</p>}
+                </div>
+            )
+        }
+
+        return (
+            <ScrollArea orientation="horizontal" className="w-full h-full">
+                <div className="relative min-w-[620px] h-full">
+                    <RinkBackground />
+                    <div className={cn("relative z-10 h-full flex flex-col justify-around p-4", isSmall && "p-2 justify-evenly")}>
+                        <div className={cn("space-y-4", isSmall && "space-y-2")}>
                             <div className="flex justify-around items-center">
-                                <PositionDisplay positionKey="LK3" isSmall={isSmall} />
-                                <PositionDisplay positionKey="C3" isSmall={isSmall} />
-                                <PositionDisplay positionKey="PK3" isSmall={isSmall} />
+                                <PositionDisplay positionKey="LK1" isSmall={isSmall} />
+                                <PositionDisplay positionKey="C1" isSmall={isSmall} />
+                                <PositionDisplay positionKey="PK1" isSmall={isSmall} />
                             </div>
-                        )}
-                    </div>
-                    <div className={cn("space-y-4", isSmall && "space-y-2")}>
-                        <div className="flex justify-around items-center">
-                            <PositionDisplay positionKey="LO1" isSmall={isSmall} />
-                            <PositionDisplay positionKey="PO1" isSmall={isSmall} />
+                            <div className="flex justify-around items-center">
+                                <PositionDisplay positionKey="LK2" isSmall={isSmall} />
+                                <PositionDisplay positionKey="C2" isSmall={isSmall} />
+                                <PositionDisplay positionKey="PK2" isSmall={isSmall} />
+                            </div>
+                            {hasThirdLine && (
+                                <div className="flex justify-around items-center">
+                                    <PositionDisplay positionKey="LK3" isSmall={isSmall} />
+                                    <PositionDisplay positionKey="C3" isSmall={isSmall} />
+                                    <PositionDisplay positionKey="PK3" isSmall={isSmall} />
+                                </div>
+                            )}
+                        </div>
+                        <div className={cn("space-y-4", isSmall && "space-y-2")}>
+                            <div className="flex justify-around items-center">
+                                <PositionDisplay positionKey="LO1" isSmall={isSmall} />
+                                <PositionDisplay positionKey="PO1" isSmall={isSmall} />
+                            </div>
+                            <div className="flex justify-around items-center">
+                                <PositionDisplay positionKey="LO2" isSmall={isSmall} />
+                                <PositionDisplay positionKey="PO2" isSmall={isSmall} />
+                            </div>
                         </div>
                         <div className="flex justify-around items-center">
-                            <PositionDisplay positionKey="LO2" isSmall={isSmall} />
-                            <PositionDisplay positionKey="PO2" isSmall={isSmall} />
+                            <PositionDisplay positionKey="B1" isSmall={isSmall}/>
                         </div>
-                    </div>
-                    <div className="flex justify-around items-center">
-                        <PositionDisplay positionKey="B1" isSmall={isSmall}/>
                     </div>
                 </div>
-            </div>
-        </div>
-    );
+            </ScrollArea>
+        );
+    }
+    
+    return isMobile ? <MobileDisplay /> : <DesktopDisplay />;
 }
