@@ -277,6 +277,7 @@ function DashboardPageContent() {
     
     const upcomingMatches = useMemo(() => allMatches?.filter(match => !match.isPlayed) ?? [], [allMatches]);
     const otherUpcomingMatches = useMemo(() => upcomingMatches?.slice(1) || [], [upcomingMatches]);
+    const nextMatch = upcomingMatches?.[0];
     
     const isPlayoffEnabled = leagueSettings?.isPlayoffEnabled ?? false;
     const isScoringInPlayoffMode = leagueSettings?.isScoringInPlayoffMode ?? false;
@@ -406,7 +407,7 @@ function DashboardPageContent() {
         name: goalie.name,
         ...goalie[scoringView]
     }));
-    return data.sort((a, b) => b.savePercentage - a.savePercentage || b.wins - b.wins).map((goalie, index) => ({...goalie, rank: index + 1}));
+    return data.sort((a, b) => b.savePercentage - a.savePercentage || b.wins - a.wins).map((goalie, index) => ({...goalie, rank: index + 1}));
   }, [goalieLeaderboard, scoringView]);
 
   const sortedLeagueStandings = useMemo(() => {
@@ -452,8 +453,6 @@ function DashboardPageContent() {
   }, [userAttendances, optimisticAttendances, user]);
 
   const usersMap = useMemo(() => new Map(allUsers?.map(u => [u.id, u])), [allUsers]);
-
-  const nextMatch = upcomingMatches?.[0];
   
   const stats = useMemo(() => userProfile?.playerType === 'player' ? [
     { metric: 'Góly', value: myStatsToDisplay.goals ?? 0 },
@@ -502,6 +501,17 @@ function DashboardPageContent() {
     }, 200);
 
   }, [isLoading, upcomingMatches, otherUpcomingMatches, searchParams]);
+  
+  // When the dialog is told to close, wait for a moment before cleaning up the data.
+  // This gives the dialog's exit animation time to complete and prevents race conditions.
+  useEffect(() => {
+      if (!isLineupBuilderOpen) {
+          const timer = setTimeout(() => {
+              setLineupMatch(null);
+          }, 200);
+          return () => clearTimeout(timer);
+      }
+  }, [isLineupBuilderOpen]);
   
   if (isLoading || !user) {
     return (
@@ -572,7 +582,6 @@ function DashboardPageContent() {
       }));
     } finally {
       setIsLineupBuilderOpen(false);
-      setLineupMatch(null);
     }
   };
 
@@ -992,7 +1001,7 @@ function DashboardPageContent() {
     ];
 
     return (
-        <Card key={match.id} id={`match-${match.id}`} className={cn("w-full transition-all", highlightedMatchId === match.id && 'animate-highlight-card')}>
+        <Card id={`match-${match.id}`} className={cn("w-full transition-all", highlightedMatchId === match.id && 'animate-highlight-card')}>
                 <CardHeader className="flex-row items-start justify-between pb-2">
                     <div className="space-y-1">
                         <CardTitle className="text-xl break-words pr-2">{opponent}</CardTitle>
@@ -1613,12 +1622,7 @@ function DashboardPageContent() {
           </DialogContent>
       </Dialog>
 
-        <Dialog open={isLineupBuilderOpen} onOpenChange={(isOpen) => {
-            if (!isOpen) {
-              setLineupMatch(null);
-            }
-            setIsLineupBuilderOpen(isOpen);
-        }}>
+        <Dialog open={isLineupBuilderOpen} onOpenChange={setIsLineupBuilderOpen}>
             <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
                  {lineupMatch && allUsers ? (
                     <>
