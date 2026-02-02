@@ -87,11 +87,26 @@ interface Attendance {
 
 function EditResultForm({ match, allUsers, onSave, onCancel }: { match: Match, allUsers: UserProfile[], onSave: (e: React.FormEvent<HTMLFormElement>) => Promise<void>, onCancel: () => void }) {
     const [goalCount, setGoalCount] = useState(match.team1Score || 0);
+    const [selectedScorers, setSelectedScorers] = useState<Record<number, string | null>>(() => {
+        const initialScorers: Record<number, string | null> = {};
+        match.scorers?.forEach((scorer, index) => {
+            if (scorer.goal) {
+                initialScorers[index] = scorer.goal;
+            }
+        });
+        return initialScorers;
+    });
+
     const goalies = useMemo(() => allUsers.filter(u => u.playerType === 'goalie'), [allUsers]);
+    const skaters = useMemo(() => allUsers.filter(u => u.playerType === 'player'), [allUsers]);
 
     const handleGoalCountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const newCount = parseInt(e.target.value, 10) || 0;
         setGoalCount(newCount);
+    };
+    
+    const handleScorerChange = (index: number, scorerId: string) => {
+        setSelectedScorers(prev => ({ ...prev, [index]: scorerId }));
     };
 
     return (
@@ -99,7 +114,7 @@ function EditResultForm({ match, allUsers, onSave, onCancel }: { match: Match, a
             <DialogHeader>
                 <DialogTitle>Upravit výsledek zápasu</DialogTitle>
                 <DialogDescription>
-                    Změňte konečné skóre a statistiky.
+                    Změňte konečné skóre a statistiky. Výběr hráčů je omezen na ty, kteří se zápasu zúčastnili. Střelec nemůže být zároveň asistent.
                 </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-4">
@@ -117,12 +132,12 @@ function EditResultForm({ match, allUsers, onSave, onCancel }: { match: Match, a
                 {goalCount > 0 && <p className="font-medium mt-4">Střelci a asistence (Aces)</p>}
                 {Array.from({ length: goalCount }).map((_, index) => (
                     <div key={index} className="grid grid-cols-2 gap-2 items-center">
-                        <Select name={`goal-${index}`} required defaultValue={match.scorers?.[index]?.goal}>
+                        <Select name={`goal-${index}`} required defaultValue={match.scorers?.[index]?.goal} onValueChange={(value) => handleScorerChange(index, value)}>
                             <SelectTrigger>
                                 <SelectValue placeholder={`Gól ${index + 1}`} />
                             </SelectTrigger>
                             <SelectContent>
-                                {allUsers.filter(u => u.playerType === 'player').map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+                                {skaters.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
                             </SelectContent>
                         </Select>
                         <Select name={`assist-${index}`} defaultValue={match.scorers?.[index]?.assist || 'none'}>
@@ -131,7 +146,7 @@ function EditResultForm({ match, allUsers, onSave, onCancel }: { match: Match, a
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="none">Žádná</SelectItem>
-                                {allUsers.filter(u => u.playerType === 'player').map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+                                {skaters.filter(u => u.id !== selectedScorers[index]).map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
                             </SelectContent>
                         </Select>
                     </div>
@@ -179,6 +194,7 @@ function HistoryPageContent() {
     const [viewLineupData, setViewLineupData] = useState<Lineup | null>(null);
     const [viewScorersData, setViewScorersData] = useState<Match['scorers'] | undefined>(undefined);
     const [viewMatchTitle, setViewMatchTitle] = useState('');
+    const [playersForMatch, setPlayersForMatch] = useState<UserProfile[] | null>(null);
 
     const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
     const { data: userProfile, isLoading: userProfileLoading } = useDoc<UserProfile>(userDocRef);
@@ -238,6 +254,29 @@ function HistoryPageContent() {
     const isLoading = userProfileLoading || matchesLoading || usersLoading || skaterStatsLoading || goalieStatsLoading || attendancesLoading;
 
     const handleEditMatch = (match: Match) => {
+        if (!users || !attendancesByMatch) return;
+
+        const matchAttendees = attendancesByMatch.get(match.id) || [];
+        const goingUserIds = new Set(matchAttendees.filter(a => a.status === 'going').map(a => a.userId));
+        
+        if (match.scorers) {
+            match.scorers.forEach(s => {
+                if(s.goal) goingUserIds.add(s.goal);
+                if(s.assist) goingUserIds.add(s.assist);
+            });
+        }
+        if (match.goalieId) {
+            goingUserIds.add(match.goalieId);
+        }
+
+        let players: UserProfile[];
+        if (goingUserIds.size > 0) {
+            players = users.filter(u => goingUserIds.has(u.id));
+        } else {
+            players = users; 
+        }
+        
+        setPlayersForMatch(players);
         setSelectedMatch(match);
         setIsEditDialogOpen(true);
     };
@@ -631,17 +670,24 @@ function HistoryPageContent() {
             <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => {
                 setIsEditDialogOpen(isOpen);
                 if (!isOpen) {
-                    setTimeout(() => setSelectedMatch(null), 200);
+                    setTimeout(() => {
+                        setSelectedMatch(null);
+                        setPlayersForMatch(null);
+                    }, 200);
                 }
             }}>
                 <DialogContent className="max-w-md">
-                    {selectedMatch && users && (
+                    {selectedMatch && playersForMatch ? (
                         <EditResultForm 
                             match={selectedMatch} 
-                            allUsers={users}
+                            allUsers={playersForMatch}
                             onSave={handleResultSave}
                             onCancel={() => setIsEditDialogOpen(false)}
                         />
+                    ) : (
+                         <div className="flex justify-center items-center h-24">
+                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                        </div>
                     )}
                 </DialogContent>
             </Dialog>

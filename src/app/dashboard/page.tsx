@@ -119,9 +119,15 @@ interface AppSettings {
 }
 
 function RecordResultForm({ match, allUsers, onSave, onCancel }: { match: Match, allUsers: UserProfile[], onSave: (e: React.FormEvent<HTMLFormElement>) => Promise<void>, onCancel: () => void }) {
-    const [goalCount, setGoalCount] = useState(0)
+    const [goalCount, setGoalCount] = useState(0);
+    const [selectedScorers, setSelectedScorers] = useState<Record<number, string | null>>({});
+
     const skaters = useMemo(() => allUsers.filter(u => u.playerType === 'player'), [allUsers]);
     const goalies = useMemo(() => allUsers.filter(u => u.playerType === 'goalie'), [allUsers]);
+
+    const handleScorerChange = (index: number, scorerId: string) => {
+        setSelectedScorers(prev => ({ ...prev, [index]: scorerId }));
+    };
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         await onSave(e);
@@ -132,7 +138,7 @@ function RecordResultForm({ match, allUsers, onSave, onCancel }: { match: Match,
              <DialogHeader>
                   <DialogTitle>Zapsat výsledek zápasu</DialogTitle>
                   <DialogDescription>
-                    Zadejte konečné skóre a statistiky hráčů.
+                    Zadejte konečné skóre a statistiky hráčů. Výběr hráčů je omezen na ty, kteří potvrdili účast. Střelec nemůže být zároveň asistent.
                   </DialogDescription>
               </DialogHeader>
             <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-4">
@@ -150,7 +156,7 @@ function RecordResultForm({ match, allUsers, onSave, onCancel }: { match: Match,
                 {goalCount > 0 && <p className="font-medium mt-4">Střelci a asistence (Aces)</p>}
                 {Array.from({ length: goalCount }).map((_, index) => (
                     <div key={index} className="grid grid-cols-2 gap-2 items-center">
-                        <Select name={`goal-${index}`} required>
+                        <Select name={`goal-${index}`} required onValueChange={(value) => handleScorerChange(index, value)}>
                             <SelectTrigger>
                                 <SelectValue placeholder={`Gól ${index + 1}`} />
                             </SelectTrigger>
@@ -158,13 +164,13 @@ function RecordResultForm({ match, allUsers, onSave, onCancel }: { match: Match,
                                 {skaters.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
                             </SelectContent>
                         </Select>
-                        <Select name={`assist-${index}`}>
+                        <Select name={`assist-${index}`} defaultValue="none">
                             <SelectTrigger>
                                 <SelectValue placeholder="Asistence" />
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="none">Žádná</SelectItem>
-                                {skaters.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+                                {skaters.filter(u => u.id !== selectedScorers[index]).map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
                             </SelectContent>
                         </Select>
                     </div>
@@ -241,6 +247,7 @@ function DashboardPageContent() {
   const [isHistoryEditMode, setIsHistoryEditMode] = useState(false);
   const [editableSkaterHistory, setEditableSkaterHistory] = useState<any[]>([]);
   const [editableGoalieHistory, setEditableGoalieHistory] = useState<any[]>([]);
+  const [playersForMatch, setPlayersForMatch] = useState<UserProfile[] | null>(null);
 
   // Fetch current user's profile and stats
   const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
@@ -543,6 +550,11 @@ function DashboardPageContent() {
   };
 
   const handleRecordResult = (match: Match) => {
+    if (!allUsers || !attendancesByMatch) return;
+    const matchAttendees = attendancesByMatch.get(match.id) || [];
+    const goingUserIds = new Set(matchAttendees.filter(a => a.status === 'going').map(a => a.userId));
+    const players = allUsers.filter(u => goingUserIds.has(u.id));
+    setPlayersForMatch(players);
     setSelectedMatch(match);
     setIsResultDialogOpen(true);
   }
@@ -1737,16 +1749,44 @@ function DashboardPageContent() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      <Dialog open={isResultDialogOpen} onOpenChange={(isOpen) => {
-          setIsResultDialogOpen(isOpen);
-          if (!isOpen) {
-              setTimeout(() => setSelectedMatch(null), 200);
-          }
-      }}>
-          <DialogContent className="max-w-md">
-              {selectedMatch && allUsers && <RecordResultForm match={selectedMatch} allUsers={allUsers} onSave={handleResultSave} onCancel={() => setIsResultDialogOpen(false)} />}
-          </DialogContent>
-      </Dialog>
+        <Dialog open={isResultDialogOpen} onOpenChange={(isOpen) => {
+            setIsResultDialogOpen(isOpen);
+            if (!isOpen) {
+                setTimeout(() => {
+                    setSelectedMatch(null);
+                    setPlayersForMatch(null);
+                }, 200);
+            }
+        }}>
+            <DialogContent className="max-w-md">
+                {selectedMatch && playersForMatch && playersForMatch.length > 0 && (
+                    <RecordResultForm
+                        match={selectedMatch}
+                        allUsers={playersForMatch}
+                        onSave={handleResultSave}
+                        onCancel={() => setIsResultDialogOpen(false)}
+                    />
+                )}
+                {selectedMatch && playersForMatch && playersForMatch.length === 0 && (
+                    <>
+                        <DialogHeader>
+                            <DialogTitle>Zapsat výsledek zápasu</DialogTitle>
+                            <DialogDescription>
+                                Nelze zapsat výsledek, protože na zápas nejsou přihlášeni žádní hráči.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <DialogFooter>
+                            <Button variant="outline" onClick={() => setIsResultDialogOpen(false)}>Zavřít</Button>
+                        </DialogFooter>
+                    </>
+                )}
+                {!playersForMatch && selectedMatch && (
+                    <div className="flex justify-center items-center h-24">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    </div>
+                )}
+            </DialogContent>
+        </Dialog>
       <Dialog open={isAttendanceDialogOpen} onOpenChange={(isOpen) => {
           setIsAttendanceDialogOpen(isOpen);
           if (!isOpen) {
