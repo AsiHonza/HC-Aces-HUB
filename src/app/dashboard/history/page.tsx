@@ -7,7 +7,7 @@ import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@
 import { query, collection, Timestamp, collectionGroup, doc, writeBatch, deleteDoc, updateDoc, orderBy } from 'firebase/firestore'
 import { format } from 'date-fns'
 import { cs } from 'date-fns/locale'
-import { Loader2, Trophy, Users, Pencil, Trash2, MoreHorizontal, ShieldCheck } from 'lucide-react'
+import { Loader2, Trophy, Users, Pencil, Trash2, MoreHorizontal, ShieldCheck, View } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from '@/hooks/use-toast'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
+import { LineupDisplay, type Lineup } from '@/components/lineup-builder'
 
 interface Match {
   id: string;
@@ -33,6 +34,7 @@ interface Match {
   goalieId?: string;
   goalieSaves?: number;
   goalieShotsAgainst?: number;
+  lineup?: Lineup;
 }
 
 interface UserProfile {
@@ -173,6 +175,11 @@ function HistoryPageContent() {
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
 
+    const [isLineupViewOpen, setIsLineupViewOpen] = useState(false);
+    const [viewLineupData, setViewLineupData] = useState<Lineup | null>(null);
+    const [viewScorersData, setViewScorersData] = useState<Match['scorers'] | undefined>(undefined);
+    const [viewMatchTitle, setViewMatchTitle] = useState('');
+
     const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
     const { data: userProfile, isLoading: userProfileLoading } = useDoc<UserProfile>(userDocRef);
 
@@ -238,6 +245,15 @@ function HistoryPageContent() {
     const handleDeleteMatch = (match: Match) => {
         setSelectedMatch(match);
         setIsDeleteDialogOpen(true);
+    };
+
+    const handleViewLineup = (match: Match) => {
+        if (match.lineup) {
+          setViewLineupData(match.lineup);
+          setViewScorersData(match.scorers);
+          setViewMatchTitle(`${match.team1} vs ${match.team2}`);
+          setIsLineupViewOpen(true);
+        }
     };
     
     const confirmDeleteMatch = async () => {
@@ -595,6 +611,14 @@ function HistoryPageContent() {
                                                     </p>
                                                 </div>
                                             )}
+                                            {match.lineup && (
+                                                <div className="mt-4">
+                                                    <Button variant="outline" size="sm" onClick={() => handleViewLineup(match)}>
+                                                        <View className="mr-2 h-4 w-4" />
+                                                        Zobrazit sestavu
+                                                    </Button>
+                                                </div>
+                                            )}
                                         </div>
                                     </AccordionContent>
                                 </AccordionItem>
@@ -606,10 +630,7 @@ function HistoryPageContent() {
                 </CardContent>
             </Card>
 
-            <Dialog open={isEditDialogOpen} onOpenChange={(open) => {
-                if (!open) setSelectedMatch(null);
-                setIsEditDialogOpen(open);
-            }}>
+            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
                 <DialogContent className="max-w-md">
                     {selectedMatch && users && (
                         <EditResultForm 
@@ -622,10 +643,7 @@ function HistoryPageContent() {
                 </DialogContent>
             </Dialog>
 
-            <AlertDialog open={isDeleteDialogOpen} onOpenChange={(open) => {
-                 if (!open) setSelectedMatch(null);
-                 setIsDeleteDialogOpen(open);
-            }}>
+            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>Opravdu chcete smazat tento zápas?</AlertDialogTitle>
@@ -639,6 +657,29 @@ function HistoryPageContent() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+            <Dialog open={isLineupViewOpen} onOpenChange={(isOpen) => {
+                if (!isOpen) {
+                    setViewLineupData(null);
+                    setViewScorersData(undefined);
+                    setViewMatchTitle('');
+                }
+                setIsLineupViewOpen(isOpen);
+            }}>
+                <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
+                    <DialogHeader>
+                        <DialogTitle>{viewMatchTitle ? `Sestava: ${viewMatchTitle}` : 'Načítání sestavy...'}</DialogTitle>
+                        <DialogDescription>Sestava a body hráčů v zápase.</DialogDescription>
+                    </DialogHeader>
+                    {viewLineupData ? (
+                        <LineupDisplay lineup={viewLineupData} scorers={viewScorersData} />
+                    ) : (
+                        <div className="flex-1 flex items-center justify-center">
+                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
 
         </div>
     );

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { DragDropContext, Droppable, Draggable, OnDragEndResponder } from '@hello-pangea/dnd';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { cn } from '@/lib/utils';
@@ -10,7 +10,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from './ui/select';
 import { ScrollArea } from './ui/scroll-area';
 import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
-import { Loader2 } from 'lucide-react';
+import { Goal, Loader2 } from 'lucide-react';
 
 
 export interface Player {
@@ -72,13 +72,34 @@ const RinkBackground = () => (
     </div>
 )
 
-const PlayerCard = ({ player, isDragging, isGhost, isSmall }: { player: Player, isDragging?: boolean, isGhost?: boolean, isSmall?: boolean }) => (
+interface PlayerStats {
+    goals: number;
+    assists: number;
+}
+
+const PlayerCard = ({ player, isDragging, isGhost, isSmall, stats }: { player: Player, isDragging?: boolean, isGhost?: boolean, isSmall?: boolean, stats?: PlayerStats }) => (
     <Card className={cn(
-        "p-2 flex items-center gap-2 w-48 bg-card/80 backdrop-blur-sm",
+        "p-2 flex items-center gap-2 w-48 bg-card/80 backdrop-blur-sm relative",
         isDragging && "bg-primary/20 shadow-lg",
         isGhost && "opacity-50",
         isSmall && "w-40 p-1 gap-1"
     )}>
+        {stats && (stats.goals > 0 || stats.assists > 0) && (
+            <div className="absolute -top-2 left-0 flex flex-col gap-1 z-10">
+                {stats.goals > 0 && (
+                     <div className="flex items-center gap-1 bg-background border border-border rounded-full px-1.5 py-0.5 text-xs shadow-md">
+                        <Goal className="h-3 w-3 text-primary" />
+                        <span className="font-bold">{stats.goals}</span>
+                    </div>
+                )}
+                 {stats.assists > 0 && (
+                    <div className="flex items-center gap-1 bg-background border border-border rounded-full px-1.5 py-0.5 text-xs shadow-md">
+                        <span className="font-bold text-primary">A</span>
+                        <span className="font-bold">{stats.assists}</span>
+                    </div>
+                )}
+            </div>
+        )}
         <Avatar className={cn("h-8 w-8", isSmall && "h-6 w-6")}>
             <AvatarImage src={player.photoURL ?? `https://picsum.photos/seed/${player.email}/100/100`} data-ai-hint="player portrait" alt={player.name} />
             <AvatarFallback>{player.name.split(' ').map(n=>n[0]).join('')}</AvatarFallback>
@@ -164,13 +185,49 @@ export function LineupBuilder({ players, initialData, onSave, onCancel }: { play
     }
   };
 
+  const MobilePositionSelector = ({ positionKey }: { positionKey: keyof Lineup }) => {
+    const player = lineup[positionKey];
+    return (
+        <div className="grid grid-cols-3 items-center gap-2">
+            <Label className="text-right text-xs">{positionNames[positionKey]}</Label>
+            <Select
+                value={player?.id || 'empty'}
+                onValueChange={(playerId) => handlePlayerSelect(positionKey, playerId)}
+            >
+                <SelectTrigger className="col-span-2">
+                    <SelectValue>
+                        {player ? (
+                             <div className="flex items-center gap-2">
+                                 <Avatar className="h-6 w-6">
+                                     <AvatarImage src={player.photoURL ?? `https://picsum.photos/seed/${player.email}/100/100`} data-ai-hint="player portrait" alt={player.name} />
+                                     <AvatarFallback>{player.name.split(' ').map(n=>n[0]).join('')}</AvatarFallback>
+                                 </Avatar>
+                                 <span>{player.name}</span>
+                             </div>
+                        ) : 'Nepřiřazeno'}
+                    </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="empty">Nepřiřazeno</SelectItem>
+                    <SelectItem value="clear">-- Vymazat --</SelectItem>
+                    <SelectSeparator />
+                    {player && <SelectItem value={player.id} disabled>{player.name}</SelectItem>}
+                    {availablePlayers.map(p => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+        </div>
+    )
+  }
+
   const handlePlayerSelect = (position: keyof Lineup, playerId: string) => {
     const playerCurrentlyOnPosition = lineup[position];
     let newAvailablePlayers = [...availablePlayers];
     if (playerCurrentlyOnPosition) {
         newAvailablePlayers.push(playerCurrentlyOnPosition);
     }
-    if (playerId === 'clear') {
+    if (playerId === 'clear' || playerId === 'empty') {
         setLineup(prev => ({ ...prev, [position]: null }));
         setAvailablePlayers(newAvailablePlayers.sort((a,b) => a.name.localeCompare(b.name)));
         return;
@@ -356,9 +413,28 @@ export function LineupBuilder({ players, initialData, onSave, onCancel }: { play
 }
 
 
-export function LineupDisplay({ lineup }: { lineup: Lineup }) {
+export function LineupDisplay({ lineup, scorers }: { lineup: Lineup, scorers?: { goal: string; assist: string | null }[] }) {
     const hasThirdLine = !!(lineup.LK3 || lineup.C3 || lineup.PK3);
     const isSmall = hasThirdLine;
+
+    const statsMap = useMemo(() => {
+        const map = new Map<string, PlayerStats>();
+        if (scorers) {
+            for (const scorer of scorers) {
+                if (scorer.goal) {
+                    const currentStats = map.get(scorer.goal) || { goals: 0, assists: 0 };
+                    currentStats.goals += 1;
+                    map.set(scorer.goal, currentStats);
+                }
+                if (scorer.assist) {
+                    const currentStats = map.get(scorer.assist) || { goals: 0, assists: 0 };
+                    currentStats.assists += 1;
+                    map.set(scorer.assist, currentStats);
+                }
+            }
+        }
+        return map;
+    }, [scorers]);
 
     const PositionDisplay = ({ positionKey, isSmall }: { positionKey: keyof Lineup, isSmall?: boolean }) => {
         const player = lineup[positionKey];
@@ -369,7 +445,7 @@ export function LineupDisplay({ lineup }: { lineup: Lineup }) {
 
         return (
             <div className={cn("h-20 w-48 rounded-lg bg-background/50 backdrop-blur-sm flex flex-col items-center justify-center", isSmall && "h-16 w-40")}>
-                 {player ? <PlayerCard player={player} isSmall={isSmall}/> : <p className={cn("text-muted-foreground font-semibold", isSmall && "text-sm")}>{positionNames[positionKey]}</p>}
+                 {player ? <PlayerCard player={player} isSmall={isSmall} stats={statsMap.get(player.id)} /> : <p className={cn("text-muted-foreground font-semibold", isSmall && "text-sm")}>{positionNames[positionKey]}</p>}
             </div>
         )
     }
