@@ -475,7 +475,7 @@ function DashboardPageContent() {
         return map;
     }, [userAttendances, optimisticAttendances, user]);
 
-    const usersMap = useMemo(() => new Map(allUsers?.map(u => [u.id, u.name])), [allUsers]);
+    const usersMap = useMemo(() => new Map(allUsers?.map(u => [u.id, u])), [allUsers]);
   
     const stats = useMemo(() => userProfile?.playerType === 'player' ? [
         { metric: 'Góly', value: myStatsToDisplay.goals ?? 0 },
@@ -718,7 +718,6 @@ function DashboardPageContent() {
         const matchRef = doc(firestore, 'matches', selectedMatch.id);
         await updateDoc(matchRef, updatedData);
         toast({ title: 'Zápas aktualizován' });
-        setIsEditDialogOpen(false);
     } catch (error: any) {
         toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se uložit zápas.' });
         errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -726,6 +725,7 @@ function DashboardPageContent() {
         }));
     } finally {
         setIsSaving(false);
+        setIsEditDialogOpen(false);
     }
   };
 
@@ -758,7 +758,6 @@ function DashboardPageContent() {
       const matchesCollection = collection(firestore, 'matches');
       await addDoc(matchesCollection, newMatchData);
       toast({ title: 'Zápas přidán.' });
-      setIsAddDialogOpen(false);
     } catch (error: any) {
        toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se přidat zápas.' });
         errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -766,6 +765,7 @@ function DashboardPageContent() {
         }));
     } finally {
         setIsSaving(false);
+        setIsAddDialogOpen(false);
     }
   };
 
@@ -904,11 +904,11 @@ function DashboardPageContent() {
 
       await batch.commit();
       toast({ title: "Výsledek uložen", description: "Statistiky hráčů byly aktualizovány." });
-      setIsResultDialogOpen(false);
     } catch (error: any) {
         toast({ variant: 'destructive', title: 'Chyba', description: `Nepodařilo se uložit výsledek: ${error.message}` });
     } finally {
         setIsSaving(false);
+        setIsResultDialogOpen(false);
     }
 };
 
@@ -938,7 +938,6 @@ function DashboardPageContent() {
         const settingsRef = doc(firestore, 'settings', 'league');
         await setDoc(settingsRef, updatedSettings, { merge: true });
         toast({ title: 'Nastavení ligy uloženo.' });
-        setIsLeagueEditMode(false);
     } catch (error) {
         toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se uložit nastavení ligy.' });
         const settingsRef = doc(firestore, 'settings', 'league');
@@ -947,6 +946,7 @@ function DashboardPageContent() {
         }));
     } finally {
         setIsSaving(false);
+        setIsLeagueEditMode(false);
     }
   };
 
@@ -1079,11 +1079,11 @@ function DashboardPageContent() {
 
             await batch.commit();
             toast({ title: 'Historické statistiky uloženy.' });
-            setIsHistoryEditMode(false);
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se uložit historické statistiky.' });
         } finally {
             setIsSaving(false);
+            setIsHistoryEditMode(false);
         }
     };
 
@@ -1228,8 +1228,8 @@ function DashboardPageContent() {
                                                     )}
                                                 >
                                                     <Avatar>
-                                                        <AvatarImage src={attendeeProfile.photoURL ?? `https://picsum.photos/seed/${attendeeProfile.email}/100/100`} data-ai-hint="player portrait" alt={attendeeProfile.name} />
-                                                        <AvatarFallback>{attendeeProfile.name.split(' ').map(n=>n[0]).join('')}</AvatarFallback>
+                                                        <AvatarImage src={attendeeProfile.photoURL ?? `https://picsum.photos/seed/${attendeeProfile.email}/100/100`} data-ai-hint="player portrait" alt={attendeeProfile.name || ''} />
+                                                        <AvatarFallback>{attendeeProfile.name?.split(' ').map(n=>n[0]).join('')}</AvatarFallback>
                                                     </Avatar>
                                                     <div className="flex-1">
                                                         <p className="font-medium">{attendeeProfile.name}</p>
@@ -1429,8 +1429,8 @@ function DashboardPageContent() {
                                                     {match.scorers?.map((scorer, i) => (
                                                         <li key={i} className="flex items-center gap-2 text-muted-foreground">
                                                             <Trophy className="h-4 w-4 text-primary" />
-                                                            <span className="font-medium text-foreground">{usersMap.get(scorer.goal) || 'Neznámý hráč'}</span>
-                                                            {scorer.assist && <span className="">(as. {usersMap.get(scorer.assist) || 'Neznámý'})</span>}
+                                                            <span className="font-medium text-foreground">{usersMap.get(scorer.goal)?.name || 'Neznámý hráč'}</span>
+                                                            {scorer.assist && <span className="">(as. {usersMap.get(scorer.assist)?.name || 'Neznámý'})</span>}
                                                         </li>
                                                     ))}
                                                 </ul>
@@ -1775,7 +1775,10 @@ function DashboardPageContent() {
             </Card>
         </div>
       </div>
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+      <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => {
+          setIsEditDialogOpen(isOpen);
+          if (!isOpen) setTimeout(() => setSelectedMatch(null), 200);
+      }}>
           <DialogContent>
               <DialogHeader>
                   <DialogTitle>Upravit zápas</DialogTitle>
@@ -1812,7 +1815,10 @@ function DashboardPageContent() {
               </form>}
           </DialogContent>
       </Dialog>
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={(isOpen) => {
+          setIsDeleteDialogOpen(isOpen);
+          if (!isOpen) setTimeout(() => setSelectedMatch(null), 200);
+      }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Opravdu chcete smazat tento zápas?</AlertDialogTitle>
@@ -1829,7 +1835,10 @@ function DashboardPageContent() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-        <Dialog open={isResultDialogOpen} onOpenChange={setIsResultDialogOpen}>
+        <Dialog open={isResultDialogOpen} onOpenChange={(isOpen) => {
+            setIsResultDialogOpen(isOpen);
+            if (!isOpen) setTimeout(() => { setSelectedMatch(null); setPlayersForMatch(null); }, 200);
+        }}>
             <DialogContent className="max-w-md">
                 {selectedMatch && playersForMatch ? (
                     playersForMatch.length > 0 ? (
@@ -1887,7 +1896,10 @@ function DashboardPageContent() {
           </DialogContent>
       </Dialog>
 
-        <Dialog open={isLineupBuilderOpen} onOpenChange={setIsLineupBuilderOpen}>
+        <Dialog open={isLineupBuilderOpen} onOpenChange={(isOpen) => {
+            setIsLineupBuilderOpen(isOpen);
+            if (!isOpen) setTimeout(() => setLineupMatch(null), 200);
+        }}>
             <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
                  {lineupMatch && allUsers ? (
                     <>
@@ -1911,7 +1923,10 @@ function DashboardPageContent() {
                 )}
             </DialogContent>
         </Dialog>
-        <Dialog open={isLineupViewOpen} onOpenChange={setIsLineupViewOpen}>
+        <Dialog open={isLineupViewOpen} onOpenChange={(isOpen) => {
+            setIsLineupViewOpen(isOpen);
+             if (!isOpen) setTimeout(() => { setLineupMatch(null); setViewLineupData(null); }, 200);
+        }}>
             <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
                  <DialogHeader>
                     <DialogTitle>{lineupMatch ? `Sestava: ${lineupMatch.team1} vs ${lineupMatch.team2}` : 'Načítání sestavy...'}</DialogTitle>
