@@ -621,7 +621,6 @@ function DashboardPageContent() {
     } finally {
       setIsSaving(false);
       setIsLineupBuilderOpen(false);
-      setLineupMatch(null);
     }
   };
 
@@ -729,7 +728,6 @@ function DashboardPageContent() {
         const matchRef = doc(firestore, 'matches', selectedMatch.id);
         await updateDoc(matchRef, updatedData);
         toast({ title: 'Zápas aktualizován' });
-        setIsEditDialogOpen(false);
     } catch (error: any) {
         toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se uložit zápas.' });
         errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -737,6 +735,7 @@ function DashboardPageContent() {
         }));
     } finally {
         setIsSaving(false);
+        setIsEditDialogOpen(false);
     }
   };
 
@@ -769,7 +768,6 @@ function DashboardPageContent() {
       const matchesCollection = collection(firestore, 'matches');
       await addDoc(matchesCollection, newMatchData);
       toast({ title: 'Zápas přidán.' });
-      setIsAddDialogOpen(false);
     } catch (error: any) {
        toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se přidat zápas.' });
         errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -777,6 +775,7 @@ function DashboardPageContent() {
         }));
     } finally {
         setIsSaving(false);
+        setIsAddDialogOpen(false);
     }
   };
 
@@ -915,11 +914,11 @@ function DashboardPageContent() {
 
       await batch.commit();
       toast({ title: "Výsledek uložen", description: "Statistiky hráčů byly aktualizovány." });
-      setIsResultDialogOpen(false);
     } catch (error: any) {
         toast({ variant: 'destructive', title: 'Chyba', description: `Nepodařilo se uložit výsledek: ${error.message}` });
     } finally {
         setIsSaving(false);
+        setIsResultDialogOpen(false);
     }
 };
 
@@ -949,7 +948,6 @@ function DashboardPageContent() {
         const settingsRef = doc(firestore, 'settings', 'league');
         await setDoc(settingsRef, updatedSettings, { merge: true });
         toast({ title: 'Nastavení ligy uloženo.' });
-        setIsLeagueEditMode(false);
     } catch (error) {
         toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se uložit nastavení ligy.' });
         const settingsRef = doc(firestore, 'settings', 'league');
@@ -958,6 +956,7 @@ function DashboardPageContent() {
         }));
     } finally {
         setIsSaving(false);
+        setIsLeagueEditMode(false);
     }
   };
 
@@ -1530,7 +1529,7 @@ function DashboardPageContent() {
                                 </TableHeader>
                                 <TableBody>
                                     {sortedTeamScoring.map((player) => (
-                                        <TableRow key={player.id}>
+                                        <TableRow key={player.id} className={player.id === user?.uid ? 'bg-primary/10' : ''}>
                                             <TableCell className="font-medium px-1 sm:px-4">{player.rank}</TableCell>
                                             <TableCell className="py-2 px-1 sm:px-4">{player.name}</TableCell>
                                              {isStatEditMode ? (
@@ -1598,7 +1597,7 @@ function DashboardPageContent() {
                                 </TableHeader>
                                 <TableBody>
                                     {sortedGoalieLeaderboard.map((goalie) => (
-                                        <TableRow key={goalie.id}>
+                                        <TableRow key={goalie.id} className={goalie.id === user?.uid ? 'bg-primary/10' : ''}>
                                             <TableCell className="font-medium py-2 px-1 sm:px-4">{goalie.name}</TableCell>
                                              {isStatEditMode ? (
                                                 <>
