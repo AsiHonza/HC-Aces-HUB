@@ -407,6 +407,7 @@ function HistoryPageContent() {
         } finally {
             setIsSaving(false);
             setIsDeleteDialogOpen(false);
+            setSelectedMatch(null);
         }
     }
 
@@ -554,6 +555,7 @@ function HistoryPageContent() {
         } finally {
             setIsSaving(false);
             setIsEditDialogOpen(false);
+            setSelectedMatch(null);
         }
     };
 
@@ -612,7 +614,7 @@ function HistoryPageContent() {
                                                     {renderMatchTypeBadge(match.type)}
                                                 </div>
                                                 {userProfile?.role === 'admin' && (
-                                                    <DropdownMenu>
+                                                    <DropdownMenu modal={true}>
                                                         <DropdownMenuTrigger asChild>
                                                             <div
                                                               onClick={(e) => { e.preventDefault(); e.stopPropagation() }}
@@ -683,7 +685,12 @@ function HistoryPageContent() {
                 </CardContent>
             </Card>
 
-            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+            <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => {
+                setIsEditDialogOpen(isOpen);
+                if (!isOpen) {
+                    setTimeout(() => setSelectedMatch(null), 300);
+                }
+            }}>
                 <DialogContent className="max-w-md">
                     {selectedMatch && playersForMatch ? (
                         <EditResultForm 
@@ -701,7 +708,12 @@ function HistoryPageContent() {
                 </DialogContent>
             </Dialog>
 
-            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+            <AlertDialog open={isDeleteDialogOpen} onOpenChange={(isOpen) => {
+                setIsDeleteDialogOpen(isOpen);
+                if (!isOpen) {
+                    setTimeout(() => setSelectedMatch(null), 300);
+                }
+            }}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>Opravdu chcete smazat tento zápas?</AlertDialogTitle>
@@ -719,7 +731,16 @@ function HistoryPageContent() {
                 </AlertDialogContent>
             </AlertDialog>
 
-            <Dialog open={isLineupViewOpen} onOpenChange={setIsLineupViewOpen}>
+            <Dialog open={isLineupViewOpen} onOpenChange={(isOpen) => {
+                setIsLineupViewOpen(isOpen);
+                if (!isOpen) {
+                    setTimeout(() => {
+                        setViewLineupData(null);
+                        setViewScorersData(undefined);
+                        setViewMatchTitle('');
+                    }, 300);
+                }
+            }}>
                 <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
                     <DialogHeader>
                         <DialogTitle>{viewMatchTitle ? `Sestava: ${viewMatchTitle}` : 'Načítání sestavy...'}</DialogTitle>
