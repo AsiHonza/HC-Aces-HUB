@@ -125,11 +125,14 @@ function SettingsForm() {
     }
 
     const file = e.target.files[0];
+    const metadata = {
+        contentType: file.type,
+    };
     setIsUploading(true);
 
     try {
         const avatarRef = storageRef(storage, `avatars/${user.uid}/${file.name}`);
-        const uploadResult = await uploadBytes(avatarRef, file);
+        const uploadResult = await uploadBytes(avatarRef, file, metadata);
         const downloadURL = await getDownloadURL(uploadResult.ref);
         
         const userDocRef = doc(firestore, 'users', user.uid);
