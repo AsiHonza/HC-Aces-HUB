@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useMemo, useState, useEffect } from 'react'
+import { Suspense, useMemo, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase'
@@ -85,7 +85,7 @@ interface Attendance {
     note?: string;
 }
 
-function EditResultForm({ match, allUsers, onSave, onCancel }: { match: Match, allUsers: UserProfile[], onSave: (e: React.FormEvent<HTMLFormElement>) => Promise<void>, onCancel: () => void }) {
+function EditResultForm({ match, allUsers, onSave, onCancel, isSaving }: { match: Match, allUsers: UserProfile[], onSave: (e: React.FormEvent<HTMLFormElement>) => Promise<void>, onCancel: () => void, isSaving: boolean }) {
     const [goalCount, setGoalCount] = useState(match.team1Score || 0);
     const [selectedScorers, setSelectedScorers] = useState<Record<number, string | null>>(() => {
         const initialScorers: Record<number, string | null> = {};
@@ -174,8 +174,11 @@ function EditResultForm({ match, allUsers, onSave, onCancel }: { match: Match, a
                 </div>
             </div>
             <DialogFooter className="pt-4">
-                <Button type="button" variant="outline" onClick={onCancel}>Zrušit</Button>
-                <Button type="submit">Uložit změny</Button>
+                <Button type="button" variant="outline" onClick={onCancel} disabled={isSaving}>Zrušit</Button>
+                <Button type="submit" disabled={isSaving}>
+                    {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Uložit změny
+                </Button>
             </DialogFooter>
         </form>
     )
@@ -189,6 +192,8 @@ function HistoryPageContent() {
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
+
+    const [isSaving, setIsSaving] = useState(false);
 
     const [isLineupViewOpen, setIsLineupViewOpen] = useState(false);
     const [viewLineupData, setViewLineupData] = useState<Lineup | null>(null);
@@ -298,100 +303,109 @@ function HistoryPageContent() {
     const confirmDeleteMatch = async () => {
         if (!selectedMatch || !firestore || !allSkaterStats || !allGoalieStats || !allAttendances) return;
     
-        const batch = writeBatch(firestore);
-        const matchType = selectedMatch.type;
-        const allSkaterStatsMap = new Map(allSkaterStats.map(s => [s.userProfileId, s]));
-        const allGoalieStatsMap = new Map(allGoalieStats.map(s => [s.userProfileId, s]));
+        setIsSaving(true);
+        try {
+            const batch = writeBatch(firestore);
+            const matchType = selectedMatch.type;
+            const allSkaterStatsMap = new Map(allSkaterStats.map(s => [s.userProfileId, s]));
+            const allGoalieStatsMap = new Map(allGoalieStats.map(s => [s.userProfileId, s]));
 
-        // Revert skater points
-        const statsToRevert = new Map<string, { goals: number, assists: number }>();
-        selectedMatch.scorers?.forEach(scorer => {
-            if (scorer.goal) {
-                const current = statsToRevert.get(scorer.goal) || { goals: 0, assists: 0 };
-                statsToRevert.set(scorer.goal, { ...current, goals: current.goals + 1 });
-            }
-            if (scorer.assist) {
-                const current = statsToRevert.get(scorer.assist) || { goals: 0, assists: 0 };
-                statsToRevert.set(scorer.assist, { ...current, assists: current.assists + 1 });
-            }
-        });
-    
-        for (const [userId, revert] of statsToRevert.entries()) {
-            const userStats = allSkaterStatsMap.get(userId);
-            if (userStats) {
-                const statDocRef = doc(firestore, 'users', userId, 'skaterStats', userStats.id);
-                const update: any = {
-                    historicalGoals: Math.max(0, (userStats.historicalGoals || 0) - revert.goals),
-                    historicalAssists: Math.max(0, (userStats.historicalAssists || 0) - revert.assists),
-                };
-                if (matchType === 'playoff') {
-                    update.playoffGoals = Math.max(0, (userStats.playoffGoals || 0) - revert.goals);
-                    update.playoffAssists = Math.max(0, (userStats.playoffAssists || 0) - revert.assists);
-                } else if (matchType === 'regular') {
-                    update.seasonGoals = Math.max(0, (userStats.seasonGoals || 0) - revert.goals);
-                    update.seasonAssists = Math.max(0, (userStats.seasonAssists || 0) - revert.assists);
+            // Revert skater points
+            const statsToRevert = new Map<string, { goals: number, assists: number }>();
+            selectedMatch.scorers?.forEach(scorer => {
+                if (scorer.goal) {
+                    const current = statsToRevert.get(scorer.goal) || { goals: 0, assists: 0 };
+                    statsToRevert.set(scorer.goal, { ...current, goals: current.goals + 1 });
                 }
-                batch.update(statDocRef, update);
-            }
-        }
+                if (scorer.assist) {
+                    const current = statsToRevert.get(scorer.assist) || { goals: 0, assists: 0 };
+                    statsToRevert.set(scorer.assist, { ...current, assists: current.assists + 1 });
+                }
+            });
         
-        // Revert games played for skaters and goalies
-        const matchAttendees = attendancesByMatch.get(selectedMatch.id) || [];
-        matchAttendees.forEach(att => {
-            if (att.status !== 'going') return;
-            const userProfile = users?.find(u => u.id === att.userId);
-            
-            if (userProfile?.playerType === 'player') {
-                const userStats = allSkaterStatsMap.get(att.userId);
+            for (const [userId, revert] of statsToRevert.entries()) {
+                const userStats = allSkaterStatsMap.get(userId);
                 if (userStats) {
-                    const statDocRef = doc(firestore, 'users', att.userId, 'skaterStats', userStats.id);
+                    const statDocRef = doc(firestore, 'users', userId, 'skaterStats', userStats.id);
                     const update: any = {
-                        historicalGamesPlayed: Math.max(0, (userStats.historicalGamesPlayed || 0) - 1)
+                        historicalGoals: Math.max(0, (userStats.historicalGoals || 0) - revert.goals),
+                        historicalAssists: Math.max(0, (userStats.historicalAssists || 0) - revert.assists),
                     };
                     if (matchType === 'playoff') {
-                        update.playoffGamesPlayed = Math.max(0, (userStats.playoffGamesPlayed || 0) - 1);
+                        update.playoffGoals = Math.max(0, (userStats.playoffGoals || 0) - revert.goals);
+                        update.playoffAssists = Math.max(0, (userStats.playoffAssists || 0) - revert.assists);
                     } else if (matchType === 'regular') {
-                        update.seasonGamesPlayed = Math.max(0, (userStats.seasonGamesPlayed || 0) - 1);
+                        update.seasonGoals = Math.max(0, (userStats.seasonGoals || 0) - revert.goals);
+                        update.seasonAssists = Math.max(0, (userStats.seasonAssists || 0) - revert.assists);
                     }
                     batch.update(statDocRef, update);
                 }
-            } else if (userProfile?.playerType === 'goalie' && selectedMatch.goalieId === att.userId) {
-                const goalieStats = allGoalieStatsMap.get(att.userId);
-                if (goalieStats) {
-                    const goalieStatRef = doc(firestore, 'users', att.userId, 'goalieStats', goalieStats.id);
-                    const isWin = (selectedMatch.team1Score ?? 0) > (selectedMatch.team2Score ?? 0);
-                    const update: any = {
-                         historicalGamesPlayed: Math.max(0, (goalieStats.historicalGamesPlayed || 0) - 1),
-                    };
-                    if (isWin) update.historicalWins = Math.max(0, (goalieStats.historicalWins || 0) - 1);
-                    update.historicalSaves = Math.max(0, (goalieStats.historicalSaves || 0) - (selectedMatch.goalieSaves || 0));
-                    update.historicalShotsAgainst = Math.max(0, (goalieStats.historicalShotsAgainst || 0) - (selectedMatch.goalieShotsAgainst || 0));
-
-                     if (matchType === 'playoff') {
-                        update.playoffGamesPlayed = Math.max(0, (goalieStats.playoffGamesPlayed || 0) - 1);
-                        if (isWin) update.playoffWins = Math.max(0, (goalieStats.playoffWins || 0) - 1);
-                        update.playoffSaves = Math.max(0, (goalieStats.playoffSaves || 0) - (selectedMatch.goalieSaves || 0));
-                        update.playoffShotsAgainst = Math.max(0, (goalieStats.playoffShotsAgainst || 0) - (selectedMatch.goalieShotsAgainst || 0));
-                    } else if (matchType === 'regular') {
-                        update.seasonGamesPlayed = Math.max(0, (goalieStats.seasonGamesPlayed || 0) - 1);
-                        if (isWin) update.seasonWins = Math.max(0, (goalieStats.seasonWins || 0) - 1);
-                        update.seasonSaves = Math.max(0, (goalieStats.seasonSaves || 0) - (selectedMatch.goalieSaves || 0));
-                        update.seasonShotsAgainst = Math.max(0, (goalieStats.seasonShotsAgainst || 0) - (selectedMatch.goalieShotsAgainst || 0));
-                    }
-                    batch.update(goalieStatRef, update);
-                }
             }
-        });
+            
+            // Revert games played for skaters and goalies
+            const matchAttendees = attendancesByMatch.get(selectedMatch.id) || [];
+            const allGoingUserIds = new Set(matchAttendees.filter(a => a.status === 'going').map(a => a.userId));
+            selectedMatch.scorers?.forEach(s => {
+                if (s.goal) allGoingUserIds.add(s.goal);
+                if (s.assist) allGoingUserIds.add(s.assist);
+            });
+            if(selectedMatch.goalieId) allGoingUserIds.add(selectedMatch.goalieId);
+
+
+            allGoingUserIds.forEach(userId => {
+                const userProfile = users?.find(u => u.id === userId);
+                
+                if (userProfile?.playerType === 'player') {
+                    const userStats = allSkaterStatsMap.get(userId);
+                    if (userStats) {
+                        const statDocRef = doc(firestore, 'users', userId, 'skaterStats', userStats.id);
+                        const update: any = {
+                            historicalGamesPlayed: Math.max(0, (userStats.historicalGamesPlayed || 0) - 1)
+                        };
+                        if (matchType === 'playoff') {
+                            update.playoffGamesPlayed = Math.max(0, (userStats.playoffGamesPlayed || 0) - 1);
+                        } else if (matchType === 'regular') {
+                            update.seasonGamesPlayed = Math.max(0, (userStats.seasonGamesPlayed || 0) - 1);
+                        }
+                        batch.update(statDocRef, update);
+                    }
+                } else if (userProfile?.playerType === 'goalie' && selectedMatch.goalieId === userId) {
+                    const goalieStats = allGoalieStatsMap.get(userId);
+                    if (goalieStats) {
+                        const goalieStatRef = doc(firestore, 'users', userId, 'goalieStats', goalieStats.id);
+                        const isWin = (selectedMatch.team1Score ?? 0) > (selectedMatch.team2Score ?? 0);
+                        const update: any = {
+                             historicalGamesPlayed: Math.max(0, (goalieStats.historicalGamesPlayed || 0) - 1),
+                        };
+                        if (isWin) update.historicalWins = Math.max(0, (goalieStats.historicalWins || 0) - 1);
+                        update.historicalSaves = Math.max(0, (goalieStats.historicalSaves || 0) - (selectedMatch.goalieSaves || 0));
+                        update.historicalShotsAgainst = Math.max(0, (goalieStats.historicalShotsAgainst || 0) - (selectedMatch.goalieShotsAgainst || 0));
+
+                         if (matchType === 'playoff') {
+                            update.playoffGamesPlayed = Math.max(0, (goalieStats.playoffGamesPlayed || 0) - 1);
+                            if (isWin) update.playoffWins = Math.max(0, (goalieStats.playoffWins || 0) - 1);
+                            update.playoffSaves = Math.max(0, (goalieStats.playoffSaves || 0) - (selectedMatch.goalieSaves || 0));
+                            update.playoffShotsAgainst = Math.max(0, (goalieStats.playoffShotsAgainst || 0) - (selectedMatch.goalieShotsAgainst || 0));
+                        } else if (matchType === 'regular') {
+                            update.seasonGamesPlayed = Math.max(0, (goalieStats.seasonGamesPlayed || 0) - 1);
+                            if (isWin) update.seasonWins = Math.max(0, (goalieStats.seasonWins || 0) - 1);
+                            update.seasonSaves = Math.max(0, (goalieStats.seasonSaves || 0) - (selectedMatch.goalieSaves || 0));
+                            update.seasonShotsAgainst = Math.max(0, (goalieStats.seasonShotsAgainst || 0) - (selectedMatch.goalieShotsAgainst || 0));
+                        }
+                        batch.update(goalieStatRef, update);
+                    }
+                }
+            });
+            
+            const matchRef = doc(firestore, 'matches', selectedMatch.id);
+            batch.delete(matchRef);
         
-        const matchRef = doc(firestore, 'matches', selectedMatch.id);
-        batch.delete(matchRef);
-    
-        try {
             await batch.commit();
             toast({ title: "Zápas smazán." });
         } catch (error: any) {
             toast({ variant: 'destructive', title: "Chyba", description: `Nepodařilo se smazat zápas: ${error.message}` });
         } finally {
+            setIsSaving(false);
             setIsDeleteDialogOpen(false);
         }
     }
@@ -400,6 +414,7 @@ function HistoryPageContent() {
         e.preventDefault();
         if (!selectedMatch || !firestore || !allSkaterStats || !users || !allGoalieStats) return;
         
+        setIsSaving(true);
         try {
             const matchType = selectedMatch.type;
 
@@ -499,21 +514,21 @@ function HistoryPageContent() {
                     
                     const oldSaves = isSameGoalie ? (selectedMatch.goalieSaves || 0) : 0;
                     const oldShots = isSameGoalie ? (selectedMatch.goalieShotsAgainst || 0) : 0;
-                    const oldWin = isSameGoalie && oldIsWin;
+                    const oldWinVal = isSameGoalie && oldIsWin ? 1 : 0;
                     
                     const update: any = {
-                        historicalWins: Math.max(0, (newGoalieStats.historicalWins || 0) - (oldWin ? 1 : 0) + (newIsWin ? 1 : 0)),
+                        historicalWins: Math.max(0, (newGoalieStats.historicalWins || 0) - oldWinVal + (newIsWin ? 1 : 0)),
                         historicalSaves: Math.max(0, (newGoalieStats.historicalSaves || 0) - oldSaves + goalieSaves),
                         historicalShotsAgainst: Math.max(0, (newGoalieStats.historicalShotsAgainst || 0) - oldShots + goalieShotsAgainst),
                     };
 
                     if (matchType !== 'friendly') {
                         if (matchType === 'playoff') {
-                            update.playoffWins = Math.max(0, (newGoalieStats.playoffWins || 0) - (oldWin ? 1 : 0) + (newIsWin ? 1 : 0));
+                            update.playoffWins = Math.max(0, (newGoalieStats.playoffWins || 0) - oldWinVal + (newIsWin ? 1 : 0));
                             update.playoffSaves = Math.max(0, (newGoalieStats.playoffSaves || 0) - oldSaves + goalieSaves);
                             update.playoffShotsAgainst = Math.max(0, (newGoalieStats.playoffShotsAgainst || 0) - oldShots + goalieShotsAgainst);
                         } else {
-                            update.seasonWins = Math.max(0, (newGoalieStats.seasonWins || 0) - (oldWin ? 1 : 0) + (newIsWin ? 1 : 0));
+                            update.seasonWins = Math.max(0, (newGoalieStats.seasonWins || 0) - oldWinVal + (newIsWin ? 1 : 0));
                             update.seasonSaves = Math.max(0, (newGoalieStats.seasonSaves || 0) - oldSaves + goalieSaves);
                             update.seasonShotsAgainst = Math.max(0, (newGoalieStats.seasonShotsAgainst || 0) - oldShots + goalieShotsAgainst);
                         }
@@ -537,6 +552,7 @@ function HistoryPageContent() {
         } catch (error: any) {
             toast({ variant: 'destructive', title: "Chyba", description: `Nepodařilo se uložit změny: ${error.message}` });
         } finally {
+            setIsSaving(false);
             setIsEditDialogOpen(false);
         }
     };
@@ -667,15 +683,7 @@ function HistoryPageContent() {
                 </CardContent>
             </Card>
 
-            <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => {
-                setIsEditDialogOpen(isOpen);
-                if (!isOpen) {
-                    setTimeout(() => {
-                        setSelectedMatch(null);
-                        setPlayersForMatch(null);
-                    }, 200);
-                }
-            }}>
+            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
                 <DialogContent className="max-w-md">
                     {selectedMatch && playersForMatch ? (
                         <EditResultForm 
@@ -683,6 +691,7 @@ function HistoryPageContent() {
                             allUsers={playersForMatch}
                             onSave={handleResultSave}
                             onCancel={() => setIsEditDialogOpen(false)}
+                            isSaving={isSaving}
                         />
                     ) : (
                          <div className="flex justify-center items-center h-24">
@@ -692,12 +701,7 @@ function HistoryPageContent() {
                 </DialogContent>
             </Dialog>
 
-            <AlertDialog open={isDeleteDialogOpen} onOpenChange={(isOpen) => {
-                setIsDeleteDialogOpen(isOpen);
-                if (!isOpen) {
-                    setTimeout(() => setSelectedMatch(null), 200);
-                }
-            }}>
+            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>Opravdu chcete smazat tento zápas?</AlertDialogTitle>
@@ -706,22 +710,16 @@ function HistoryPageContent() {
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel>Zrušit</AlertDialogCancel>
-                        <AlertDialogAction onClick={confirmDeleteMatch} className="bg-destructive hover:bg-destructive/90">Smazat</AlertDialogAction>
+                        <AlertDialogCancel disabled={isSaving}>Zrušit</AlertDialogCancel>
+                        <AlertDialogAction onClick={confirmDeleteMatch} className="bg-destructive hover:bg-destructive/90" disabled={isSaving}>
+                            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Smazat
+                        </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
 
-            <Dialog open={isLineupViewOpen} onOpenChange={(isOpen) => {
-                setIsLineupViewOpen(isOpen);
-                if (!isOpen) {
-                    setTimeout(() => {
-                        setViewLineupData(null);
-                        setViewScorersData(undefined);
-                        setViewMatchTitle('');
-                    }, 200);
-                }
-            }}>
+            <Dialog open={isLineupViewOpen} onOpenChange={setIsLineupViewOpen}>
                 <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
                     <DialogHeader>
                         <DialogTitle>{viewMatchTitle ? `Sestava: ${viewMatchTitle}` : 'Načítání sestavy...'}</DialogTitle>

@@ -118,7 +118,7 @@ interface AppSettings {
   leagueStandings?: LeagueStanding[];
 }
 
-function RecordResultForm({ match, allUsers, onSave, onCancel }: { match: Match, allUsers: UserProfile[], onSave: (e: React.FormEvent<HTMLFormElement>) => Promise<void>, onCancel: () => void }) {
+function RecordResultForm({ match, allUsers, onSave, onCancel, isSaving }: { match: Match, allUsers: UserProfile[], onSave: (e: React.FormEvent<HTMLFormElement>) => void, onCancel: () => void, isSaving: boolean }) {
     const [goalCount, setGoalCount] = useState(0);
     const [selectedScorers, setSelectedScorers] = useState<Record<number, string | null>>({});
 
@@ -128,13 +128,9 @@ function RecordResultForm({ match, allUsers, onSave, onCancel }: { match: Match,
     const handleScorerChange = (index: number, scorerId: string) => {
         setSelectedScorers(prev => ({ ...prev, [index]: scorerId }));
     };
-
-    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-        await onSave(e);
-    }
     
     return (
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={onSave}>
              <DialogHeader>
                   <DialogTitle>Zapsat výsledek zápasu</DialogTitle>
                   <DialogDescription>
@@ -200,8 +196,11 @@ function RecordResultForm({ match, allUsers, onSave, onCancel }: { match: Match,
 
             </div>
             <DialogFooter className="pt-4">
-                <Button type="button" variant="outline" onClick={onCancel}>Zrušit</Button>
-                <Button type="submit">Uložit výsledek</Button>
+                <Button type="button" variant="outline" onClick={onCancel} disabled={isSaving}>Zrušit</Button>
+                <Button type="submit" disabled={isSaving}>
+                    {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Uložit výsledek
+                </Button>
             </DialogFooter>
         </form>
     )
@@ -218,6 +217,8 @@ function DashboardPageContent() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isResultDialogOpen, setIsResultDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
+
+  const [isSaving, setIsSaving] = useState(false);
 
   const [isLeagueEditMode, setIsLeagueEditMode] = useState(false);
   
@@ -577,36 +578,38 @@ function DashboardPageContent() {
       setIsLineupBuilderOpen(false);
       return;
     };
-    const matchRef = doc(firestore, 'matches', lineupMatch.id);
+
+    setIsSaving(true);
     try {
+      const matchRef = doc(firestore, 'matches', lineupMatch.id);
       await updateDoc(matchRef, { lineup: lineupToSave });
       toast({ title: "Sestava uložena." });
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Chyba', description: `Nepodařilo se uložit sestavu: ${error.message}` });
       errorEmitter.emit('permission-error', new FirestorePermissionError({
-        operation: 'update', path: matchRef.path, requestResourceData: { lineup: lineupToSave },
+        operation: 'update', path: doc(firestore, 'matches', lineupMatch.id).path, requestResourceData: { lineup: lineupToSave },
       }));
     } finally {
+      setIsSaving(false);
       setIsLineupBuilderOpen(false);
     }
   };
 
   const confirmDeleteMatch = async () => {
-    if (!selectedMatch || !firestore) {
-      setIsDeleteDialogOpen(false);
-      return;
-    };
+    if (!selectedMatch || !firestore) return;
     
-    const matchRef = doc(firestore, 'matches', selectedMatch.id);
+    setIsSaving(true);
     try {
+        const matchRef = doc(firestore, 'matches', selectedMatch.id);
         await deleteDoc(matchRef)
         toast({ title: "Zápas smazán." });
     } catch (error: any) {
         toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se smazat zápas.' });
         errorEmitter.emit('permission-error', new FirestorePermissionError({
-            operation: 'delete', path: matchRef.path
+            operation: 'delete', path: doc(firestore, 'matches', selectedMatch.id).path
         }));
     } finally {
+        setIsSaving(false);
         setIsDeleteDialogOpen(false);
     }
   };
@@ -657,33 +660,30 @@ function DashboardPageContent() {
   };
 
   const confirmAttendance = async () => {
-    if (!attendanceData) {
-        setIsAttendanceDialogOpen(false);
-        return;
-    }
+    if (!attendanceData) return;
+    
+    setIsSaving(true);
     try {
         await handleAttendanceChange(attendanceData.matchId, attendanceData.status, attendanceNote);
     } catch (error) {
-        // Error is handled inside handleAttendanceChange, but we still close the dialog.
+        // Error is handled inside handleAttendanceChange
     } finally {
+        setIsSaving(false);
         setIsAttendanceDialogOpen(false);
     }
   };
 
   const handleMatchUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!selectedMatch || !firestore) {
-      setIsEditDialogOpen(false);
-      return;
-    };
+    if (!selectedMatch || !firestore) return;
 
+    setIsSaving(true);
     const formData = new FormData(e.currentTarget);
     const timeStr = formData.get('time') as string;
     const dateStr = formData.get('date') as string;
     
     try {
         const newDateTime = parse(`${dateStr} ${timeStr}`, 'yyyy-MM-dd HH:mm', new Date());
-
         if (isNaN(newDateTime.getTime())) {
             toast({ variant: 'destructive', title: 'Neplatné datum', description: 'Zkontrolujte prosím formát data a času.' });
             return;
@@ -700,30 +700,26 @@ function DashboardPageContent() {
         toast({ title: 'Zápas aktualizován' });
     } catch (error: any) {
         toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se uložit zápas.' });
-        if(selectedMatch){
-             errorEmitter.emit('permission-error', new FirestorePermissionError({
-                operation: 'update', path: doc(firestore, 'matches', selectedMatch.id).path, requestResourceData: (error as any).requestResourceData,
-            }));
-        }
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            operation: 'update', path: doc(firestore, 'matches', selectedMatch.id).path, requestResourceData: (error as any).requestResourceData,
+        }));
     } finally {
+        setIsSaving(false);
         setIsEditDialogOpen(false);
     }
   };
 
   const handleMatchAdd = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!firestore) {
-        setIsAddDialogOpen(false);
-        return;
-    };
+    if (!firestore) return;
 
+    setIsSaving(true);
     const formData = new FormData(e.currentTarget);
     const timeStr = formData.get('time') as string;
     const dateStr = formData.get('date') as string;
     
     try {
       const newDateTime = parse(`${dateStr} ${timeStr}`, 'yyyy-MM-dd HH:mm', new Date());
-
       if (isNaN(newDateTime.getTime())) {
             toast({ variant: 'destructive', title: 'Neplatné datum', description: 'Zkontrolujte prosím formát data a času.' });
             return;
@@ -738,8 +734,8 @@ function DashboardPageContent() {
           type: formData.get('type') as 'regular' | 'playoff' | 'friendly',
       };
       
-      const matchesCollection = collection(firestore, 'matches')
-      await addDoc(matchesCollection, newMatchData)
+      const matchesCollection = collection(firestore, 'matches');
+      await addDoc(matchesCollection, newMatchData);
       toast({ title: 'Zápas přidán.' });
     } catch (error: any) {
        toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se přidat zápas.' });
@@ -747,17 +743,16 @@ function DashboardPageContent() {
           operation: 'create', path: collection(firestore, 'matches').path, requestResourceData: (error as any).requestResourceData
         }));
     } finally {
+        setIsSaving(false);
         setIsAddDialogOpen(false);
     }
   };
 
   const handleResultSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!selectedMatch || !firestore || !allSkaterStats || !allAttendances || !allGoalieStats) {
-      setIsResultDialogOpen(false);
-      return;
-    };
+    if (!selectedMatch || !firestore || !allSkaterStats || !allAttendances || !allGoalieStats) return;
 
+    setIsSaving(true);
     const formData = new FormData(e.currentTarget);
     const team1Score = parseInt(formData.get('team1Score') as string, 10);
     const team2Score = parseInt(formData.get('team2Score') as string, 10);
@@ -779,120 +774,119 @@ function DashboardPageContent() {
 
     const batch = writeBatch(firestore);
 
-    const matchRef = doc(firestore, 'matches', selectedMatch.id);
-    batch.update(matchRef, {
-        isPlayed: true,
-        team1Score,
-        team2Score,
-        scorers: scorersData,
-        goalieId: goalieId && goalieId !== 'none' ? goalieId : null,
-        goalieSaves,
-        goalieShotsAgainst,
-    });
-    
-    // Always update historical stats, regardless of match type
-    const allSkaterStatsMap = new Map(allSkaterStats.map(s => [s.userProfileId, s]));
-    const playerStatUpdates = new Map<string, { goals: number, assists: number }>();
-    scorersData.forEach(s => {
-        if (s.goal) {
-            const current = playerStatUpdates.get(s.goal) || { goals: 0, assists: 0 };
-            playerStatUpdates.set(s.goal, { ...current, goals: current.goals + 1 });
-        }
-        if (s.assist) {
-            const current = playerStatUpdates.get(s.assist) || { goals: 0, assists: 0 };
-            playerStatUpdates.set(s.assist, { ...current, assists: current.assists + 1 });
-        }
-    });
-
-    for (const [userId, updates] of playerStatUpdates.entries()) {
-        const userStats = allSkaterStatsMap.get(userId);
-        if (userStats) {
-            const statDocRef = doc(firestore, 'users', userId, 'skaterStats', userStats.id);
-            const update: any = {
-                historicalGoals: (userStats.historicalGoals || 0) + updates.goals,
-                historicalAssists: (userStats.historicalAssists || 0) + updates.assists,
-            };
-            if (selectedMatch.type === 'playoff') {
-                update.playoffGoals = (userStats.playoffGoals || 0) + updates.goals;
-                update.playoffAssists = (userStats.playoffAssists || 0) + updates.assists;
-            } else if (selectedMatch.type === 'regular') {
-                update.seasonGoals = (userStats.seasonGoals || 0) + updates.goals;
-                update.seasonAssists = (userStats.seasonAssists || 0) + updates.assists;
-            }
-            batch.update(statDocRef, update);
-        }
-    }
-
-    const matchAttendees = attendancesByMatch.get(selectedMatch.id) || [];
-    matchAttendees.forEach(att => {
-        if (att.status !== 'going') return;
-        const userForStat = allUsers?.find(u => u.id === att.userId);
-        if (userForStat?.playerType === 'player') {
-            const userStats = allSkaterStatsMap.get(att.userId);
-            if (userStats) {
-                const statDocRef = doc(firestore, 'users', att.userId, 'skaterStats', userStats.id);
-                const update: any = { historicalGamesPlayed: (userStats.historicalGamesPlayed || 0) + 1 };
-                if (selectedMatch.type === 'playoff') {
-                    update.playoffGamesPlayed = (userStats.playoffGamesPlayed || 0) + 1;
-                } else if (selectedMatch.type === 'regular') {
-                    update.seasonGamesPlayed = (userStats.seasonGamesPlayed || 0) + 1;
-                }
-                batch.update(statDocRef, update);
-            }
-        }
-    });
-    
-    if (goalieId && goalieId !== 'none') {
-        const allGoalieStatsMap = new Map(allGoalieStats.map(s => [s.userProfileId, s]));
-        const goalieStats = allGoalieStatsMap.get(goalieId);
-        const isWin = team1Score > team2Score;
-        
-        const update: any = {
-            historicalGamesPlayed: ((goalieStats?.historicalGamesPlayed) || 0) + 1,
-            historicalWins: ((goalieStats?.historicalWins) || 0) + (isWin ? 1 : 0),
-            historicalSaves: ((goalieStats?.historicalSaves) || 0) + goalieSaves,
-            historicalShotsAgainst: ((goalieStats?.historicalShotsAgainst) || 0) + goalieShotsAgainst,
-        };
-
-        if (selectedMatch.type === 'playoff') {
-            update.playoffGamesPlayed = ((goalieStats?.playoffGamesPlayed) || 0) + 1;
-            update.playoffWins = ((goalieStats?.playoffWins) || 0) + (isWin ? 1 : 0);
-            update.playoffSaves = ((goalieStats?.playoffSaves) || 0) + goalieSaves;
-            update.playoffShotsAgainst = ((goalieStats?.playoffShotsAgainst) || 0) + goalieShotsAgainst;
-        } else if (selectedMatch.type === 'regular') {
-            update.seasonGamesPlayed = ((goalieStats?.seasonGamesPlayed) || 0) + 1;
-            update.seasonWins = ((goalieStats?.seasonWins) || 0) + (isWin ? 1 : 0);
-            update.seasonSaves = ((goalieStats?.seasonSaves) || 0) + goalieSaves;
-            update.seasonShotsAgainst = ((goalieStats?.seasonShotsAgainst) || 0) + goalieShotsAgainst;
-        }
-
-        if (goalieStats) {
-            const statDocRef = doc(firestore, 'users', goalieId, 'goalieStats', goalieStats.id);
-            batch.update(statDocRef, update);
-        } else {
-             const statDocRef = doc(firestore, 'users', goalieId, 'goalieStats', 'stats');
-             batch.set(statDocRef, {
-                userProfileId: goalieId,
-                seasonGamesPlayed: selectedMatch.type === 'regular' ? 1 : 0,
-                seasonWins: selectedMatch.type === 'regular' && isWin ? 1 : 0,
-                seasonSaves: selectedMatch.type === 'regular' ? goalieSaves : 0,
-                seasonShotsAgainst: selectedMatch.type === 'regular' ? goalieShotsAgainst : 0,
-                playoffGamesPlayed: selectedMatch.type === 'playoff' ? 1 : 0,
-                playoffWins: selectedMatch.type === 'playoff' && isWin ? 1 : 0,
-                playoffSaves: selectedMatch.type === 'playoff' ? goalieSaves : 0,
-                playoffShotsAgainst: selectedMatch.type === 'playoff' ? goalieShotsAgainst : 0,
-                ...update
-             });
-        }
-    }
-
-
     try {
-        await batch.commit();
-        toast({ title: "Výsledek uložen", description: "Statistiky hráčů byly aktualizovány." });
+      const matchRef = doc(firestore, 'matches', selectedMatch.id);
+      batch.update(matchRef, {
+          isPlayed: true,
+          team1Score,
+          team2Score,
+          scorers: scorersData,
+          goalieId: goalieId && goalieId !== 'none' ? goalieId : null,
+          goalieSaves,
+          goalieShotsAgainst,
+      });
+      
+      const allSkaterStatsMap = new Map(allSkaterStats.map(s => [s.userProfileId, s]));
+      const playerStatUpdates = new Map<string, { goals: number, assists: number }>();
+      scorersData.forEach(s => {
+          if (s.goal) {
+              const current = playerStatUpdates.get(s.goal) || { goals: 0, assists: 0 };
+              playerStatUpdates.set(s.goal, { ...current, goals: current.goals + 1 });
+          }
+          if (s.assist) {
+              const current = playerStatUpdates.get(s.assist) || { goals: 0, assists: 0 };
+              playerStatUpdates.set(s.assist, { ...current, assists: current.assists + 1 });
+          }
+      });
+
+      for (const [userId, updates] of playerStatUpdates.entries()) {
+          const userStats = allSkaterStatsMap.get(userId);
+          if (userStats) {
+              const statDocRef = doc(firestore, 'users', userId, 'skaterStats', userStats.id);
+              const update: any = {
+                  historicalGoals: (userStats.historicalGoals || 0) + updates.goals,
+                  historicalAssists: (userStats.historicalAssists || 0) + updates.assists,
+              };
+              if (selectedMatch.type === 'playoff') {
+                  update.playoffGoals = (userStats.playoffGoals || 0) + updates.goals;
+                  update.playoffAssists = (userStats.playoffAssists || 0) + updates.assists;
+              } else if (selectedMatch.type === 'regular') {
+                  update.seasonGoals = (userStats.seasonGoals || 0) + updates.goals;
+                  update.seasonAssists = (userStats.seasonAssists || 0) + updates.assists;
+              }
+              batch.update(statDocRef, update);
+          }
+      }
+
+      const matchAttendees = attendancesByMatch.get(selectedMatch.id) || [];
+      matchAttendees.forEach(att => {
+          if (att.status !== 'going') return;
+          const userForStat = allUsers?.find(u => u.id === att.userId);
+          if (userForStat?.playerType === 'player') {
+              const userStats = allSkaterStatsMap.get(att.userId);
+              if (userStats) {
+                  const statDocRef = doc(firestore, 'users', att.userId, 'skaterStats', userStats.id);
+                  const update: any = { historicalGamesPlayed: (userStats.historicalGamesPlayed || 0) + 1 };
+                  if (selectedMatch.type === 'playoff') {
+                      update.playoffGamesPlayed = (userStats.playoffGamesPlayed || 0) + 1;
+                  } else if (selectedMatch.type === 'regular') {
+                      update.seasonGamesPlayed = (userStats.seasonGamesPlayed || 0) + 1;
+                  }
+                  batch.update(statDocRef, update);
+              }
+          }
+      });
+      
+      if (goalieId && goalieId !== 'none') {
+          const allGoalieStatsMap = new Map(allGoalieStats.map(s => [s.userProfileId, s]));
+          const goalieStats = allGoalieStatsMap.get(goalieId);
+          const isWin = team1Score > team2Score;
+          
+          const update: any = {
+              historicalGamesPlayed: ((goalieStats?.historicalGamesPlayed) || 0) + 1,
+              historicalWins: ((goalieStats?.historicalWins) || 0) + (isWin ? 1 : 0),
+              historicalSaves: ((goalieStats?.historicalSaves) || 0) + goalieSaves,
+              historicalShotsAgainst: ((goalieStats?.historicalShotsAgainst) || 0) + goalieShotsAgainst,
+          };
+
+          if (selectedMatch.type === 'playoff') {
+              update.playoffGamesPlayed = ((goalieStats?.playoffGamesPlayed) || 0) + 1;
+              update.playoffWins = ((goalieStats?.playoffWins) || 0) + (isWin ? 1 : 0);
+              update.playoffSaves = ((goalieStats?.playoffSaves) || 0) + goalieSaves;
+              update.playoffShotsAgainst = ((goalieStats?.playoffShotsAgainst) || 0) + goalieShotsAgainst;
+          } else if (selectedMatch.type === 'regular') {
+              update.seasonGamesPlayed = ((goalieStats?.seasonGamesPlayed) || 0) + 1;
+              update.seasonWins = ((goalieStats?.seasonWins) || 0) + (isWin ? 1 : 0);
+              update.seasonSaves = ((goalieStats?.seasonSaves) || 0) + goalieSaves;
+              update.seasonShotsAgainst = ((goalieStats?.seasonShotsAgainst) || 0) + goalieShotsAgainst;
+          }
+
+          if (goalieStats) {
+              const statDocRef = doc(firestore, 'users', goalieId, 'goalieStats', goalieStats.id);
+              batch.update(statDocRef, update);
+          } else {
+               const statDocRef = doc(firestore, 'users', goalieId, 'goalieStats', 'stats');
+               batch.set(statDocRef, {
+                  userProfileId: goalieId,
+                  seasonGamesPlayed: selectedMatch.type === 'regular' ? 1 : 0,
+                  seasonWins: selectedMatch.type === 'regular' && isWin ? 1 : 0,
+                  seasonSaves: selectedMatch.type === 'regular' ? goalieSaves : 0,
+                  seasonShotsAgainst: selectedMatch.type === 'regular' ? goalieShotsAgainst : 0,
+                  playoffGamesPlayed: selectedMatch.type === 'playoff' ? 1 : 0,
+                  playoffWins: selectedMatch.type === 'playoff' && isWin ? 1 : 0,
+                  playoffSaves: selectedMatch.type === 'playoff' ? goalieSaves : 0,
+                  playoffShotsAgainst: selectedMatch.type === 'playoff' ? goalieShotsAgainst : 0,
+                  ...update
+               });
+          }
+      }
+
+      await batch.commit();
+      toast({ title: "Výsledek uložen", description: "Statistiky hráčů byly aktualizovány." });
     } catch (error: any) {
         toast({ variant: 'destructive', title: 'Chyba', description: `Nepodařilo se uložit výsledek: ${error.message}` });
     } finally {
+        setIsSaving(false);
         setIsResultDialogOpen(false);
     }
 };
@@ -905,11 +899,9 @@ function DashboardPageContent() {
   };
 
   const handleSaveLeague = async () => {
-    if (!firestore) {
-        setIsLeagueEditMode(false);
-        return;
-    };
+    if (!firestore) return;
     
+    setIsSaving(true);
     let seriesToSave = editablePlayoffSeries;
     if (editableIsPlayoffEnabled && seriesToSave.length === 0) {
         seriesToSave = [{ round: 'Čtvrtfinále', opponent: 'TBD', wins: 0, losses: 0 }];
@@ -932,6 +924,7 @@ function DashboardPageContent() {
             operation: 'write', path: settingsRef.path, requestResourceData: updatedSettings,
         }));
     } finally {
+        setIsSaving(false);
         setIsLeagueEditMode(false);
     }
   };
@@ -1032,41 +1025,43 @@ function DashboardPageContent() {
     const handleSaveHistoryClick = async () => {
         if (!firestore || !allSkaterStats || !allGoalieStats) return;
 
-        const batch = writeBatch(firestore);
-        const skaterStatsMap = new Map(allSkaterStats.map(s => [s.userProfileId, s.id]));
-        const goalieStatsMap = new Map(allGoalieStats.map(s => [s.userProfileId, s.id]));
-
-        editableSkaterHistory.forEach(player => {
-            const statId = skaterStatsMap.get(player.id);
-            if (statId) {
-                const statRef = doc(firestore, 'users', player.id, 'skaterStats', statId);
-                batch.update(statRef, {
-                    historicalGoals: player.goals,
-                    historicalAssists: player.assists,
-                    historicalGamesPlayed: player.gamesPlayed,
-                });
-            }
-        });
-
-        editableGoalieHistory.forEach(goalie => {
-            const statId = goalieStatsMap.get(goalie.id);
-            if (statId) {
-                const statRef = doc(firestore, 'users', goalie.id, 'goalieStats', statId);
-                batch.update(statRef, {
-                    historicalGamesPlayed: goalie.gamesPlayed,
-                    historicalWins: goalie.wins,
-                    historicalSaves: goalie.saves,
-                    historicalShotsAgainst: goalie.shotsAgainst,
-                });
-            }
-        });
-
+        setIsSaving(true);
         try {
+            const batch = writeBatch(firestore);
+            const skaterStatsMap = new Map(allSkaterStats.map(s => [s.userProfileId, s.id]));
+            const goalieStatsMap = new Map(allGoalieStats.map(s => [s.userProfileId, s.id]));
+
+            editableSkaterHistory.forEach(player => {
+                const statId = skaterStatsMap.get(player.id);
+                if (statId) {
+                    const statRef = doc(firestore, 'users', player.id, 'skaterStats', statId);
+                    batch.update(statRef, {
+                        historicalGoals: player.goals,
+                        historicalAssists: player.assists,
+                        historicalGamesPlayed: player.gamesPlayed,
+                    });
+                }
+            });
+
+            editableGoalieHistory.forEach(goalie => {
+                const statId = goalieStatsMap.get(goalie.id);
+                if (statId) {
+                    const statRef = doc(firestore, 'users', goalie.id, 'goalieStats', statId);
+                    batch.update(statRef, {
+                        historicalGamesPlayed: goalie.gamesPlayed,
+                        historicalWins: goalie.wins,
+                        historicalSaves: goalie.saves,
+                        historicalShotsAgainst: goalie.shotsAgainst,
+                    });
+                }
+            });
+
             await batch.commit();
             toast({ title: 'Historické statistiky uloženy.' });
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se uložit historické statistiky.' });
         } finally {
+            setIsSaving(false);
             setIsHistoryEditMode(false);
         }
     };
@@ -1340,7 +1335,11 @@ function DashboardPageContent() {
                         </div>
                       </div>
                       <DialogFooter>
-                        <Button type="submit">Uložit zápas</Button>
+                        <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)} disabled={isSaving}>Zrušit</Button>
+                        <Button type="submit" disabled={isSaving}>
+                          {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                          Uložit zápas
+                        </Button>
                       </DialogFooter>
                     </form>
                   </DialogContent>
@@ -1398,7 +1397,10 @@ function DashboardPageContent() {
                             isHistoryEditMode ? (
                                 <div className="flex gap-2">
                                     <Button variant="outline" size="sm" onClick={handleCancelHistoryClick}>Zrušit</Button>
-                                    <Button size="sm" onClick={handleSaveHistoryClick}>Uložit</Button>
+                                    <Button size="sm" onClick={handleSaveHistoryClick} disabled={isSaving}>
+                                        {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                        Uložit
+                                    </Button>
                                 </div>
                             ) : (
                                 <Button variant="outline" size="sm" onClick={handleEditHistoryClick}>
@@ -1463,7 +1465,10 @@ function DashboardPageContent() {
                             isHistoryEditMode ? (
                                 <div className="flex gap-2">
                                     <Button variant="outline" size="sm" onClick={handleCancelHistoryClick}>Zrušit</Button>
-                                    <Button size="sm" onClick={handleSaveHistoryClick}>Uložit</Button>
+                                    <Button size="sm" onClick={handleSaveHistoryClick} disabled={isSaving}>
+                                        {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                        Uložit
+                                    </Button>
                                 </div>
                             ) : (
                                 <Button variant="outline" size="sm" onClick={handleEditHistoryClick}>
@@ -1548,7 +1553,10 @@ function DashboardPageContent() {
                         {isLeagueEditMode ? (
                           <>
                             <Button variant="outline" onClick={handleCancelLeague}>Zrušit</Button>
-                            <Button onClick={handleSaveLeague}>Uložit</Button>
+                            <Button onClick={handleSaveLeague} disabled={isSaving}>
+                                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                Uložit
+                            </Button>
                           </>
                         ) : (
                           <Button variant="outline" size="icon" onClick={handleEditLeagueClick}>
@@ -1691,12 +1699,7 @@ function DashboardPageContent() {
             </Card>
         </div>
       </div>
-      <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => {
-          setIsEditDialogOpen(isOpen);
-          if (!isOpen) {
-              setTimeout(() => setSelectedMatch(null), 200);
-          }
-      }}>
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
           <DialogContent>
               <DialogHeader>
                   <DialogTitle>Upravit zápas</DialogTitle>
@@ -1724,18 +1727,16 @@ function DashboardPageContent() {
                       </div>
                   </div>
                   <DialogFooter>
-                      <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>Zrušit</Button>
-                      <Button type="submit">Uložit změny</Button>
+                      <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={isSaving}>Zrušit</Button>
+                      <Button type="submit" disabled={isSaving}>
+                        {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Uložit změny
+                      </Button>
                   </DialogFooter>
               </form>}
           </DialogContent>
       </Dialog>
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={(isOpen) => {
-          setIsDeleteDialogOpen(isOpen);
-          if (!isOpen) {
-              setTimeout(() => setSelectedMatch(null), 200);
-          }
-      }}>
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Opravdu chcete smazat tento zápas?</AlertDialogTitle>
@@ -1744,20 +1745,15 @@ function DashboardPageContent() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Zrušit</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDeleteMatch} className="bg-destructive hover:bg-destructive/90">Smazat</AlertDialogAction>
+            <AlertDialogCancel disabled={isSaving}>Zrušit</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteMatch} className="bg-destructive hover:bg-destructive/90" disabled={isSaving}>
+              {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Smazat
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-        <Dialog open={isResultDialogOpen} onOpenChange={(isOpen) => {
-            setIsResultDialogOpen(isOpen);
-            if (!isOpen) {
-                setTimeout(() => {
-                    setSelectedMatch(null);
-                    setPlayersForMatch(null);
-                }, 200);
-            }
-        }}>
+        <Dialog open={isResultDialogOpen} onOpenChange={setIsResultDialogOpen}>
             <DialogContent className="max-w-md">
                 {selectedMatch && playersForMatch && playersForMatch.length > 0 && (
                     <RecordResultForm
@@ -1765,6 +1761,7 @@ function DashboardPageContent() {
                         allUsers={playersForMatch}
                         onSave={handleResultSave}
                         onCancel={() => setIsResultDialogOpen(false)}
+                        isSaving={isSaving}
                     />
                 )}
                 {selectedMatch && playersForMatch && playersForMatch.length === 0 && (
@@ -1787,15 +1784,7 @@ function DashboardPageContent() {
                 )}
             </DialogContent>
         </Dialog>
-      <Dialog open={isAttendanceDialogOpen} onOpenChange={(isOpen) => {
-          setIsAttendanceDialogOpen(isOpen);
-          if (!isOpen) {
-              setTimeout(() => {
-                  setAttendanceData(null);
-                  setAttendanceNote('');
-              }, 200);
-          }
-      }}>
+      <Dialog open={isAttendanceDialogOpen} onOpenChange={setIsAttendanceDialogOpen}>
           <DialogContent>
               <DialogHeader>
                   <DialogTitle>Potvrdit účast</DialogTitle>
@@ -1813,20 +1802,16 @@ function DashboardPageContent() {
                   />
               </div>
               <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsAttendanceDialogOpen(false)}>Zrušit</Button>
-                  <Button onClick={confirmAttendance}>
+                  <Button variant="outline" onClick={() => setIsAttendanceDialogOpen(false)} disabled={isSaving}>Zrušit</Button>
+                  <Button onClick={confirmAttendance} disabled={isSaving}>
+                      {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                       Potvrdit
                   </Button>
               </DialogFooter>
           </DialogContent>
       </Dialog>
 
-        <Dialog open={isLineupBuilderOpen} onOpenChange={(isOpen) => {
-            setIsLineupBuilderOpen(isOpen);
-            if (!isOpen) {
-                setTimeout(() => setLineupMatch(null), 200);
-            }
-        }}>
+        <Dialog open={isLineupBuilderOpen} onOpenChange={setIsLineupBuilderOpen}>
             <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
                  {lineupMatch && allUsers ? (
                     <>
@@ -1850,15 +1835,7 @@ function DashboardPageContent() {
                 )}
             </DialogContent>
         </Dialog>
-        <Dialog open={isLineupViewOpen} onOpenChange={(isOpen) => {
-            setIsLineupViewOpen(isOpen);
-            if (!isOpen) {
-                setTimeout(() => {
-                    setViewLineupData(null);
-                    setLineupMatch(null);
-                }, 200);
-            }
-        }}>
+        <Dialog open={isLineupViewOpen} onOpenChange={setIsLineupViewOpen}>
             <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
                  <DialogHeader>
                     <DialogTitle>{lineupMatch ? `Sestava: ${lineupMatch.team1} vs ${lineupMatch.team2}` : 'Načítání sestavy...'}</DialogTitle>

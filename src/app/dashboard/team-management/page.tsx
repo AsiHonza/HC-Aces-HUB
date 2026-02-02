@@ -340,13 +340,7 @@ function TeamManagementContent() {
       </Card>
       
       {/* Edit Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => {
-          if (isSaving) return;
-          setIsEditDialogOpen(isOpen);
-          if (!isOpen) {
-              setTimeout(() => setSelectedUser(null), 200);
-          }
-      }}>
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Upravit uživatele</DialogTitle>
@@ -404,13 +398,7 @@ function TeamManagementContent() {
       </Dialog>
 
       {/* Delete Alert Dialog */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={(isOpen) => {
-          if (isSaving) return;
-          setIsDeleteDialogOpen(isOpen);
-          if (!isOpen) {
-              setTimeout(() => setSelectedUser(null), 200);
-          }
-      }}>
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Opravdu chcete smazat tohoto uživatele?</AlertDialogTitle>
@@ -429,7 +417,7 @@ function TeamManagementContent() {
       </AlertDialog>
 
       {/* Add Dialog */}
-      <Dialog open={isAddDialogOpen} onOpenChange={(open) => !isSaving && setIsAddDialogOpen(open)}>
+      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Vytvořit nový testovací účet</DialogTitle>
