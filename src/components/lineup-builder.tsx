@@ -141,7 +141,7 @@ export function LineupBuilder({ players, initialData, onSave, onCancel }: { play
       if (newCount === '2' && formationCount === '3') {
           const playersToReturn = [lineup.LK3, lineup.C3, lineup.PK3].filter(Boolean) as Player[];
           if (playersToReturn.length > 0) {
-              setAvailablePlayers(prev => [...prev, ...playersToReturn].sort((a, b) => a.name.localeCompare(b.name)));
+              setAvailablePlayers(prev => [...prev, ...playersToReturn].sort((a, b) => (a.name || '').localeCompare(b.name || '')));
               setLineup(prev => ({ ...prev, LK3: null, C3: null, PK3: null }));
           }
       }
@@ -267,58 +267,63 @@ export function LineupBuilder({ players, initialData, onSave, onCancel }: { play
     );
   }
 
-  const MobileBuilder = () => (
-    <div className="flex flex-col h-full p-2 gap-4">
-        <Card>
-            <CardHeader><CardTitle>Sestava</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-                <h4 className="font-semibold text-center">Útok</h4>
-                <MobilePositionSelector positionKey="LK1" />
-                <MobilePositionSelector positionKey="C1" />
-                <MobilePositionSelector positionKey="PK1" />
-                <MobilePositionSelector positionKey="LK2" />
-                <MobilePositionSelector positionKey="C2" />
-                <MobilePositionSelector positionKey="PK2" />
-                {formationCount === '3' && (
-                    <>
-                        <MobilePositionSelector positionKey="LK3" />
-                        <MobilePositionSelector positionKey="C3" />
-                        <MobilePositionSelector positionKey="PK3" />
-                    </>
-                )}
-                <h4 className="font-semibold text-center pt-4">Obrana</h4>
-                <MobilePositionSelector positionKey="LO1" />
-                <MobilePositionSelector positionKey="PO1" />
-                <MobilePositionSelector positionKey="LO2" />
-                <MobilePositionSelector positionKey="PO2" />
-                <h4 className="font-semibold text-center pt-4">Brankář</h4>
-                <MobilePositionSelector positionKey="B1" />
-            </CardContent>
-        </Card>
-        <Card className="flex-1 min-h-0">
-             <CardHeader><CardTitle>Dostupní hráči</CardTitle></CardHeader>
-             <CardContent>
-                <ScrollArea className="h-48">
-                    <div className="space-y-2">
-                        {availablePlayers.map(p => (
-                            <div key={p.id} className="flex items-center gap-2 p-2 bg-muted rounded-md">
-                                <Avatar className="h-8 w-8">
-                                    <AvatarImage src={p.photoURL ?? `https://picsum.photos/seed/${p.email}/100/100`} data-ai-hint="player portrait" alt={p.name || ''} />
-                                    <AvatarFallback>{(p.name || '').split(' ').map(n=>n[0]).join('')}</AvatarFallback>
-                                </Avatar>
-                                <div>
-                                    <p className="font-medium text-sm leading-tight">{p.name || ''}</p>
-                                    {p.jerseyNumber != null && <p className="text-xs text-muted-foreground">#{p.jerseyNumber}</p>}
-                                </div>
+  const MobileBuilder = () => {
+    const formations = [
+        { title: '1. Útočná formace', positions: ['LK1', 'C1', 'PK1'] as const },
+        { title: '1. Obranná dvojice', positions: ['LO1', 'PO1'] as const },
+        { title: '2. Útočná formace', positions: ['LK2', 'C2', 'PK2'] as const },
+        { title: '2. Obranná dvojice', positions: ['LO2', 'PO2'] as const },
+    ];
+    if (formationCount === '3') {
+        formations.splice(4, 0, { title: '3. Útočná formace', positions: ['LK3', 'C3', 'PK3'] as const });
+    }
+    formations.push({ title: 'Brankář', positions: ['B1'] as const });
+
+    return (
+        <div className="flex flex-col h-full">
+            <ScrollArea className="flex-1">
+                <div className="p-2 space-y-4">
+                    {formations.map(f => (
+                        <Card key={f.title}>
+                            <CardHeader className="p-4">
+                                <CardTitle className="text-base">{f.title}</CardTitle>
+                            </CardHeader>
+                            <CardContent className="p-4 pt-0 space-y-3">
+                                {f.positions.map(pKey => <MobilePositionSelector key={pKey} positionKey={pKey} />)}
+                            </CardContent>
+                        </Card>
+                    ))}
+                </div>
+            </ScrollArea>
+            <div className="flex-shrink-0 p-2">
+                <Card>
+                    <CardHeader className="p-4">
+                        <CardTitle className="text-base">Dostupní hráči</CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-4 pt-0">
+                        <ScrollArea className="h-32">
+                            <div className="space-y-2">
+                                {availablePlayers.map(p => (
+                                    <div key={p.id} className="flex items-center gap-2 p-2 bg-muted rounded-md">
+                                        <Avatar className="h-8 w-8">
+                                            <AvatarImage src={p.photoURL ?? `https://picsum.photos/seed/${p.email}/100/100`} data-ai-hint="player portrait" alt={p.name || ''} />
+                                            <AvatarFallback>{(p.name || '').split(' ').map(n=>n[0]).join('')}</AvatarFallback>
+                                        </Avatar>
+                                        <div>
+                                            <p className="font-medium text-sm leading-tight">{p.name || ''}</p>
+                                            {p.jerseyNumber != null && <p className="text-xs text-muted-foreground">#{p.jerseyNumber}</p>}
+                                        </div>
+                                    </div>
+                                ))}
+                                {availablePlayers.length === 0 && <p className="text-sm text-muted-foreground text-center">Všichni hráči jsou v sestavě.</p>}
                             </div>
-                        ))}
-                         {availablePlayers.length === 0 && <p className="text-sm text-muted-foreground text-center">Všichni hráči jsou v sestavě.</p>}
-                    </div>
-                </ScrollArea>
-             </CardContent>
-        </Card>
-    </div>
-  )
+                        </ScrollArea>
+                    </CardContent>
+                </Card>
+            </div>
+        </div>
+    );
+  };
 
   const DesktopBuilder = () => {
     const isSmall = formationCount === '3';
