@@ -95,13 +95,6 @@ function SettingsForm() {
   const [state, setState] = useState(initialFormState);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (userProfile?.photoURL) {
-      setAvatarUrl(userProfile.photoURL);
-    }
-  }, [userProfile]);
 
   const fallback = userProfile?.name?.split(' ').map(n => n[0]).join('').toUpperCase() || ''
 
@@ -139,8 +132,6 @@ function SettingsForm() {
         const uploadResult = await uploadBytes(avatarRef, file);
         const downloadURL = await getDownloadURL(uploadResult.ref);
         
-        setAvatarUrl(downloadURL);
-
         const userDocRef = doc(firestore, 'users', user.uid);
         await updateDoc(userDocRef, { photoURL: downloadURL });
 
@@ -153,15 +144,13 @@ function SettingsForm() {
             description: "Váš nový obrázek byl úspěšně nahrán.",
         });
         
-        setIsUploading(false);
-        router.refresh();
-
     } catch (error: any) {
         toast({
             variant: 'destructive',
             title: 'Chyba nahrávání',
             description: `Nepodařilo se nahrát obrázek: ${error.message}`,
         });
+    } finally {
         setIsUploading(false);
     }
   };
@@ -215,7 +204,7 @@ function SettingsForm() {
       <CardContent className="grid gap-6">
         <div className="flex items-center gap-6">
           <Avatar className="h-24 w-24 border-4 border-primary shadow-lg relative">
-            <AvatarImage src={avatarUrl ?? `https://picsum.photos/seed/${userProfile?.email}/400/400`} alt={userProfile?.name || ''} data-ai-hint="player portrait" />
+            <AvatarImage src={userProfile?.photoURL ?? `https://picsum.photos/seed/${userProfile?.email}/400/400`} alt={userProfile?.name || ''} data-ai-hint="player portrait" />
             <AvatarFallback className="text-3xl">{fallback}</AvatarFallback>
              {isUploading && (
                 <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-full">
