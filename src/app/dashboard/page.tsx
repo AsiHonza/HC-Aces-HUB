@@ -640,6 +640,7 @@ function DashboardPageContent() {
     } finally {
         setIsSaving(false);
         setIsDeleteDialogOpen(false);
+        setSelectedMatch(null);
     }
   };
 
@@ -699,6 +700,8 @@ function DashboardPageContent() {
         // Error is handled inside handleAttendanceChange
     } finally {
         setIsSaving(false);
+        setAttendanceData(null);
+        setAttendanceNote('');
     }
   };
 
@@ -736,6 +739,7 @@ function DashboardPageContent() {
     } finally {
         setIsSaving(false);
         setIsEditDialogOpen(false);
+        setSelectedMatch(null);
     }
   };
 
@@ -919,6 +923,8 @@ function DashboardPageContent() {
     } finally {
         setIsSaving(false);
         setIsResultDialogOpen(false);
+        setSelectedMatch(null);
+        setPlayersForMatch(null);
     }
 };
 
@@ -1279,7 +1285,7 @@ function DashboardPageContent() {
     );
 
   return (
-    <div className="py-8 px-4 sm:px-6 lg:px-8">
+    <div className="container py-8">
       <div className="grid gap-8 lg:grid-cols-3">
         
         <Card className="lg:col-span-1 flex flex-col items-center justify-center p-6 text-center">
@@ -1797,12 +1803,7 @@ function DashboardPageContent() {
             </Card>
         </div>
       </div>
-      <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => {
-          setIsEditDialogOpen(isOpen);
-          if (!isOpen) {
-              setSelectedMatch(null);
-          }
-      }}>
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
           <DialogContent>
               <DialogHeader>
                   <DialogTitle>Upravit zápas</DialogTitle>
@@ -1839,12 +1840,7 @@ function DashboardPageContent() {
               </form>}
           </DialogContent>
       </Dialog>
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={(isOpen) => {
-          setIsDeleteDialogOpen(isOpen);
-          if (!isOpen) {
-              setSelectedMatch(null);
-          }
-      }}>
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Opravdu chcete smazat tento zápas?</AlertDialogTitle>
@@ -1853,7 +1849,7 @@ function DashboardPageContent() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isSaving}>Zrušit</AlertDialogCancel>
+            <AlertDialogCancel disabled={isSaving} onClick={() => setSelectedMatch(null)}>Zrušit</AlertDialogCancel>
             <AlertDialogAction onClick={confirmDeleteMatch} className="bg-destructive hover:bg-destructive/90" disabled={isSaving}>
               {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Smazat
@@ -1861,13 +1857,7 @@ function DashboardPageContent() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-        <Dialog open={isResultDialogOpen} onOpenChange={(isOpen) => {
-            setIsResultDialogOpen(isOpen);
-            if (!isOpen) {
-                setSelectedMatch(null);
-                setPlayersForMatch(null);
-            }
-        }}>
+        <Dialog open={isResultDialogOpen} onOpenChange={setIsResultDialogOpen}>
             <DialogContent className="max-w-md">
                 {selectedMatch && playersForMatch ? (
                     playersForMatch.length > 0 ? (
@@ -1875,7 +1865,11 @@ function DashboardPageContent() {
                             match={selectedMatch}
                             allUsers={playersForMatch}
                             onSave={handleResultSave}
-                            onCancel={() => setIsResultDialogOpen(false)}
+                            onCancel={() => {
+                                setIsResultDialogOpen(false);
+                                setSelectedMatch(null);
+                                setPlayersForMatch(null);
+                            }}
                             isSaving={isSaving}
                         />
                     ) : (
@@ -1887,7 +1881,11 @@ function DashboardPageContent() {
                                 </DialogDescription>
                             </DialogHeader>
                             <DialogFooter>
-                                <Button variant="outline" onClick={() => setIsResultDialogOpen(false)}>Zavřít</Button>
+                                <Button variant="outline" onClick={() => {
+                                    setIsResultDialogOpen(false);
+                                    setSelectedMatch(null);
+                                    setPlayersForMatch(null);
+                                }}>Zavřít</Button>
                             </DialogFooter>
                         </>
                     )
@@ -1916,7 +1914,11 @@ function DashboardPageContent() {
                   />
               </div>
               <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsAttendanceDialogOpen(false)} disabled={isSaving}>Zrušit</Button>
+                  <Button variant="outline" onClick={() => {
+                      setIsAttendanceDialogOpen(false);
+                      setAttendanceData(null);
+                      setAttendanceNote('');
+                  }} disabled={isSaving}>Zrušit</Button>
                   <Button onClick={confirmAttendance} disabled={isSaving}>
                       {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                       Potvrdit
@@ -1926,9 +1928,11 @@ function DashboardPageContent() {
       </Dialog>
 
         <Dialog open={isLineupBuilderOpen} onOpenChange={(isOpen) => {
-            setIsLineupBuilderOpen(isOpen);
-            if (!isOpen) {
-                setLineupMatch(null);
+            if (!isSaving) {
+                setIsLineupBuilderOpen(isOpen);
+                if (!isOpen) {
+                    setLineupMatch(null);
+                }
             }
         }}>
             <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
@@ -1981,7 +1985,7 @@ function DashboardPageContent() {
 
 export default function DashboardPage() {
   return (
-    <Suspense fallback={<div className="px-4 sm:px-6 py-8">Načítání...</div>}>
+    <Suspense fallback={<div className="container py-8">Načítání...</div>}>
       <DashboardPageContent />
     </Suspense>
   )

@@ -590,7 +590,7 @@ function HistoryPageContent() {
 
 
     return (
-        <div className="p-4 sm:p-6 lg:p-8">
+        <div className="container py-4 sm:py-6 lg:py-8">
             <Card>
                 <CardHeader>
                     <CardTitle>Historie zápasů</CardTitle>
@@ -686,9 +686,11 @@ function HistoryPageContent() {
             </Card>
 
             <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => {
-                setIsEditDialogOpen(isOpen);
-                if (!isOpen) {
-                    setTimeout(() => setSelectedMatch(null), 300);
+                if (!isSaving) {
+                    setIsEditDialogOpen(isOpen);
+                    if (!isOpen) {
+                        setSelectedMatch(null);
+                    }
                 }
             }}>
                 <DialogContent className="max-w-md">
@@ -709,9 +711,11 @@ function HistoryPageContent() {
             </Dialog>
 
             <AlertDialog open={isDeleteDialogOpen} onOpenChange={(isOpen) => {
-                setIsDeleteDialogOpen(isOpen);
-                if (!isOpen) {
-                    setTimeout(() => setSelectedMatch(null), 300);
+                if (!isSaving) {
+                    setIsDeleteDialogOpen(isOpen);
+                     if (!isOpen) {
+                        setSelectedMatch(null);
+                    }
                 }
             }}>
                 <AlertDialogContent>
@@ -738,7 +742,7 @@ function HistoryPageContent() {
                         setViewLineupData(null);
                         setViewScorersData(undefined);
                         setViewMatchTitle('');
-                    }, 300);
+                    }, 200);
                 }
             }}>
                 <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
@@ -762,7 +766,7 @@ function HistoryPageContent() {
 
 export default function HistoryPage() {
     return (
-        <Suspense fallback={<div className="p-4 sm:p-6 lg:p-8">Načítání...</div>}>
+        <Suspense fallback={<div className="container py-4 sm:py-6 lg:py-8">Načítání...</div>}>
             <HistoryPageContent />
         </Suspense>
     )

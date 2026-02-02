@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Loader2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { useFirebase, useFirestore, useDoc, useMemoFirebase, useCollection, FirebaseServicesAndUser, UserHookResult } from '@/firebase'
+import { useFirebase, useFirestore, useDoc, useMemoFirebase, useCollection, FirebaseServicesAndUser, UserHookResult, useStorage } from '@/firebase'
 import { User, Auth } from 'firebase/auth'
 import { Firestore, doc, updateDoc, writeBatch, collectionGroup, setDoc } from 'firebase/firestore'
 import { FirebaseStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
@@ -78,6 +78,7 @@ function SettingsForm({ user, auth, firestore, storage, userProfile }: SettingsF
   const { toast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const fallback = userProfile?.name?.split(' ').map(n => n[0]).join('').toUpperCase() || ''
 
@@ -124,6 +125,7 @@ function SettingsForm({ user, auth, firestore, storage, userProfile }: SettingsF
       return;
     }
     
+    setIsSaving(true);
     const formData = new FormData(e.currentTarget);
     const name = formData.get('name') as string
     const phoneNumber = formData.get('phoneNumber') as string
@@ -150,6 +152,8 @@ function SettingsForm({ user, auth, firestore, storage, userProfile }: SettingsF
         title: 'Chyba aktualizace',
         description: error.message,
       })
+    } finally {
+        setIsSaving(false);
     }
   }
   
@@ -198,8 +202,8 @@ function SettingsForm({ user, auth, firestore, storage, userProfile }: SettingsF
         </div>
       </CardContent>
       <CardFooter className="border-t px-6 py-4">
-        <Button type="submit" disabled={isUploading}>
-          {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+        <Button type="submit" disabled={isUploading || isSaving}>
+          {(isUploading || isSaving) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Uložit změny
         </Button>
       </CardFooter>
@@ -210,6 +214,7 @@ function SettingsForm({ user, auth, firestore, storage, userProfile }: SettingsF
 function AdminSettings() {
     const firestore = useFirestore();
     const { toast } = useToast();
+    const [isSaving, setIsSaving] = useState(false);
 
     const leagueSettingsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'league') : null, [firestore]);
     const { data: leagueSettings, isLoading: leagueSettingsLoading } = useDoc<AppSettings>(leagueSettingsRef);
@@ -222,6 +227,7 @@ function AdminSettings() {
 
     const handleTogglePlayoffScoringMode = async (checked: boolean) => {
         if (!firestore) return;
+        setIsSaving(true);
         const settingsRef = doc(firestore, 'settings', 'league');
         try {
             await updateDoc(settingsRef, { isScoringInPlayoffMode: checked });
@@ -255,6 +261,8 @@ function AdminSettings() {
             }
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Chyba', description: `Nepodařilo se změnit režim: ${error.message}` });
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -264,6 +272,7 @@ function AdminSettings() {
             return;
         }
         
+        setIsSaving(true);
         const batch = writeBatch(firestore);
 
         allSkaterStats.forEach(stat => {
@@ -312,6 +321,8 @@ function AdminSettings() {
             toast({ title: 'Sezóna archivována!', description: 'Nová sezóna může začít.' });
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Chyba archivace', description: error.message });
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -320,7 +331,7 @@ function AdminSettings() {
     }
 
     return (
-        <Card className="max-w-2xl mx-auto mt-8">
+        <Card>
             <CardHeader>
                 <CardTitle>Správa Statistik</CardTitle>
                 <CardDescription>
@@ -339,6 +350,7 @@ function AdminSettings() {
                         id="playoff-scoring-mode"
                         checked={leagueSettings?.isScoringInPlayoffMode ?? false}
                         onCheckedChange={handleTogglePlayoffScoringMode}
+                        disabled={isSaving}
                     />
                 </div>
             </CardContent>
@@ -352,7 +364,10 @@ function AdminSettings() {
                 </div>
                 <AlertDialog>
                 <AlertDialogTrigger asChild>
-                    <Button variant="destructive">Archivovat a začít novou sezónu</Button>
+                    <Button variant="destructive" disabled={isSaving}>
+                         {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Archivovat a začít novou sezónu
+                    </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                     <AlertDialogHeader>
@@ -382,8 +397,8 @@ function SettingsPageContent() {
     }
 
   return (
-    <div className="px-4 sm:px-6 py-8">
-       <Card className="max-w-2xl mx-auto">
+    <div className="container py-8 space-y-8">
+       <Card>
         <CardHeader>
           <CardTitle>Nastavení profilu</CardTitle>
           <CardDescription>
@@ -406,7 +421,7 @@ function SettingsPageContent() {
 
 export default function SettingsPage() {
     return (
-        <Suspense fallback={<div className="px-4 sm:px-6 py-8">Načítání...</div>}>
+        <Suspense fallback={<div className="container py-8">Načítání...</div>}>
             <SettingsPageContent />
         </Suspense>
     )

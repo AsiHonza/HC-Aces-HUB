@@ -98,6 +98,7 @@ function TeamManagementContent() {
     } finally {
       setIsSaving(false);
       setIsDeleteDialogOpen(false);
+      setSelectedUser(null);
     }
   }
 
@@ -152,6 +153,7 @@ function TeamManagementContent() {
     } finally {
         setIsSaving(false);
         setIsEditDialogOpen(false);
+        setSelectedUser(null);
     }
   }
 
@@ -230,18 +232,18 @@ function TeamManagementContent() {
   
   if (usersLoading) {
     return (
-      <div className="px-4 sm:px-6 py-8 flex justify-center items-center">
+      <div className="container py-8 flex justify-center items-center">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
       </div>
     )
   }
 
   if (role !== 'admin') {
-    return <div className="px-4 sm:px-6 py-8">Ověřování oprávnění...</div>;
+    return <div className="container py-8">Ověřování oprávnění...</div>;
   }
 
   return (
-    <div className="px-4 sm:px-6 py-8">
+    <div className="container py-8">
       <Card>
         <CardHeader>
           <div className="flex justify-between items-center">
@@ -340,7 +342,14 @@ function TeamManagementContent() {
       </Card>
       
       {/* Edit Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+      <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => {
+          if (!isSaving) {
+              setIsEditDialogOpen(isOpen);
+              if (!isOpen) {
+                  setSelectedUser(null);
+              }
+          }
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Upravit uživatele</DialogTitle>
@@ -398,7 +407,14 @@ function TeamManagementContent() {
       </Dialog>
 
       {/* Delete Alert Dialog */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={(isOpen) => {
+          if (!isSaving) {
+              setIsDeleteDialogOpen(isOpen);
+              if (!isOpen) {
+                  setSelectedUser(null);
+              }
+          }
+      }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Opravdu chcete smazat tohoto uživatele?</AlertDialogTitle>
@@ -417,7 +433,11 @@ function TeamManagementContent() {
       </AlertDialog>
 
       {/* Add Dialog */}
-      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+      <Dialog open={isAddDialogOpen} onOpenChange={(isOpen) => {
+          if (!isSaving) {
+              setIsAddDialogOpen(isOpen);
+          }
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Vytvořit nový testovací účet</DialogTitle>
@@ -465,7 +485,7 @@ function TeamManagementContent() {
 
 export default function TeamManagementPage() {
     return (
-        <Suspense fallback={<div className="px-4 sm:px-6 py-8">Načítání...</div>}>
+        <Suspense fallback={<div className="container py-8">Načítání...</div>}>
             <TeamManagementContent />
         </Suspense>
     )
