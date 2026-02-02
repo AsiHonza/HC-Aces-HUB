@@ -1,20 +1,18 @@
 'use client'
 
-import { Suspense, useEffect, useState, useMemo, useRef } from 'react'
-import { useSearchParams, useRouter } from 'next/navigation'
-import { updateProfile as validateProfile } from '@/lib/actions'
+import { Suspense, useEffect, useState, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Loader2 } from "lucide-react"
-import { useFormStatus } from 'react-dom'
 import { useToast } from "@/hooks/use-toast"
-import { useFirebase, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase'
-import { doc, updateDoc, writeBatch, collectionGroup, setDoc } from 'firebase/firestore'
-import { updateProfile as updateFirebaseProfile } from 'firebase/auth'
-import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
+import { useFirebase, useFirestore, useDoc, useMemoFirebase, useCollection, FirebaseServicesAndUser, UserHookResult } from '@/firebase'
+import { User, Auth } from 'firebase/auth'
+import { Firestore, doc, updateDoc, writeBatch, collectionGroup, setDoc } from 'firebase/firestore'
+import { FirebaseStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { Switch } from '@/components/ui/switch'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 
@@ -67,57 +65,21 @@ interface AppSettings {
   playoffSeries: any[]; // simplified for settings page
 }
 
-function SubmitButton() {
-  const { pending } = useFormStatus()
-  return (
-    <Button type="submit" disabled={pending}>
-      {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-      Uložit změny
-    </Button>
-  )
+interface SettingsFormProps {
+    user: User | null;
+    auth: Auth;
+    firestore: Firestore;
+    storage: FirebaseStorage;
+    userProfile: UserProfile | null;
 }
 
-const initialFormState = {
-  errors: {},
-  message: null,
-  success: false,
-}
 
-function SettingsForm() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
+function SettingsForm({ user, auth, firestore, storage, userProfile }: SettingsFormProps) {
   const { toast } = useToast()
-  const { user, auth, firestore, storage } = useFirebase()
-
-  const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
-  const { data: userProfile, isLoading } = useDoc<UserProfile>(userDocRef);
-
-  const [state, setState] = useState(initialFormState);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
 
   const fallback = userProfile?.name?.split(' ').map(n => n[0]).join('').toUpperCase() || ''
-
-  useEffect(() => {
-    if (searchParams.get('updated') === 'true') {
-      toast({
-        title: "Úspěch!",
-        description: "Profil byl úspěšně aktualizován.",
-      })
-      const newPath = window.location.pathname
-      window.history.replaceState({}, '', newPath)
-    }
-  }, [searchParams, toast])
-  
-  useEffect(() => {
-    if (state.success === false && state.message) {
-      toast({
-        variant: 'destructive',
-        title: "Chyba",
-        description: state.message,
-      })
-    }
-  }, [state, toast])
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0 || !user || !storage) {
@@ -155,18 +117,14 @@ function SettingsForm() {
   };
 
 
-  const handleUpdate = async (formData: FormData) => {
+  const handleUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
     if (!user || !firestore || !auth?.currentUser) {
       toast({ variant: 'destructive', title: "Chyba", description: "Musíte být přihlášen." });
       return;
     }
     
-    const validationResult = await validateProfile(user.uid, null, formData);
-    if (validationResult && !validationResult.success) {
-        setState(validationResult);
-        return;
-    }
-
+    const formData = new FormData(e.currentTarget);
     const name = formData.get('name') as string
     const phoneNumber = formData.get('phoneNumber') as string
     const jerseyNumber = formData.get('jerseyNumber') as string
@@ -180,10 +138,11 @@ function SettingsForm() {
         jerseyNumber: jerseyNumber ? Number(jerseyNumber) : null,
         dob: dob || null,
       })
-      await updateFirebaseProfile(auth.currentUser, { displayName: name });
       
-      router.push('/dashboard/settings?updated=true', { scroll: false })
-      router.refresh();
+      toast({
+        title: "Úspěch!",
+        description: "Profil byl úspěšně aktualizován.",
+      });
 
     } catch (error: any) {
       toast({
@@ -194,12 +153,8 @@ function SettingsForm() {
     }
   }
   
-  if (isLoading) {
-      return <div className="p-6"><Loader2 className="animate-spin" /> Načítání profilu...</div>
-  }
-
   return (
-    <form action={handleUpdate}>
+    <form onSubmit={handleUpdate}>
       <CardContent className="grid gap-6">
         <div className="flex items-center gap-6">
           <Avatar className="h-24 w-24 border-4 border-primary shadow-lg relative">
@@ -220,7 +175,6 @@ function SettingsForm() {
         <div className="grid gap-2">
           <Label htmlFor="name">Jméno a příjmení</Label>
           <Input id="name" name="name" defaultValue={userProfile?.name} />
-          {state.errors?.name && <p className="text-sm text-destructive">{state.errors.name[0]}</p>}
         </div>
 
         <div className="grid gap-2">
@@ -231,23 +185,23 @@ function SettingsForm() {
         <div className="grid gap-2">
           <Label htmlFor="phoneNumber">Telefonní číslo</Label>
           <Input id="phoneNumber" name="phoneNumber" type="tel" defaultValue={userProfile?.phoneNumber || ''} />
-           {state.errors?.phoneNumber && <p className="text-sm text-destructive">{state.errors.phoneNumber[0]}</p>}
         </div>
 
         <div className="grid gap-2">
           <Label htmlFor="jerseyNumber">Číslo dresu</Label>
           <Input id="jerseyNumber" name="jerseyNumber" type="number" defaultValue={userProfile?.jerseyNumber || ''} />
-           {state.errors?.jerseyNumber && <p className="text-sm text-destructive">{state.errors.jerseyNumber[0]}</p>}
         </div>
         
         <div className="grid gap-2">
             <Label htmlFor="dob">Datum narození</Label>
             <Input id="dob" name="dob" type="date" defaultValue={userProfile?.dob || ''} className="w-[280px]" />
-             {state.errors?.dob && <p className="text-sm text-destructive">{state.errors.dob[0]}</p>}
         </div>
       </CardContent>
       <CardFooter className="border-t px-6 py-4">
-        <SubmitButton />
+        <Button type="submit" disabled={isUploading}>
+          {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          Uložit změny
+        </Button>
       </CardFooter>
     </form>
   )
@@ -419,13 +373,12 @@ function AdminSettings() {
 }
 
 function SettingsPageContent() {
-    const { user } = useFirebase()
-    const firestore = useFirestore()
+    const { user, auth, firestore, storage } = useFirebase()
     const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
     const { data: userProfile, isLoading } = useDoc<UserProfile>(userDocRef);
 
-    if (isLoading) {
-        return <div className="p-6"><Loader2 className="animate-spin" /> Načítání...</div>
+    if (isLoading || !auth || !firestore || !storage) {
+        return <div className="flex justify-center items-center h-64"><Loader2 className="animate-spin h-12 w-12 text-primary" /></div>
     }
 
   return (
@@ -437,7 +390,13 @@ function SettingsPageContent() {
             Zde můžete upravit své osobní údaje.
           </CardDescription>
         </CardHeader>
-        <SettingsForm />
+        <SettingsForm 
+            user={user}
+            auth={auth}
+            firestore={firestore}
+            storage={storage}
+            userProfile={userProfile}
+        />
       </Card>
 
       {userProfile?.role === 'admin' && <AdminSettings />}
