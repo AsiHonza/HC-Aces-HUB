@@ -241,73 +241,83 @@ function HistoryPageContent() {
     };
     
     const confirmDeleteMatch = async () => {
-        if (!selectedMatch || !firestore || !allSkaterStats || !allGoalieStats) return;
+        if (!selectedMatch || !firestore || !allSkaterStats || !allGoalieStats || !allAttendances) return;
     
         const batch = writeBatch(firestore);
         const matchType = selectedMatch.type;
-        
-        if (matchType !== 'friendly') {
-            // Revert skater stats
-            const statsToRevert = new Map<string, { goals: number, assists: number }>();
-            selectedMatch.scorers?.forEach(scorer => {
-                if (scorer.goal) {
-                    const current = statsToRevert.get(scorer.goal) || { goals: 0, assists: 0 };
-                    statsToRevert.set(scorer.goal, { ...current, goals: current.goals + 1 });
+        const allSkaterStatsMap = new Map(allSkaterStats.map(s => [s.userProfileId, s]));
+        const allGoalieStatsMap = new Map(allGoalieStats.map(s => [s.userProfileId, s]));
+
+        // Revert skater points
+        const statsToRevert = new Map<string, { goals: number, assists: number }>();
+        selectedMatch.scorers?.forEach(scorer => {
+            if (scorer.goal) {
+                const current = statsToRevert.get(scorer.goal) || { goals: 0, assists: 0 };
+                statsToRevert.set(scorer.goal, { ...current, goals: current.goals + 1 });
+            }
+            if (scorer.assist) {
+                const current = statsToRevert.get(scorer.assist) || { goals: 0, assists: 0 };
+                statsToRevert.set(scorer.assist, { ...current, assists: current.assists + 1 });
+            }
+        });
+    
+        for (const [userId, revert] of statsToRevert.entries()) {
+            const userStats = allSkaterStatsMap.get(userId);
+            if (userStats) {
+                const statDocRef = doc(firestore, 'users', userId, 'skaterStats', userStats.id);
+                const update: any = {
+                    historicalGoals: Math.max(0, (userStats.historicalGoals || 0) - revert.goals),
+                    historicalAssists: Math.max(0, (userStats.historicalAssists || 0) - revert.assists),
+                };
+                if (matchType === 'playoff') {
+                    update.playoffGoals = Math.max(0, (userStats.playoffGoals || 0) - revert.goals);
+                    update.playoffAssists = Math.max(0, (userStats.playoffAssists || 0) - revert.assists);
+                } else if (matchType === 'regular') {
+                    update.seasonGoals = Math.max(0, (userStats.seasonGoals || 0) - revert.goals);
+                    update.seasonAssists = Math.max(0, (userStats.seasonAssists || 0) - revert.assists);
                 }
-                if (scorer.assist) {
-                    const current = statsToRevert.get(scorer.assist) || { goals: 0, assists: 0 };
-                    statsToRevert.set(scorer.assist, { ...current, assists: current.assists + 1 });
-                }
-            });
+                batch.update(statDocRef, update);
+            }
+        }
         
-            const allSkaterStatsMap = new Map(allSkaterStats.map(s => [s.userProfileId, s]));
-            for (const [userId, revert] of statsToRevert.entries()) {
-                const userStats = allSkaterStatsMap.get(userId);
+        // Revert games played for skaters and goalies
+        const matchAttendees = attendancesByMatch.get(selectedMatch.id) || [];
+        matchAttendees.forEach(att => {
+            if (att.status !== 'going') return;
+            const userProfile = users?.find(u => u.id === att.userId);
+            
+            if (userProfile?.playerType === 'player') {
+                const userStats = allSkaterStatsMap.get(att.userId);
                 if (userStats) {
-                    const statDocRef = doc(firestore, 'users', userId, 'skaterStats', userStats.id);
-                    const update: any = {};
+                    const statDocRef = doc(firestore, 'users', att.userId, 'skaterStats', userStats.id);
+                    const update: any = {
+                        historicalGamesPlayed: Math.max(0, (userStats.historicalGamesPlayed || 0) - 1)
+                    };
                     if (matchType === 'playoff') {
-                        update.playoffGoals = Math.max(0, (userStats.playoffGoals || 0) - revert.goals);
-                        update.playoffAssists = Math.max(0, (userStats.playoffAssists || 0) - revert.assists);
-                    } else {
-                        update.seasonGoals = Math.max(0, (userStats.seasonGoals || 0) - revert.goals);
-                        update.seasonAssists = Math.max(0, (userStats.seasonAssists || 0) - revert.assists);
+                        update.playoffGamesPlayed = Math.max(0, (userStats.playoffGamesPlayed || 0) - 1);
+                    } else if (matchType === 'regular') {
+                        update.seasonGamesPlayed = Math.max(0, (userStats.seasonGamesPlayed || 0) - 1);
                     }
                     batch.update(statDocRef, update);
                 }
-            }
-            
-            const matchAttendees = attendancesByMatch.get(selectedMatch.id) || [];
-            matchAttendees.forEach(att => {
-                const userStats = allSkaterStatsMap.get(att.userId);
-                if (att.status === 'going' && userStats) {
-                    const statDocRef = doc(firestore, 'users', att.userId, 'skaterStats', userStats.id);
-                    if (matchType === 'playoff') {
-                        batch.update(statDocRef, {
-                            playoffGamesPlayed: Math.max(0, (userStats.playoffGamesPlayed || 0) - 1)
-                        });
-                    } else {
-                        batch.update(statDocRef, {
-                            seasonGamesPlayed: Math.max(0, (userStats.seasonGamesPlayed || 0) - 1)
-                        });
-                    }
-                }
-            });
-
-            // Revert goalie stats
-            if (selectedMatch.goalieId) {
-                const allGoalieStatsMap = new Map(allGoalieStats.map(s => [s.userProfileId, s]));
-                const goalieStats = allGoalieStatsMap.get(selectedMatch.goalieId);
+            } else if (userProfile?.playerType === 'goalie' && selectedMatch.goalieId === att.userId) {
+                const goalieStats = allGoalieStatsMap.get(att.userId);
                 if (goalieStats) {
-                    const goalieStatRef = doc(firestore, 'users', selectedMatch.goalieId, 'goalieStats', goalieStats.id);
+                    const goalieStatRef = doc(firestore, 'users', att.userId, 'goalieStats', goalieStats.id);
                     const isWin = (selectedMatch.team1Score ?? 0) > (selectedMatch.team2Score ?? 0);
-                    const update: any = {};
+                    const update: any = {
+                         historicalGamesPlayed: Math.max(0, (goalieStats.historicalGamesPlayed || 0) - 1),
+                    };
+                    if (isWin) update.historicalWins = Math.max(0, (goalieStats.historicalWins || 0) - 1);
+                    update.historicalSaves = Math.max(0, (goalieStats.historicalSaves || 0) - (selectedMatch.goalieSaves || 0));
+                    update.historicalShotsAgainst = Math.max(0, (goalieStats.historicalShotsAgainst || 0) - (selectedMatch.goalieShotsAgainst || 0));
+
                      if (matchType === 'playoff') {
                         update.playoffGamesPlayed = Math.max(0, (goalieStats.playoffGamesPlayed || 0) - 1);
                         if (isWin) update.playoffWins = Math.max(0, (goalieStats.playoffWins || 0) - 1);
                         update.playoffSaves = Math.max(0, (goalieStats.playoffSaves || 0) - (selectedMatch.goalieSaves || 0));
                         update.playoffShotsAgainst = Math.max(0, (goalieStats.playoffShotsAgainst || 0) - (selectedMatch.goalieShotsAgainst || 0));
-                    } else {
+                    } else if (matchType === 'regular') {
                         update.seasonGamesPlayed = Math.max(0, (goalieStats.seasonGamesPlayed || 0) - 1);
                         if (isWin) update.seasonWins = Math.max(0, (goalieStats.seasonWins || 0) - 1);
                         update.seasonSaves = Math.max(0, (goalieStats.seasonSaves || 0) - (selectedMatch.goalieSaves || 0));
@@ -316,8 +326,8 @@ function HistoryPageContent() {
                     batch.update(goalieStatRef, update);
                 }
             }
-        }
-
+        });
+        
         const matchRef = doc(firestore, 'matches', selectedMatch.id);
         batch.delete(matchRef);
     
@@ -328,6 +338,7 @@ function HistoryPageContent() {
             toast({ variant: 'destructive', title: "Chyba", description: `Nepodařilo se smazat zápas: ${error.message}` });
         } finally {
             setIsDeleteDialogOpen(false);
+            setSelectedMatch(null);
         }
     }
 
@@ -345,7 +356,6 @@ function HistoryPageContent() {
             const goalieSaves = parseInt(formData.get('goalieSaves') as string, 10) || 0;
             const goalieShotsAgainst = parseInt(formData.get('goalieShotsAgainst') as string, 10) || 0;
 
-
             const newScorersData: { goal: string, assist: string | null }[] = [];
             for (let i = 0; i < team1Score; i++) {
                 const goal = formData.get(`goal-${i}`) as string;
@@ -359,80 +369,103 @@ function HistoryPageContent() {
             }
 
             const batch = writeBatch(firestore);
+            const allSkaterStatsMap = new Map(allSkaterStats.map(s => [s.userProfileId, s]));
+            const allGoalieStatsMap = new Map(allGoalieStats.map(s => [s.userProfileId, s]));
 
-            if (matchType !== 'friendly') {
-                // --- Skater Stats Diff ---
-                const statsDiff = new Map<string, { goals: number, assists: number }>();
-                selectedMatch.scorers?.forEach(scorer => {
-                    if (scorer.goal) statsDiff.set(scorer.goal, { ...statsDiff.get(scorer.goal) || { goals: 0, assists: 0 }, goals: -1 });
-                    if (scorer.assist) statsDiff.set(scorer.assist, { ...statsDiff.get(scorer.assist) || { goals: 0, assists: 0 }, assists: -1 });
-                });
-                newScorersData.forEach(scorer => {
-                    if (scorer.goal) statsDiff.set(scorer.goal, { ...statsDiff.get(scorer.goal) || { goals: 0, assists: 0 }, goals: (statsDiff.get(scorer.goal)?.goals || 0) + 1 });
-                    if (scorer.assist) statsDiff.set(scorer.assist, { ...statsDiff.get(scorer.assist) || { goals: 0, assists: 0 }, assists: (statsDiff.get(scorer.assist)?.assists || 0) + 1 });
-                });
-                const allSkaterStatsMap = new Map(allSkaterStats.map(s => [s.userProfileId, s]));
-                for (const [userId, diff] of statsDiff.entries()) {
-                    const userStats = allSkaterStatsMap.get(userId);
-                    if (userStats) {
-                        const statDocRef = doc(firestore, 'users', userId, 'skaterStats', userStats.id);
-                        const update: any = {};
+            // --- Skater Stats Diff ---
+            const statsDiff = new Map<string, { goals: number, assists: number }>();
+            selectedMatch.scorers?.forEach(scorer => {
+                if (scorer.goal) statsDiff.set(scorer.goal, { ...statsDiff.get(scorer.goal) || { goals: 0, assists: 0 }, goals: -1 });
+                if (scorer.assist) statsDiff.set(scorer.assist, { ...statsDiff.get(scorer.assist) || { goals: 0, assists: 0 }, assists: -1 });
+            });
+            newScorersData.forEach(scorer => {
+                if (scorer.goal) statsDiff.set(scorer.goal, { ...statsDiff.get(scorer.goal) || { goals: 0, assists: 0 }, goals: (statsDiff.get(scorer.goal)?.goals || 0) + 1 });
+                if (scorer.assist) statsDiff.set(scorer.assist, { ...statsDiff.get(scorer.assist) || { goals: 0, assists: 0 }, assists: (statsDiff.get(scorer.assist)?.assists || 0) + 1 });
+            });
+
+            for (const [userId, diff] of statsDiff.entries()) {
+                const userStats = allSkaterStatsMap.get(userId);
+                if (userStats) {
+                    const statDocRef = doc(firestore, 'users', userId, 'skaterStats', userStats.id);
+                    const update: any = {
+                        historicalGoals: Math.max(0, (userStats.historicalGoals || 0) + diff.goals),
+                        historicalAssists: Math.max(0, (userStats.historicalAssists || 0) + diff.assists),
+                    };
+
+                    if (matchType !== 'friendly') {
                         if (matchType === 'playoff') {
                             update.playoffGoals = Math.max(0, (userStats.playoffGoals || 0) + diff.goals);
                             update.playoffAssists = Math.max(0, (userStats.playoffAssists || 0) + diff.assists);
-                        } else {
+                        } else { // regular
                             update.seasonGoals = Math.max(0, (userStats.seasonGoals || 0) + diff.goals);
                             update.seasonAssists = Math.max(0, (userStats.seasonAssists || 0) + diff.assists);
                         }
-                        batch.update(statDocRef, update);
                     }
+                    batch.update(statDocRef, update);
                 }
-                
-                // --- Goalie Stats Diff ---
-                const allGoalieStatsMap = new Map(allGoalieStats.map(s => [s.userProfileId, s]));
-                // Revert old goalie stats if goalie changed
-                if (selectedMatch.goalieId && selectedMatch.goalieId !== goalieId) {
-                    const oldGoalieStats = allGoalieStatsMap.get(selectedMatch.goalieId);
-                    if (oldGoalieStats) {
-                        const oldGoalieStatRef = doc(firestore, 'users', selectedMatch.goalieId, 'goalieStats', oldGoalieStats.id);
-                        const isOldWin = (selectedMatch.team1Score ?? 0) > (selectedMatch.team2Score ?? 0);
-                        const update: any = {};
+            }
+            
+            // --- Goalie Stats Diff ---
+            const oldGoalieId = selectedMatch.goalieId;
+            const newGoalieId = goalieId;
+            const oldIsWin = (selectedMatch.team1Score ?? 0) > (selectedMatch.team2Score ?? 0);
+            const newIsWin = team1Score > team2Score;
+
+            // Revert old goalie stats if goalie changed or is removed
+            if (oldGoalieId && oldGoalieId !== newGoalieId) {
+                const oldGoalieStats = allGoalieStatsMap.get(oldGoalieId);
+                if (oldGoalieStats) {
+                    const oldGoalieStatRef = doc(firestore, 'users', oldGoalieId, 'goalieStats', oldGoalieStats.id);
+                    const update: any = {
+                        historicalWins: Math.max(0, (oldGoalieStats.historicalWins || 0) - (oldIsWin ? 1 : 0)),
+                        historicalSaves: Math.max(0, (oldGoalieStats.historicalSaves || 0) - (selectedMatch.goalieSaves || 0)),
+                        historicalShotsAgainst: Math.max(0, (oldGoalieStats.historicalShotsAgainst || 0) - (selectedMatch.goalieShotsAgainst || 0)),
+                    };
+                    if (matchType !== 'friendly') {
                         if (matchType === 'playoff') {
-                            update.playoffWins = Math.max(0, (oldGoalieStats.playoffWins || 0) - (isOldWin ? 1 : 0));
+                            update.playoffWins = Math.max(0, (oldGoalieStats.playoffWins || 0) - (oldIsWin ? 1 : 0));
                             update.playoffSaves = Math.max(0, (oldGoalieStats.playoffSaves || 0) - (selectedMatch.goalieSaves || 0));
                             update.playoffShotsAgainst = Math.max(0, (oldGoalieStats.playoffShotsAgainst || 0) - (selectedMatch.goalieShotsAgainst || 0));
                         } else {
-                            update.seasonWins = Math.max(0, (oldGoalieStats.seasonWins || 0) - (isOldWin ? 1 : 0));
+                            update.seasonWins = Math.max(0, (oldGoalieStats.seasonWins || 0) - (oldIsWin ? 1 : 0));
                             update.seasonSaves = Math.max(0, (oldGoalieStats.seasonSaves || 0) - (selectedMatch.goalieSaves || 0));
                             update.seasonShotsAgainst = Math.max(0, (oldGoalieStats.seasonShotsAgainst || 0) - (selectedMatch.goalieShotsAgainst || 0));
                         }
-                         batch.update(oldGoalieStatRef, update);
                     }
+                    batch.update(oldGoalieStatRef, update);
                 }
+            }
 
-                // Apply new goalie stats
-                if (goalieId) {
-                     const newGoalieStats = allGoalieStatsMap.get(goalieId);
-                     if (newGoalieStats) {
-                        const newGoalieStatRef = doc(firestore, 'users', goalieId, 'goalieStats', newGoalieStats.id);
-                        const isNewWin = team1Score > team2Score;
-                        const oldSaves = selectedMatch.goalieId === goalieId ? (selectedMatch.goalieSaves || 0) : 0;
-                        const oldShots = selectedMatch.goalieId === goalieId ? (selectedMatch.goalieShotsAgainst || 0) : 0;
-                        const oldWin = selectedMatch.goalieId === goalieId && (selectedMatch.team1Score ?? 0) > (selectedMatch.team2Score ?? 0);
-                        const update: any = {};
+            // Apply new goalie stats
+            if (newGoalieId) {
+                 const newGoalieStats = allGoalieStatsMap.get(newGoalieId);
+                 if (newGoalieStats) {
+                    const newGoalieStatRef = doc(firestore, 'users', newGoalieId, 'goalieStats', newGoalieStats.id);
+                    const isSameGoalie = oldGoalieId === newGoalieId;
+                    
+                    const oldSaves = isSameGoalie ? (selectedMatch.goalieSaves || 0) : 0;
+                    const oldShots = isSameGoalie ? (selectedMatch.goalieShotsAgainst || 0) : 0;
+                    const oldWin = isSameGoalie && oldIsWin;
+                    
+                    const update: any = {
+                        historicalWins: Math.max(0, (newGoalieStats.historicalWins || 0) - (oldWin ? 1 : 0) + (newIsWin ? 1 : 0)),
+                        historicalSaves: Math.max(0, (newGoalieStats.historicalSaves || 0) - oldSaves + goalieSaves),
+                        historicalShotsAgainst: Math.max(0, (newGoalieStats.historicalShotsAgainst || 0) - oldShots + goalieShotsAgainst),
+                    };
 
+                    if (matchType !== 'friendly') {
                         if (matchType === 'playoff') {
-                            update.playoffWins = Math.max(0, (newGoalieStats.playoffWins || 0) - (oldWin ? 1 : 0) + (isNewWin ? 1 : 0));
+                            update.playoffWins = Math.max(0, (newGoalieStats.playoffWins || 0) - (oldWin ? 1 : 0) + (newIsWin ? 1 : 0));
                             update.playoffSaves = Math.max(0, (newGoalieStats.playoffSaves || 0) - oldSaves + goalieSaves);
                             update.playoffShotsAgainst = Math.max(0, (newGoalieStats.playoffShotsAgainst || 0) - oldShots + goalieShotsAgainst);
                         } else {
-                            update.seasonWins = Math.max(0, (newGoalieStats.seasonWins || 0) - (oldWin ? 1 : 0) + (isNewWin ? 1 : 0));
+                            update.seasonWins = Math.max(0, (newGoalieStats.seasonWins || 0) - (oldWin ? 1 : 0) + (newIsWin ? 1 : 0));
                             update.seasonSaves = Math.max(0, (newGoalieStats.seasonSaves || 0) - oldSaves + goalieSaves);
                             update.seasonShotsAgainst = Math.max(0, (newGoalieStats.seasonShotsAgainst || 0) - oldShots + goalieShotsAgainst);
                         }
-                        batch.update(newGoalieStatRef, update);
-                     }
-                }
+                    }
+                    batch.update(newGoalieStatRef, update);
+                 }
             }
 
             const matchRef = doc(firestore, 'matches', selectedMatch.id);
@@ -451,6 +484,7 @@ function HistoryPageContent() {
             toast({ variant: 'destructive', title: "Chyba", description: `Nepodařilo se uložit změny: ${error.message}` });
         } finally {
             setIsEditDialogOpen(false);
+            setSelectedMatch(null);
         }
     };
 
@@ -572,7 +606,10 @@ function HistoryPageContent() {
                 </CardContent>
             </Card>
 
-            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+            <Dialog open={isEditDialogOpen} onOpenChange={(open) => {
+                if (!open) setSelectedMatch(null);
+                setIsEditDialogOpen(open);
+            }}>
                 <DialogContent className="max-w-md">
                     {selectedMatch && users && (
                         <EditResultForm 
@@ -585,7 +622,10 @@ function HistoryPageContent() {
                 </DialogContent>
             </Dialog>
 
-            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+            <AlertDialog open={isDeleteDialogOpen} onOpenChange={(open) => {
+                 if (!open) setSelectedMatch(null);
+                 setIsDeleteDialogOpen(open);
+            }}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>Opravdu chcete smazat tento zápas?</AlertDialogTitle>

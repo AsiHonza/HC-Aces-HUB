@@ -238,17 +238,27 @@ function DashboardPageContent() {
   const [isLineupViewOpen, setIsLineupViewOpen] = useState(false);
   const [viewLineupData, setViewLineupData] = useState<Lineup | null>(null);
 
+  const [isHistoryEditMode, setIsHistoryEditMode] = useState(false);
+  const [editableSkaterHistory, setEditableSkaterHistory] = useState<any[]>([]);
+  const [editableGoalieHistory, setEditableGoalieHistory] = useState<any[]>([]);
+
   useEffect(() => {
-    // When a dialog is closed, wait for the closing animation to complete
-    // before clearing the selected match data. This prevents the dialog's
-    // content from unmounting abruptly and causing UI freezes.
     if (!isEditDialogOpen && !isResultDialogOpen && !isDeleteDialogOpen) {
         const timer = setTimeout(() => {
             setSelectedMatch(null);
-        }, 300); // A safe delay for animations
+        }, 300);
         return () => clearTimeout(timer);
     }
   }, [isEditDialogOpen, isResultDialogOpen, isDeleteDialogOpen]);
+
+  useEffect(() => {
+      if (!isLineupBuilderOpen) {
+          const timer = setTimeout(() => {
+              setLineupMatch(null);
+          }, 200);
+          return () => clearTimeout(timer);
+      }
+  }, [isLineupBuilderOpen]);
 
   // Fetch current user's profile and stats
   const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
@@ -402,24 +412,26 @@ function DashboardPageContent() {
     }, [allUsers, allGoalieStats]);
   
     const sortedTeamScoring = useMemo(() => {
-        if (!teamScoring) return [];
-        const data = teamScoring.map(player => ({
+        const dataSet = isHistoryEditMode && scoringView === 'history' ? editableSkaterHistory : teamScoring.map(player => ({
             id: player.id,
             name: player.name,
             ...player[scoringView]
         }));
+
+        const data = dataSet.map(p => ({ ...p, points: (p.goals ?? 0) + (p.assists ?? 0) }));
+        
         return data.sort((a, b) => b.points - a.points || b.goals - a.goals).map((player, index) => ({ ...player, rank: index + 1 }));
-    }, [teamScoring, scoringView]);
+    }, [teamScoring, scoringView, isHistoryEditMode, editableSkaterHistory]);
 
     const sortedGoalieLeaderboard = useMemo(() => {
-        if (!goalieLeaderboard) return [];
-        const data = goalieLeaderboard.map(goalie => ({
+        const dataSet = isHistoryEditMode && scoringView === 'history' ? editableGoalieHistory : goalieLeaderboard.map(goalie => ({
             id: goalie.id,
             name: goalie.name,
             ...goalie[scoringView]
         }));
+        const data = dataSet.map(g => ({...g, savePercentage: (g.shotsAgainst ?? 0) > 0 ? ((g.saves ?? 0) / g.shotsAgainst) * 100 : 0}));
         return data.sort((a, b) => b.savePercentage - a.savePercentage || b.wins - a.wins).map((goalie, index) => ({...goalie, rank: index + 1}));
-    }, [goalieLeaderboard, scoringView]);
+    }, [goalieLeaderboard, scoringView, isHistoryEditMode, editableGoalieHistory]);
 
     const sortedLeagueStandings = useMemo(() => {
         const data = isLeagueEditMode ? editableLeagueStandings : leagueStandings;
@@ -474,7 +486,7 @@ function DashboardPageContent() {
         { metric: 'Zápasy', value: myGoalieStatsToDisplay.gamesPlayed },
         { metric: 'Výhry', value: myGoalieStatsToDisplay.wins },
         { metric: 'Úspěšnost', value: `${myGoalieStatsToDisplay.savePct.toFixed(2)} %` },
-    ] : [], [myStatsToDisplay.assists, myStatsToDisplay.gamesPlayed, myStatsToDisplay.goals, myGoalieStatsToDisplay.gamesPlayed, myGoalieStatsToDisplay.savePct, myGoalieStatsToDisplay.wins, userProfile?.playerType]);
+    ] : [], [myStatsToDisplay, myGoalieStatsToDisplay, userProfile?.playerType]);
   
 
     const isLoading = isUserProfileLoading || isSkaterStatsLoading || isGoalieStatsLoading || areMatchesLoading || areUsersLoading || areSkaterStatsLoading || areGoalieStatsLoading || attendancesLoading || leagueSettingsLoading;
@@ -512,17 +524,6 @@ function DashboardPageContent() {
     }, 200);
 
   }, [isLoading, upcomingMatches, otherUpcomingMatches, searchParams]);
-  
-  // When the dialog is told to close, wait for a moment before cleaning up the data.
-  // This gives the dialog's exit animation time to complete and prevents race conditions.
-  useEffect(() => {
-      if (!isLineupBuilderOpen) {
-          const timer = setTimeout(() => {
-              setLineupMatch(null);
-          }, 200);
-          return () => clearTimeout(timer);
-      }
-  }, [isLineupBuilderOpen]);
   
   if (isLoading || !user) {
     return (
@@ -756,7 +757,6 @@ function DashboardPageContent() {
     const goalieSaves = parseInt(formData.get('goalieSaves') as string, 10) || 0;
     const goalieShotsAgainst = parseInt(formData.get('goalieShotsAgainst') as string, 10) || 0;
 
-
     const scorersData = [];
     for (let i = 0; i < team1Score; i++) {
         const goal = formData.get(`goal-${i}`) as string;
@@ -781,90 +781,103 @@ function DashboardPageContent() {
         goalieSaves,
         goalieShotsAgainst,
     });
-
-    if (selectedMatch.type !== 'friendly') {
-        const skaterGoalsField = selectedMatch.type === 'playoff' ? 'playoffGoals' : 'seasonGoals';
-        const skaterAssistsField = selectedMatch.type === 'playoff' ? 'playoffAssists' : 'seasonAssists';
-        const skaterGamesPlayedField = selectedMatch.type === 'playoff' ? 'playoffGamesPlayed' : 'seasonGamesPlayed';
-
-        const playerStatUpdates = new Map<string, { goals: number, assists: number }>();
-        scorersData.forEach(s => {
-            if (s.goal) {
-                const current = playerStatUpdates.get(s.goal) || { goals: 0, assists: 0 };
-                playerStatUpdates.set(s.goal, { ...current, goals: current.goals + 1 });
-            }
-            if (s.assist) {
-                const current = playerStatUpdates.get(s.assist) || { goals: 0, assists: 0 };
-                playerStatUpdates.set(s.assist, { ...current, assists: current.assists + 1 });
-            }
-        });
-
-        const allSkaterStatsMap = new Map(allSkaterStats.map(s => [s.userProfileId, s]));
-
-        for (const [userId, updates] of playerStatUpdates.entries()) {
-            const userStats = allSkaterStatsMap.get(userId);
-            if (userStats) {
-                const statDocRef = doc(firestore, 'users', userId, 'skaterStats', userStats.id);
-                const update: any = {};
-                update[skaterGoalsField] = (userStats[skaterGoalsField] || 0) + updates.goals;
-                update[skaterAssistsField] = (userStats[skaterAssistsField] || 0) + updates.assists;
-                batch.update(statDocRef, update);
-            }
+    
+    // Always update historical stats, regardless of match type
+    const allSkaterStatsMap = new Map(allSkaterStats.map(s => [s.userProfileId, s]));
+    const playerStatUpdates = new Map<string, { goals: number, assists: number }>();
+    scorersData.forEach(s => {
+        if (s.goal) {
+            const current = playerStatUpdates.get(s.goal) || { goals: 0, assists: 0 };
+            playerStatUpdates.set(s.goal, { ...current, goals: current.goals + 1 });
         }
+        if (s.assist) {
+            const current = playerStatUpdates.get(s.assist) || { goals: 0, assists: 0 };
+            playerStatUpdates.set(s.assist, { ...current, assists: current.assists + 1 });
+        }
+    });
 
-        const matchAttendees = attendancesByMatch.get(selectedMatch.id) || [];
-        matchAttendees.forEach(att => {
-            if (att.status !== 'going') return;
-            const userForStat = allUsers?.find(u => u.id === att.userId);
-            if (userForStat?.playerType === 'player') {
-                const userStats = allSkaterStatsMap.get(att.userId);
-                if (userStats) {
-                    const statDocRef = doc(firestore, 'users', att.userId, 'skaterStats', userStats.id);
-                    batch.update(statDocRef, { [skaterGamesPlayedField]: (userStats[skaterGamesPlayedField] || 0) + 1 });
-                }
+    for (const [userId, updates] of playerStatUpdates.entries()) {
+        const userStats = allSkaterStatsMap.get(userId);
+        if (userStats) {
+            const statDocRef = doc(firestore, 'users', userId, 'skaterStats', userStats.id);
+            const update: any = {
+                historicalGoals: (userStats.historicalGoals || 0) + updates.goals,
+                historicalAssists: (userStats.historicalAssists || 0) + updates.assists,
+            };
+            if (selectedMatch.type === 'playoff') {
+                update.playoffGoals = (userStats.playoffGoals || 0) + updates.goals;
+                update.playoffAssists = (userStats.playoffAssists || 0) + updates.assists;
+            } else if (selectedMatch.type === 'regular') {
+                update.seasonGoals = (userStats.seasonGoals || 0) + updates.goals;
+                update.seasonAssists = (userStats.seasonAssists || 0) + updates.assists;
             }
-        });
-        
-        if (goalieId && goalieId !== 'none') {
-            const allGoalieStatsMap = new Map(allGoalieStats.map(s => [s.userProfileId, s]));
-            const goalieStats = allGoalieStatsMap.get(goalieId);
-            const isWin = team1Score > team2Score;
-            
-            const goalieGamesPlayedField = selectedMatch.type === 'playoff' ? 'playoffGamesPlayed' : 'seasonGamesPlayed';
-            const goalieWinsField = selectedMatch.type === 'playoff' ? 'playoffWins' : 'seasonWins';
-            const goalieSavesField = selectedMatch.type === 'playoff' ? 'playoffSaves' : 'seasonSaves';
-            const goalieShotsAgainstField = selectedMatch.type === 'playoff' ? 'playoffShotsAgainst' : 'seasonShotsAgainst';
-            
-            if (goalieStats) {
-                const statDocRef = doc(firestore, 'users', goalieId, 'goalieStats', goalieStats.id);
-                const update: any = {
-                    [goalieGamesPlayedField]: (goalieStats[goalieGamesPlayedField] || 0) + 1,
-                    [goalieWinsField]: (goalieStats[goalieWinsField] || 0) + (isWin ? 1 : 0),
-                    [goalieSavesField]: (goalieStats[goalieSavesField] || 0) + goalieSaves,
-                    [goalieShotsAgainstField]: (goalieStats[goalieShotsAgainstField] || 0) + goalieShotsAgainst,
-                };
-                batch.update(statDocRef, update);
-            } else {
-                // Create new goalie stats doc if it doesn't exist
-                 const statDocRef = doc(firestore, 'users', goalieId, 'goalieStats', 'stats');
-                 batch.set(statDocRef, {
-                    userProfileId: goalieId,
-                    seasonGamesPlayed: selectedMatch.type !== 'playoff' ? 1 : 0,
-                    seasonWins: selectedMatch.type !== 'playoff' && isWin ? 1 : 0,
-                    seasonSaves: selectedMatch.type !== 'playoff' ? goalieSaves : 0,
-                    seasonShotsAgainst: selectedMatch.type !== 'playoff' ? goalieShotsAgainst : 0,
-                    playoffGamesPlayed: selectedMatch.type === 'playoff' ? 1 : 0,
-                    playoffWins: selectedMatch.type === 'playoff' && isWin ? 1 : 0,
-                    playoffSaves: selectedMatch.type === 'playoff' ? goalieSaves : 0,
-                    playoffShotsAgainst: selectedMatch.type === 'playoff' ? goalieShotsAgainst : 0,
-                    historicalGamesPlayed: 0,
-                    historicalWins: 0,
-                    historicalSaves: 0,
-                    historicalShotsAgainst: 0
-                 });
-            }
+            batch.update(statDocRef, update);
         }
     }
+
+    const matchAttendees = attendancesByMatch.get(selectedMatch.id) || [];
+    matchAttendees.forEach(att => {
+        if (att.status !== 'going') return;
+        const userForStat = allUsers?.find(u => u.id === att.userId);
+        if (userForStat?.playerType === 'player') {
+            const userStats = allSkaterStatsMap.get(att.userId);
+            if (userStats) {
+                const statDocRef = doc(firestore, 'users', att.userId, 'skaterStats', userStats.id);
+                const update: any = { historicalGamesPlayed: (userStats.historicalGamesPlayed || 0) + 1 };
+                if (selectedMatch.type === 'playoff') {
+                    update.playoffGamesPlayed = (userStats.playoffGamesPlayed || 0) + 1;
+                } else if (selectedMatch.type === 'regular') {
+                    update.seasonGamesPlayed = (userStats.seasonGamesPlayed || 0) + 1;
+                }
+                batch.update(statDocRef, update);
+            }
+        }
+    });
+    
+    if (goalieId && goalieId !== 'none') {
+        const allGoalieStatsMap = new Map(allGoalieStats.map(s => [s.userProfileId, s]));
+        const goalieStats = allGoalieStatsMap.get(goalieId);
+        const isWin = team1Score > team2Score;
+        
+        const update: any = {
+            historicalGamesPlayed: ((goalieStats?.historicalGamesPlayed) || 0) + 1,
+            historicalWins: ((goalieStats?.historicalWins) || 0) + (isWin ? 1 : 0),
+            historicalSaves: ((goalieStats?.historicalSaves) || 0) + goalieSaves,
+            historicalShotsAgainst: ((goalieStats?.historicalShotsAgainst) || 0) + goalieShotsAgainst,
+        };
+
+        if (selectedMatch.type === 'playoff') {
+            update.playoffGamesPlayed = ((goalieStats?.playoffGamesPlayed) || 0) + 1;
+            update.playoffWins = ((goalieStats?.playoffWins) || 0) + (isWin ? 1 : 0);
+            update.playoffSaves = ((goalieStats?.playoffSaves) || 0) + goalieSaves;
+            update.playoffShotsAgainst = ((goalieStats?.playoffShotsAgainst) || 0) + goalieShotsAgainst;
+        } else if (selectedMatch.type === 'regular') {
+            update.seasonGamesPlayed = ((goalieStats?.seasonGamesPlayed) || 0) + 1;
+            update.seasonWins = ((goalieStats?.seasonWins) || 0) + (isWin ? 1 : 0);
+            update.seasonSaves = ((goalieStats?.seasonSaves) || 0) + goalieSaves;
+            update.seasonShotsAgainst = ((goalieStats?.seasonShotsAgainst) || 0) + goalieShotsAgainst;
+        }
+
+        if (goalieStats) {
+            const statDocRef = doc(firestore, 'users', goalieId, 'goalieStats', goalieStats.id);
+            batch.update(statDocRef, update);
+        } else {
+             const statDocRef = doc(firestore, 'users', goalieId, 'goalieStats', 'stats');
+             batch.set(statDocRef, {
+                userProfileId: goalieId,
+                seasonGamesPlayed: selectedMatch.type === 'regular' ? 1 : 0,
+                seasonWins: selectedMatch.type === 'regular' && isWin ? 1 : 0,
+                seasonSaves: selectedMatch.type === 'regular' ? goalieSaves : 0,
+                seasonShotsAgainst: selectedMatch.type === 'regular' ? goalieShotsAgainst : 0,
+                playoffGamesPlayed: selectedMatch.type === 'playoff' ? 1 : 0,
+                playoffWins: selectedMatch.type === 'playoff' && isWin ? 1 : 0,
+                playoffSaves: selectedMatch.type === 'playoff' ? goalieSaves : 0,
+                playoffShotsAgainst: selectedMatch.type === 'playoff' ? goalieShotsAgainst : 0,
+                ...update
+             });
+        }
+    }
+
 
     try {
         await batch.commit();
@@ -995,6 +1008,80 @@ function DashboardPageContent() {
           return newSeries;
       });
   };
+
+    const handleEditHistoryClick = () => {
+        setIsHistoryEditMode(true);
+        setEditableSkaterHistory(JSON.parse(JSON.stringify(teamScoring.map(p => ({ id: p.id, name: p.name, ...p.history })))));
+        setEditableGoalieHistory(JSON.parse(JSON.stringify(goalieLeaderboard.map(p => ({ id: p.id, name: p.name, ...p.history })))));
+    };
+
+    const handleCancelHistoryClick = () => {
+        setIsHistoryEditMode(false);
+        setEditableSkaterHistory([]);
+        setEditableGoalieHistory([]);
+    };
+
+    const handleSaveHistoryClick = async () => {
+        if (!firestore || !allSkaterStats || !allGoalieStats) return;
+
+        const batch = writeBatch(firestore);
+        const skaterStatsMap = new Map(allSkaterStats.map(s => [s.userProfileId, s.id]));
+        const goalieStatsMap = new Map(allGoalieStats.map(s => [s.userProfileId, s.id]));
+
+        editableSkaterHistory.forEach(player => {
+            const statId = skaterStatsMap.get(player.id);
+            if (statId) {
+                const statRef = doc(firestore, 'users', player.id, 'skaterStats', statId);
+                batch.update(statRef, {
+                    historicalGoals: player.goals,
+                    historicalAssists: player.assists,
+                    historicalGamesPlayed: player.gamesPlayed,
+                });
+            }
+        });
+
+        editableGoalieHistory.forEach(goalie => {
+            const statId = goalieStatsMap.get(goalie.id);
+            if (statId) {
+                const statRef = doc(firestore, 'users', goalie.id, 'goalieStats', statId);
+                batch.update(statRef, {
+                    historicalGamesPlayed: goalie.gamesPlayed,
+                    historicalWins: goalie.wins,
+                    historicalSaves: goalie.saves,
+                    historicalShotsAgainst: goalie.shotsAgainst,
+                });
+            }
+        });
+
+        try {
+            await batch.commit();
+            toast({ title: 'Historické statistiky uloženy.' });
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se uložit historické statistiky.' });
+        } finally {
+            setIsHistoryEditMode(false);
+        }
+    };
+
+    const handleSkaterHistoryChange = (playerId: string, field: 'goals' | 'assists' | 'gamesPlayed', delta: number) => {
+        setEditableSkaterHistory(current =>
+            current.map(p =>
+                p.id === playerId
+                    ? { ...p, [field]: Math.max(0, p[field] + delta) }
+                    : p
+            )
+        );
+    };
+
+    const handleGoalieHistoryChange = (goalieId: string, field: 'gamesPlayed' | 'wins' | 'saves' | 'shotsAgainst', delta: number) => {
+        setEditableGoalieHistory(current =>
+            current.map(g =>
+                g.id === goalieId
+                    ? { ...g, [field]: Math.max(0, g[field] + delta) }
+                    : g
+            )
+        );
+    };
   
   const fallback = userProfile?.name?.split(' ').map(n => n[0]).join('').toUpperCase() ?? ''
   
@@ -1009,7 +1096,7 @@ function DashboardPageContent() {
     ];
 
     return (
-        <Card id={`match-${match.id}`} key={match.id} className={cn("w-full transition-all", highlightedMatchId === match.id && 'animate-highlight-card')}>
+        <Card id={`match-${match.id}`} className={cn("w-full transition-all", highlightedMatchId === match.id && 'animate-highlight-card')}>
                 <CardHeader className="flex-row items-start justify-between pb-2">
                     <div className="space-y-1">
                         <CardTitle className="text-xl break-words pr-2">{opponent}</CardTitle>
@@ -1142,6 +1229,13 @@ function DashboardPageContent() {
     );
   };
 
+    const StatEditControl = ({ value, onDecrement, onIncrement }: { value: number, onDecrement: () => void, onIncrement: () => void }) => (
+        <div className="flex items-center justify-center gap-0 sm:gap-1">
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onDecrement}><Minus className="h-4 w-4" /></Button>
+            <span className="w-6 text-center font-medium">{value}</span>
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onIncrement}><Plus className="h-4 w-4" /></Button>
+        </div>
+    );
 
   return (
     <div className="py-8 px-4 sm:px-6 lg:px-8">
@@ -1290,7 +1384,21 @@ function DashboardPageContent() {
         <div className="lg:col-span-3 grid gap-8 md:grid-cols-2">
             <Card>
                 <CardHeader>
-                    <CardTitle className="flex items-center gap-2 font-headline"><Flame className="text-primary"/>Kanadské bodování</CardTitle>
+                     <div className="flex items-center justify-between">
+                        <CardTitle className="flex items-center gap-2 font-headline"><Flame className="text-primary"/>Kanadské bodování</CardTitle>
+                        {scoringView === 'history' && userProfile?.role === 'admin' && (
+                            isHistoryEditMode ? (
+                                <div className="flex gap-2">
+                                    <Button variant="outline" size="sm" onClick={handleCancelHistoryClick}>Zrušit</Button>
+                                    <Button size="sm" onClick={handleSaveHistoryClick}>Uložit</Button>
+                                </div>
+                            ) : (
+                                <Button variant="outline" size="sm" onClick={handleEditHistoryClick}>
+                                    <Pencil className="mr-2 h-4 w-4" /> Upravit
+                                </Button>
+                            )
+                        )}
+                    </div>
                 </CardHeader>
                 <CardContent>
                     <Tabs value={scoringView} onValueChange={(value) => setScoringView(value as any)} className="w-full">
@@ -1316,9 +1424,19 @@ function DashboardPageContent() {
                                         <TableRow key={player.id}>
                                             <TableCell className="font-medium px-1 sm:px-4">{player.rank}</TableCell>
                                             <TableCell className="py-2 px-1 sm:px-4">{player.name}</TableCell>
-                                            <TableCell className="text-center font-mono py-2 px-1 sm:px-4">{player.gamesPlayed}</TableCell>
-                                            <TableCell className="text-center font-mono py-2 px-1 sm:px-4">{player.goals}</TableCell>
-                                            <TableCell className="text-center font-mono py-2 px-1 sm:px-4">{player.assists}</TableCell>
+                                             {isHistoryEditMode && scoringView === 'history' ? (
+                                                <>
+                                                    <TableCell className="p-0"><StatEditControl value={player.gamesPlayed} onDecrement={() => handleSkaterHistoryChange(player.id, 'gamesPlayed', -1)} onIncrement={() => handleSkaterHistoryChange(player.id, 'gamesPlayed', 1)} /></TableCell>
+                                                    <TableCell className="p-0"><StatEditControl value={player.goals} onDecrement={() => handleSkaterHistoryChange(player.id, 'goals', -1)} onIncrement={() => handleSkaterHistoryChange(player.id, 'goals', 1)} /></TableCell>
+                                                    <TableCell className="p-0"><StatEditControl value={player.assists} onDecrement={() => handleSkaterHistoryChange(player.id, 'assists', -1)} onIncrement={() => handleSkaterHistoryChange(player.id, 'assists', 1)} /></TableCell>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <TableCell className="text-center font-mono py-2 px-1 sm:px-4">{player.gamesPlayed}</TableCell>
+                                                    <TableCell className="text-center font-mono py-2 px-1 sm:px-4">{player.goals}</TableCell>
+                                                    <TableCell className="text-center font-mono py-2 px-1 sm:px-4">{player.assists}</TableCell>
+                                                </>
+                                            )}
                                             <TableCell className="text-right font-mono font-bold py-2 px-1 sm:px-4">{player.points}</TableCell>
                                         </TableRow>
                                     ))}
@@ -1331,8 +1449,20 @@ function DashboardPageContent() {
 
             <Card>
                 <CardHeader>
-                     <div>
+                     <div className="flex items-center justify-between">
                         <CardTitle className="flex items-center gap-2 font-headline"><Shield className="text-primary"/>Statistiky brankářů</CardTitle>
+                         {scoringView === 'history' && userProfile?.role === 'admin' && (
+                            isHistoryEditMode ? (
+                                <div className="flex gap-2">
+                                    <Button variant="outline" size="sm" onClick={handleCancelHistoryClick}>Zrušit</Button>
+                                    <Button size="sm" onClick={handleSaveHistoryClick}>Uložit</Button>
+                                </div>
+                            ) : (
+                                <Button variant="outline" size="sm" onClick={handleEditHistoryClick}>
+                                    <Pencil className="mr-2 h-4 w-4" /> Upravit
+                                </Button>
+                            )
+                        )}
                     </div>
                 </CardHeader>
                 <CardContent>
@@ -1358,10 +1488,21 @@ function DashboardPageContent() {
                                     {sortedGoalieLeaderboard.map((goalie) => (
                                         <TableRow key={goalie.id}>
                                             <TableCell className="font-medium py-2 px-1 sm:px-4">{goalie.name}</TableCell>
-                                            <TableCell className="text-center font-mono py-2 px-1 sm:px-4">{goalie.gamesPlayed}</TableCell>
-                                            <TableCell className="text-center font-mono py-2 px-1 sm:px-4">{goalie.wins}</TableCell>
-                                            <TableCell className="text-center font-mono hidden sm:table-cell py-2 px-1 sm:px-4">{goalie.shotsAgainst}</TableCell>
-                                            <TableCell className="text-center font-mono hidden sm:table-cell py-2 px-1 sm:px-4">{goalie.saves}</TableCell>
+                                             {isHistoryEditMode && scoringView === 'history' ? (
+                                                <>
+                                                     <TableCell className="p-0"><StatEditControl value={goalie.gamesPlayed} onDecrement={() => handleGoalieHistoryChange(goalie.id, 'gamesPlayed', -1)} onIncrement={() => handleGoalieHistoryChange(goalie.id, 'gamesPlayed', 1)} /></TableCell>
+                                                     <TableCell className="p-0"><StatEditControl value={goalie.wins} onDecrement={() => handleGoalieHistoryChange(goalie.id, 'wins', -1)} onIncrement={() => handleGoalieHistoryChange(goalie.id, 'wins', 1)} /></TableCell>
+                                                     <TableCell className="p-0 hidden sm:table-cell"><StatEditControl value={goalie.shotsAgainst} onDecrement={() => handleGoalieHistoryChange(goalie.id, 'shotsAgainst', -1)} onIncrement={() => handleGoalieHistoryChange(goalie.id, 'shotsAgainst', 1)} /></TableCell>
+                                                     <TableCell className="p-0 hidden sm:table-cell"><StatEditControl value={goalie.saves} onDecrement={() => handleGoalieHistoryChange(goalie.id, 'saves', -1)} onIncrement={() => handleGoalieHistoryChange(goalie.id, 'saves', 1)} /></TableCell>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <TableCell className="text-center font-mono py-2 px-1 sm:px-4">{goalie.gamesPlayed}</TableCell>
+                                                    <TableCell className="text-center font-mono py-2 px-1 sm:px-4">{goalie.wins}</TableCell>
+                                                    <TableCell className="text-center font-mono hidden sm:table-cell py-2 px-1 sm:px-4">{goalie.shotsAgainst}</TableCell>
+                                                    <TableCell className="text-center font-mono hidden sm:table-cell py-2 px-1 sm:px-4">{goalie.saves}</TableCell>
+                                                </>
+                                            )}
                                             <TableCell className="text-right font-mono font-bold py-2 px-1 sm:px-4">{goalie.savePercentage.toFixed(2)}%</TableCell>
                                         </TableRow>
                                     ))}
