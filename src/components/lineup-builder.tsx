@@ -9,7 +9,7 @@ import { Button } from './ui/button';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from './ui/select';
 import { ScrollArea } from './ui/scroll-area';
-import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Goal, Loader2 } from 'lucide-react';
 import { Label } from './ui/label';
 
@@ -280,9 +280,13 @@ export function LineupBuilder({ players, initialData, onSave, onCancel }: { play
     formations.push({ title: 'Brankář', positions: ['B1'] as const });
 
     return (
-        <div className="flex flex-col h-full">
-            <ScrollArea className="flex-1">
-                <div className="p-2 space-y-4">
+        <Tabs defaultValue="sestava" className="flex flex-col h-full w-full">
+            <TabsList className="grid w-full grid-cols-2 rounded-none flex-shrink-0">
+                <TabsTrigger value="sestava">Sestava</TabsTrigger>
+                <TabsTrigger value="hraci">Dostupní hráči ({availablePlayers.length})</TabsTrigger>
+            </TabsList>
+            <TabsContent value="sestava" className="flex-1 overflow-y-auto mt-0">
+                 <div className="p-2 space-y-4">
                     {formations.map(f => (
                         <Card key={f.title}>
                             <CardHeader className="p-4">
@@ -294,34 +298,26 @@ export function LineupBuilder({ players, initialData, onSave, onCancel }: { play
                         </Card>
                     ))}
                 </div>
-            </ScrollArea>
-            <div className="flex-shrink-0 p-2">
-                <Card>
-                    <CardHeader className="p-4">
-                        <CardTitle className="text-base">Dostupní hráči</CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-4 pt-0">
-                        <ScrollArea className="h-32">
-                            <div className="space-y-2">
-                                {availablePlayers.map(p => (
-                                    <div key={p.id} className="flex items-center gap-2 p-2 bg-muted rounded-md">
-                                        <Avatar className="h-8 w-8">
-                                            <AvatarImage src={p.photoURL ?? `https://picsum.photos/seed/${p.email}/100/100`} data-ai-hint="player portrait" alt={p.name || ''} />
-                                            <AvatarFallback>{(p.name || '').split(' ').map(n=>n[0]).join('')}</AvatarFallback>
-                                        </Avatar>
-                                        <div>
-                                            <p className="font-medium text-sm leading-tight">{p.name || ''}</p>
-                                            {p.jerseyNumber != null && <p className="text-xs text-muted-foreground">#{p.jerseyNumber}</p>}
-                                        </div>
-                                    </div>
-                                ))}
-                                {availablePlayers.length === 0 && <p className="text-sm text-muted-foreground text-center">Všichni hráči jsou v sestavě.</p>}
+            </TabsContent>
+            <TabsContent value="hraci" className="flex-1 overflow-y-auto mt-0">
+                <div className="p-2 space-y-2">
+                    {availablePlayers.length > 0 ? availablePlayers.map(p => (
+                        <Card key={p.id}>
+                           <div className="flex items-center gap-2 p-2">
+                                <Avatar className="h-8 w-8">
+                                    <AvatarImage src={p.photoURL ?? `https://picsum.photos/seed/${p.email}/100/100`} data-ai-hint="player portrait" alt={p.name || ''} />
+                                    <AvatarFallback>{(p.name || '').split(' ').map(n=>n[0]).join('')}</AvatarFallback>
+                                </Avatar>
+                                <div>
+                                    <p className="font-medium text-sm leading-tight">{p.name || ''}</p>
+                                    {p.jerseyNumber != null && <p className="text-xs text-muted-foreground">#{p.jerseyNumber}</p>}
+                                </div>
                             </div>
-                        </ScrollArea>
-                    </CardContent>
-                </Card>
-            </div>
-        </div>
+                        </Card>
+                    )) : <p className="text-sm text-muted-foreground text-center pt-4">Všichni hráči jsou v sestavě.</p>}
+                </div>
+            </TabsContent>
+        </Tabs>
     );
   };
 
@@ -407,7 +403,7 @@ export function LineupBuilder({ players, initialData, onSave, onCancel }: { play
                 </TabsList>
             </Tabs>
         </div>
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-hidden">
             {isMobile ? <MobileBuilder /> : <DesktopBuilder />}
         </div>
         <div className="flex-shrink-0 flex justify-end gap-2 p-4 border-t">
