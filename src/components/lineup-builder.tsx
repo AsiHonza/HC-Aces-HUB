@@ -10,6 +10,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from './ui/select';
 import { ScrollArea } from './ui/scroll-area';
 import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
+import { Loader2 } from 'lucide-react';
 
 
 export interface Player {
@@ -104,6 +105,14 @@ export function LineupBuilder({ players, initialData, onSave, onCancel }: { play
     const playersInLineup = getPlayersInLineup(initialData || initialLineup);
     return players.filter(p => !playersInLineup.includes(p.id));
   });
+
+  if (isMobile === null) {
+    return (
+        <div className="flex h-full flex-col items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+    );
+  }
 
   const handleFormationChange = (val: string) => {
       const newCount = val as '2' | '3';
@@ -200,28 +209,58 @@ export function LineupBuilder({ players, initialData, onSave, onCancel }: { play
     );
   }
 
-  const MobilePositionSelector = ({ positionKey }: { positionKey: keyof Lineup }) => {
-    const player = lineup[positionKey];
-    return (
-        <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-muted-foreground">{positionNames[positionKey]}</label>
-            <Select onValueChange={(value) => handlePlayerSelect(positionKey, value)} value={player?.id || ''}>
-                <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Vybrat hráče...">
-                        {player ? player.name : 'Vybrat hráče...'}
-                    </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="clear" className="text-destructive">Vymazat výběr</SelectItem>
-                    <SelectSeparator />
-                    {availablePlayers.map(p => (
-                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
-        </div>
-    )
-  }
+  const MobileBuilder = () => (
+    <div className="flex flex-col h-full p-2 gap-4">
+        <Card>
+            <CardHeader><CardTitle>Sestava</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+                <h4 className="font-semibold text-center">Útok</h4>
+                <MobilePositionSelector positionKey="LK1" />
+                <MobilePositionSelector positionKey="C1" />
+                <MobilePositionSelector positionKey="PK1" />
+                <MobilePositionSelector positionKey="LK2" />
+                <MobilePositionSelector positionKey="C2" />
+                <MobilePositionSelector positionKey="PK2" />
+                {formationCount === '3' && (
+                    <>
+                        <MobilePositionSelector positionKey="LK3" />
+                        <MobilePositionSelector positionKey="C3" />
+                        <MobilePositionSelector positionKey="PK3" />
+                    </>
+                )}
+                <h4 className="font-semibold text-center pt-4">Obrana</h4>
+                <MobilePositionSelector positionKey="LO1" />
+                <MobilePositionSelector positionKey="PO1" />
+                <MobilePositionSelector positionKey="LO2" />
+                <MobilePositionSelector positionKey="PO2" />
+                <h4 className="font-semibold text-center pt-4">Brankář</h4>
+                <MobilePositionSelector positionKey="B1" />
+            </CardContent>
+        </Card>
+        <Card className="flex-1 min-h-0">
+             <CardHeader><CardTitle>Dostupní hráči</CardTitle></CardHeader>
+             <CardContent>
+                <ScrollArea className="h-48">
+                    <div className="space-y-2">
+                        {availablePlayers.map(p => (
+                            <div key={p.id} className="flex items-center gap-2 p-2 bg-muted rounded-md">
+                                <Avatar className="h-8 w-8">
+                                    <AvatarImage src={p.photoURL ?? `https://picsum.photos/seed/${p.email}/100/100`} data-ai-hint="player portrait" alt={p.name} />
+                                    <AvatarFallback>{p.name.split(' ').map(n=>n[0]).join('')}</AvatarFallback>
+                                </Avatar>
+                                <div>
+                                    <p className="font-medium text-sm leading-tight">{p.name}</p>
+                                    {p.jerseyNumber != null && <p className="text-xs text-muted-foreground">#{p.jerseyNumber}</p>}
+                                </div>
+                            </div>
+                        ))}
+                         {availablePlayers.length === 0 && <p className="text-sm text-muted-foreground text-center">Všichni hráči jsou v sestavě.</p>}
+                    </div>
+                </ScrollArea>
+             </CardContent>
+        </Card>
+    </div>
+  )
 
   const DesktopBuilder = () => {
     const isSmall = formationCount === '3';
@@ -294,60 +333,6 @@ export function LineupBuilder({ players, initialData, onSave, onCancel }: { play
         </DragDropContext>
     );
   }
-
-
-  const MobileBuilder = () => (
-    <div className="flex flex-col h-full p-2 gap-4">
-        <Card>
-            <CardHeader><CardTitle>Sestava</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-                <h4 className="font-semibold text-center">Útok</h4>
-                <MobilePositionSelector positionKey="LK1" />
-                <MobilePositionSelector positionKey="C1" />
-                <MobilePositionSelector positionKey="PK1" />
-                <MobilePositionSelector positionKey="LK2" />
-                <MobilePositionSelector positionKey="C2" />
-                <MobilePositionSelector positionKey="PK2" />
-                {formationCount === '3' && (
-                    <>
-                        <MobilePositionSelector positionKey="LK3" />
-                        <MobilePositionSelector positionKey="C3" />
-                        <MobilePositionSelector positionKey="PK3" />
-                    </>
-                )}
-                <h4 className="font-semibold text-center pt-4">Obrana</h4>
-                <MobilePositionSelector positionKey="LO1" />
-                <MobilePositionSelector positionKey="PO1" />
-                <MobilePositionSelector positionKey="LO2" />
-                <MobilePositionSelector positionKey="PO2" />
-                <h4 className="font-semibold text-center pt-4">Brankář</h4>
-                <MobilePositionSelector positionKey="B1" />
-            </CardContent>
-        </Card>
-        <Card className="flex-1 min-h-0">
-             <CardHeader><CardTitle>Dostupní hráči</CardTitle></CardHeader>
-             <CardContent>
-                <ScrollArea className="h-48">
-                    <div className="space-y-2">
-                        {availablePlayers.map(p => (
-                            <div key={p.id} className="flex items-center gap-2 p-2 bg-muted rounded-md">
-                                <Avatar className="h-8 w-8">
-                                    <AvatarImage src={p.photoURL ?? `https://picsum.photos/seed/${p.email}/100/100`} data-ai-hint="player portrait" alt={p.name} />
-                                    <AvatarFallback>{p.name.split(' ').map(n=>n[0]).join('')}</AvatarFallback>
-                                </Avatar>
-                                <div>
-                                    <p className="font-medium text-sm leading-tight">{p.name}</p>
-                                    {p.jerseyNumber != null && <p className="text-xs text-muted-foreground">#{p.jerseyNumber}</p>}
-                                </div>
-                            </div>
-                        ))}
-                         {availablePlayers.length === 0 && <p className="text-sm text-muted-foreground text-center">Všichni hráči jsou v sestavě.</p>}
-                    </div>
-                </ScrollArea>
-             </CardContent>
-        </Card>
-    </div>
-  )
 
   return (
     <div className="flex h-full flex-col">

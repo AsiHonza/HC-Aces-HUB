@@ -5,7 +5,7 @@ import * as React from "react"
 const MOBILE_BREAKPOINT = 768
 
 export function useIsMobile() {
-  const [isMobile, setIsMobile] = React.useState(false)
+  const [isMobile, setIsMobile] = React.useState<boolean | null>(null)
 
   React.useEffect(() => {
     const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
@@ -14,10 +14,10 @@ export function useIsMobile() {
       setIsMobile(mql.matches)
     }
     
-    mql.addEventListener("change", onChange)
-    
     // Set the initial value on mount
     setIsMobile(mql.matches)
+    
+    mql.addEventListener("change", onChange)
 
     // Cleanup the listener on unmount
     return () => mql.removeEventListener("change", onChange)
