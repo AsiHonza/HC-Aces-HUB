@@ -138,10 +138,6 @@ function SettingsForm() {
         const userDocRef = doc(firestore, 'users', user.uid);
         await updateDoc(userDocRef, { photoURL: downloadURL });
 
-        if (auth?.currentUser) {
-             await updateFirebaseProfile(auth.currentUser, { photoURL: downloadURL });
-        }
-
         toast({
             title: "Profilový obrázek aktualizován",
             description: "Váš nový obrázek byl úspěšně nahrán.",
