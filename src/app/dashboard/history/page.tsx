@@ -174,7 +174,7 @@ function HistoryPageContent() {
     const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
 
     useEffect(() => {
-        // When a dialog is closed, wait for the closing animation to complete
+        // When a dialog is closed, wait for its closing animation to complete
         // before clearing the selected match data. This prevents the dialog's
         // content from unmounting abruptly and causing UI freezes.
         if (!isEditDialogOpen && !isDeleteDialogOpen) {
@@ -623,5 +623,3 @@ export default function HistoryPage() {
         </Suspense>
     )
 }
-
-    
