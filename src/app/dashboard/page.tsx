@@ -378,6 +378,7 @@ function DashboardPageContent() {
         return allUsers
         .filter(u => u.playerType === 'goalie')
         .map(u => {
+            const stats = statsMap.get(u.id);
             const seasonSavePct = (stats?.seasonShotsAgainst ?? 0) > 0 ? ((stats?.seasonSaves ?? 0) / stats!.seasonShotsAgainst) * 100 : 0;
             const playoffSavePct = (stats?.playoffShotsAgainst ?? 0) > 0 ? ((stats?.playoffSaves ?? 0) / stats!.playoffShotsAgainst) * 100 : 0;
             const historicalSavePct = (stats?.historicalShotsAgainst ?? 0) > 0 ? ((stats?.historicalSaves ?? 0) / stats!.historicalShotsAgainst) * 100 : 0;
@@ -474,7 +475,7 @@ function DashboardPageContent() {
         return map;
     }, [userAttendances, optimisticAttendances, user]);
 
-    const usersMap = useMemo(() => new Map(allUsers?.map(u => [u.id, u])), [allUsers]);
+    const usersMap = useMemo(() => new Map(allUsers?.map(u => [u.id, u.name])), [allUsers]);
   
     const stats = useMemo(() => userProfile?.playerType === 'player' ? [
         { metric: 'Góly', value: myStatsToDisplay.goals ?? 0 },
@@ -683,11 +684,11 @@ function DashboardPageContent() {
     setIsSaving(true);
     try {
         await handleAttendanceChange(attendanceData.matchId, attendanceData.status, attendanceNote);
+        setIsAttendanceDialogOpen(false);
     } catch (error) {
         // Error is handled inside handleAttendanceChange
     } finally {
         setIsSaving(false);
-        setIsAttendanceDialogOpen(false);
     }
   };
 
@@ -717,6 +718,7 @@ function DashboardPageContent() {
         const matchRef = doc(firestore, 'matches', selectedMatch.id);
         await updateDoc(matchRef, updatedData);
         toast({ title: 'Zápas aktualizován' });
+        setIsEditDialogOpen(false);
     } catch (error: any) {
         toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se uložit zápas.' });
         errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -724,7 +726,6 @@ function DashboardPageContent() {
         }));
     } finally {
         setIsSaving(false);
-        setIsEditDialogOpen(false);
     }
   };
 
@@ -757,6 +758,7 @@ function DashboardPageContent() {
       const matchesCollection = collection(firestore, 'matches');
       await addDoc(matchesCollection, newMatchData);
       toast({ title: 'Zápas přidán.' });
+      setIsAddDialogOpen(false);
     } catch (error: any) {
        toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se přidat zápas.' });
         errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -764,7 +766,6 @@ function DashboardPageContent() {
         }));
     } finally {
         setIsSaving(false);
-        setIsAddDialogOpen(false);
     }
   };
 
@@ -903,11 +904,11 @@ function DashboardPageContent() {
 
       await batch.commit();
       toast({ title: "Výsledek uložen", description: "Statistiky hráčů byly aktualizovány." });
+      setIsResultDialogOpen(false);
     } catch (error: any) {
         toast({ variant: 'destructive', title: 'Chyba', description: `Nepodařilo se uložit výsledek: ${error.message}` });
     } finally {
         setIsSaving(false);
-        setIsResultDialogOpen(false);
     }
 };
 
@@ -937,6 +938,7 @@ function DashboardPageContent() {
         const settingsRef = doc(firestore, 'settings', 'league');
         await setDoc(settingsRef, updatedSettings, { merge: true });
         toast({ title: 'Nastavení ligy uloženo.' });
+        setIsLeagueEditMode(false);
     } catch (error) {
         toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se uložit nastavení ligy.' });
         const settingsRef = doc(firestore, 'settings', 'league');
@@ -945,7 +947,6 @@ function DashboardPageContent() {
         }));
     } finally {
         setIsSaving(false);
-        setIsLeagueEditMode(false);
     }
   };
 
@@ -1078,11 +1079,11 @@ function DashboardPageContent() {
 
             await batch.commit();
             toast({ title: 'Historické statistiky uloženy.' });
+            setIsHistoryEditMode(false);
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se uložit historické statistiky.' });
         } finally {
             setIsSaving(false);
-            setIsHistoryEditMode(false);
         }
     };
 
@@ -1404,18 +1405,53 @@ function DashboardPageContent() {
             <CardContent>
                 {recentPlayedMatches.length > 0 ? (
                     <div className="space-y-4">
-                        {recentPlayedMatches.map(match => (
-                            <div key={match.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between rounded-lg border p-3 gap-2">
-                                <div className="flex-1">
-                                    <p className="text-xs text-muted-foreground">{format(match.dateTime.toDate(), "d. MMMM yyyy", { locale: cs })}</p>
-                                    <p className="font-semibold">{match.team1} vs {match.team2}</p>
+                        {recentPlayedMatches.map(match => {
+                            const hasScorers = match.scorers && match.scorers.length > 0
+                            if (hasScorers) {
+                                return (
+                                    <Accordion type="single" collapsible key={match.id}>
+                                        <AccordionItem value={match.id} className="border rounded-lg">
+                                            <AccordionTrigger className="p-3 hover:no-underline rounded-lg">
+                                                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between w-full gap-2">
+                                                    <div className="flex-1 text-left">
+                                                        <p className="text-xs text-muted-foreground">{format(match.dateTime.toDate(), "d. MMMM yyyy", { locale: cs })}</p>
+                                                        <p className="font-semibold">{match.team1} vs {match.team2}</p>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 text-sm self-end sm:self-center">
+                                                        <span className="text-lg font-bold font-mono">{match.team1Score} : {match.team2Score}</span>
+                                                        <Badge variant={getResultBadgeVariant(match.team1Score, match.team2Score)}>{getResultText(match.team1Score, match.team2Score)}</Badge>
+                                                    </div>
+                                                </div>
+                                            </AccordionTrigger>
+                                            <AccordionContent className="px-4 pb-3">
+                                                <h4 className="font-semibold mb-2 text-sm">Góly (Aces)</h4>
+                                                <ul className="space-y-1.5 text-sm">
+                                                    {match.scorers?.map((scorer, i) => (
+                                                        <li key={i} className="flex items-center gap-2 text-muted-foreground">
+                                                            <Trophy className="h-4 w-4 text-primary" />
+                                                            <span className="font-medium text-foreground">{usersMap.get(scorer.goal) || 'Neznámý hráč'}</span>
+                                                            {scorer.assist && <span className="">(as. {usersMap.get(scorer.assist) || 'Neznámý'})</span>}
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </AccordionContent>
+                                        </AccordionItem>
+                                    </Accordion>
+                                )
+                            }
+                            return (
+                                <div key={match.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between rounded-lg border p-3 gap-2">
+                                    <div className="flex-1">
+                                        <p className="text-xs text-muted-foreground">{format(match.dateTime.toDate(), "d. MMMM yyyy", { locale: cs })}</p>
+                                        <p className="font-semibold">{match.team1} vs {match.team2}</p>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-sm self-end sm:self-center">
+                                        <span className="text-lg font-bold font-mono">{match.team1Score} : {match.team2Score}</span>
+                                        <Badge variant={getResultBadgeVariant(match.team1Score, match.team2Score)}>{getResultText(match.team1Score, match.team2Score)}</Badge>
+                                    </div>
                                 </div>
-                                <div className="flex items-center gap-2 text-sm self-end sm:self-center">
-                                    <span className="text-lg font-bold font-mono">{match.team1Score} : {match.team2Score}</span>
-                                    <Badge variant={getResultBadgeVariant(match.team1Score, match.team2Score)}>{getResultText(match.team1Score, match.team2Score)}</Badge>
-                                </div>
-                            </div>
-                        ))}
+                            )
+                        })}
                     </div>
                 ) : (
                     <p className="text-muted-foreground">Zatím nebyly odehrány žádné zápasy.</p>
