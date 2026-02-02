@@ -1,6 +1,6 @@
 'use client'
 
-import React, { Suspense, useState, useMemo, useEffect, useRef } from 'react'
+import React, { Suspense, useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -246,9 +246,9 @@ function DashboardPageContent() {
   const [isLineupViewOpen, setIsLineupViewOpen] = useState(false);
   const [viewLineupData, setViewLineupData] = useState<Lineup | null>(null);
 
-  const [isHistoryEditMode, setIsHistoryEditMode] = useState(false);
-  const [editableSkaterHistory, setEditableSkaterHistory] = useState<any[]>([]);
-  const [editableGoalieHistory, setEditableGoalieHistory] = useState<any[]>([]);
+  const [isStatEditMode, setIsStatEditMode] = useState(false);
+  const [editableSkaterStats, setEditableSkaterStats] = useState<any[]>([]);
+  const [editableGoalieStats, setEditableGoalieStats] = useState<any[]>([]);
   const [playersForMatch, setPlayersForMatch] = useState<UserProfile[] | null>(null);
 
   // Fetch current user's profile and stats
@@ -412,7 +412,7 @@ function DashboardPageContent() {
     }, [allUsers, allGoalieStats]);
   
     const sortedTeamScoring = useMemo(() => {
-        const dataSet = isHistoryEditMode && scoringView === 'history' ? editableSkaterHistory : teamScoring.map(player => ({
+        const dataSet = isStatEditMode ? editableSkaterStats : teamScoring.map(player => ({
             id: player.id,
             name: player.name,
             ...player[scoringView]
@@ -421,17 +421,17 @@ function DashboardPageContent() {
         const data = dataSet.map(p => ({ ...p, points: (p.goals ?? 0) + (p.assists ?? 0) }));
         
         return data.sort((a, b) => b.points - a.points || b.goals - a.goals).map((player, index) => ({ ...player, rank: index + 1 }));
-    }, [teamScoring, scoringView, isHistoryEditMode, editableSkaterHistory]);
+    }, [teamScoring, scoringView, isStatEditMode, editableSkaterStats]);
 
     const sortedGoalieLeaderboard = useMemo(() => {
-        const dataSet = isHistoryEditMode && scoringView === 'history' ? editableGoalieHistory : goalieLeaderboard.map(goalie => ({
+        const dataSet = isStatEditMode ? editableGoalieStats : goalieLeaderboard.map(goalie => ({
             id: goalie.id,
             name: goalie.name,
             ...goalie[scoringView]
         }));
         const data = dataSet.map(g => ({...g, savePercentage: (g.shotsAgainst ?? 0) > 0 ? ((g.saves ?? 0) / g.shotsAgainst) * 100 : 0}));
         return data.sort((a, b) => b.savePercentage - a.savePercentage || b.wins - a.wins).map((goalie, index) => ({...goalie, rank: index + 1}));
-    }, [goalieLeaderboard, scoringView, isHistoryEditMode, editableGoalieHistory]);
+    }, [goalieLeaderboard, scoringView, isStatEditMode, editableGoalieStats]);
 
     const sortedLeagueStandings = useMemo(() => {
         const data = isLeagueEditMode ? editableLeagueStandings : leagueStandings;
@@ -504,6 +504,12 @@ function DashboardPageContent() {
         return 'Remíza';
     }
 
+  const handleCancelStatsEditClick = useCallback(() => {
+    setIsStatEditMode(false);
+    setEditableSkaterStats([]);
+    setEditableGoalieStats([]);
+  }, []);
+
   useEffect(() => {
     if (isLoading) return;
     const matchId = searchParams.get('matchId');
@@ -533,6 +539,10 @@ function DashboardPageContent() {
     }, 200);
 
   }, [isLoading, upcomingMatches, otherUpcomingMatches, searchParams]);
+
+  useEffect(() => {
+    handleCancelStatsEditClick();
+  }, [scoringView, handleCancelStatsEditClick]);
   
   if (isLoading || !user) {
     return (
@@ -611,6 +621,7 @@ function DashboardPageContent() {
     } finally {
       setIsSaving(false);
       setIsLineupBuilderOpen(false);
+      setLineupMatch(null);
     }
   };
 
@@ -684,11 +695,11 @@ function DashboardPageContent() {
     setIsSaving(true);
     try {
         await handleAttendanceChange(attendanceData.matchId, attendanceData.status, attendanceNote);
+        setIsAttendanceDialogOpen(false);
     } catch (error) {
         // Error is handled inside handleAttendanceChange
     } finally {
         setIsSaving(false);
-        setIsAttendanceDialogOpen(false);
     }
   };
 
@@ -718,6 +729,7 @@ function DashboardPageContent() {
         const matchRef = doc(firestore, 'matches', selectedMatch.id);
         await updateDoc(matchRef, updatedData);
         toast({ title: 'Zápas aktualizován' });
+        setIsEditDialogOpen(false);
     } catch (error: any) {
         toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se uložit zápas.' });
         errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -725,7 +737,6 @@ function DashboardPageContent() {
         }));
     } finally {
         setIsSaving(false);
-        setIsEditDialogOpen(false);
     }
   };
 
@@ -758,6 +769,7 @@ function DashboardPageContent() {
       const matchesCollection = collection(firestore, 'matches');
       await addDoc(matchesCollection, newMatchData);
       toast({ title: 'Zápas přidán.' });
+      setIsAddDialogOpen(false);
     } catch (error: any) {
        toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se přidat zápas.' });
         errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -765,7 +777,6 @@ function DashboardPageContent() {
         }));
     } finally {
         setIsSaving(false);
-        setIsAddDialogOpen(false);
     }
   };
 
@@ -904,11 +915,11 @@ function DashboardPageContent() {
 
       await batch.commit();
       toast({ title: "Výsledek uložen", description: "Statistiky hráčů byly aktualizovány." });
+      setIsResultDialogOpen(false);
     } catch (error: any) {
         toast({ variant: 'destructive', title: 'Chyba', description: `Nepodařilo se uložit výsledek: ${error.message}` });
     } finally {
         setIsSaving(false);
-        setIsResultDialogOpen(false);
     }
 };
 
@@ -938,6 +949,7 @@ function DashboardPageContent() {
         const settingsRef = doc(firestore, 'settings', 'league');
         await setDoc(settingsRef, updatedSettings, { merge: true });
         toast({ title: 'Nastavení ligy uloženo.' });
+        setIsLeagueEditMode(false);
     } catch (error) {
         toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se uložit nastavení ligy.' });
         const settingsRef = doc(firestore, 'settings', 'league');
@@ -946,7 +958,6 @@ function DashboardPageContent() {
         }));
     } finally {
         setIsSaving(false);
-        setIsLeagueEditMode(false);
     }
   };
 
@@ -1031,19 +1042,21 @@ function DashboardPageContent() {
       });
   };
 
-    const handleEditHistoryClick = () => {
-        setIsHistoryEditMode(true);
-        setEditableSkaterHistory(JSON.parse(JSON.stringify(teamScoring.map(p => ({ id: p.id, name: p.name, ...p.history })))));
-        setEditableGoalieHistory(JSON.parse(JSON.stringify(goalieLeaderboard.map(p => ({ id: p.id, name: p.name, ...p.history })))));
+    const handleEditStatsClick = () => {
+        setIsStatEditMode(true);
+        if (scoringView === 'season') {
+            setEditableSkaterStats(JSON.parse(JSON.stringify(teamScoring.map(p => ({ id: p.id, name: p.name, ...p.season })))));
+            setEditableGoalieStats(JSON.parse(JSON.stringify(goalieLeaderboard.map(p => ({ id: p.id, name: p.name, ...p.season })))));
+        } else if (scoringView === 'playoff') {
+            setEditableSkaterStats(JSON.parse(JSON.stringify(teamScoring.map(p => ({ id: p.id, name: p.name, ...p.playoff })))));
+            setEditableGoalieStats(JSON.parse(JSON.stringify(goalieLeaderboard.map(p => ({ id: p.id, name: p.name, ...p.playoff })))));
+        } else { // history
+            setEditableSkaterStats(JSON.parse(JSON.stringify(teamScoring.map(p => ({ id: p.id, name: p.name, ...p.history })))));
+            setEditableGoalieStats(JSON.parse(JSON.stringify(goalieLeaderboard.map(p => ({ id: p.id, name: p.name, ...p.history })))));
+        }
     };
 
-    const handleCancelHistoryClick = () => {
-        setIsHistoryEditMode(false);
-        setEditableSkaterHistory([]);
-        setEditableGoalieHistory([]);
-    };
-
-    const handleSaveHistoryClick = async () => {
+    const handleSaveStatsClick = async () => {
         if (!firestore || !allSkaterStats || !allGoalieStats) return;
 
         setIsSaving(true);
@@ -1052,43 +1065,48 @@ function DashboardPageContent() {
             const skaterStatsMap = new Map(allSkaterStats.map(s => [s.userProfileId, s.id]));
             const goalieStatsMap = new Map(allGoalieStats.map(s => [s.userProfileId, s.id]));
 
-            editableSkaterHistory.forEach(player => {
+            let fieldPrefix = scoringView;
+            if (scoringView === 'history') {
+                fieldPrefix = 'historical';
+            }
+
+            editableSkaterStats.forEach(player => {
                 const statId = skaterStatsMap.get(player.id);
                 if (statId) {
                     const statRef = doc(firestore, 'users', player.id, 'skaterStats', statId);
                     batch.update(statRef, {
-                        historicalGoals: player.goals,
-                        historicalAssists: player.assists,
-                        historicalGamesPlayed: player.gamesPlayed,
+                        [`${fieldPrefix}Goals`]: player.goals,
+                        [`${fieldPrefix}Assists`]: player.assists,
+                        [`${fieldPrefix}GamesPlayed`]: player.gamesPlayed,
                     });
                 }
             });
 
-            editableGoalieHistory.forEach(goalie => {
+            editableGoalieStats.forEach(goalie => {
                 const statId = goalieStatsMap.get(goalie.id);
                 if (statId) {
                     const statRef = doc(firestore, 'users', goalie.id, 'goalieStats', statId);
                     batch.update(statRef, {
-                        historicalGamesPlayed: goalie.gamesPlayed,
-                        historicalWins: goalie.wins,
-                        historicalSaves: goalie.saves,
-                        historicalShotsAgainst: goalie.shotsAgainst,
+                        [`${fieldPrefix}GamesPlayed`]: goalie.gamesPlayed,
+                        [`${fieldPrefix}Wins`]: goalie.wins,
+                        [`${fieldPrefix}Saves`]: goalie.saves,
+                        [`${fieldPrefix}ShotsAgainst`]: goalie.shotsAgainst,
                     });
                 }
             });
 
             await batch.commit();
-            toast({ title: 'Historické statistiky uloženy.' });
+            toast({ title: 'Statistiky uloženy.' });
+            handleCancelStatsEditClick();
         } catch (error: any) {
-            toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se uložit historické statistiky.' });
+            toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se uložit statistiky.' });
         } finally {
             setIsSaving(false);
-            setIsHistoryEditMode(false);
         }
     };
 
-    const handleSkaterHistoryChange = (playerId: string, field: 'goals' | 'assists' | 'gamesPlayed', delta: number) => {
-        setEditableSkaterHistory(current =>
+    const handleSkaterStatChange = (playerId: string, field: 'goals' | 'assists' | 'gamesPlayed', delta: number) => {
+        setEditableSkaterStats(current =>
             current.map(p =>
                 p.id === playerId
                     ? { ...p, [field]: Math.max(0, p[field] + delta) }
@@ -1097,8 +1115,8 @@ function DashboardPageContent() {
         );
     };
 
-    const handleGoalieHistoryChange = (goalieId: string, field: 'gamesPlayed' | 'wins' | 'saves' | 'shotsAgainst', delta: number) => {
-        setEditableGoalieHistory(current =>
+    const handleGoalieStatChange = (goalieId: string, field: 'gamesPlayed' | 'wins' | 'saves' | 'shotsAgainst', delta: number) => {
+        setEditableGoalieStats(current =>
             current.map(g =>
                 g.id === goalieId
                     ? { ...g, [field]: Math.max(0, g[field] + delta) }
@@ -1228,7 +1246,7 @@ function DashboardPageContent() {
                                                     )}
                                                 >
                                                     <Avatar>
-                                                        <AvatarImage src={attendeeProfile.photoURL ?? `https://picsum.photos/seed/${attendeeProfile.email}/100/100`} data-ai-hint="player portrait" alt={attendeeProfile.name || ''} />
+                                                        <AvatarImage src={attendeeProfile.photoURL ?? `https://picsum.photos/seed/${attendeeProfile.email}/100/100`} data-ai-hint="player portrait" alt={attendeeProfile.name} />
                                                         <AvatarFallback>{attendeeProfile.name?.split(' ').map(n=>n[0]).join('') ?? ''}</AvatarFallback>
                                                     </Avatar>
                                                     <div className="flex-1">
@@ -1474,17 +1492,17 @@ function DashboardPageContent() {
                 <CardHeader>
                      <div className="flex items-center justify-between">
                         <CardTitle className="flex items-center gap-2 font-headline"><Flame className="text-primary"/>Kanadské bodování</CardTitle>
-                        {scoringView === 'history' && userProfile?.role === 'admin' && (
-                            isHistoryEditMode ? (
+                        {userProfile?.role === 'admin' && (
+                            isStatEditMode ? (
                                 <div className="flex gap-2">
-                                    <Button variant="outline" size="sm" onClick={handleCancelHistoryClick}>Zrušit</Button>
-                                    <Button size="sm" onClick={handleSaveHistoryClick} disabled={isSaving}>
+                                    <Button variant="outline" size="sm" onClick={handleCancelStatsEditClick}>Zrušit</Button>
+                                    <Button size="sm" onClick={handleSaveStatsClick} disabled={isSaving}>
                                         {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                         Uložit
                                     </Button>
                                 </div>
                             ) : (
-                                <Button variant="outline" size="sm" onClick={handleEditHistoryClick}>
+                                <Button variant="outline" size="sm" onClick={handleEditStatsClick}>
                                     <Pencil className="mr-2 h-4 w-4" /> Upravit
                                 </Button>
                             )
@@ -1515,11 +1533,11 @@ function DashboardPageContent() {
                                         <TableRow key={player.id}>
                                             <TableCell className="font-medium px-1 sm:px-4">{player.rank}</TableCell>
                                             <TableCell className="py-2 px-1 sm:px-4">{player.name}</TableCell>
-                                             {isHistoryEditMode && scoringView === 'history' ? (
+                                             {isStatEditMode ? (
                                                 <>
-                                                    <TableCell className="p-0"><StatEditControl value={player.gamesPlayed} onDecrement={() => handleSkaterHistoryChange(player.id, 'gamesPlayed', -1)} onIncrement={() => handleSkaterHistoryChange(player.id, 'gamesPlayed', 1)} /></TableCell>
-                                                    <TableCell className="p-0"><StatEditControl value={player.goals} onDecrement={() => handleSkaterHistoryChange(player.id, 'goals', -1)} onIncrement={() => handleSkaterHistoryChange(player.id, 'goals', 1)} /></TableCell>
-                                                    <TableCell className="p-0"><StatEditControl value={player.assists} onDecrement={() => handleSkaterHistoryChange(player.id, 'assists', -1)} onIncrement={() => handleSkaterHistoryChange(player.id, 'assists', 1)} /></TableCell>
+                                                    <TableCell className="p-0"><StatEditControl value={player.gamesPlayed} onDecrement={() => handleSkaterStatChange(player.id, 'gamesPlayed', -1)} onIncrement={() => handleSkaterStatChange(player.id, 'gamesPlayed', 1)} /></TableCell>
+                                                    <TableCell className="p-0"><StatEditControl value={player.goals} onDecrement={() => handleSkaterStatChange(player.id, 'goals', -1)} onIncrement={() => handleSkaterStatChange(player.id, 'goals', 1)} /></TableCell>
+                                                    <TableCell className="p-0"><StatEditControl value={player.assists} onDecrement={() => handleSkaterStatChange(player.id, 'assists', -1)} onIncrement={() => handleSkaterStatChange(player.id, 'assists', 1)} /></TableCell>
                                                 </>
                                             ) : (
                                                 <>
@@ -1542,17 +1560,17 @@ function DashboardPageContent() {
                 <CardHeader>
                      <div className="flex items-center justify-between">
                         <CardTitle className="flex items-center gap-2 font-headline"><Shield className="text-primary"/>Statistiky brankářů</CardTitle>
-                         {scoringView === 'history' && userProfile?.role === 'admin' && (
-                            isHistoryEditMode ? (
+                         {userProfile?.role === 'admin' && (
+                            isStatEditMode ? (
                                 <div className="flex gap-2">
-                                    <Button variant="outline" size="sm" onClick={handleCancelHistoryClick}>Zrušit</Button>
-                                    <Button size="sm" onClick={handleSaveHistoryClick} disabled={isSaving}>
+                                    <Button variant="outline" size="sm" onClick={handleCancelStatsEditClick}>Zrušit</Button>
+                                    <Button size="sm" onClick={handleSaveStatsClick} disabled={isSaving}>
                                         {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                         Uložit
                                     </Button>
                                 </div>
                             ) : (
-                                <Button variant="outline" size="sm" onClick={handleEditHistoryClick}>
+                                <Button variant="outline" size="sm" onClick={handleEditStatsClick}>
                                     <Pencil className="mr-2 h-4 w-4" /> Upravit
                                 </Button>
                             )
@@ -1582,12 +1600,12 @@ function DashboardPageContent() {
                                     {sortedGoalieLeaderboard.map((goalie) => (
                                         <TableRow key={goalie.id}>
                                             <TableCell className="font-medium py-2 px-1 sm:px-4">{goalie.name}</TableCell>
-                                             {isHistoryEditMode && scoringView === 'history' ? (
+                                             {isStatEditMode ? (
                                                 <>
-                                                     <TableCell className="p-0"><StatEditControl value={goalie.gamesPlayed} onDecrement={() => handleGoalieHistoryChange(goalie.id, 'gamesPlayed', -1)} onIncrement={() => handleGoalieHistoryChange(goalie.id, 'gamesPlayed', 1)} /></TableCell>
-                                                     <TableCell className="p-0"><StatEditControl value={goalie.wins} onDecrement={() => handleGoalieHistoryChange(goalie.id, 'wins', -1)} onIncrement={() => handleGoalieHistoryChange(goalie.id, 'wins', 1)} /></TableCell>
-                                                     <TableCell className="p-0 hidden sm:table-cell"><StatEditControl value={goalie.shotsAgainst} onDecrement={() => handleGoalieHistoryChange(goalie.id, 'shotsAgainst', -1)} onIncrement={() => handleGoalieHistoryChange(goalie.id, 'shotsAgainst', 1)} /></TableCell>
-                                                     <TableCell className="p-0 hidden sm:table-cell"><StatEditControl value={goalie.saves} onDecrement={() => handleGoalieHistoryChange(goalie.id, 'saves', -1)} onIncrement={() => handleGoalieHistoryChange(goalie.id, 'saves', 1)} /></TableCell>
+                                                     <TableCell className="p-0"><StatEditControl value={goalie.gamesPlayed} onDecrement={() => handleGoalieStatChange(goalie.id, 'gamesPlayed', -1)} onIncrement={() => handleGoalieStatChange(goalie.id, 'gamesPlayed', 1)} /></TableCell>
+                                                     <TableCell className="p-0"><StatEditControl value={goalie.wins} onDecrement={() => handleGoalieStatChange(goalie.id, 'wins', -1)} onIncrement={() => handleGoalieStatChange(goalie.id, 'wins', 1)} /></TableCell>
+                                                     <TableCell className="p-0 hidden sm:table-cell"><StatEditControl value={goalie.shotsAgainst} onDecrement={() => handleGoalieStatChange(goalie.id, 'shotsAgainst', -1)} onIncrement={() => handleGoalieStatChange(goalie.id, 'shotsAgainst', 1)} /></TableCell>
+                                                     <TableCell className="p-0 hidden sm:table-cell"><StatEditControl value={goalie.saves} onDecrement={() => handleGoalieStatChange(goalie.id, 'saves', -1)} onIncrement={() => handleGoalieStatChange(goalie.id, 'saves', 1)} /></TableCell>
                                                 </>
                                             ) : (
                                                 <>
@@ -1782,7 +1800,9 @@ function DashboardPageContent() {
       </div>
       <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => {
           setIsEditDialogOpen(isOpen);
-          if (!isOpen) setTimeout(() => setSelectedMatch(null), 200);
+          if (!isOpen) {
+              setSelectedMatch(null);
+          }
       }}>
           <DialogContent>
               <DialogHeader>
@@ -1822,7 +1842,9 @@ function DashboardPageContent() {
       </Dialog>
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={(isOpen) => {
           setIsDeleteDialogOpen(isOpen);
-          if (!isOpen) setTimeout(() => setSelectedMatch(null), 200);
+          if (!isOpen) {
+              setSelectedMatch(null);
+          }
       }}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -1842,7 +1864,10 @@ function DashboardPageContent() {
       </AlertDialog>
         <Dialog open={isResultDialogOpen} onOpenChange={(isOpen) => {
             setIsResultDialogOpen(isOpen);
-            if (!isOpen) setTimeout(() => { setSelectedMatch(null); setPlayersForMatch(null); }, 200);
+            if (!isOpen) {
+                setSelectedMatch(null);
+                setPlayersForMatch(null);
+            }
         }}>
             <DialogContent className="max-w-md">
                 {selectedMatch && playersForMatch ? (
@@ -1903,7 +1928,9 @@ function DashboardPageContent() {
 
         <Dialog open={isLineupBuilderOpen} onOpenChange={(isOpen) => {
             setIsLineupBuilderOpen(isOpen);
-            if (!isOpen) setTimeout(() => setLineupMatch(null), 200);
+            if (!isOpen) {
+                setLineupMatch(null);
+            }
         }}>
             <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
                  {lineupMatch && allUsers ? (
@@ -1930,7 +1957,10 @@ function DashboardPageContent() {
         </Dialog>
         <Dialog open={isLineupViewOpen} onOpenChange={(isOpen) => {
             setIsLineupViewOpen(isOpen);
-             if (!isOpen) setTimeout(() => { setLineupMatch(null); setViewLineupData(null); }, 200);
+             if (!isOpen) {
+                 setLineupMatch(null);
+                 setViewLineupData(null);
+             }
         }}>
             <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
                  <DialogHeader>
