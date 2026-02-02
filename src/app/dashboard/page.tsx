@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useState, useMemo, useEffect, useRef } from 'react'
+import React, { Suspense, useState, useMemo, useEffect, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -1252,7 +1252,9 @@ function DashboardPageContent() {
                         <AccordionContent className="pt-4">
                             <div className="space-y-4">
                                 {otherUpcomingMatches.map(match => (
-                                    renderMatchCard(match)
+                                    <React.Fragment key={match.id}>
+                                      {renderMatchCard(match)}
+                                    </React.Fragment>
                                 ))}
                             </div>
                         </AccordionContent>
