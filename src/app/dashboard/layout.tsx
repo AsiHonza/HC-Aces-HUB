@@ -94,7 +94,6 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
     const router = useRouter();
 
     useEffect(() => {
-        // This effect only runs on the client, preventing server-side execution.
         if (!isUserLoading && !user) {
             router.replace('/');
         }
@@ -120,7 +119,9 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       <main className="flex-1">
-        {children}
+        <div className="container">
+          {children}
+        </div>
       </main>
     </div>
   )
@@ -137,3 +138,5 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     </Suspense>
   )
 }
+
+    

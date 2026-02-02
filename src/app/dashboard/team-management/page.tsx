@@ -232,18 +232,18 @@ function TeamManagementContent() {
   
   if (usersLoading) {
     return (
-      <div className="container py-8 flex justify-center items-center">
+      <div className="py-8 flex justify-center items-center">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
       </div>
     )
   }
 
   if (role !== 'admin') {
-    return <div className="container py-8">Ověřování oprávnění...</div>;
+    return <div className="py-8">Ověřování oprávnění...</div>;
   }
 
   return (
-    <div className="container py-8">
+    <div className="py-8">
       <Card>
         <CardHeader>
           <div className="flex justify-between items-center">
@@ -490,3 +490,5 @@ export default function TeamManagementPage() {
         </Suspense>
     )
 }
+
+    

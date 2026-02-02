@@ -590,7 +590,7 @@ function HistoryPageContent() {
 
 
     return (
-        <div className="container py-4 sm:py-6 lg:py-8">
+        <div className="py-4 sm:py-6 lg:py-8">
             <Card>
                 <CardHeader>
                     <CardTitle>Historie zápasů</CardTitle>
@@ -771,3 +771,5 @@ export default function HistoryPage() {
         </Suspense>
     )
 }
+
+    

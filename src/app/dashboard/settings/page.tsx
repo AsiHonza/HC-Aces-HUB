@@ -397,7 +397,7 @@ function SettingsPageContent() {
     }
 
   return (
-    <div className="container py-8 space-y-8">
+    <div className="py-8 space-y-8">
        <Card>
         <CardHeader>
           <CardTitle>Nastavení profilu</CardTitle>
@@ -426,3 +426,5 @@ export default function SettingsPage() {
         </Suspense>
     )
 }
+
+    

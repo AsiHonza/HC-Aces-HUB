@@ -873,7 +873,7 @@ function DashboardPageContent() {
       });
       
       if (goalieId && goalieId !== 'none') {
-          const allGoalieStatsMap = new Map(allGoalieStats.map(s => [s.userProfileId, s]));
+          const allGoalieStatsMap = new Map(allGoalieStats.map(s => [s.userProfileId, s.id]));
           const goalieStats = allGoalieStatsMap.get(goalieId);
           const isWin = team1Score > team2Score;
           
@@ -1285,7 +1285,7 @@ function DashboardPageContent() {
     );
 
   return (
-    <div className="container py-8">
+    <div className="py-8">
       <div className="grid gap-8 lg:grid-cols-3">
         
         <Card className="lg:col-span-1 flex flex-col items-center justify-center p-6 text-center">
@@ -1990,3 +1990,5 @@ export default function DashboardPage() {
     </Suspense>
   )
 }
+
+    
