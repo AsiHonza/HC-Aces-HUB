@@ -25,6 +25,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Switch } from "@/components/ui/switch"
 import { LineupBuilder, LineupDisplay, type Lineup } from '@/components/lineup-builder'
+import { Badge } from '@/components/ui/badge'
 
 
 // Types based on backend.json
@@ -288,6 +289,15 @@ function DashboardPageContent() {
     const { data: leagueSettings, isLoading: leagueSettingsLoading } = useDoc<AppSettings>(leagueSettingsRef);
     
     const upcomingMatches = useMemo(() => allMatches?.filter(match => !match.isPlayed) ?? [], [allMatches]);
+
+    const playedMatches = useMemo(() => {
+        if (!allMatches) return [];
+        return allMatches
+            .filter(match => match.isPlayed)
+            .sort((a, b) => b.dateTime.toDate().getTime() - a.dateTime.toDate().getTime());
+    }, [allMatches]);
+    const recentPlayedMatches = useMemo(() => playedMatches.slice(0, 3), [playedMatches]);
+    
     const otherUpcomingMatches = useMemo(() => upcomingMatches?.slice(1) || [], [upcomingMatches]);
     const nextMatch = upcomingMatches?.[0];
     
@@ -368,7 +378,6 @@ function DashboardPageContent() {
         return allUsers
         .filter(u => u.playerType === 'goalie')
         .map(u => {
-            const stats = statsMap.get(u.id);
             const seasonSavePct = (stats?.seasonShotsAgainst ?? 0) > 0 ? ((stats?.seasonSaves ?? 0) / stats!.seasonShotsAgainst) * 100 : 0;
             const playoffSavePct = (stats?.playoffShotsAgainst ?? 0) > 0 ? ((stats?.playoffSaves ?? 0) / stats!.playoffShotsAgainst) * 100 : 0;
             const historicalSavePct = (stats?.historicalShotsAgainst ?? 0) > 0 ? ((stats?.historicalSaves ?? 0) / stats!.historicalShotsAgainst) * 100 : 0;
@@ -481,9 +490,18 @@ function DashboardPageContent() {
 
     const isLoading = isUserProfileLoading || isSkaterStatsLoading || isGoalieStatsLoading || areMatchesLoading || areUsersLoading || areSkaterStatsLoading || areGoalieStatsLoading || attendancesLoading || leagueSettingsLoading;
 
-  useEffect(() => {
-    setOptimisticAttendances(new Map());
-  }, [allAttendances]);
+    const getResultBadgeVariant = (acesScore?: number, opponentScore?: number) => {
+        if (acesScore === undefined || opponentScore === undefined) return 'secondary';
+        if (acesScore > opponentScore) return 'default';
+        if (acesScore < opponentScore) return 'destructive';
+        return 'secondary';
+    }
+     const getResultText = (acesScore?: number, opponentScore?: number) => {
+        if (acesScore === undefined || opponentScore === undefined) return 'N/A';
+        if (acesScore > opponentScore) return 'Výhra';
+        if (acesScore < opponentScore) return 'Prohra';
+        return 'Remíza';
+    }
 
   useEffect(() => {
     if (isLoading) return;
@@ -686,6 +704,7 @@ function DashboardPageContent() {
         const newDateTime = parse(`${dateStr} ${timeStr}`, 'yyyy-MM-dd HH:mm', new Date());
         if (isNaN(newDateTime.getTime())) {
             toast({ variant: 'destructive', title: 'Neplatné datum', description: 'Zkontrolujte prosím formát data a času.' });
+            setIsSaving(false);
             return;
         }
 
@@ -722,6 +741,7 @@ function DashboardPageContent() {
       const newDateTime = parse(`${dateStr} ${timeStr}`, 'yyyy-MM-dd HH:mm', new Date());
       if (isNaN(newDateTime.getTime())) {
             toast({ variant: 'destructive', title: 'Neplatné datum', description: 'Zkontrolujte prosím formát data a času.' });
+            setIsSaving(false);
             return;
       }
 
@@ -1377,13 +1397,33 @@ function DashboardPageContent() {
         <Card className="lg:col-span-3">
             <CardHeader>
                 <CardTitle className="flex items-center gap-2 font-headline"><History className="text-primary"/>Historie zápasů</CardTitle>
+                <CardDescription>
+                    Přehled posledních odehraných zápasů.
+                </CardDescription>
             </CardHeader>
             <CardContent>
-                <p>Prohlédněte si výsledky a statistiky již odehraných zápasů.</p>
+                {recentPlayedMatches.length > 0 ? (
+                    <div className="space-y-4">
+                        {recentPlayedMatches.map(match => (
+                            <div key={match.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between rounded-lg border p-3 gap-2">
+                                <div className="flex-1">
+                                    <p className="text-xs text-muted-foreground">{format(match.dateTime.toDate(), "d. MMMM yyyy", { locale: cs })}</p>
+                                    <p className="font-semibold">{match.team1} vs {match.team2}</p>
+                                </div>
+                                <div className="flex items-center gap-2 text-sm self-end sm:self-center">
+                                    <span className="text-lg font-bold font-mono">{match.team1Score} : {match.team2Score}</span>
+                                    <Badge variant={getResultBadgeVariant(match.team1Score, match.team2Score)}>{getResultText(match.team1Score, match.team2Score)}</Badge>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <p className="text-muted-foreground">Zatím nebyly odehrány žádné zápasy.</p>
+                )}
             </CardContent>
             <CardFooter>
                 <Button asChild>
-                    <Link href="/dashboard/history">Zobrazit historii</Link>
+                    <Link href="/dashboard/history">Zobrazit celou historii</Link>
                 </Button>
             </CardFooter>
         </Card>
@@ -1755,29 +1795,29 @@ function DashboardPageContent() {
       </AlertDialog>
         <Dialog open={isResultDialogOpen} onOpenChange={setIsResultDialogOpen}>
             <DialogContent className="max-w-md">
-                {selectedMatch && playersForMatch && playersForMatch.length > 0 && (
-                    <RecordResultForm
-                        match={selectedMatch}
-                        allUsers={playersForMatch}
-                        onSave={handleResultSave}
-                        onCancel={() => setIsResultDialogOpen(false)}
-                        isSaving={isSaving}
-                    />
-                )}
-                {selectedMatch && playersForMatch && playersForMatch.length === 0 && (
-                    <>
-                        <DialogHeader>
-                            <DialogTitle>Zapsat výsledek zápasu</DialogTitle>
-                            <DialogDescription>
-                                Nelze zapsat výsledek, protože na zápas nejsou přihlášeni žádní hráči.
-                            </DialogDescription>
-                        </DialogHeader>
-                        <DialogFooter>
-                            <Button variant="outline" onClick={() => setIsResultDialogOpen(false)}>Zavřít</Button>
-                        </DialogFooter>
-                    </>
-                )}
-                {!playersForMatch && selectedMatch && (
+                {selectedMatch && playersForMatch ? (
+                    playersForMatch.length > 0 ? (
+                        <RecordResultForm
+                            match={selectedMatch}
+                            allUsers={playersForMatch}
+                            onSave={handleResultSave}
+                            onCancel={() => setIsResultDialogOpen(false)}
+                            isSaving={isSaving}
+                        />
+                    ) : (
+                        <>
+                            <DialogHeader>
+                                <DialogTitle>Zapsat výsledek zápasu</DialogTitle>
+                                <DialogDescription>
+                                    Nelze zapsat výsledek, protože na zápas nejsou přihlášeni žádní hráči.
+                                </DialogDescription>
+                            </DialogHeader>
+                            <DialogFooter>
+                                <Button variant="outline" onClick={() => setIsResultDialogOpen(false)}>Zavřít</Button>
+                            </DialogFooter>
+                        </>
+                    )
+                ) : (
                     <div className="flex justify-center items-center h-24">
                         <Loader2 className="h-8 w-8 animate-spin text-primary" />
                     </div>
