@@ -238,6 +238,18 @@ function DashboardPageContent() {
   const [isLineupViewOpen, setIsLineupViewOpen] = useState(false);
   const [viewLineupData, setViewLineupData] = useState<Lineup | null>(null);
 
+  useEffect(() => {
+    // When a dialog is closed, wait for the closing animation to complete
+    // before clearing the selected match data. This prevents the dialog's
+    // content from unmounting abruptly and causing UI freezes.
+    if (!isEditDialogOpen && !isResultDialogOpen && !isDeleteDialogOpen) {
+        const timer = setTimeout(() => {
+            setSelectedMatch(null);
+        }, 300); // A safe delay for animations
+        return () => clearTimeout(timer);
+    }
+  }, [isEditDialogOpen, isResultDialogOpen, isDeleteDialogOpen]);
+
   // Fetch current user's profile and stats
   const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
   const { data: userProfile, isLoading: isUserProfileLoading } = useDoc<UserProfile>(userDocRef);
@@ -601,7 +613,6 @@ function DashboardPageContent() {
         }));
     } finally {
         setIsDeleteDialogOpen(false);
-        setSelectedMatch(null);
     }
   };
 
@@ -687,7 +698,6 @@ function DashboardPageContent() {
         }
     } finally {
         setIsEditDialogOpen(false);
-        setSelectedMatch(null);
     }
   };
 
@@ -863,7 +873,6 @@ function DashboardPageContent() {
         toast({ variant: 'destructive', title: 'Chyba', description: `Nepodařilo se uložit výsledek: ${error.message}` });
     } finally {
         setIsResultDialogOpen(false);
-        setSelectedMatch(null);
     }
 };
 
@@ -1000,7 +1009,7 @@ function DashboardPageContent() {
     ];
 
     return (
-        <Card id={`match-${match.id}`} className={cn("w-full transition-all", highlightedMatchId === match.id && 'animate-highlight-card')}>
+        <Card id={`match-${match.id}`} key={match.id} className={cn("w-full transition-all", highlightedMatchId === match.id && 'animate-highlight-card')}>
                 <CardHeader className="flex-row items-start justify-between pb-2">
                     <div className="space-y-1">
                         <CardTitle className="text-xl break-words pr-2">{opponent}</CardTitle>
@@ -1533,7 +1542,7 @@ function DashboardPageContent() {
             </Card>
         </div>
       </div>
-      <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => { setIsEditDialogOpen(isOpen); if (!isOpen) setSelectedMatch(null); }}>
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
           <DialogContent>
               <DialogHeader>
                   <DialogTitle>Upravit zápas</DialogTitle>
@@ -1581,7 +1590,7 @@ function DashboardPageContent() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      <Dialog open={isResultDialogOpen} onOpenChange={(isOpen) => { setIsResultDialogOpen(isOpen); if (!isOpen) setSelectedMatch(null); }}>
+      <Dialog open={isResultDialogOpen} onOpenChange={setIsResultDialogOpen}>
           <DialogContent className="max-w-md">
               {selectedMatch && allUsers && <RecordResultForm match={selectedMatch} allUsers={allUsers} onSave={handleResultSave} onCancel={() => setIsResultDialogOpen(false)} />}
           </DialogContent>
