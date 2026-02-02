@@ -152,6 +152,8 @@ function SettingsForm() {
             title: "Profilový obrázek aktualizován",
             description: "Váš nový obrázek byl úspěšně nahrán.",
         });
+        
+        setIsUploading(false);
         router.refresh();
 
     } catch (error: any) {
@@ -160,7 +162,6 @@ function SettingsForm() {
             title: 'Chyba nahrávání',
             description: `Nepodařilo se nahrát obrázek: ${error.message}`,
         });
-    } finally {
         setIsUploading(false);
     }
   };
@@ -463,5 +464,3 @@ export default function SettingsPage() {
         </Suspense>
     )
 }
-
-    
