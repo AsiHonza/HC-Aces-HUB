@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, Sele
 import { ScrollArea } from './ui/scroll-area';
 import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
 import { Goal, Loader2 } from 'lucide-react';
+import { Label } from './ui/label';
 
 
 export interface Player {
@@ -101,11 +102,11 @@ const PlayerCard = ({ player, isDragging, isGhost, isSmall, stats }: { player: P
             </div>
         )}
         <Avatar className={cn("h-8 w-8", isSmall && "h-6 w-6")}>
-            <AvatarImage src={player.photoURL ?? `https://picsum.photos/seed/${player.email}/100/100`} data-ai-hint="player portrait" alt={player.name} />
-            <AvatarFallback>{player.name.split(' ').map(n=>n[0]).join('')}</AvatarFallback>
+            <AvatarImage src={player.photoURL ?? `https://picsum.photos/seed/${player.email}/100/100`} data-ai-hint="player portrait" alt={player.name || ''} />
+            <AvatarFallback>{(player.name || '').split(' ').map(n=>n[0]).join('')}</AvatarFallback>
         </Avatar>
         <div>
-            <p className={cn("font-medium text-sm leading-tight", isSmall && "text-xs")}>{player.name}</p>
+            <p className={cn("font-medium text-sm leading-tight", isSmall && "text-xs")}>{player.name || ''}</p>
             {player.jerseyNumber != null && <p className={cn("text-xs text-muted-foreground", isSmall && "text-[10px]")}>#{player.jerseyNumber}</p>}
         </div>
     </Card>
@@ -199,10 +200,10 @@ export function LineupBuilder({ players, initialData, onSave, onCancel }: { play
                         {player ? (
                              <div className="flex items-center gap-2">
                                  <Avatar className="h-6 w-6">
-                                     <AvatarImage src={player.photoURL ?? `https://picsum.photos/seed/${player.email}/100/100`} data-ai-hint="player portrait" alt={player.name} />
-                                     <AvatarFallback>{player.name.split(' ').map(n=>n[0]).join('')}</AvatarFallback>
+                                     <AvatarImage src={player.photoURL ?? `https://picsum.photos/seed/${player.email}/100/100`} data-ai-hint="player portrait" alt={player.name || ''} />
+                                     <AvatarFallback>{(player.name || '').split(' ').map(n=>n[0]).join('')}</AvatarFallback>
                                  </Avatar>
-                                 <span>{player.name}</span>
+                                 <span>{player.name || ''}</span>
                              </div>
                         ) : 'Nepřiřazeno'}
                     </SelectValue>
@@ -211,9 +212,9 @@ export function LineupBuilder({ players, initialData, onSave, onCancel }: { play
                     <SelectItem value="empty">Nepřiřazeno</SelectItem>
                     <SelectItem value="clear">-- Vymazat --</SelectItem>
                     <SelectSeparator />
-                    {player && <SelectItem value={player.id} disabled>{player.name}</SelectItem>}
+                    {player && <SelectItem value={player.id} disabled>{player.name || ''}</SelectItem>}
                     {availablePlayers.map(p => (
-                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                        <SelectItem key={p.id} value={p.id}>{p.name || ''}</SelectItem>
                     ))}
                 </SelectContent>
             </Select>
@@ -229,14 +230,14 @@ export function LineupBuilder({ players, initialData, onSave, onCancel }: { play
     }
     if (playerId === 'clear' || playerId === 'empty') {
         setLineup(prev => ({ ...prev, [position]: null }));
-        setAvailablePlayers(newAvailablePlayers.sort((a,b) => a.name.localeCompare(b.name)));
+        setAvailablePlayers(newAvailablePlayers.sort((a,b) => (a.name || '').localeCompare(b.name || '')));
         return;
     }
     const playerToPlace = newAvailablePlayers.find(p => p.id === playerId);
     if (!playerToPlace) return;
     const finalAvailablePlayers = newAvailablePlayers.filter(p => p.id !== playerId);
     setLineup(prev => ({ ...prev, [position]: playerToPlace }));
-    setAvailablePlayers(finalAvailablePlayers.sort((a,b) => a.name.localeCompare(b.name)));
+    setAvailablePlayers(finalAvailablePlayers.sort((a,b) => (a.name || '').localeCompare(b.name || '')));
   };
 
 
@@ -302,11 +303,11 @@ export function LineupBuilder({ players, initialData, onSave, onCancel }: { play
                         {availablePlayers.map(p => (
                             <div key={p.id} className="flex items-center gap-2 p-2 bg-muted rounded-md">
                                 <Avatar className="h-8 w-8">
-                                    <AvatarImage src={p.photoURL ?? `https://picsum.photos/seed/${p.email}/100/100`} data-ai-hint="player portrait" alt={p.name} />
-                                    <AvatarFallback>{p.name.split(' ').map(n=>n[0]).join('')}</AvatarFallback>
+                                    <AvatarImage src={p.photoURL ?? `https://picsum.photos/seed/${p.email}/100/100`} data-ai-hint="player portrait" alt={p.name || ''} />
+                                    <AvatarFallback>{(p.name || '').split(' ').map(n=>n[0]).join('')}</AvatarFallback>
                                 </Avatar>
                                 <div>
-                                    <p className="font-medium text-sm leading-tight">{p.name}</p>
+                                    <p className="font-medium text-sm leading-tight">{p.name || ''}</p>
                                     {p.jerseyNumber != null && <p className="text-xs text-muted-foreground">#{p.jerseyNumber}</p>}
                                 </div>
                             </div>
