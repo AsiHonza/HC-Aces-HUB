@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { Logo } from "@/components/icons/logo"
 import Link from "next/link"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -92,14 +92,19 @@ function UserNav() {
 function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
     const { user, isUserLoading } = useUser();
     const router = useRouter();
+    const [isClient, setIsClient] = useState(false);
 
     useEffect(() => {
-        if (!isUserLoading && !user) {
+        setIsClient(true);
+    }, []);
+
+    useEffect(() => {
+        if (isClient && !isUserLoading && !user) {
             router.replace('/');
         }
-    }, [isUserLoading, user, router]);
+    }, [isClient, isUserLoading, user, router]);
 
-    if (isUserLoading || !user) {
+    if (!isClient || isUserLoading || !user) {
         return (
             <div className="flex h-screen w-full items-center justify-center bg-background">
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
