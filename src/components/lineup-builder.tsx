@@ -85,17 +85,17 @@ const PlayerCard = ({ player, isDragging, isGhost, isSmall, stats }: { player: P
         isSmall && "w-40 p-1 gap-1"
     )}>
         {stats && (stats.goals > 0 || stats.assists > 0) && (
-            <div className="absolute -top-2 left-0 flex flex-col gap-1 z-10">
+            <div className="absolute -top-3 -right-3 flex flex-col gap-1 z-10">
                 {stats.goals > 0 && (
-                     <div className="flex items-center gap-1 bg-background border border-border rounded-full px-1.5 py-0.5 text-xs shadow-md">
-                        <Goal className="h-3 w-3 text-primary" />
-                        <span className="font-bold">{stats.goals}</span>
+                     <div className="flex items-center gap-1.5 bg-background border border-border rounded-full pl-2 pr-3 py-1 text-sm shadow-lg">
+                        <Goal className="h-4 w-4 text-primary" />
+                        <span className="font-bold leading-none">{stats.goals}</span>
                     </div>
                 )}
                  {stats.assists > 0 && (
-                    <div className="flex items-center gap-1 bg-background border border-border rounded-full px-1.5 py-0.5 text-xs shadow-md">
-                        <span className="font-bold text-primary">A</span>
-                        <span className="font-bold">{stats.assists}</span>
+                    <div className="flex items-center gap-1.5 bg-background border border-border rounded-full pl-2 pr-3 py-1 text-sm shadow-lg">
+                        <span className="font-bold text-accent leading-none">A</span>
+                        <span className="font-bold leading-none">{stats.assists}</span>
                     </div>
                 )}
             </div>
@@ -451,40 +451,42 @@ export function LineupDisplay({ lineup, scorers }: { lineup: Lineup, scorers?: {
     }
 
     return (
-        <div className="flex-1 relative rounded-lg overflow-hidden">
-            <RinkBackground />
-            <div className={cn("relative z-10 h-full flex flex-col justify-around p-4", isSmall && "p-2 justify-evenly")}>
-                <div className={cn("space-y-4", isSmall && "space-y-2")}>
-                    <div className="flex justify-around items-center">
-                        <PositionDisplay positionKey="LK1" isSmall={isSmall} />
-                        <PositionDisplay positionKey="C1" isSmall={isSmall} />
-                        <PositionDisplay positionKey="PK1" isSmall={isSmall} />
-                    </div>
-                    <div className="flex justify-around items-center">
-                        <PositionDisplay positionKey="LK2" isSmall={isSmall} />
-                        <PositionDisplay positionKey="C2" isSmall={isSmall} />
-                        <PositionDisplay positionKey="PK2" isSmall={isSmall} />
-                    </div>
-                     {hasThirdLine && (
+        <div className="flex-1 relative rounded-lg overflow-auto">
+            <div className="relative min-w-[620px] h-full">
+                <RinkBackground />
+                <div className={cn("relative z-10 h-full flex flex-col justify-around p-4", isSmall && "p-2 justify-evenly")}>
+                    <div className={cn("space-y-4", isSmall && "space-y-2")}>
                         <div className="flex justify-around items-center">
-                            <PositionDisplay positionKey="LK3" isSmall={isSmall} />
-                            <PositionDisplay positionKey="C3" isSmall={isSmall} />
-                            <PositionDisplay positionKey="PK3" isSmall={isSmall} />
+                            <PositionDisplay positionKey="LK1" isSmall={isSmall} />
+                            <PositionDisplay positionKey="C1" isSmall={isSmall} />
+                            <PositionDisplay positionKey="PK1" isSmall={isSmall} />
                         </div>
-                    )}
-                </div>
-                <div className={cn("space-y-4", isSmall && "space-y-2")}>
-                    <div className="flex justify-around items-center">
-                        <PositionDisplay positionKey="LO1" isSmall={isSmall} />
-                        <PositionDisplay positionKey="PO1" isSmall={isSmall} />
+                        <div className="flex justify-around items-center">
+                            <PositionDisplay positionKey="LK2" isSmall={isSmall} />
+                            <PositionDisplay positionKey="C2" isSmall={isSmall} />
+                            <PositionDisplay positionKey="PK2" isSmall={isSmall} />
+                        </div>
+                        {hasThirdLine && (
+                            <div className="flex justify-around items-center">
+                                <PositionDisplay positionKey="LK3" isSmall={isSmall} />
+                                <PositionDisplay positionKey="C3" isSmall={isSmall} />
+                                <PositionDisplay positionKey="PK3" isSmall={isSmall} />
+                            </div>
+                        )}
+                    </div>
+                    <div className={cn("space-y-4", isSmall && "space-y-2")}>
+                        <div className="flex justify-around items-center">
+                            <PositionDisplay positionKey="LO1" isSmall={isSmall} />
+                            <PositionDisplay positionKey="PO1" isSmall={isSmall} />
+                        </div>
+                        <div className="flex justify-around items-center">
+                            <PositionDisplay positionKey="LO2" isSmall={isSmall} />
+                            <PositionDisplay positionKey="PO2" isSmall={isSmall} />
+                        </div>
                     </div>
                     <div className="flex justify-around items-center">
-                        <PositionDisplay positionKey="LO2" isSmall={isSmall} />
-                        <PositionDisplay positionKey="PO2" isSmall={isSmall} />
+                        <PositionDisplay positionKey="B1" isSmall={isSmall}/>
                     </div>
-                </div>
-                <div className="flex justify-around items-center">
-                    <PositionDisplay positionKey="B1" isSmall={isSmall}/>
                 </div>
             </div>
         </div>
