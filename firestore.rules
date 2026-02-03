@@ -96,14 +96,14 @@ service cloud.firestore {
 
     match /users/{userId}/skaterStats/{skaterStatsId} {
       allow get, list: if isOwner(userId) || isAdmin();
-      allow create: if isOwner(userId) && isCreatingOwnSkaterStats(userId);
+      allow create: if (isOwner(userId) && isCreatingOwnSkaterStats(userId)) || isAdmin();
       allow update: if (isExistingOwner(userId) && isUpdatingOwnSkaterStats()) || isAdmin();
       allow delete: if isExistingOwner(userId) || isAdmin();
     }
     
      match /users/{userId}/goalieStats/{goalieStatsId} {
       allow get, list: if isOwner(userId) || isAdmin();
-      allow create: if isOwner(userId) && isCreatingOwnGoalieStats(userId);
+      allow create: if (isOwner(userId) && isCreatingOwnGoalieStats(userId)) || isAdmin();
       allow update: if (isExistingOwner(userId) && isUpdatingOwnGoalieStats()) || isAdmin();
       allow delete: if isExistingOwner(userId) || isAdmin();
     }
@@ -125,7 +125,7 @@ service cloud.firestore {
 
     match /matches/{matchId}/attendees/{userId} {
       allow read: if isSignedIn();
-      allow write: if isOwner(userId);
+      allow write: if isOwner(userId) || isAdmin();
     }
 
     match /{path=**}/attendees/{attendeeId} {
