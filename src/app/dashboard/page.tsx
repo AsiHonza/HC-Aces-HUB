@@ -308,16 +308,26 @@ function DashboardPageContent() {
   
   const sortedTeamScoring = useMemo(() => {
       const dataSet = isStatEditMode ? editableSkaterStats : teamScoring.map(p => ({ id: p.id, name: p.name, ...p[scoringView] }));
-      return dataSet.map(p => ({ ...p, points: (Number(p.goals) || 0) + (Number(p.assists) || 0) }))
-                 .sort((a, b) => b.points - a.points || b.goals - a.goals)
-                 .map((p, i) => ({ ...p, rank: i + 1 }));
+      return dataSet.map(p => ({ 
+          ...p, 
+          points: (Number(p.goals) || 0) + (Number(p.assists) || 0) 
+      }))
+      .sort((a, b) => (Number(b.points) || 0) - (Number(a.points) || 0) || (Number(b.goals) || 0) - (Number(a.goals) || 0))
+      .map((p, i) => ({ ...p, rank: i + 1 }));
   }, [teamScoring, scoringView, isStatEditMode, editableSkaterStats]);
 
   const sortedGoalieLeaderboard = useMemo(() => {
       const dataSet = isStatEditMode ? editableGoalieStats : goalieLeaderboard.map(g => ({ id: g.id, name: g.name, ...g[scoringView] }));
-      return dataSet.map(g => ({...g, savePercentage: (Number(g.shotsAgainst) ?? 0) > 0 ? ((Number(g.saves) ?? 0) / Number(g.shotsAgainst)) * 100 : 0}))
-                 .sort((a, b) => b.savePercentage - a.savePercentage || b.wins - a.wins)
-                 .map((g, i) => ({...g, rank: i + 1}));
+      return dataSet.map(g => {
+          const sa = Number(g.shotsAgainst) || 0;
+          const s = Number(g.saves) || 0;
+          return {
+              ...g, 
+              savePercentage: sa > 0 ? (s / sa) * 100 : 0
+          }
+      })
+      .sort((a, b) => (b.savePercentage || 0) - (a.savePercentage || 0) || (Number(b.wins) || 0) - (Number(a.wins) || 0))
+      .map((g, i) => ({...g, rank: i + 1}));
   }, [goalieLeaderboard, scoringView, isStatEditMode, editableGoalieStats]);
   
   const attendancesByMatch = useMemo(() => {
@@ -364,8 +374,8 @@ function DashboardPageContent() {
     setIsSaving(true);
     try {
         const fd = new FormData(e.currentTarget);
-        const t1Score = parseInt(fd.get('team1Score') as string, 10);
-        const t2Score = parseInt(fd.get('team2Score') as string, 10);
+        const t1Score = parseInt(fd.get('team1Score') as string, 10) || 0;
+        const t2Score = parseInt(fd.get('team2Score') as string, 10) || 0;
         const goalieId = fd.get('goalieId') as string;
         const gId = (goalieId && goalieId !== 'none') ? goalieId : null;
         const gSaves = parseInt(fd.get('goalieSaves') as string, 10) || 0;
@@ -565,20 +575,20 @@ function DashboardPageContent() {
                             <TableBody>
                                 {userProfile?.playerType === 'player' && skaterStatsData && (
                                     <>
-                                        <TableRow><TableCell className="font-medium">Góly</TableCell><TableCell className="text-right font-bold">{myStatsView === 'playoff' ? skaterStatsData.playoffGoals : myStatsView === 'history' ? skaterStatsData.historicalGoals : skaterStatsData.seasonGoals}</TableCell></TableRow>
-                                        <TableRow><TableCell className="font-medium">Asistence</TableCell><TableCell className="text-right font-bold">{myStatsView === 'playoff' ? skaterStatsData.playoffAssists : myStatsView === 'history' ? skaterStatsData.historicalAssists : skaterStatsData.seasonAssists}</TableCell></TableRow>
-                                        <TableRow><TableCell className="font-medium">Body</TableCell><TableCell className="text-right font-bold">{(myStatsView === 'playoff' ? skaterStatsData.playoffGoals + skaterStatsData.playoffAssists : myStatsView === 'history' ? skaterStatsData.historicalGoals + skaterStatsData.historicalAssists : skaterStatsData.seasonGoals + skaterStatsData.seasonAssists)}</TableCell></TableRow>
-                                        <TableRow><TableCell className="font-medium">Zápasy</TableCell><TableCell className="text-right font-bold">{myStatsView === 'playoff' ? skaterStatsData.playoffGamesPlayed : myStatsView === 'history' ? skaterStatsData.historicalGamesPlayed : skaterStatsData.seasonGamesPlayed}</TableCell></TableRow>
+                                        <TableRow><TableCell className="font-medium">Góly</TableCell><TableCell className="text-right font-bold">{String((myStatsView === 'playoff' ? skaterStatsData.playoffGoals : myStatsView === 'history' ? skaterStatsData.historicalGoals : skaterStatsData.seasonGoals) ?? 0)}</TableCell></TableRow>
+                                        <TableRow><TableCell className="font-medium">Asistence</TableCell><TableCell className="text-right font-bold">{String((myStatsView === 'playoff' ? skaterStatsData.playoffAssists : myStatsView === 'history' ? skaterStatsData.historicalAssists : skaterStatsData.seasonAssists) ?? 0)}</TableCell></TableRow>
+                                        <TableRow><TableCell className="font-medium">Body</TableCell><TableCell className="text-right font-bold">{String((myStatsView === 'playoff' ? (skaterStatsData.playoffGoals || 0) + (skaterStatsData.playoffAssists || 0) : myStatsView === 'history' ? (skaterStatsData.historicalGoals || 0) + (skaterStatsData.historicalAssists || 0) : (skaterStatsData.seasonGoals || 0) + (skaterStatsData.seasonAssists || 0)) ?? 0)}</TableCell></TableRow>
+                                        <TableRow><TableCell className="font-medium">Zápasy</TableCell><TableCell className="text-right font-bold">{String((myStatsView === 'playoff' ? skaterStatsData.playoffGamesPlayed : myStatsView === 'history' ? skaterStatsData.historicalGamesPlayed : skaterStatsData.seasonGamesPlayed) ?? 0)}</TableCell></TableRow>
                                     </>
                                 )}
                                 {userProfile?.playerType === 'goalie' && goalieStatsData && (
                                     <>
-                                        <TableRow><TableCell className="font-medium">Zápasy</TableCell><TableCell className="text-right font-bold">{myStatsView === 'playoff' ? goalieStatsData.playoffGamesPlayed : myStatsView === 'history' ? goalieStatsData.historicalGamesPlayed : goalieStatsData.seasonGamesPlayed}</TableCell></TableRow>
-                                        <TableRow><TableCell className="font-medium">Výhry</TableCell><TableCell className="text-right font-bold">{myStatsView === 'playoff' ? goalieStatsData.playoffWins : myStatsView === 'history' ? goalieStatsData.historicalWins : goalieStatsData.seasonWins}</TableCell></TableRow>
+                                        <TableRow><TableCell className="font-medium">Zápasy</TableCell><TableCell className="text-right font-bold">{String((myStatsView === 'playoff' ? goalieStatsData.playoffGamesPlayed : myStatsView === 'history' ? goalieStatsData.historicalGamesPlayed : goalieStatsData.seasonGamesPlayed) ?? 0)}</TableCell></TableRow>
+                                        <TableRow><TableCell className="font-medium">Výhry</TableCell><TableCell className="text-right font-bold">{String((myStatsView === 'playoff' ? goalieStatsData.playoffWins : myStatsView === 'history' ? goalieStatsData.historicalWins : goalieStatsData.seasonWins) ?? 0)}</TableCell></TableRow>
                                         <TableRow><TableCell className="font-medium">Úspěšnost</TableCell><TableCell className="text-right font-bold">
                                             {(() => {
-                                                const sa = myStatsView === 'playoff' ? goalieStatsData.playoffShotsAgainst : myStatsView === 'history' ? goalieStatsData.historicalShotsAgainst : goalieStatsData.seasonShotsAgainst;
-                                                const s = myStatsView === 'playoff' ? goalieStatsData.playoffSaves : myStatsView === 'history' ? goalieStatsData.historicalSaves : goalieStatsData.seasonSaves;
+                                                const sa = Number(myStatsView === 'playoff' ? goalieStatsData.playoffShotsAgainst : myStatsView === 'history' ? goalieStatsData.historicalShotsAgainst : goalieStatsData.seasonShotsAgainst) || 0;
+                                                const s = Number(myStatsView === 'playoff' ? goalieStatsData.playoffSaves : myStatsView === 'history' ? goalieStatsData.historicalSaves : goalieStatsData.seasonSaves) || 0;
                                                 return sa > 0 ? ((s / sa) * 100).toFixed(2) : '0.00';
                                             })()}%
                                         </TableCell></TableRow>
@@ -624,9 +634,9 @@ function DashboardPageContent() {
                                 ...p[scoringView], 
                                 id: p.id, 
                                 name: p.name,
-                                goals: String(p[scoringView].goals),
-                                assists: String(p[scoringView].assists),
-                                gamesPlayed: String(p[scoringView].gamesPlayed)
+                                goals: String(p[scoringView].goals ?? ''),
+                                assists: String(p[scoringView].assists ?? ''),
+                                gamesPlayed: String(p[scoringView].gamesPlayed ?? '')
                             }))); 
                             setIsStatEditMode(true); 
                         }}><Pencil className="h-3 mr-2" />Upravit</Button>
@@ -669,12 +679,12 @@ function DashboardPageContent() {
                                             </>
                                         ) : (
                                             <>
-                                                <TableCell className="text-center">{p.gamesPlayed}</TableCell>
-                                                <TableCell className="text-center">{p.goals}</TableCell>
-                                                <TableCell className="text-center">{p.assists}</TableCell>
+                                                <TableCell className="text-center">{String(p.gamesPlayed ?? 0)}</TableCell>
+                                                <TableCell className="text-center">{String(p.goals ?? 0)}</TableCell>
+                                                <TableCell className="text-center">{String(p.assists ?? 0)}</TableCell>
                                             </>
                                         )}
-                                        <TableCell className="text-right font-bold">{p.points}</TableCell>
+                                        <TableCell className="text-right font-bold">{String(p.points ?? 0)}</TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>
@@ -691,10 +701,10 @@ function DashboardPageContent() {
                                 ...g[scoringView], 
                                 id: g.id, 
                                 name: g.name,
-                                gamesPlayed: String(g[scoringView].gamesPlayed),
-                                wins: String(g[scoringView].wins),
-                                saves: String(g[scoringView].saves),
-                                shotsAgainst: String(g[scoringView].shotsAgainst)
+                                gamesPlayed: String(g[scoringView].gamesPlayed ?? ''),
+                                wins: String(g[scoringView].wins ?? ''),
+                                saves: String(g[scoringView].saves ?? ''),
+                                shotsAgainst: String(g[scoringView].shotsAgainst ?? '')
                             }))); 
                             setIsStatEditMode(true); 
                         }}><Pencil className="h-3 mr-2" />Upravit</Button>
@@ -727,11 +737,11 @@ function DashboardPageContent() {
                                             </>
                                         ) : (
                                             <>
-                                                <TableCell className="text-center">{g.gamesPlayed}</TableCell>
-                                                <TableCell className="text-center">{g.wins}</TableCell>
+                                                <TableCell className="text-center">{String(g.gamesPlayed ?? 0)}</TableCell>
+                                                <TableCell className="text-center">{String(g.wins ?? 0)}</TableCell>
                                             </>
                                         )}
-                                        <TableCell className="text-right font-bold">{g.savePercentage.toFixed(2)}%</TableCell>
+                                        <TableCell className="text-right font-bold">{(g.savePercentage || 0).toFixed(2)}%</TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>
