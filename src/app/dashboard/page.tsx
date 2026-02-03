@@ -15,7 +15,7 @@ import { Calendar as CalendarIcon, MapPin, Users, Trophy, BarChart, Sword, Penci
 import { cn } from '@/lib/utils'
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase'
 import { doc, collection, collectionGroup, updateDoc, query, Timestamp, addDoc, deleteDoc, writeBatch, orderBy, where, limit, setDoc } from 'firebase/firestore'
-import { format, parse } from 'date-fns'
+import { format, parse, startOfDay, addDays } from 'date-fns'
 import { cs } from 'date-fns/locale'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import Link from 'next/link'
@@ -288,7 +288,18 @@ function DashboardPageContent() {
     const leagueSettingsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'league') : null, [firestore]);
     const { data: leagueSettings, isLoading: leagueSettingsLoading } = useDoc<AppSettings>(leagueSettingsRef);
     
-    const upcomingMatches = useMemo(() => allMatches?.filter(match => !match.isPlayed) ?? [], [allMatches]);
+    const upcomingMatches = useMemo(() => {
+        if (!allMatches) return [];
+        const now = startOfDay(new Date());
+        const twoWeeksFromNow = addDays(now, 14);
+        
+        return allMatches.filter(match => {
+            if (match.isPlayed) return false;
+            const matchDate = match.dateTime.toDate();
+            // Show if it's within the next 14 days AND not in the past
+            return matchDate >= now && matchDate <= twoWeeksFromNow;
+        });
+    }, [allMatches]);
 
     const playedMatches = useMemo(() => {
         if (!allMatches) return [];
@@ -887,12 +898,12 @@ function DashboardPageContent() {
           if (selectedMatch.type === 'playoff') {
               update.playoffGamesPlayed = ((goalieStats?.playoffGamesPlayed) || 0) + 1;
               update.playoffWins = ((goalieStats?.playoffWins) || 0) + (isWin ? 1 : 0);
-              update.playoffSaves = ((goalieStats?.playoffSaves) || 0) + goalieSaves;
+              update.playoffSaves = ((goalieStats?.playoffSaves) || 0) + goalieSaves,
               update.playoffShotsAgainst = ((goalieStats?.playoffShotsAgainst) || 0) + goalieShotsAgainst;
           } else if (selectedMatch.type === 'regular') {
               update.seasonGamesPlayed = ((goalieStats?.seasonGamesPlayed) || 0) + 1;
               update.seasonWins = ((goalieStats?.seasonWins) || 0) + (isWin ? 1 : 0);
-              update.seasonSaves = ((goalieStats?.seasonSaves) || 0) + goalieSaves;
+              update.seasonSaves = ((goalieStats?.seasonSaves) || 0) + goalieSaves,
               update.seasonShotsAgainst = ((goalieStats?.seasonShotsAgainst) || 0) + goalieShotsAgainst;
           }
 
@@ -1330,64 +1341,72 @@ function DashboardPageContent() {
 
         <div className="lg:col-span-3" ref={upcomingMatchesRef}>
           <div className="flex flex-row items-center justify-between mb-4">
-            <h2 className="flex items-center gap-2 font-headline text-xl font-semibold"><Trophy className="text-primary"/>Příští zápas</h2>
+            <h2 className="flex items-center gap-2 font-headline text-xl font-semibold"><Trophy className="text-primary"/>Příští zápas (v příštích 14 dnech)</h2>
             {userProfile?.role === 'admin' && (
-                <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button>
-                      <Plus className="mr-2 h-4 w-4" />
-                      Přidat zápas
+                <div className="flex gap-2">
+                    <Button variant="outline" asChild>
+                        <Link href="/dashboard/calendar">
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            Kalendář
+                        </Link>
                     </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Přidat nový zápas</DialogTitle>
-                      <DialogDescription>
-                        Zadejte podrobnosti o nadcházejícím zápase.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <form onSubmit={handleMatchAdd}>
-                      <div className="grid gap-4 py-4">
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="opponent-add" className="text-right">Soupeř</Label>
-                          <Input id="opponent-add" name="opponent" className="col-span-3" required />
-                        </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="date-add" className="text-right">Datum</Label>
-                          <Input id="date-add" name="date" type="date" className="col-span-3" required />
-                        </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="time-add" className="text-right">Čas</Label>
-                          <Input id="time-add" name="time" type="time" defaultValue="18:00" className="col-span-3" required />
-                        </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="location-add" className="text-right">Místo</Label>
-                          <Input id="location-add" name="location" className="col-span-3" required />
-                        </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="type-add" className="text-right">Typ zápasu</Label>
-                            <Select name="type" required defaultValue="regular">
-                                <SelectTrigger className="col-span-3">
-                                    <SelectValue placeholder="Vyberte typ" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="regular">Základní část</SelectItem>
-                                    <SelectItem value="playoff">Play-off</SelectItem>
-                                    <SelectItem value="friendly">Přátelský</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                      </div>
-                      <DialogFooter>
-                        <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)} disabled={isSaving}>Zrušit</Button>
-                        <Button type="submit" disabled={isSaving}>
-                          {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                          Uložit zápas
+                    <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                    <DialogTrigger asChild>
+                        <Button>
+                        <Plus className="mr-2 h-4 w-4" />
+                        Přidat zápas
                         </Button>
-                      </DialogFooter>
-                    </form>
-                  </DialogContent>
-                </Dialog>
+                    </DialogTrigger>
+                    <DialogContent>
+                        <DialogHeader>
+                        <DialogTitle>Přidat nový zápas</DialogTitle>
+                        <DialogDescription>
+                            Zadejte podrobnosti o nadcházejícím zápase.
+                        </DialogDescription>
+                        </DialogHeader>
+                        <form onSubmit={handleMatchAdd}>
+                        <div className="grid gap-4 py-4">
+                            <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="opponent-add" className="text-right">Soupeř</Label>
+                            <Input id="opponent-add" name="opponent" className="col-span-3" required />
+                            </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="date-add" className="text-right">Datum</Label>
+                            <Input id="date-add" name="date" type="date" className="col-span-3" required />
+                            </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="time-add" className="text-right">Čas</Label>
+                            <Input id="time-add" name="time" type="time" defaultValue="18:00" className="col-span-3" required />
+                            </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="location-add" className="text-right">Místo</Label>
+                            <Input id="location-add" name="location" className="col-span-3" required />
+                            </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="type-add" className="text-right">Typ zápasu</Label>
+                                <Select name="type" required defaultValue="regular">
+                                    <SelectTrigger className="col-span-3">
+                                        <SelectValue placeholder="Vyberte typ" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="regular">Základní část</SelectItem>
+                                        <SelectItem value="playoff">Play-off</SelectItem>
+                                        <SelectItem value="friendly">Přátelský</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)} disabled={isSaving}>Zrušit</Button>
+                            <Button type="submit" disabled={isSaving}>
+                            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Uložit zápas
+                            </Button>
+                        </DialogFooter>
+                        </form>
+                    </DialogContent>
+                    </Dialog>
+                </div>
               )}
           </div>
           
@@ -1396,13 +1415,20 @@ function DashboardPageContent() {
                     {renderMatchCard(nextMatch)}
                 </div>
             ) : (
-                <Card><CardContent className="pt-6">Žádný nadcházející zápas.</CardContent></Card>
+                <Card>
+                    <CardContent className="pt-6 flex flex-col items-center justify-center gap-4">
+                        <p className="text-muted-foreground">Žádný nadcházející zápas v příštích 14 dnech.</p>
+                        <Button variant="outline" asChild>
+                            <Link href="/dashboard/calendar">Podívat se do kalendáře</Link>
+                        </Button>
+                    </CardContent>
+                </Card>
             )}
 
             {otherUpcomingMatches && otherUpcomingMatches.length > 0 && (
                 <Accordion type="single" collapsible className="w-full mt-4" value={openAccordionValue} onValueChange={setOpenAccordionValue}>
                     <AccordionItem value="item-1" className="border-none">
-                        <AccordionTrigger className="rounded-lg border bg-card text-card-foreground shadow-sm px-4 py-3 hover:no-underline font-medium">Další zápasy</AccordionTrigger>
+                        <AccordionTrigger className="rounded-lg border bg-card text-card-foreground shadow-sm px-4 py-3 hover:no-underline font-medium">Další zápasy (v příštích 14 dnech)</AccordionTrigger>
                         <AccordionContent className="pt-4">
                             <div className="space-y-4">
                                 {otherUpcomingMatches.map(match => (
@@ -1990,5 +2016,3 @@ export default function DashboardPage() {
     </Suspense>
   )
 }
-
-    
