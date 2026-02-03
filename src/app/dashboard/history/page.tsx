@@ -1,10 +1,11 @@
+
 'use client'
 
 import { Suspense, useMemo, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase'
-import { query, collection, Timestamp, collectionGroup, doc, writeBatch, updateDoc, orderBy, increment, setDoc } from 'firebase/firestore'
+import { query, collection, Timestamp, collectionGroup, doc, writeBatch, updateDoc, orderBy, increment, setDoc, deleteDoc } from 'firebase/firestore'
 import { format, parse } from 'date-fns'
 import { cs } from 'date-fns/locale'
 import { Loader2, Trophy, Users, Pencil, Trash2, MoreHorizontal, ShieldCheck, View, Plus, Disc } from 'lucide-react'
@@ -177,7 +178,7 @@ function HistoryPageContent() {
             newPids.forEach(pid => {
                 const update: any = { historicalGamesPlayed: increment(1), userProfileId: pid };
                 if (lineupMatch.type === 'playoff') update.playoffGamesPlayed = increment(1);
-                else if (lineupMatch.type === 'regular') update.seasonGamesPlayed = increment(1);
+                else update.seasonGamesPlayed = increment(1);
                 batch.set(doc(firestore, 'users', pid, 'skaterStats', 'stats'), update, { merge: true });
             });
             await batch.commit();
@@ -202,7 +203,7 @@ function HistoryPageContent() {
             for (const pid of participants) {
                 const update: any = { historicalGamesPlayed: increment(-1), userProfileId: pid };
                 if (selectedMatch.type === 'playoff') update.playoffGamesPlayed = increment(-1);
-                else if (selectedMatch.type === 'regular') update.seasonGamesPlayed = increment(-1);
+                else update.seasonGamesPlayed = increment(-1);
                 
                 let g = 0, a = 0;
                 selectedMatch.scorers?.forEach(s => { if (s.goal === pid) g++; if (s.assist === pid) a++; });
@@ -214,7 +215,7 @@ function HistoryPageContent() {
                 const win = (selectedMatch.team1Score || 0) > (selectedMatch.team2Score || 0);
                 const u: any = { historicalGamesPlayed: increment(-1), historicalWins: win ? increment(-1) : increment(0), historicalSaves: increment(-(selectedMatch.goalieSaves || 0)), historicalShotsAgainst: increment(-(selectedMatch.goalieShotsAgainst || 0)), userProfileId: selectedMatch.goalieId };
                 if (selectedMatch.type === 'playoff') { u.playoffGamesPlayed = increment(-1); if (win) u.playoffWins = increment(-1); u.playoffSaves = increment(-(selectedMatch.goalieSaves || 0)); u.playoffShotsAgainst = increment(-(selectedMatch.goalieShotsAgainst || 0)); }
-                else if (selectedMatch.type === 'regular') { u.seasonGamesPlayed = increment(-1); if (win) u.seasonWins = increment(-1); u.seasonSaves = increment(-(selectedMatch.goalieSaves || 0)); u.seasonShotsAgainst = increment(-(selectedMatch.goalieShotsAgainst || 0)); }
+                else { u.seasonGamesPlayed = increment(-1); if (win) u.seasonWins = increment(-1); u.seasonSaves = increment(-(selectedMatch.goalieSaves || 0)); u.seasonShotsAgainst = increment(-(selectedMatch.goalieShotsAgainst || 0)); }
                 batch.set(doc(firestore, 'users', selectedMatch.goalieId, 'goalieStats', 'stats'), u, { merge: true });
             }
             batch.delete(doc(firestore, 'matches', selectedMatch.id));
@@ -234,14 +235,14 @@ function HistoryPageContent() {
             const t1Score = parseInt(fd.get('team1Score') as string, 10);
             const t2Score = parseInt(fd.get('team2Score') as string, 10);
             const goalieId = fd.get('goalieId') as string;
-            const gId = gId !== 'none' ? fd.get('goalieId') as string : null;
+            const gId = (goalieId && goalieId !== 'none') ? goalieId : null;
             const gSaves = parseInt(fd.get('goalieSaves') as string, 10) || 0;
             const gShots = parseInt(fd.get('goalieShotsAgainst') as string, 10) || 0;
             const newScorers: any[] = [];
             for (let i = 0; i < t1Score; i++) {
                 const goal = fd.get(`goal-${i}`) as string;
                 const assist = fd.get(`assist-${i}`) as string;
-                if (goal) newScorers.push({ goal, assist: assist !== 'none' ? assist : null });
+                if (goal) newScorers.push({ goal, assist: (assist && assist !== 'none') ? assist : null });
             }
             const batch = writeBatch(firestore);
             const typePrefix = mType === 'playoff' ? 'playoff' : 'season';
@@ -298,9 +299,9 @@ function HistoryPageContent() {
                                 const { prefix, opponent } = getMatchDetails(m);
                                 return (
                                     <AccordionItem value={m.id} key={m.id} className="relative group">
-                                        <div className="flex items-center w-full border-b">
+                                        <div className="flex items-center w-full border-b relative">
                                             <AccordionTrigger className="flex-1 text-left hover:no-underline px-4">
-                                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full pr-2 gap-2">
+                                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full pr-12 gap-2">
                                                     <div className="flex-1">
                                                         <p className="text-[10px] text-muted-foreground uppercase">{format(m.dateTime.toDate(), "d. M. yyyy")}</p>
                                                         {prefix && <p className="text-[9px] font-bold text-primary uppercase">{prefix}</p>}
@@ -315,7 +316,7 @@ function HistoryPageContent() {
                                                 </div>
                                             </AccordionTrigger>
                                             {userProfile?.role === 'admin' && (
-                                                <div className="absolute right-10 top-4 z-10">
+                                                <div className="absolute right-1 top-4 z-10">
                                                     <DropdownMenu modal={false}>
                                                         <DropdownMenuTrigger asChild>
                                                             <Button variant="ghost" size="icon">
@@ -388,7 +389,6 @@ function HistoryPageContent() {
                 </CardContent>
             </Card>
 
-            {/* Dialogs remain identical to before */}
             <Dialog open={isAddMatchDialogOpen} onOpenChange={setIsAddDialogOpen}>
                 <DialogContent className="max-w-2xl">
                     <DialogHeader><DialogTitle>Přidat odehraný zápas</DialogTitle></DialogHeader>
