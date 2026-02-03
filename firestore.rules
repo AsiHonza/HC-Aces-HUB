@@ -1,3 +1,4 @@
+
 /**
  * Core Philosophy: This ruleset enforces a strict user-ownership model for all
  * user-specific data, while allowing public read access for shared data like matches.
@@ -46,12 +47,12 @@ service cloud.firestore {
     match /users/{userId}/skaterStats/{skaterStatsId} {
       // Admin can manage all stats, owner can manage their own
       allow read: if isSignedIn();
-      allow write: if isAdmin() || isOwner(userId);
+      allow create, update, delete: if isAdmin() || isOwner(userId);
     }
     
     match /users/{userId}/goalieStats/{goalieStatsId} {
       allow read: if isSignedIn();
-      allow write: if isAdmin() || isOwner(userId);
+      allow create, update, delete: if isAdmin() || isOwner(userId);
     }
 
     // Collection group rules for global statistics
