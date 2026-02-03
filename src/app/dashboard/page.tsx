@@ -405,7 +405,8 @@ function DashboardPageContent() {
           }));
       }
 
-      const dataSet = teamScoring.map(p => ({ id: p.id, name: p.name, ...p[scoringView] }));
+      const view = scoringView === 'season' ? 'season' : (scoringView === 'history' ? 'history' : (scoringView === 'playoff' ? 'playoff' : 'regular'));
+      const dataSet = teamScoring.map(p => ({ id: p.id, name: p.name, ...p[view] }));
       return dataSet.map(p => ({ 
           ...p, 
           points: (Number(p.goals) || 0) + (Number(p.assists) || 0) 
@@ -427,7 +428,8 @@ function DashboardPageContent() {
           });
       }
 
-      const dataSet = goalieLeaderboard.map(g => ({ id: g.id, name: g.name, ...g[scoringView] }));
+      const view = scoringView === 'season' ? 'season' : (scoringView === 'history' ? 'history' : (scoringView === 'playoff' ? 'playoff' : 'regular'));
+      const dataSet = goalieLeaderboard.map(g => ({ id: g.id, name: g.name, ...g[view] }));
       return dataSet.map(g => {
           const sa = Number(g.shotsAgainst) || 0;
           const s = Number(g.saves) || 0;
@@ -756,27 +758,27 @@ function DashboardPageContent() {
             <CardContent>
                 <Tabs value={myStatsView} onValueChange={(v) => setMyStatsView(v as any)}>
                     <TabsList className="grid w-full grid-cols-4">
-                      <TabsTrigger value="regular" className="text-xs sm:text-sm">ZČ</TabsTrigger>
-                      <TabsTrigger value="playoff" className="text-xs sm:text-sm">Play-off</TabsTrigger>
-                      <TabsTrigger value="season" className="text-xs sm:text-sm">Sezona</TabsTrigger>
-                      <TabsTrigger value="history" className="text-xs sm:text-sm">Historie</TabsTrigger>
+                      <TabsTrigger value="regular" className="text-[10px] sm:text-xs">ZČ</TabsTrigger>
+                      <TabsTrigger value="playoff" className="text-[10px] sm:text-xs">Play-off</TabsTrigger>
+                      <TabsTrigger value="season" className="text-[10px] sm:text-xs">Sezona</TabsTrigger>
+                      <TabsTrigger value="history" className="text-[10px] sm:text-xs">Historie</TabsTrigger>
                     </TabsList>
                     <div className="mt-4">
                         <Table>
                             <TableBody>
                                 {userProfile?.playerType === 'player' && (
                                     <>
-                                        <TableRow><TableCell className="font-medium">Góly</TableCell><TableCell className="text-right font-bold">{String(teamScoring.find(p=>p.id===user.uid)?.[myStatsView]?.goals || 0)}</TableCell></TableRow>
-                                        <TableRow><TableCell className="font-medium">Asistence</TableCell><TableCell className="text-right font-bold">{String(teamScoring.find(p=>p.id===user.uid)?.[myStatsView]?.assists || 0)}</TableCell></TableRow>
-                                        <TableRow><TableCell className="font-medium">Body</TableCell><TableCell className="text-right font-bold">{String((teamScoring.find(p=>p.id===user.uid)?.[myStatsView]?.goals || 0) + (teamScoring.find(p=>p.id===user.uid)?.[myStatsView]?.assists || 0))}</TableCell></TableRow>
-                                        <TableRow><TableCell className="font-medium">Zápasy</TableCell><TableCell className="text-right font-bold">{String(teamScoring.find(p=>p.id===user.uid)?.[myStatsView]?.gamesPlayed || 0)}</TableCell></TableRow>
+                                        <TableRow><TableCell className="font-medium">Góly</TableCell><TableCell className="text-right font-bold tabular-nums">{String(teamScoring.find(p=>p.id===user.uid)?.[myStatsView]?.goals || 0)}</TableCell></TableRow>
+                                        <TableRow><TableCell className="font-medium">Asistence</TableCell><TableCell className="text-right font-bold tabular-nums">{String(teamScoring.find(p=>p.id===user.uid)?.[myStatsView]?.assists || 0)}</TableCell></TableRow>
+                                        <TableRow><TableCell className="font-medium">Body</TableCell><TableCell className="text-right font-bold tabular-nums">{String((teamScoring.find(p=>p.id===user.uid)?.[myStatsView]?.goals || 0) + (teamScoring.find(p=>p.id===user.uid)?.[myStatsView]?.assists || 0))}</TableCell></TableRow>
+                                        <TableRow><TableCell className="font-medium">Zápasy</TableCell><TableCell className="text-right font-bold tabular-nums">{String(teamScoring.find(p=>p.id===user.uid)?.[myStatsView]?.gamesPlayed || 0)}</TableCell></TableRow>
                                     </>
                                 )}
                                 {userProfile?.playerType === 'goalie' && (
                                     <>
-                                        <TableRow><TableCell className="font-medium">Zápasy</TableCell><TableCell className="text-right font-bold">{String(goalieLeaderboard.find(g=>g.id===user.uid)?.[myStatsView]?.gamesPlayed || 0)}</TableCell></TableRow>
-                                        <TableRow><TableCell className="font-medium">Výhry</TableCell><TableCell className="text-right font-bold">{String(goalieLeaderboard.find(g=>g.id===user.uid)?.[myStatsView]?.wins || 0)}</TableCell></TableRow>
-                                        <TableRow><TableCell className="font-medium">Úspěšnost</TableCell><TableCell className="text-right font-bold">
+                                        <TableRow><TableCell className="font-medium">Zápasy</TableCell><TableCell className="text-right font-bold tabular-nums">{String(goalieLeaderboard.find(g=>g.id===user.uid)?.[myStatsView]?.gamesPlayed || 0)}</TableCell></TableRow>
+                                        <TableRow><TableCell className="font-medium">Výhry</TableCell><TableCell className="text-right font-bold tabular-nums">{String(goalieLeaderboard.find(g=>g.id===user.uid)?.[myStatsView]?.wins || 0)}</TableCell></TableRow>
+                                        <TableRow><TableCell className="font-medium">Úspěšnost</TableCell><TableCell className="text-right font-bold tabular-nums">
                                             {(() => {
                                                 const stats = goalieLeaderboard.find(g=>g.id===user.uid)?.[myStatsView];
                                                 const sa = Number(stats?.shotsAgainst) || 0;
@@ -793,10 +795,10 @@ function DashboardPageContent() {
             </CardContent>
         </Card>
         <div className="lg:col-span-3 space-y-4">
-          <div className="flex items-center justify-between"><h2 className="text-xl font-bold flex items-center gap-2"><Trophy className="text-primary"/>Příští zápasy</h2>{userProfile?.role === 'admin' && <Button onClick={() => setIsAddDialogOpen(true)}><Plus className="h-4 mr-2" />Přidat zápas</Button>}</div>
+          <div className="flex items-center justify-between px-2 sm:px-0"><h2 className="text-xl font-bold flex items-center gap-2"><Trophy className="text-primary"/>Příští zápasy</h2>{userProfile?.role === 'admin' && <Button size="sm" onClick={() => setIsAddDialogOpen(true)}><Plus className="h-4 mr-1" />Přidat</Button>}</div>
           {nextMatch ? renderMatchCard(nextMatch) : <p className="text-center py-8 text-muted-foreground">Žádné blížící se zápasy.</p>}
           {(allMatches?.filter(match => !match.isPlayed && match.dateTime.toDate() >= startOfDay(new Date())).slice(1) || []).length > 0 && (
-                <Accordion type="single" collapsible className="w-full" value={openAccordionValue} onValueChange={setOpenAccordionValue}>
+                <Accordion type="single" collapsible className="w-full px-2 sm:px-0" value={openAccordionValue} onValueChange={setOpenAccordionValue}>
                     <AccordionItem value="item-1" className="border-none">
                         <AccordionTrigger className="rounded-lg border px-4 bg-card">Další zápasy</AccordionTrigger>
                         <AccordionContent className="pt-4 space-y-4">{(allMatches?.filter(match => !match.isPlayed && match.dateTime.toDate() >= startOfDay(new Date())).slice(1) || []).map(m => renderMatchCard(m))}</AccordionContent>
@@ -807,30 +809,30 @@ function DashboardPageContent() {
 
         {/* League and Playoff Section */}
         <Card className="lg:col-span-3">
-            <CardHeader className="flex-row items-center justify-between gap-4">
+            <CardHeader className="flex-row items-center justify-between gap-4 py-4 px-4 sm:px-6">
                 <CardTitle className="flex items-center gap-2 whitespace-nowrap"><ListOrdered className="text-primary"/>Soutěž</CardTitle>
                 {userProfile?.role === 'admin' && (
                     <div className="flex items-center gap-2">
-                         <Button size="sm" variant="outline" onClick={() => setIsLeagueDialogOpen(true)} className="h-8"><Pencil className="h-3.5 w-3.5 mr-2" />Tabulka</Button>
-                         <Button size="sm" variant="outline" onClick={() => setIsPlayoffDialogOpen(true)} className="h-8"><Pencil className="h-3.5 w-3.5 mr-2" />Play-off</Button>
+                         <Button size="sm" variant="outline" onClick={() => setIsLeagueDialogOpen(true)} className="h-8 text-[10px] sm:text-xs"><Pencil className="h-3 w-3 mr-1" />Tabulka</Button>
+                         <Button size="sm" variant="outline" onClick={() => setIsPlayoffDialogOpen(true)} className="h-8 text-[10px] sm:text-xs"><Pencil className="h-3 w-3 mr-1" />Play-off</Button>
                     </div>
                 )}
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-2 sm:px-6">
                 <Tabs defaultValue="standings">
                     <TabsList className="grid w-full grid-cols-2 mb-4">
-                        <TabsTrigger value="standings">Tabulka</TabsTrigger>
-                        <TabsTrigger value="playoff">Play-off série</TabsTrigger>
+                        <TabsTrigger value="standings" className="text-xs">Tabulka</TabsTrigger>
+                        <TabsTrigger value="playoff" className="text-xs">Play-off série</TabsTrigger>
                     </TabsList>
                     <TabsContent value="standings">
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead className="w-8">#</TableHead>
-                                    <TableHead>Tým</TableHead>
-                                    <TableHead className="text-center">GF</TableHead>
-                                    <TableHead className="text-center">GA</TableHead>
-                                    <TableHead className="text-right">Body</TableHead>
+                                    <TableHead className="w-8 px-1">#</TableHead>
+                                    <TableHead className="px-2">Tým</TableHead>
+                                    <TableHead className="text-center px-1">GF</TableHead>
+                                    <TableHead className="text-center px-1">GA</TableHead>
+                                    <TableHead className="text-right px-2">B</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -838,11 +840,11 @@ function DashboardPageContent() {
                                     .sort((a,b) => b.points - a.points || (b.gf - b.ga) - (a.gf - a.ga))
                                     .map((team, idx) => (
                                     <TableRow key={team.id} className={cn(team.name.toLowerCase().includes('aces') && 'bg-primary/10 font-bold')}>
-                                        <TableCell>{idx + 1}.</TableCell>
-                                        <TableCell>{team.name}</TableCell>
-                                        <TableCell className="text-center">{team.gf}</TableCell>
-                                        <TableCell className="text-center">{team.ga}</TableCell>
-                                        <TableCell className="text-right font-bold">{team.points}</TableCell>
+                                        <TableCell className="px-1">{idx + 1}.</TableCell>
+                                        <TableCell className="px-2">{team.name}</TableCell>
+                                        <TableCell className="text-center px-1 tabular-nums">{team.gf}</TableCell>
+                                        <TableCell className="text-center px-1 tabular-nums">{team.ga}</TableCell>
+                                        <TableCell className="text-right px-2 font-bold tabular-nums">{team.points}</TableCell>
                                     </TableRow>
                                 ))}
                                 {(!leagueSettings?.leagueStandings || leagueSettings.leagueStandings.length === 0) && (
@@ -855,14 +857,14 @@ function DashboardPageContent() {
                         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                             {(leagueSettings?.playoffSeries || []).map((series, idx) => (
                                 <Card key={idx} className="bg-muted/30">
-                                    <CardHeader className="pb-2">
+                                    <CardHeader className="pb-2 p-4">
                                         <p className="text-[10px] font-bold text-primary uppercase">{series.round}</p>
-                                        <CardTitle className="text-lg">{series.opponent}</CardTitle>
+                                        <CardTitle className="text-base">{series.opponent}</CardTitle>
                                     </CardHeader>
-                                    <CardContent>
+                                    <CardContent className="p-4 pt-0">
                                         <div className="flex items-center justify-between">
-                                            <p className="text-sm font-medium">Stav série</p>
-                                            <p className="text-2xl font-bold text-primary">{series.wins} : {series.losses}</p>
+                                            <p className="text-xs font-medium">Stav série</p>
+                                            <p className="text-xl font-bold text-primary tabular-nums">{series.wins} : {series.losses}</p>
                                         </div>
                                     </CardContent>
                                 </Card>
@@ -877,47 +879,47 @@ function DashboardPageContent() {
         </Card>
 
         <Card className="lg:col-span-3">
-            <CardHeader><CardTitle className="flex items-center gap-2"><History className="text-primary" />Nedávné výsledky</CardTitle></CardHeader>
-            <CardContent>
+            <CardHeader className="py-4 px-4 sm:px-6"><CardTitle className="flex items-center gap-2"><History className="text-primary" />Nedávné výsledky</CardTitle></CardHeader>
+            <CardContent className="px-2 sm:px-6">
                 <Accordion type="single" collapsible className="w-full space-y-2">
                     {recentPlayedMatches.map(m => {
                         const { prefix, opponent } = getMatchDetails(m);
                         const hasGoals = m.scorers && m.scorers.length > 0;
                         return (
                             <AccordionItem value={m.id} key={m.id} className="border rounded-lg bg-card overflow-hidden shadow-sm hover:border-primary/50 transition-colors">
-                                <AccordionTrigger className="hover:no-underline py-4 px-6 [&>svg]:ml-2">
-                                    <div className="flex items-center justify-between w-full text-left gap-4">
+                                <AccordionTrigger className="hover:no-underline py-4 px-3 sm:px-6 [&>svg]:ml-2">
+                                    <div className="flex items-center justify-between w-full text-left gap-2 sm:gap-4">
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-[10px] text-muted-foreground uppercase leading-tight font-bold tracking-wider">{format(m.dateTime.toDate(), "d. M. yyyy")}</p>
-                                            {prefix && <p className="text-[10px] font-bold text-primary uppercase truncate">{prefix}</p>}
-                                            <p className="font-bold text-base sm:text-lg truncate">{opponent}</p>
+                                            <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">{format(m.dateTime.toDate(), "d. M. yyyy")}</p>
+                                            {prefix && <p className="text-[9px] font-bold text-primary uppercase truncate">{prefix}</p>}
+                                            <p className="font-bold text-sm sm:text-lg truncate">{opponent}</p>
                                         </div>
-                                        <div className="flex items-center gap-4 shrink-0">
-                                            <span className="font-bold text-xl tabular-nums tracking-tighter">{m.team1Score} : {m.team2Score}</span>
-                                            <Badge variant={(m.team1Score || 0) > (m.team2Score || 0) ? 'default' : 'destructive'} className="h-8 w-8 p-0 flex items-center justify-center shrink-0 rounded-full font-bold">
+                                        <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+                                            <span className="font-bold text-lg sm:text-xl tabular-nums tracking-tighter">{m.team1Score} : {m.team2Score}</span>
+                                            <Badge variant={(m.team1Score || 0) > (m.team2Score || 0) ? 'default' : 'destructive'} className="h-7 w-7 sm:h-8 sm:w-8 p-0 flex items-center justify-center shrink-0 rounded-full font-bold">
                                                 {(m.team1Score || 0) > (m.team2Score || 0) ? 'V' : 'P'}
                                             </Badge>
                                         </div>
                                     </div>
                                 </AccordionTrigger>
-                                <AccordionContent className="bg-muted/30 px-6 py-6 border-t">
+                                <AccordionContent className="bg-muted/30 px-3 sm:px-6 py-4 sm:py-6 border-t">
                                     <div className="space-y-6">
                                         {hasGoals ? (
                                             <div className="space-y-4">
                                                 <div className="flex items-center gap-2 text-primary border-b border-primary/20 pb-2">
                                                     <Trophy className="h-4 w-4" />
-                                                    <span className="text-xs font-bold uppercase tracking-widest">Detaily zápasu: Aces</span>
+                                                    <span className="text-[10px] font-bold uppercase tracking-widest">Detaily zápasu: Aces</span>
                                                 </div>
                                                 <div className="grid gap-3">
                                                     {m.scorers!.map((s, i) => (
-                                                        <div key={i} className="flex items-center gap-4 text-sm group">
-                                                            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary shrink-0">
-                                                                <Disc className="h-3.5 w-3.5" />
+                                                        <div key={i} className="flex items-center gap-3 text-xs sm:text-sm group">
+                                                            <div className="flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-primary/10 text-primary shrink-0">
+                                                                <Disc className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                                                             </div>
                                                             <div className="flex flex-wrap items-baseline gap-x-2">
                                                                 <span className="font-bold text-foreground">{formatName(usersMap.get(s.goal)?.name || 'Neznámý')}</span>
                                                                 {s.assist && (
-                                                                    <span className="text-muted-foreground text-xs italic">(asistence: {formatName(usersMap.get(s.assist)?.name || '?')})</span>
+                                                                    <span className="text-muted-foreground text-[10px] sm:text-xs italic">(A: {formatName(usersMap.get(s.assist)?.name || '?')})</span>
                                                                 )}
                                                             </div>
                                                         </div>
@@ -925,9 +927,9 @@ function DashboardPageContent() {
                                                 </div>
                                             </div>
                                         ) : (
-                                            <div className="flex flex-col items-center justify-center py-6 text-muted-foreground text-center">
-                                                 <Disc className="h-8 w-8 opacity-20 mb-2" />
-                                                 <p className="text-sm italic">Žádné góly Aces nebyly k tomuto zápasu zaznamenány.</p>
+                                            <div className="flex flex-col items-center justify-center py-4 text-muted-foreground text-center">
+                                                 <Disc className="h-6 w-6 sm:h-8 sm:w-8 opacity-20 mb-2" />
+                                                 <p className="text-xs italic">Žádné góly Aces nebyly k tomuto zápasu zaznamenány.</p>
                                             </div>
                                         )}
                                     </div>
@@ -937,16 +939,16 @@ function DashboardPageContent() {
                     })}
                 </Accordion>
             </CardContent>
-            <CardFooter className="pt-2"><Button variant="link" asChild className="p-0 h-auto font-bold text-primary"><Link href="/dashboard/history">Zobrazit celou historii</Link></Button></CardFooter>
+            <CardFooter className="pt-2 px-4 sm:px-6"><Button variant="link" asChild className="p-0 h-auto font-bold text-primary text-xs"><Link href="/dashboard/history">Zobrazit celou historii</Link></Button></CardFooter>
         </Card>
 
         {/* Scoring Leaderboards */}
         <div className="lg:col-span-3 grid gap-8 md:grid-cols-2">
             <Card>
-                <CardHeader className="flex-row items-center justify-between">
+                <CardHeader className="flex-row items-center justify-between py-4 px-4 sm:px-6">
                     <CardTitle className="flex items-center gap-2"><Flame className="text-primary"/>Bodování</CardTitle>
                     {userProfile?.role === 'admin' && !isStatEditMode && scoringView !== 'season' && (
-                        <Button size="sm" variant="outline" onClick={() => { 
+                        <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => { 
                             const initialEditData = sortedTeamScoring.map(p => ({ 
                                 ...p,
                                 goals: String(p.goals || 0),
@@ -956,72 +958,72 @@ function DashboardPageContent() {
                             setEditableSkaterStats(initialEditData); 
                             setIsStatEditMode(true); 
                             setExpandedStatId(null);
-                        }}><Pencil className="h-3 mr-2" />Upravit</Button>
+                        }}><Pencil className="h-3 w-3 mr-1" />Upravit</Button>
                     )}
                     {isStatEditMode && (
                         <div className="flex gap-2">
-                            <Button size="sm" variant="outline" onClick={() => { setIsStatEditMode(false); setExpandedStatId(null); }}>Zrušit</Button>
-                            <Button size="sm" onClick={handleSaveStatsManual}>Uložit</Button>
+                            <Button size="sm" variant="outline" className="h-8 text-[10px]" onClick={() => { setIsStatEditMode(false); setExpandedStatId(null); }}>Zrušit</Button>
+                            <Button size="sm" className="h-8 text-[10px]" onClick={handleSaveStatsManual}>Uložit</Button>
                         </div>
                     )}
                 </CardHeader>
-                <CardContent>
+                <CardContent className="px-1 sm:px-6">
                     <Tabs value={scoringView} onValueChange={(v) => { if (!isStatEditMode) setScoringView(v as any); }}>
                         <TabsList className="grid w-full grid-cols-4 mb-4">
-                            <TabsTrigger value="regular" className="text-xs">ZČ</TabsTrigger>
-                            <TabsTrigger value="playoff" className="text-xs">Play-off</TabsTrigger>
-                            <TabsTrigger value="season" className="text-xs">Sezona</TabsTrigger>
-                            <TabsTrigger value="history" className="text-xs">Historie</TabsTrigger>
+                            <TabsTrigger value="regular" className="text-[10px] px-1">ZČ</TabsTrigger>
+                            <TabsTrigger value="playoff" className="text-[10px] px-1">Play-off</TabsTrigger>
+                            <TabsTrigger value="season" className="text-[10px] px-1">Sezona</TabsTrigger>
+                            <TabsTrigger value="history" className="text-[10px] px-1">Historie</TabsTrigger>
                         </TabsList>
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead className="w-8">#</TableHead>
-                                    <TableHead>Hráč</TableHead>
-                                    <TableHead className="text-center">Z</TableHead>
-                                    <TableHead className="text-center">G</TableHead>
-                                    <TableHead className="text-center">A</TableHead>
-                                    <TableHead className="text-right">B</TableHead>
-                                    {isStatEditMode && <TableHead className="w-10"></TableHead>}
+                                    <TableHead className="w-6 px-1 text-center">#</TableHead>
+                                    <TableHead className="px-2">Hráč</TableHead>
+                                    <TableHead className="text-center px-1">Z</TableHead>
+                                    <TableHead className="text-center px-1">G</TableHead>
+                                    <TableHead className="text-center px-1">A</TableHead>
+                                    <TableHead className="text-right px-2">B</TableHead>
+                                    {isStatEditMode && <TableHead className="w-8 px-1"></TableHead>}
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {sortedTeamScoring.map(p => (
                                     <React.Fragment key={p.id}>
                                         <TableRow className={cn(p.id === user?.uid && 'bg-primary/5', expandedStatId === p.id && 'bg-muted/50')}>
-                                            <TableCell>{String(p.rank || 0)}</TableCell>
-                                            <TableCell className="font-medium whitespace-nowrap">{formatName(p.name)}</TableCell>
-                                            <TableCell className="text-center">{String(p.gamesPlayed || 0)}</TableCell>
-                                            <TableCell className="text-center">{String(p.goals || 0)}</TableCell>
-                                            <TableCell className="text-center">{String(p.assists || 0)}</TableCell>
-                                            <TableCell className="text-right font-bold">{String(p.points || 0)}</TableCell>
+                                            <TableCell className="px-1 text-center tabular-nums">{String(p.rank || 0)}</TableCell>
+                                            <TableCell className="font-medium whitespace-nowrap px-2">{formatName(p.name)}</TableCell>
+                                            <TableCell className="text-center px-1 tabular-nums">{String(p.gamesPlayed || 0)}</TableCell>
+                                            <TableCell className="text-center px-1 tabular-nums">{String(p.goals || 0)}</TableCell>
+                                            <TableCell className="text-center px-1 tabular-nums">{String(p.assists || 0)}</TableCell>
+                                            <TableCell className="text-right font-bold px-2 tabular-nums">{String(p.points || 0)}</TableCell>
                                             {isStatEditMode && (
                                                 <TableCell className="p-0 text-center">
                                                     <Button 
                                                         variant="ghost" 
                                                         size="icon" 
-                                                        className="h-8 w-8"
+                                                        className="h-7 w-7"
                                                         onClick={() => setExpandedStatId(expandedStatId === p.id ? null : p.id)}
                                                     >
-                                                        <ChevronDown className={cn("h-4 w-4 transition-transform", expandedStatId === p.id && "rotate-180")} />
+                                                        <ChevronDown className={cn("h-3 w-3 transition-transform", expandedStatId === p.id && "rotate-180")} />
                                                     </Button>
                                                 </TableCell>
                                             )}
                                         </TableRow>
                                         {isStatEditMode && expandedStatId === p.id && (
                                             <TableRow className="bg-muted/30 border-b-2 border-primary/20">
-                                                <TableCell colSpan={7} className="p-4">
-                                                    <div className="flex flex-wrap items-center justify-around gap-4 bg-background/50 rounded-lg p-3 border">
+                                                <TableCell colSpan={7} className="p-2 sm:p-4">
+                                                    <div className="flex flex-wrap items-center justify-around gap-2 bg-background/50 rounded-lg p-2 border">
                                                         <div className="flex flex-col items-center gap-1">
-                                                            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Zápasy</Label>
+                                                            <Label className="text-[9px] uppercase font-bold text-muted-foreground">Zápasy</Label>
                                                             <StatAdjuster value={String(p.gamesPlayed || 0)} onChange={val => setEditableSkaterStats(cur => cur.map(it => it.id === p.id ? {...it, gamesPlayed: val} : it))} />
                                                         </div>
                                                         <div className="flex flex-col items-center gap-1">
-                                                            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Góly</Label>
+                                                            <Label className="text-[9px] uppercase font-bold text-muted-foreground">Góly</Label>
                                                             <StatAdjuster value={String(p.goals || 0)} onChange={val => setEditableSkaterStats(cur => cur.map(it => it.id === p.id ? {...it, goals: val} : it))} />
                                                         </div>
                                                         <div className="flex flex-col items-center gap-1">
-                                                            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Asistence</Label>
+                                                            <Label className="text-[9px] uppercase font-bold text-muted-foreground">Asistence</Label>
                                                             <StatAdjuster value={String(p.assists || 0)} onChange={val => setEditableSkaterStats(cur => cur.map(it => it.id === p.id ? {...it, assists: val} : it))} />
                                                         </div>
                                                     </div>
@@ -1036,10 +1038,10 @@ function DashboardPageContent() {
                 </CardContent>
             </Card>
             <Card>
-                <CardHeader className="flex-row items-center justify-between">
+                <CardHeader className="flex-row items-center justify-between py-4 px-4 sm:px-6">
                     <CardTitle className="flex items-center gap-2"><Shield className="text-primary"/>Brankáři</CardTitle>
                     {userProfile?.role === 'admin' && !isStatEditMode && scoringView !== 'season' && (
-                        <Button size="sm" variant="outline" onClick={() => { 
+                        <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => { 
                             const initialEditData = sortedGoalieLeaderboard.map(g => ({ 
                                 ...g,
                                 gamesPlayed: String(g.gamesPlayed || 0),
@@ -1050,66 +1052,66 @@ function DashboardPageContent() {
                             setEditableGoalieStats(initialEditData); 
                             setIsStatEditMode(true); 
                             setExpandedStatId(null);
-                        }}><Pencil className="h-3 mr-2" />Upravit</Button>
+                        }}><Pencil className="h-3 w-3 mr-1" />Upravit</Button>
                     )}
                 </CardHeader>
-                <CardContent>
+                <CardContent className="px-1 sm:px-6">
                     <Tabs value={scoringView} onValueChange={(v) => { if (!isStatEditMode) setScoringView(v as any); }}>
                         <TabsList className="grid w-full grid-cols-4 mb-4">
-                            <TabsTrigger value="regular" className="text-xs">ZČ</TabsTrigger>
-                            <TabsTrigger value="playoff" className="text-xs">Play-off</TabsTrigger>
-                            <TabsTrigger value="season" className="text-xs">Sezona</TabsTrigger>
-                            <TabsTrigger value="history" className="text-xs">Historie</TabsTrigger>
+                            <TabsTrigger value="regular" className="text-[10px] px-1">ZČ</TabsTrigger>
+                            <TabsTrigger value="playoff" className="text-[10px] px-1">Play-off</TabsTrigger>
+                            <TabsTrigger value="season" className="text-[10px] px-1">Sezona</TabsTrigger>
+                            <TabsTrigger value="history" className="text-[10px] px-1">Historie</TabsTrigger>
                         </TabsList>
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>Jméno</TableHead>
-                                    <TableHead className="text-center">Z</TableHead>
-                                    <TableHead className="text-center">V</TableHead>
-                                    <TableHead className="text-right">Úspěšnost</TableHead>
-                                    {isStatEditMode && <TableHead className="w-10"></TableHead>}
+                                    <TableHead className="px-2">Jméno</TableHead>
+                                    <TableHead className="text-center px-1">Z</TableHead>
+                                    <TableHead className="text-center px-1">V</TableHead>
+                                    <TableHead className="text-right px-2">Úspěšnost</TableHead>
+                                    {isStatEditMode && <TableHead className="w-8 px-1"></TableHead>}
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {sortedGoalieLeaderboard.map(g => (
                                     <React.Fragment key={g.id}>
                                         <TableRow className={cn(g.id === user?.uid && 'bg-primary/5', expandedStatId === g.id && 'bg-muted/50')}>
-                                            <TableCell className="font-medium whitespace-nowrap">{formatName(g.name)}</TableCell>
-                                            <TableCell className="text-center">{String(g.gamesPlayed || 0)}</TableCell>
-                                            <TableCell className="text-center">{String(g.wins || 0)}</TableCell>
-                                            <TableCell className="text-right font-bold">{String((g.savePercentage || 0).toFixed(2))}%</TableCell>
+                                            <TableCell className="font-medium whitespace-nowrap px-2">{formatName(g.name)}</TableCell>
+                                            <TableCell className="text-center px-1 tabular-nums">{String(g.gamesPlayed || 0)}</TableCell>
+                                            <TableCell className="text-center px-1 tabular-nums">{String(g.wins || 0)}</TableCell>
+                                            <TableCell className="text-right font-bold px-2 tabular-nums">{String((g.savePercentage || 0).toFixed(2))}%</TableCell>
                                             {isStatEditMode && (
                                                 <TableCell className="p-0 text-center">
                                                     <Button 
                                                         variant="ghost" 
                                                         size="icon" 
-                                                        className="h-8 w-8"
+                                                        className="h-7 w-7"
                                                         onClick={() => setExpandedStatId(expandedStatId === g.id ? null : g.id)}
                                                     >
-                                                        <ChevronDown className={cn("h-4 w-4 transition-transform", expandedStatId === g.id && "rotate-180")} />
+                                                        <ChevronDown className={cn("h-3 w-3 transition-transform", expandedStatId === g.id && "rotate-180")} />
                                                     </Button>
                                                 </TableCell>
                                             )}
                                         </TableRow>
                                         {isStatEditMode && expandedStatId === g.id && (
                                             <TableRow className="bg-muted/30 border-b-2 border-primary/20">
-                                                <TableCell colSpan={5} className="p-4">
-                                                    <div className="flex flex-wrap items-center justify-around gap-4 bg-background/50 rounded-lg p-3 border">
+                                                <TableCell colSpan={5} className="p-2 sm:p-4">
+                                                    <div className="flex flex-wrap items-center justify-around gap-2 bg-background/50 rounded-lg p-2 border">
                                                         <div className="flex flex-col items-center gap-1">
-                                                            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Zápasy</Label>
+                                                            <Label className="text-[9px] uppercase font-bold text-muted-foreground">Zápasy</Label>
                                                             <StatAdjuster value={String(g.gamesPlayed || 0)} onChange={val => setEditableGoalieStats(cur => cur.map(it => it.id === g.id ? {...it, gamesPlayed: val} : it))} />
                                                         </div>
                                                         <div className="flex flex-col items-center gap-1">
-                                                            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Výhry</Label>
+                                                            <Label className="text-[9px] uppercase font-bold text-muted-foreground">Výhry</Label>
                                                             <StatAdjuster value={String(g.wins || 0)} onChange={val => setEditableGoalieStats(cur => cur.map(it => it.id === g.id ? {...it, wins: val} : it))} />
                                                         </div>
                                                         <div className="flex flex-col items-center gap-1">
-                                                            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Zásahy</Label>
+                                                            <Label className="text-[9px] uppercase font-bold text-muted-foreground">Zásahy</Label>
                                                             <StatAdjuster value={String(g.saves || 0)} onChange={val => setEditableGoalieStats(cur => cur.map(it => it.id === g.id ? {...it, saves: val} : it))} />
                                                         </div>
                                                         <div className="flex flex-col items-center gap-1">
-                                                            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Střely</Label>
+                                                            <Label className="text-[9px] uppercase font-bold text-muted-foreground">Střely</Label>
                                                             <StatAdjuster value={String(g.shotsAgainst || 0)} onChange={val => setEditableGoalieStats(cur => cur.map(it => it.id === g.id ? {...it, shotsAgainst: val} : it))} />
                                                         </div>
                                                     </div>
@@ -1221,25 +1223,25 @@ function DashboardPageContent() {
                   <DialogDescription>Aktualizujte statistiky týmů v lize.</DialogDescription>
               </DialogHeader>
               <form onSubmit={handleSaveLeagueStandings}>
-                  <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-4 p-1">
+                  <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-2 p-1">
                         {Array.from({ length: 10 }).map((_, i) => (
                             <div key={i} className="grid grid-cols-12 gap-2 items-end border-b pb-4 last:border-0">
                                 <div className="col-span-1 text-center font-bold text-muted-foreground pb-2">{i+1}.</div>
                                 <div className="col-span-5 space-y-1">
-                                    <Label className="text-[10px] uppercase">Název týmu</Label>
-                                    <Input name={`name-${i}`} defaultValue={leagueSettings?.leagueStandings?.[i]?.name || ''} placeholder="Tým" />
+                                    <Label className="text-[9px] uppercase">Název týmu</Label>
+                                    <Input name={`name-${i}`} defaultValue={leagueSettings?.leagueStandings?.[i]?.name || ''} placeholder="Tým" className="h-8 text-xs" />
                                 </div>
                                 <div className="col-span-2 space-y-1">
-                                    <Label className="text-[10px] uppercase">GF</Label>
-                                    <Input name={`gf-${i}`} type="number" defaultValue={leagueSettings?.leagueStandings?.[i]?.gf || 0} />
+                                    <Label className="text-[9px] uppercase">GF</Label>
+                                    <Input name={`gf-${i}`} type="number" defaultValue={leagueSettings?.leagueStandings?.[i]?.gf || 0} className="h-8 text-xs px-1" />
                                 </div>
                                 <div className="col-span-2 space-y-1">
-                                    <Label className="text-[10px] uppercase">GA</Label>
-                                    <Input name={`ga-${i}`} type="number" defaultValue={leagueSettings?.leagueStandings?.[i]?.ga || 0} />
+                                    <Label className="text-[9px] uppercase">GA</Label>
+                                    <Input name={`ga-${i}`} type="number" defaultValue={leagueSettings?.leagueStandings?.[i]?.ga || 0} className="h-8 text-xs px-1" />
                                 </div>
                                 <div className="col-span-2 space-y-1">
-                                    <Label className="text-[10px] uppercase font-bold text-primary">Body</Label>
-                                    <Input name={`points-${i}`} type="number" defaultValue={leagueSettings?.leagueStandings?.[i]?.points || 0} className="font-bold border-primary" />
+                                    <Label className="text-[9px] uppercase font-bold text-primary">Body</Label>
+                                    <Input name={`points-${i}`} type="number" defaultValue={leagueSettings?.leagueStandings?.[i]?.points || 0} className="h-8 text-xs px-1 font-bold border-primary" />
                                 </div>
                             </div>
                         ))}
@@ -1260,14 +1262,14 @@ function DashboardPageContent() {
                   <DialogDescription>Nastavte aktuální soupeře a stavy sérií.</DialogDescription>
               </DialogHeader>
               <form onSubmit={handleSavePlayoffSeries}>
-                  <div className="grid gap-6 py-4 max-h-[60vh] overflow-y-auto pr-4 p-1">
+                  <div className="grid gap-6 py-4 max-h-[60vh] overflow-y-auto pr-2 p-1">
                         {Array.from({ length: 4 }).map((_, i) => (
                             <div key={i} className="grid gap-4 p-4 border rounded-lg bg-muted/20">
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-1">
-                                        <Label className="text-xs uppercase">Fáze</Label>
+                                        <Label className="text-[10px] uppercase">Fáze</Label>
                                         <Select name={`round-${i}`} defaultValue={leagueSettings?.playoffSeries?.[i]?.round || 'Čtvrtfinále'}>
-                                            <SelectTrigger><SelectValue /></SelectTrigger>
+                                            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                                             <SelectContent>
                                                 <SelectItem value="Čtvrtfinále">Čtvrtfinále</SelectItem>
                                                 <SelectItem value="Semifinále">Semifinále</SelectItem>
@@ -1277,18 +1279,18 @@ function DashboardPageContent() {
                                         </Select>
                                     </div>
                                     <div className="space-y-1">
-                                        <Label className="text-xs uppercase">Soupeř</Label>
-                                        <Input name={`opponent-${i}`} defaultValue={leagueSettings?.playoffSeries?.[i]?.opponent || ''} placeholder="Název týmu" />
+                                        <Label className="text-[10px] uppercase">Soupeř</Label>
+                                        <Input name={`opponent-${i}`} defaultValue={leagueSettings?.playoffSeries?.[i]?.opponent || ''} placeholder="Název týmu" className="h-8 text-xs" />
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-1">
-                                        <Label className="text-xs uppercase">Výhry Aces</Label>
-                                        <Input name={`wins-${i}`} type="number" min="0" defaultValue={leagueSettings?.playoffSeries?.[i]?.wins || 0} />
+                                        <Label className="text-[10px] uppercase">Výhry Aces</Label>
+                                        <Input name={`wins-${i}`} type="number" min="0" defaultValue={leagueSettings?.playoffSeries?.[i]?.wins || 0} className="h-8 text-xs" />
                                     </div>
                                     <div className="space-y-1">
-                                        <Label className="text-xs uppercase">Prohry Aces</Label>
-                                        <Input name={`losses-${i}`} type="number" min="0" defaultValue={leagueSettings?.playoffSeries?.[i]?.losses || 0} />
+                                        <Label className="text-[10px] uppercase">Prohry Aces</Label>
+                                        <Input name={`losses-${i}`} type="number" min="0" defaultValue={leagueSettings?.playoffSeries?.[i]?.losses || 0} className="h-8 text-xs" />
                                     </div>
                                 </div>
                             </div>
