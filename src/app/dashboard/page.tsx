@@ -550,13 +550,11 @@ function DashboardPageContent() {
       const matchRef = doc(firestore, 'matches', lineupMatch.id);
       batch.update(matchRef, { lineup: lineupToSave });
       
-      // Pokud je zapas uz odehran, musime prepocitat odehrane zapasy pro zmenu v sestave
       if (lineupMatch.isPlayed) {
           const oldLineup = lineupMatch.lineup || {};
           const oldPlayerIds = new Set(Object.values(oldLineup).filter(p => p !== null).map(p => p!.id));
           const newPlayerIds = new Set(Object.values(lineupToSave).filter(p => p !== null).map(p => p!.id));
           
-          // Hráči, kteří jsou nově v sestavě a nebyli v ní předtím
           newPlayerIds.forEach(pid => {
               if (!oldPlayerIds.has(pid)) {
                   const statRef = doc(firestore, 'users', pid, 'skaterStats', 'stats');
@@ -567,10 +565,8 @@ function DashboardPageContent() {
               }
           });
           
-          // Hráči, kteří ze sestavy vypadli
           oldPlayerIds.forEach(pid => {
               if (!newPlayerIds.has(pid)) {
-                  // Musíme ověřit, zda hráč nebyl střelec nebo asistent (v tom případě mu zápas zůstává)
                   const wasScorer = lineupMatch.scorers?.some(s => s.goal === pid || s.assist === pid);
                   const wasGoalie = lineupMatch.goalieId === pid;
                   if (!wasScorer && !wasGoalie) {
@@ -714,15 +710,12 @@ function DashboardPageContent() {
     const pStatsMap = new Map<string, { goals: number, assists: number }>();
     const participants = new Set<string>();
     
-    // Účastníci ze sestavy (pokud existuje)
     if (selectedMatch.lineup) {
         Object.values(selectedMatch.lineup).forEach(p => { if(p) participants.add(p.id); });
     } else {
-        // Fallback: účastníci, kteří potvrdili účast "Jdu"
         (attendancesByMatch.get(selectedMatch.id) || []).forEach(att => { if (att.status === 'going') participants.add(att.userId); });
     }
 
-    // Účastníci z bodování (střelci a asistenti musí být v participants i když nejsou v sestavě)
     for (let i = 0; i < t1Score; i++) {
         const goal = formData.get(`goal-${i}`) as string;
         const assist = formData.get(`assist-${i}`) as string;
