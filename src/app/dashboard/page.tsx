@@ -146,17 +146,23 @@ function RecordResultForm({ match, allUsers, onSave, onCancel, isSaving }: { mat
                 <div className="grid gap-3">
                     {Array.from({ length: goalCount }).map((_, index) => (
                         <div key={index} className="grid grid-cols-2 gap-2 items-center">
-                            <Select name={`goal-${index}`}>
-                                <SelectTrigger><SelectValue placeholder={`Gól ${index + 1}`} /></SelectTrigger>
-                                <SelectContent>{skaters.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}</SelectContent>
-                            </Select>
-                            <Select name={`assist-${index}`} defaultValue="none">
-                                <SelectTrigger><SelectValue placeholder="Asistence" /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="none">Žádná</SelectItem>
-                                    {skaters.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
+                            <div className="grid gap-1.5">
+                                <Label className="text-xs text-muted-foreground">Střelec</Label>
+                                <Select name={`goal-${index}`}>
+                                    <SelectTrigger><SelectValue placeholder={`Vyberte hráče`} /></SelectTrigger>
+                                    <SelectContent>{skaters.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}</SelectContent>
+                                </Select>
+                            </div>
+                            <div className="grid gap-1.5">
+                                <Label className="text-xs text-muted-foreground">Asistence</Label>
+                                <Select name={`assist-${index}`} defaultValue="none">
+                                    <SelectTrigger><SelectValue placeholder="Asistence" /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="none">Žádná</SelectItem>
+                                        {skaters.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
                         </div>
                     ))}
                 </div>
@@ -523,8 +529,11 @@ function DashboardPageContent() {
                     <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
                         {m.lineup && <Button variant="outline" size="sm" onClick={() => { setViewLineupData(m.lineup!); setIsLineupViewOpen(true); }}><View className="mr-2 h-4" /> Sestava</Button>}
                         <Dialog><DialogTrigger asChild><Button variant="outline" size="sm"><Users className="mr-2 h-4" /> Účast: {goesCount}</Button></DialogTrigger>
-                            <DialogContent><DialogHeader><DialogTitle>Účastníci</DialogTitle></DialogHeader>
-                                <div className="max-h-[40vh] overflow-y-auto space-y-2">
+                            <DialogContent className="p-0">
+                                <DialogHeader className="p-6 pb-0">
+                                    <DialogTitle>Účastníci</DialogTitle>
+                                </DialogHeader>
+                                <div className="max-h-[40vh] overflow-y-auto space-y-2 p-6 pt-2">
                                     {(attendancesByMatch.get(m.id) || []).map(att => {
                                         const p = usersMap.get(att.userId); if (!p) return null;
                                         return (
@@ -818,9 +827,23 @@ function DashboardPageContent() {
         </DialogContent>
       </Dialog>
       <Dialog open={isResultDialogOpen} onOpenChange={setIsResultDialogOpen}><DialogContent className="max-w-md">{selectedMatch && <RecordResultForm match={selectedMatch} allUsers={allUsers || []} onSave={handleSaveResult} onCancel={() => setIsResultDialogOpen(false)} isSaving={isSaving} />}</DialogContent></Dialog>
-      <Dialog open={isAttendanceDialogOpen} onOpenChange={setIsAttendanceDialogOpen}><DialogContent><DialogHeader><DialogTitle>Potvrdit účast</DialogTitle></DialogHeader><div className="py-4 space-y-2"><Label>Poznámka (volitelné)</Label><Textarea value={attendanceNote} onChange={e => setAttendanceNote(e.target.value)} placeholder="Např. přijdu později..." /></div><DialogFooter><Button variant="outline" onClick={() => setIsAttendanceDialogOpen(false)}>Zrušit</Button><Button onClick={async () => { if(!attendanceData || !user || !firestore) return; setIsSaving(true); setOptimisticAttendances(cur => new Map(cur).set(attendanceData.matchId, { status: attendanceData.status, note: attendanceNote })); await setDoc(doc(firestore, 'matches', attendanceData.matchId, 'attendees', user.uid), { userId: user.uid, matchId: attendanceData.matchId, status: attendanceData.status, note: attendanceNote }, { merge: true }); setIsAttendanceDialogOpen(false); setIsSaving(false); }}>Potvrdit</Button></DialogFooter></DialogContent></Dialog>
-      <Dialog open={isLineupBuilderOpen} onOpenChange={setIsLineupBuilderOpen}><DialogContent className="max-w-4xl h-[90vh] flex flex-col">{lineupMatch && <LineupBuilder players={allUsers?.filter(u => (attendancesByMatch.get(lineupMatch.id)||[]).some(a => a.userId === u.id && a.status === 'going')) || []} initialData={lineupMatch.lineup} onSave={async l => { if(!lineupMatch || !firestore) return; setIsSaving(true); await updateDoc(doc(firestore, 'matches', lineupMatch.id), { lineup: l }); setIsLineupBuilderOpen(false); setIsSaving(false); toast({ title: "Sestava uložena" }); }} onCancel={() => setIsLineupBuilderOpen(false)} />}</DialogContent></Dialog>
-      <Dialog open={isLineupViewOpen} onOpenChange={setIsLineupViewOpen}><DialogContent className="max-w-4xl h-[90vh] flex flex-col">{viewLineupData && <LineupDisplay lineup={viewLineupData} />}</DialogContent></Dialog>
+      <Dialog open={isAttendanceDialogOpen} onOpenChange={setIsAttendanceDialogOpen}><DialogContent><DialogHeader><DialogTitle>Potvrdit účast</DialogTitle></DialogHeader><div className="py-4 space-y-2 p-1"><Label>Poznámka (volitelné)</Label><Textarea value={attendanceNote} onChange={e => setAttendanceNote(e.target.value)} placeholder="Např. přijdu později..." /></div><DialogFooter><Button variant="outline" onClick={() => setIsAttendanceDialogOpen(false)}>Zrušit</Button><Button onClick={async () => { if(!attendanceData || !user || !firestore) return; setIsSaving(true); setOptimisticAttendances(cur => new Map(cur).set(attendanceData.matchId, { status: attendanceData.status, note: attendanceNote })); await setDoc(doc(firestore, 'matches', attendanceData.matchId, 'attendees', user.uid), { userId: user.uid, matchId: attendanceData.matchId, status: attendanceData.status, note: attendanceNote }, { merge: true }); setIsAttendanceDialogOpen(false); setIsSaving(false); }}>Potvrdit</Button></DialogFooter></DialogContent></Dialog>
+      <Dialog open={isLineupBuilderOpen} onOpenChange={setIsLineupBuilderOpen}>
+        <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 overflow-hidden">
+            <DialogHeader className="p-6 pb-0">
+                <DialogTitle>Editor sestavy</DialogTitle>
+            </DialogHeader>
+            {lineupMatch && <LineupBuilder players={allUsers?.filter(u => (attendancesByMatch.get(lineupMatch.id)||[]).some(a => a.userId === u.id && a.status === 'going')) || []} initialData={lineupMatch.lineup} onSave={async l => { if(!lineupMatch || !firestore) return; setIsSaving(true); await updateDoc(doc(firestore, 'matches', lineupMatch.id), { lineup: l }); setIsLineupBuilderOpen(false); setIsSaving(false); toast({ title: "Sestava uložena" }); }} onCancel={() => setIsLineupBuilderOpen(false)} />}
+        </DialogContent>
+      </Dialog>
+      <Dialog open={isLineupViewOpen} onOpenChange={setIsLineupViewOpen}>
+        <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 overflow-hidden">
+            <DialogHeader className="p-6 pb-0">
+                <DialogTitle>Zobrazení sestavy</DialogTitle>
+            </DialogHeader>
+            {viewLineupData && <LineupDisplay lineup={viewLineupData} />}
+        </DialogContent>
+      </Dialog>
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Smazat zápas?</AlertDialogTitle></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Zrušit</AlertDialogCancel><AlertDialogAction className="bg-destructive" onClick={async () => { if(!selectedMatch || !firestore) return; setIsSaving(true); try { await deleteDoc(doc(firestore, 'matches', selectedMatch.id)); toast({ title: "Zápas smazán" }); } catch (e: any) { toast({ variant: "destructive", title: "Chyba" }); } finally { setIsSaving(false); setIsDeleteDialogOpen(false); setSelectedMatch(null); } }}>Smazat</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}><DialogContent><DialogHeader><DialogTitle>Upravit zápas</DialogTitle></DialogHeader>{selectedMatch && <form onSubmit={async e => { e.preventDefault(); if(!firestore || !selectedMatch) return; setIsSaving(true); const fd = new FormData(e.currentTarget); const dt = parse(`${fd.get('date')} ${fd.get('time')}`, 'yyyy-MM-dd HH:mm', new Date()); 
         const upd: any = { team2: fd.get('opponent'), location: fd.get('location'), dateTime: Timestamp.fromDate(dt), type: fd.get('type') };

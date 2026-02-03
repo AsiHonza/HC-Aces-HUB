@@ -75,7 +75,7 @@ function MatchResultFormFields({ match, allUsers, onGoalCountChange }: { match?:
     };
 
     return (
-        <div className="grid gap-4">
+        <div className="grid gap-4 p-1">
             <div className="grid grid-cols-2 items-center gap-4">
                 <div className="grid gap-2 text-center">
                     <Label htmlFor="team1Score">Aces</Label>
@@ -91,17 +91,23 @@ function MatchResultFormFields({ match, allUsers, onGoalCountChange }: { match?:
             <div className="grid gap-3">
                 {Array.from({ length: goalCount }).map((_, index) => (
                     <div key={index} className="grid grid-cols-2 gap-2 items-center">
-                        <Select name={`goal-${index}`} defaultValue={match?.scorers?.[index]?.goal}>
-                            <SelectTrigger><SelectValue placeholder={`Gól ${index + 1}`} /></SelectTrigger>
-                            <SelectContent>{skaters.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}</SelectContent>
-                        </Select>
-                        <Select name={`assist-${index}`} defaultValue={match?.scorers?.[index]?.assist || 'none'}>
-                            <SelectTrigger><SelectValue placeholder="Asistence" /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="none">Žádná</SelectItem>
-                                {skaters.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
+                        <div className="grid gap-1.5">
+                           <Label className="text-xs text-muted-foreground">Střelec</Label>
+                           <Select name={`goal-${index}`} defaultValue={match?.scorers?.[index]?.goal}>
+                                <SelectTrigger><SelectValue placeholder={`Vyberte hráče`} /></SelectTrigger>
+                                <SelectContent>{skaters.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}</SelectContent>
+                            </Select>
+                        </div>
+                        <div className="grid gap-1.5">
+                           <Label className="text-xs text-muted-foreground">Asistence</Label>
+                           <Select name={`assist-${index}`} defaultValue={match?.scorers?.[index]?.assist || 'none'}>
+                                <SelectTrigger><SelectValue placeholder="Asistence" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="none">Žádná</SelectItem>
+                                    {skaters.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
                     </div>
                 ))}
             </div>
@@ -416,7 +422,10 @@ function HistoryPageContent() {
             </Dialog>
 
             <Dialog open={isLineupBuilderOpen} onOpenChange={setIsLineupBuilderOpen}>
-                <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
+                <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 overflow-hidden">
+                    <DialogHeader className="p-6 pb-0">
+                        <DialogTitle>Editor sestavy</DialogTitle>
+                    </DialogHeader>
                     {lineupMatch && users && (
                         <LineupBuilder players={users} initialData={lineupMatch.lineup} onSave={handleSaveLineup} onCancel={() => setIsLineupBuilderOpen(false)} />
                     )}
