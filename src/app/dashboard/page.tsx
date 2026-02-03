@@ -375,7 +375,7 @@ function DashboardPageContent() {
     if (isLoading) return;
     const mId = searchParams.get('matchId');
     if (!mId) return;
-    setTimeout(() => {
+    const timer = setTimeout(() => {
         const el = document.getElementById(`match-${mId}`);
         if (el) {
             el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -383,6 +383,7 @@ function DashboardPageContent() {
             setTimeout(() => { setHighlightedMatchId(null); }, 3000);
         }
     }, 200);
+    return () => clearTimeout(timer);
   }, [isLoading, searchParams]);
 
   const handleShareMatch = (mId: string) => {
@@ -478,16 +479,29 @@ function DashboardPageContent() {
         const batch = writeBatch(firestore);
         const prefix = scoringView === 'history' ? 'historical' : scoringView;
         editableSkaterStats.forEach(p => { 
-            batch.set(doc(firestore, 'users', p.id, 'skaterStats', 'stats'), { userProfileId: p.id, [`${prefix}Goals`]: p.goals, [`${prefix}Assists`]: p.assists, [`${prefix}GamesPlayed`]: p.gamesPlayed }, { merge: true }); 
+            if (!p.id) return;
+            batch.set(doc(firestore, 'users', p.id, 'skaterStats', 'stats'), { 
+                userProfileId: p.id, 
+                [`${prefix}Goals`]: p.goals, 
+                [`${prefix}Assists`]: p.assists, 
+                [`${prefix}GamesPlayed`]: p.gamesPlayed 
+            }, { merge: true }); 
         });
         editableGoalieStats.forEach(g => { 
-            batch.set(doc(firestore, 'users', g.id, 'goalieStats', 'stats'), { userProfileId: g.id, [`${prefix}GamesPlayed`]: g.gamesPlayed, [`${prefix}Wins`]: g.wins, [`${prefix}Saves`]: g.saves, [`${prefix}ShotsAgainst`]: g.shotsAgainst }, { merge: true }); 
+            if (!g.id) return;
+            batch.set(doc(firestore, 'users', g.id, 'goalieStats', 'stats'), { 
+                userProfileId: g.id, 
+                [`${prefix}GamesPlayed`]: g.gamesPlayed, 
+                [`${prefix}Wins`]: g.wins, 
+                [`${prefix}Saves`]: g.saves, 
+                [`${prefix}ShotsAgainst`]: g.shotsAgainst 
+            }, { merge: true }); 
         });
         await batch.commit();
         toast({ title: 'Statistiky uloženy' });
         setIsStatEditMode(false);
     } catch (err: any) { 
-        toast({ variant: 'destructive', title: 'Chyba' }); 
+        toast({ variant: 'destructive', title: 'Chyba', description: err.message }); 
     } finally { 
         setIsSaving(false); 
     }

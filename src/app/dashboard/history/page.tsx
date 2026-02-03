@@ -139,7 +139,6 @@ function HistoryPageContent() {
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
     const [addMatchType, setAddMatchType] = useState<Match['type']>('regular');
-    const [editMatchType, setEditMatchType] = useState<Match['type']>('regular');
     const [isSaving, setIsSaving] = useState(false);
     const [isLineupViewOpen, setIsLineupViewOpen] = useState(false);
     const [isLineupBuilderOpen, setIsLineupBuilderOpen] = useState(false);
@@ -174,15 +173,18 @@ function HistoryPageContent() {
             const batch = writeBatch(firestore);
             batch.update(doc(firestore, 'matches', lineupMatch.id), { lineup });
             
-            const newPids = new Set(Object.values(lineup).filter(p => p !== null).map(p => p!.id));
-            newPids.forEach(pid => {
-                const update: any = { historicalGamesPlayed: increment(1), userProfileId: pid };
-                if (lineupMatch.type === 'playoff') update.playoffGamesPlayed = increment(1);
-                else update.seasonGamesPlayed = increment(1);
-                batch.set(doc(firestore, 'users', pid, 'skaterStats', 'stats'), update, { merge: true });
+            const participants = new Set(Object.values(lineup).filter(p => p !== null).map(p => p!.id));
+            const typePrefix = lineupMatch.type === 'playoff' ? 'playoff' : 'season';
+
+            participants.forEach(pid => {
+                batch.set(doc(firestore, 'users', pid, 'skaterStats', 'stats'), {
+                    userProfileId: pid,
+                    historicalGamesPlayed: increment(1),
+                    [`${typePrefix}GamesPlayed`]: increment(1)
+                }, { merge: true });
             });
             await batch.commit();
-            toast({ title: "Sestava uložena." });
+            toast({ title: "Sestava uložena a zápasy připsány." });
         } catch (error: any) { 
             toast({ variant: 'destructive', title: "Chyba", description: error.message }); 
         } finally { 
@@ -200,29 +202,37 @@ function HistoryPageContent() {
             selectedMatch.scorers?.forEach(s => { if (s.goal) participants.add(s.goal); if (s.assist) participants.add(s.assist); });
             if (selectedMatch.goalieId) participants.add(selectedMatch.goalieId);
 
+            const typePrefix = selectedMatch.type === 'playoff' ? 'playoff' : 'season';
             for (const pid of participants) {
-                const update: any = { historicalGamesPlayed: increment(-1), userProfileId: pid };
-                if (selectedMatch.type === 'playoff') update.playoffGamesPlayed = increment(-1);
-                else update.seasonGamesPlayed = increment(-1);
-                
+                const update: any = { userProfileId: pid, historicalGamesPlayed: increment(-1), [`${typePrefix}GamesPlayed`]: increment(-1) };
                 let g = 0, a = 0;
                 selectedMatch.scorers?.forEach(s => { if (s.goal === pid) g++; if (s.assist === pid) a++; });
-                if (g > 0) { update.historicalGoals = increment(-g); if (selectedMatch.type === 'playoff') update.playoffGoals = increment(-g); else update.seasonGoals = increment(-g); }
-                if (a > 0) { update.historicalAssists = increment(-a); if (selectedMatch.type === 'playoff') update.playoffAssists = increment(-a); else update.seasonAssists = increment(-a); }
+                if (g > 0) { update.historicalGoals = increment(-g); update[`${typePrefix}Goals`] = increment(-g); }
+                if (a > 0) { update.historicalAssists = increment(-a); update[`${typePrefix}Assists`] = increment(-a); }
                 batch.set(doc(firestore, 'users', pid, 'skaterStats', 'stats'), update, { merge: true });
             }
             if (selectedMatch.goalieId) {
                 const win = (selectedMatch.team1Score || 0) > (selectedMatch.team2Score || 0);
-                const u: any = { historicalGamesPlayed: increment(-1), historicalWins: win ? increment(-1) : increment(0), historicalSaves: increment(-(selectedMatch.goalieSaves || 0)), historicalShotsAgainst: increment(-(selectedMatch.goalieShotsAgainst || 0)), userProfileId: selectedMatch.goalieId };
-                if (selectedMatch.type === 'playoff') { u.playoffGamesPlayed = increment(-1); if (win) u.playoffWins = increment(-1); u.playoffSaves = increment(-(selectedMatch.goalieSaves || 0)); u.playoffShotsAgainst = increment(-(selectedMatch.goalieShotsAgainst || 0)); }
-                else { u.seasonGamesPlayed = increment(-1); if (win) u.seasonWins = increment(-1); u.seasonSaves = increment(-(selectedMatch.goalieSaves || 0)); u.seasonShotsAgainst = increment(-(selectedMatch.goalieShotsAgainst || 0)); }
-                batch.set(doc(firestore, 'users', selectedMatch.goalieId, 'goalieStats', 'stats'), u, { merge: true });
+                batch.set(doc(firestore, 'users', selectedMatch.goalieId, 'goalieStats', 'stats'), { 
+                    userProfileId: selectedMatch.goalieId,
+                    historicalGamesPlayed: increment(-1),
+                    historicalWins: win ? increment(-1) : increment(0),
+                    historicalSaves: increment(-(selectedMatch.goalieSaves || 0)),
+                    historicalShotsAgainst: increment(-(selectedMatch.goalieShotsAgainst || 0)),
+                    [`${typePrefix}GamesPlayed`]: increment(-1),
+                    [`${typePrefix}Wins`]: win ? increment(-1) : increment(0),
+                    [`${typePrefix}Saves`]: increment(-(selectedMatch.goalieSaves || 0)),
+                    [`${typePrefix}ShotsAgainst`]: increment(-(selectedMatch.goalieShotsAgainst || 0))
+                }, { merge: true });
             }
             batch.delete(doc(firestore, 'matches', selectedMatch.id));
             await batch.commit();
-            toast({ title: "Zápas smazán." });
-        } catch (error: any) { toast({ variant: 'destructive', title: "Chyba", description: error.message }); }
-        finally { setIsSaving(false); setIsDeleteDialogOpen(false); setSelectedMatch(null); }
+            toast({ title: "Zápas smazán a statistiky stornovány." });
+        } catch (error: any) { 
+            toast({ variant: 'destructive', title: "Chyba", description: error.message }); 
+        } finally { 
+            setIsSaving(false); setIsDeleteDialogOpen(false); setSelectedMatch(null); 
+        }
     }
 
     const handleResultSave = async (e: React.FormEvent<HTMLFormElement>, isNew: boolean = false) => {
@@ -299,7 +309,7 @@ function HistoryPageContent() {
                                 const { prefix, opponent } = getMatchDetails(m);
                                 return (
                                     <AccordionItem value={m.id} key={m.id} className="relative group">
-                                        <div className="flex items-center w-full border-b relative">
+                                        <div className="flex items-center w-full border-b">
                                             <AccordionTrigger className="flex-1 text-left hover:no-underline px-4">
                                                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full pr-12 gap-2">
                                                     <div className="flex-1">
@@ -324,7 +334,7 @@ function HistoryPageContent() {
                                                             </Button>
                                                         </DropdownMenuTrigger>
                                                         <DropdownMenuContent align="end">
-                                                            <DropdownMenuItem onClick={() => { setSelectedMatch(m); setEditMatchType(m.type); setIsEditDialogOpen(true); }}>
+                                                            <DropdownMenuItem onClick={() => { setSelectedMatch(m); setIsEditDialogOpen(true); }}>
                                                                 <Pencil className="mr-2 h-4" /> Upravit výsledek
                                                             </DropdownMenuItem>
                                                             <DropdownMenuItem onClick={() => { setLineupMatch(m); setIsLineupBuilderOpen(true); }}>
