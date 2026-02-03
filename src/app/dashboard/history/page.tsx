@@ -66,22 +66,12 @@ function getMatchDetails(match: Match) {
 
 function MatchResultFormFields({ match, allUsers, onGoalCountChange }: { match?: Partial<Match>, allUsers: UserProfile[], onGoalCountChange: (count: number) => void }) {
     const [goalCount, setGoalCount] = useState(match?.team1Score || 0);
-    const [selectedScorers, setSelectedScorers] = useState<Record<number, string | null>>(() => {
-        const initialScorers: Record<number, string | null> = {};
-        match?.scorers?.forEach((scorer, index) => { if (scorer.goal) initialScorers[index] = scorer.goal; });
-        return initialScorers;
-    });
-    const goalies = useMemo(() => allUsers.filter(u => u.playerType === 'goalie'), [allUsers]);
     const skaters = useMemo(() => allUsers.filter(u => u.playerType === 'player'), [allUsers]);
     
     const handleGoalCountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const newCount = parseInt(e.target.value, 10) || 0;
         setGoalCount(newCount);
         onGoalCountChange(newCount);
-    };
-    
-    const handleScorerChange = (index: number, scorerId: string) => { 
-        setSelectedScorers(prev => ({ ...prev, [index]: scorerId })); 
     };
 
     return (
@@ -96,10 +86,11 @@ function MatchResultFormFields({ match, allUsers, onGoalCountChange }: { match?:
                     <Input id="team2Score" name="team2Score" type="number" className="text-center text-2xl font-bold h-16" min="0" required defaultValue={match?.team2Score} />
                 </div>
             </div>
+            <p className="text-xs text-muted-foreground italic text-center px-4 mt-2">Zde pouze zaznamenáváte výsledek a střelce pro detail zápasu. Žádná data se nepropisují do kanadského bodování automaticky.</p>
             {goalCount > 0 && <p className="font-medium mt-4">Střelci a asistence (Aces)</p>}
             {Array.from({ length: goalCount }).map((_, index) => (
                 <div key={index} className="grid grid-cols-2 gap-2 items-center">
-                    <Select name={`goal-${index}`} required defaultValue={match?.scorers?.[index]?.goal} onValueChange={(value) => handleScorerChange(index, value)}>
+                    <Select name={`goal-${index}`} defaultValue={match?.scorers?.[index]?.goal}>
                         <SelectTrigger><SelectValue placeholder={`Gól ${index + 1}`} /></SelectTrigger>
                         <SelectContent>{skaters.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}</SelectContent>
                     </Select>
@@ -107,25 +98,11 @@ function MatchResultFormFields({ match, allUsers, onGoalCountChange }: { match?:
                         <SelectTrigger><SelectValue placeholder="Asistence" /></SelectTrigger>
                         <SelectContent>
                             <SelectItem value="none">Žádná</SelectItem>
-                            {skaters.filter(u => u.id !== selectedScorers[index]).map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+                            {skaters.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
                         </SelectContent>
                     </Select>
                 </div>
             ))}
-             <p className="font-medium mt-4">Statistiky brankáře</p>
-             <div className="grid grid-cols-2 gap-2 items-center">
-                <Select name="goalieId" defaultValue={match?.goalieId || 'none'}>
-                    <SelectTrigger><SelectValue placeholder="Vyberte brankáře" /></SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="none">Žádný</SelectItem>
-                        {goalies.map(g => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
-                    </SelectContent>
-                </Select>
-             </div>
-             <div className="grid grid-cols-2 gap-2 items-center">
-                <div className="grid gap-1"><Label htmlFor="goalieShotsAgainst">Střely</Label><Input id="goalieShotsAgainst" name="goalieShotsAgainst" type="number" min="0" defaultValue={match?.goalieShotsAgainst} /></div>
-                <div className="grid gap-1"><Label htmlFor="goalieSaves">Zásahy</Label><Input id="goalieSaves" name="goalieSaves" type="number" min="0" defaultValue={match?.goalieSaves} /></div>
-            </div>
         </div>
     )
 }
@@ -170,21 +147,8 @@ function HistoryPageContent() {
         if (!lineupMatch || !firestore) return;
         setIsSaving(true);
         try {
-            const batch = writeBatch(firestore);
-            batch.update(doc(firestore, 'matches', lineupMatch.id), { lineup });
-            
-            const participants = new Set(Object.values(lineup).filter(p => p !== null).map(p => p!.id));
-            const typePrefix = lineupMatch.type === 'playoff' ? 'playoff' : 'season';
-
-            participants.forEach(pid => {
-                batch.set(doc(firestore, 'users', pid, 'skaterStats', 'stats'), {
-                    userProfileId: pid,
-                    historicalGamesPlayed: increment(1),
-                    [`${typePrefix}GamesPlayed`]: increment(1)
-                }, { merge: true });
-            });
-            await batch.commit();
-            toast({ title: "Sestava uložena a zápasy připsány." });
+            await updateDoc(doc(firestore, 'matches', lineupMatch.id), { lineup });
+            toast({ title: "Sestava uložena." });
         } catch (error: any) { 
             toast({ variant: 'destructive', title: "Chyba", description: error.message }); 
         } finally { 
@@ -196,38 +160,8 @@ function HistoryPageContent() {
         if (!selectedMatch || !firestore) return;
         setIsSaving(true);
         try {
-            const batch = writeBatch(firestore);
-            const participants = new Set<string>();
-            if (selectedMatch.lineup) Object.values(selectedMatch.lineup).forEach(p => { if(p) participants.add(p.id); });
-            selectedMatch.scorers?.forEach(s => { if (s.goal) participants.add(s.goal); if (s.assist) participants.add(s.assist); });
-            if (selectedMatch.goalieId) participants.add(selectedMatch.goalieId);
-
-            const typePrefix = selectedMatch.type === 'playoff' ? 'playoff' : 'season';
-            for (const pid of participants) {
-                const update: any = { userProfileId: pid, historicalGamesPlayed: increment(-1), [`${typePrefix}GamesPlayed`]: increment(-1) };
-                let g = 0, a = 0;
-                selectedMatch.scorers?.forEach(s => { if (s.goal === pid) g++; if (s.assist === pid) a++; });
-                if (g > 0) { update.historicalGoals = increment(-g); update[`${typePrefix}Goals`] = increment(-g); }
-                if (a > 0) { update.historicalAssists = increment(-a); update[`${typePrefix}Assists`] = increment(-a); }
-                batch.set(doc(firestore, 'users', pid, 'skaterStats', 'stats'), update, { merge: true });
-            }
-            if (selectedMatch.goalieId) {
-                const win = (selectedMatch.team1Score || 0) > (selectedMatch.team2Score || 0);
-                batch.set(doc(firestore, 'users', selectedMatch.goalieId, 'goalieStats', 'stats'), { 
-                    userProfileId: selectedMatch.goalieId,
-                    historicalGamesPlayed: increment(-1),
-                    historicalWins: win ? increment(-1) : increment(0),
-                    historicalSaves: increment(-(selectedMatch.goalieSaves || 0)),
-                    historicalShotsAgainst: increment(-(selectedMatch.goalieShotsAgainst || 0)),
-                    [`${typePrefix}GamesPlayed`]: increment(-1),
-                    [`${typePrefix}Wins`]: win ? increment(-1) : increment(0),
-                    [`${typePrefix}Saves`]: increment(-(selectedMatch.goalieSaves || 0)),
-                    [`${typePrefix}ShotsAgainst`]: increment(-(selectedMatch.goalieShotsAgainst || 0))
-                }, { merge: true });
-            }
-            batch.delete(doc(firestore, 'matches', selectedMatch.id));
-            await batch.commit();
-            toast({ title: "Zápas smazán a statistiky stornovány." });
+            await deleteDoc(doc(firestore, 'matches', selectedMatch.id));
+            toast({ title: "Zápas smazán." });
         } catch (error: any) { 
             toast({ variant: 'destructive', title: "Chyba", description: error.message }); 
         } finally { 
@@ -244,47 +178,23 @@ function HistoryPageContent() {
             const mType = fd.get('type') as any;
             const t1Score = parseInt(fd.get('team1Score') as string, 10);
             const t2Score = parseInt(fd.get('team2Score') as string, 10);
-            const goalieId = fd.get('goalieId') as string;
-            const gId = (goalieId && goalieId !== 'none') ? goalieId : null;
-            const gSaves = parseInt(fd.get('goalieSaves') as string, 10) || 0;
-            const gShots = parseInt(fd.get('goalieShotsAgainst') as string, 10) || 0;
             const newScorers: any[] = [];
             for (let i = 0; i < t1Score; i++) {
                 const goal = fd.get(`goal-${i}`) as string;
                 const assist = fd.get(`assist-${i}`) as string;
                 if (goal) newScorers.push({ goal, assist: (assist && assist !== 'none') ? assist : null });
             }
-            const batch = writeBatch(firestore);
-            const typePrefix = mType === 'playoff' ? 'playoff' : 'season';
-            const participants = new Set<string>();
-            newScorers.forEach(s => { if(s.goal) participants.add(s.goal); if(s.assist) participants.add(s.assist); });
-            if (gId) participants.add(gId);
 
-            for (const pid of participants) {
-                const p = { userProfileId: pid, historicalGamesPlayed: increment(1), [`${typePrefix}GamesPlayed`]: increment(1) };
-                let g = 0, a = 0;
-                newScorers.forEach(s => { if(s.goal === pid) g++; if(s.assist === pid) a++; });
-                if (g > 0) { (p as any).historicalGoals = increment(g); (p as any)[`${typePrefix}Goals`] = increment(g); }
-                if (a > 0) { (p as any).historicalAssists = increment(a); (p as any)[`${typePrefix}Assists`] = increment(a); }
-                batch.set(doc(firestore, 'users', pid, 'skaterStats', 'stats'), p, { merge: true });
-            }
-            if (gId) {
-                const win = t1Score > t2Score;
-                batch.set(doc(firestore, 'users', gId, 'goalieStats', 'stats'), { userProfileId: gId, historicalGamesPlayed: increment(1), historicalWins: increment(win ? 1 : 0), historicalSaves: increment(gSaves), historicalShotsAgainst: increment(gShots), [`${typePrefix}GamesPlayed`]: increment(1), [`${typePrefix}Wins`]: increment(win ? 1 : 0), [`${typePrefix}Saves`]: increment(gSaves), [`${typePrefix}ShotsAgainst`]: increment(gShots) }, { merge: true });
-            }
-
-            const common: any = { type: mType, team1Score: t1Score, team2Score: t2Score, scorers: newScorers, goalieId: gId, goalieSaves: gSaves, goalieShotsAgainst: gShots, isPlayed: true };
+            const common: any = { type: mType, team1Score: t1Score, team2Score: t2Score, scorers: newScorers, isPlayed: true };
             if (mType === 'regular') common.round = Number(fd.get('round')) || null;
             else if (mType === 'playoff') { common.playoffStage = fd.get('playoffStage'); common.playoffMatchNumber = Number(fd.get('playoffMatchNumber')) || null; }
             
             if (isNew) {
-                const mRef = doc(collection(firestore, 'matches'));
                 const dt = parse(`${fd.get('date')} ${fd.get('time')}`, 'yyyy-MM-dd HH:mm', new Date());
-                batch.set(mRef, { id: mRef.id, team1: 'Aces', team2: fd.get('opponent'), location: fd.get('location'), dateTime: Timestamp.fromDate(dt), ...common });
+                await addDoc(collection(firestore, 'matches'), { team1: 'Aces', team2: fd.get('opponent'), location: fd.get('location'), dateTime: Timestamp.fromDate(dt), ...common });
             } else if (selectedMatch) {
-                batch.update(doc(firestore, 'matches', selectedMatch.id), common);
+                await updateDoc(doc(firestore, 'matches', selectedMatch.id), common);
             }
-            await batch.commit();
             toast({ title: isNew ? "Zápas přidán." : "Aktualizováno." });
         } catch (error: any) { toast({ variant: 'destructive', title: "Chyba", description: error.message }); }
         finally { setIsSaving(false); setIsAddDialogOpen(false); setIsEditDialogOpen(false); setSelectedMatch(null); }
@@ -298,7 +208,7 @@ function HistoryPageContent() {
                 <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div>
                         <CardTitle>Historie</CardTitle>
-                        <CardDescription>Všechny odehrané zápasy a výsledky.</CardDescription>
+                        <CardDescription>Odehrané zápasy (statistiky hráčů upravte ručně na nástěnce).</CardDescription>
                     </div>
                     {userProfile?.role === 'admin' && <Button onClick={() => setIsAddDialogOpen(true)}><Plus className="mr-2 h-4" />Přidat odehraný zápas</Button>}
                 </CardHeader>
@@ -309,8 +219,8 @@ function HistoryPageContent() {
                                 const { prefix, opponent } = getMatchDetails(m);
                                 return (
                                     <AccordionItem value={m.id} key={m.id} className="relative">
-                                        <div className="flex items-center w-full border-b relative">
-                                            <AccordionTrigger className="flex-1 text-left hover:no-underline px-4">
+                                        <div className="flex items-center w-full relative">
+                                            <AccordionTrigger className="flex-1 text-left hover:no-underline px-4 border-b">
                                                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full pr-12 gap-2">
                                                     <div className="flex-1">
                                                         <p className="text-[10px] text-muted-foreground uppercase">{format(m.dateTime.toDate(), "d. M. yyyy")}</p>
@@ -318,7 +228,7 @@ function HistoryPageContent() {
                                                         <p className="font-semibold">{opponent}</p>
                                                     </div>
                                                     <div className="flex items-center gap-3">
-                                                        <strong className="text-lg">{m.team1Score} : {m.team2Score}</strong>
+                                                        <strong className="text-lg">{String(m.team1Score)} : {String(m.team2Score)}</strong>
                                                         <Badge variant={(m.team1Score || 0) > (m.team2Score || 0) ? 'default' : 'destructive'}>
                                                             {(m.team1Score || 0) > (m.team2Score || 0) ? 'Výhra' : 'Prohra'}
                                                         </Badge>
@@ -368,22 +278,14 @@ function HistoryPageContent() {
                                                         <p className="text-muted-foreground text-sm italic">Žádné góly nebyly zaznamenány.</p>
                                                     )}
                                                 </div>
-                                                <div className="space-y-4">
-                                                    {m.goalieId && (
-                                                        <div>
-                                                            <h4 className="font-semibold flex items-center gap-2 mb-2"><ShieldCheck className="h-4 text-primary" /> Brankář</h4>
-                                                            <p className="text-sm font-medium">{usersMap.get(m.goalieId)}</p>
-                                                            <p className="text-xs text-muted-foreground">Zákroky: {m.goalieSaves} / {m.goalieShotsAgainst} ({m.goalieShotsAgainst ? ((m.goalieSaves! / m.goalieShotsAgainst!) * 100).toFixed(2) : 0} %)</p>
-                                                        </div>
-                                                    )}
+                                                <div className="space-y-4 text-right">
                                                     {m.lineup && (
                                                         <Button 
                                                             variant="outline" 
                                                             size="sm" 
-                                                            className="w-full sm:w-auto"
                                                             onClick={() => { setViewLineupData(m.lineup!); setViewScorersData(m.scorers); setViewMatchOpponent(getMatchDetails(m).opponent); setIsLineupViewOpen(true); }}
                                                         >
-                                                            <View className="mr-2 h-4" /> Zobrazit celou sestavu
+                                                            <View className="mr-2 h-4" /> Zobrazit sestavu
                                                         </Button>
                                                     )}
                                                 </div>

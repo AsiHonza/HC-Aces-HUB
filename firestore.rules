@@ -1,31 +1,17 @@
 
-/**
- * Core Philosophy: This ruleset enforces a strict user-ownership model for all
- * user-specific data, while allowing public read access for shared data like matches.
- * The primary goal is to ensure that users can only access and manage their own
- * information, preventing any unauthorized access to other users' data.
- *
- * Data Structure: Private user data, including profiles and player statistics, is
- * hierarchically organized under the /users/{userId} path. This structure naturally
- * scopes access control. Publicly shared data, such as hockey matches, is stored in a
- * separate top-level collection (/matches) to enable simple, performant public queries.
- */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions for improved readability and reusability
     function isSignedIn() {
       return request.auth != null;
     }
     
-    // Checks if the user is an admin by reading their profile role
     function isAdmin() {
       return isSignedIn() && 
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // Checks if the requesting user's UID matches the document's owner ID
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
@@ -36,25 +22,22 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      // Critical: Allow get for all signed-in users to enable role checks and leaderboard without recursion
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
+      allow get, list: if isSignedIn();
       allow create: if isOwner(userId);
       allow update: if isOwner(userId) || isAdmin();
       allow delete: if isAdmin();
 
       match /skaterStats/{skaterStatsId} {
         allow read: if isSignedIn();
-        allow write: if isOwner(userId) || isAdmin();
+        allow write: if isAdmin();
       }
       
       match /goalieStats/{goalieStatsId} {
         allow read: if isSignedIn();
-        allow write: if isOwner(userId) || isAdmin();
+        allow write: if isAdmin();
       }
     }
 
-    // Collection group rules for global statistics
     match /{path=**}/skaterStats/{statsId} {
         allow read: if isSignedIn();
     }
