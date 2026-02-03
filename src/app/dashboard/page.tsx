@@ -1,4 +1,3 @@
-
 'use client'
 
 import React, { Suspense, useState, useMemo, useEffect, useRef, useCallback } from 'react'
@@ -897,7 +896,7 @@ function DashboardPageContent() {
           goalieShotsAgainst,
       });
       
-      const allSkaterStatsMap = new Map(allSkaterStats.map(s => [s.userProfileId, s]));
+      const allSkaterStatsMap = new Map(allSkaterStats.map(s => [s.userProfileId, s.id]));
       const playerStatUpdates = new Map<string, { goals: number, assists: number }>();
       scorersData.forEach(s => {
           if (s.goal) {
@@ -911,19 +910,19 @@ function DashboardPageContent() {
       });
 
       for (const [userId, updates] of playerStatUpdates.entries()) {
-          const userStats = allSkaterStatsMap.get(userId);
-          if (userStats) {
-              const statDocRef = doc(firestore, 'users', userId, 'skaterStats', userStats.id);
+          const userStatsId = allSkaterStatsMap.get(userId);
+          if (userStatsId) {
+              const statDocRef = doc(firestore, 'users', userId, 'skaterStats', userStatsId);
               const update: any = {
-                  historicalGoals: (userStats.historicalGoals || 0) + updates.goals,
-                  historicalAssists: (userStats.historicalAssists || 0) + updates.assists,
+                  historicalGoals: (allSkaterStats.find(s => s.id === userStatsId)?.historicalGoals || 0) + updates.goals,
+                  historicalAssists: (allSkaterStats.find(s => s.id === userStatsId)?.historicalAssists || 0) + updates.assists,
               };
               if (selectedMatch.type === 'playoff') {
-                  update.playoffGoals = (userStats.playoffGoals || 0) + updates.goals;
-                  update.playoffAssists = (userStats.playoffAssists || 0) + updates.assists;
+                  update.playoffGoals = (allSkaterStats.find(s => s.id === userStatsId)?.playoffGoals || 0) + updates.goals;
+                  update.playoffAssists = (allSkaterStats.find(s => s.id === userStatsId)?.playoffAssists || 0) + updates.assists;
               } else if (selectedMatch.type === 'regular') {
-                  update.seasonGoals = (userStats.seasonGoals || 0) + updates.goals;
-                  update.seasonAssists = (userStats.seasonAssists || 0) + updates.assists;
+                  update.seasonGoals = (allSkaterStats.find(s => s.id === userStatsId)?.seasonGoals || 0) + updates.goals;
+                  update.seasonAssists = (allSkaterStats.find(s => s.id === userStatsId)?.seasonAssists || 0) + updates.assists;
               }
               batch.update(statDocRef, update);
           }
@@ -934,14 +933,14 @@ function DashboardPageContent() {
           if (att.status !== 'going') return;
           const userForStat = allUsers?.find(u => u.id === att.userId);
           if (userForStat?.playerType === 'player') {
-              const userStats = allSkaterStatsMap.get(att.userId);
-              if (userStats) {
-                  const statDocRef = doc(firestore, 'users', att.userId, 'skaterStats', userStats.id);
-                  const update: any = { historicalGamesPlayed: (userStats.historicalGamesPlayed || 0) + 1 };
+              const userStatsId = allSkaterStatsMap.get(att.userId);
+              if (userStatsId) {
+                  const statDocRef = doc(firestore, 'users', att.userId, 'skaterStats', userStatsId);
+                  const update: any = { historicalGamesPlayed: (allSkaterStats.find(s => s.id === userStatsId)?.historicalGamesPlayed || 0) + 1 };
                   if (selectedMatch.type === 'playoff') {
-                      update.playoffGamesPlayed = (userStats.playoffGamesPlayed || 0) + 1;
+                      update.playoffGamesPlayed = (allSkaterStats.find(s => s.id === userStatsId)?.playoffGamesPlayed || 0) + 1;
                   } else if (selectedMatch.type === 'regular') {
-                      update.seasonGamesPlayed = (userStats.seasonGamesPlayed || 0) + 1;
+                      update.seasonGamesPlayed = (allSkaterStats.find(s => s.id === userStatsId)?.seasonGamesPlayed || 0) + 1;
                   }
                   batch.update(statDocRef, update);
               }
@@ -949,8 +948,9 @@ function DashboardPageContent() {
       });
       
       if (goalieId && goalieId !== 'none') {
-          const allGoalieStatsMap = new Map(allGoalieStats.map(s => [s.userProfileId, s]));
-          const goalieStats = allGoalieStatsMap.get(goalieId);
+          const allGoalieStatsMap = new Map(allGoalieStats.map(s => [s.userProfileId, s.id]));
+          const goalieStatsId = allGoalieStatsMap.get(goalieId);
+          const goalieStats = allGoalieStats.find(s => s.id === goalieStatsId);
           const isWin = team1Score > team2Score;
           
           const update: any = {
@@ -972,8 +972,8 @@ function DashboardPageContent() {
               update.seasonShotsAgainst = ((goalieStats?.seasonShotsAgainst) || 0) + goalieShotsAgainst;
           }
 
-          if (goalieStats) {
-              const statDocRef = doc(firestore, 'users', goalieId, 'goalieStats', goalieStats.id);
+          if (goalieStatsId) {
+              const statDocRef = doc(firestore, 'users', goalieId, 'goalieStats', goalieStatsId);
               batch.update(statDocRef, update);
           } else {
                const statDocRef = doc(firestore, 'users', goalieId, 'goalieStats', 'stats');
@@ -1227,9 +1227,9 @@ function DashboardPageContent() {
                             <span className="sr-only">Sdílet</span>
                         </Button>
                         {userProfile?.role === 'admin' && (
-                            <DropdownMenu>
+                            <DropdownMenu modal={false}>
                                 <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={(e) => e.stopPropagation()}>
                                         <MoreHorizontal className="h-4 w-4" />
                                     </Button>
                                 </DropdownMenuTrigger>
@@ -1974,7 +1974,7 @@ function DashboardPageContent() {
                         <Label htmlFor="type-edit" className="text-right">Typ zápasu</Label>
                         <Select name="type" required value={editMatchType} onValueChange={(val) => setEditMatchType(val as Match['type'])}>
                             <SelectTrigger className="col-span-3">
-                                <SelectValue />
+                                <SelectValue placeholder="Vyberte typ" />
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="regular">Základní část</SelectItem>
@@ -2171,5 +2171,3 @@ export default function DashboardPage() {
     </Suspense>
   )
 }
-
-    

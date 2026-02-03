@@ -1,4 +1,3 @@
-
 'use client'
 
 import { Suspense, useMemo, useState } from 'react'
@@ -683,7 +682,7 @@ function HistoryPageContent() {
                                                     {renderMatchTypeBadge(match.type)}
                                                 </div>
                                                 {userProfile?.role === 'admin' && (
-                                                    <DropdownMenu modal={true}>
+                                                    <DropdownMenu modal={false}>
                                                         <DropdownMenuTrigger asChild>
                                                             <div
                                                               onClick={(e) => { e.preventDefault(); e.stopPropagation() }}
@@ -1007,5 +1006,3 @@ export default function HistoryPage() {
         </Suspense>
     )
 }
-
-    
