@@ -88,15 +88,20 @@ interface Attendance {
     note?: string;
 }
 
-function getEnhancedMatchTitle(match: Match) {
+function getMatchDetails(match: Match) {
     let prefix = '';
     if (match.type === 'regular' && match.round) {
-        prefix = `[${match.round}. kolo] `;
+        prefix = `${match.round}. kolo`;
     } else if (match.type === 'playoff' && match.playoffStage) {
         const stage = match.playoffStage.charAt(0).toUpperCase() + match.playoffStage.slice(1);
-        prefix = `[${stage}${match.playoffMatchNumber ? ` - ${match.playoffMatchNumber}. zápas` : ''}] `;
+        prefix = `${stage}${match.playoffMatchNumber ? ` - ${match.playoffMatchNumber}. zápas` : ''}`;
     }
-    return `${prefix}${match.team1} vs ${match.team2}`;
+    const opponent = match.team1 === 'Aces' ? match.team2 : match.team1;
+    return { 
+        prefix, 
+        opponent, 
+        fullTitle: prefix ? `[${prefix}] ${opponent}` : opponent 
+    };
 }
 
 function MatchResultFormFields({ match, allUsers, onGoalCountChange }: { match?: Partial<Match>, allUsers: UserProfile[], onGoalCountChange: (count: number) => void }) {
@@ -204,7 +209,8 @@ function HistoryPageContent() {
     const [lineupMatch, setLineupMatch] = useState<Match | null>(null);
     const [viewLineupData, setViewLineupData] = useState<Lineup | null>(null);
     const [viewScorersData, setViewScorersData] = useState<Match['scorers'] | undefined>(undefined);
-    const [viewMatchTitle, setViewMatchTitle] = useState('');
+    const [viewMatchPrefix, setViewMatchPrefix] = useState('');
+    const [viewMatchOpponent, setViewMatchOpponent] = useState('');
 
     const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
     const { data: userProfile, isLoading: userProfileLoading } = useDoc<UserProfile>(userDocRef);
@@ -276,9 +282,11 @@ function HistoryPageContent() {
 
     const handleViewLineup = (match: Match) => {
         if (match.lineup) {
+          const { prefix, opponent } = getMatchDetails(match);
           setViewLineupData(match.lineup);
           setViewScorersData(match.scorers);
-          setViewMatchTitle(getEnhancedMatchTitle(match));
+          setViewMatchPrefix(prefix);
+          setViewMatchOpponent(opponent);
           setIsLineupViewOpen(true);
         }
     };
@@ -667,93 +675,97 @@ function HistoryPageContent() {
                 <CardContent>
                     {matches && matches.length > 0 ? (
                         <Accordion type="single" collapsible className="w-full">
-                            {matches.map(match => (
-                                <AccordionItem value={match.id} key={match.id}>
-                                    <AccordionTrigger className="hover:no-underline text-left">
-                                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full pr-2 gap-y-1 gap-x-2">
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-xs text-muted-foreground">{format(match.dateTime.toDate(), "d. M. yy", { locale: cs })}</p>
-                                                <p className="font-semibold truncate">{getEnhancedMatchTitle(match)}</p>
-                                            </div>
-                                            <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-sm sm:text-base font-bold font-mono">{match.team1Score} : {match.team2Score}</span>
-                                                    <Badge variant={getResultBadgeVariant(match.team1Score, match.team2Score)}>{getResultText(match.team1Score, match.team2Score)}</Badge>
-                                                    {renderMatchTypeBadge(match.type)}
+                            {matches.map(match => {
+                                const { prefix, opponent, fullTitle } = getMatchDetails(match);
+                                return (
+                                    <AccordionItem value={match.id} key={match.id}>
+                                        <AccordionTrigger className="hover:no-underline text-left">
+                                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full pr-2 gap-y-1 gap-x-2">
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-[10px] text-muted-foreground uppercase leading-none mb-1">{format(match.dateTime.toDate(), "d. M. yy", { locale: cs })}</p>
+                                                    {prefix && <p className="text-[9px] font-bold text-primary uppercase leading-tight mb-0.5">{prefix}</p>}
+                                                    <p className="font-semibold truncate text-base">{opponent}</p>
                                                 </div>
-                                                {userProfile?.role === 'admin' && (
-                                                    <DropdownMenu modal={false}>
-                                                        <DropdownMenuTrigger asChild>
-                                                            <div
-                                                              onClick={(e) => { e.preventDefault(); e.stopPropagation() }}
-                                                              className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "h-8 w-8")}
-                                                            >
-                                                                <MoreHorizontal className="h-4 w-4" />
-                                                            </div>
-                                                        </DropdownMenuTrigger>
-                                                        <DropdownMenuContent align="end">
-                                                            <DropdownMenuItem onClick={(e) => {e.stopPropagation(); handleEditMatch(match)}}>
-                                                                <Pencil className="mr-2 h-4 w-4" /> Upravit výsledek
-                                                            </DropdownMenuItem>
-                                                            <DropdownMenuItem onClick={(e) => {e.stopPropagation(); handleEditLineup(match)}}>
-                                                                <Users className="mr-2 h-4 w-4" /> Upravit sestavu
-                                                            </DropdownMenuItem>
-                                                            <DropdownMenuItem onClick={(e) => {e.stopPropagation(); handleDeleteMatch(match)}} className="text-destructive">
-                                                                <Trash2 className="mr-2 h-4 w-4" /> Smazat
-                                                            </DropdownMenuItem>
-                                                        </DropdownMenuContent>
-                                                    </DropdownMenu>
+                                                <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-sm sm:text-base font-bold font-mono">{match.team1Score} : {match.team2Score}</span>
+                                                        <Badge variant={getResultBadgeVariant(match.team1Score, match.team2Score)}>{getResultText(match.team1Score, match.team2Score)}</Badge>
+                                                        {renderMatchTypeBadge(match.type)}
+                                                    </div>
+                                                    {userProfile?.role === 'admin' && (
+                                                        <DropdownMenu modal={false}>
+                                                            <DropdownMenuTrigger asChild>
+                                                                <div
+                                                                  onClick={(e) => { e.preventDefault(); e.stopPropagation() }}
+                                                                  className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "h-8 w-8")}
+                                                                >
+                                                                    <MoreHorizontal className="h-4 w-4" />
+                                                                </div>
+                                                            </DropdownMenuTrigger>
+                                                            <DropdownMenuContent align="end">
+                                                                <DropdownMenuItem onClick={(e) => {e.stopPropagation(); handleEditMatch(match)}}>
+                                                                    <Pencil className="mr-2 h-4 w-4" /> Upravit výsledek
+                                                                </DropdownMenuItem>
+                                                                <DropdownMenuItem onClick={(e) => {e.stopPropagation(); handleEditLineup(match)}}>
+                                                                    <Users className="mr-2 h-4 w-4" /> Upravit sestavu
+                                                                </DropdownMenuItem>
+                                                                <DropdownMenuItem onClick={(e) => {e.stopPropagation(); handleDeleteMatch(match)}} className="text-destructive">
+                                                                    <Trash2 className="mr-2 h-4 w-4" /> Smazat
+                                                                </DropdownMenuItem>
+                                                            </DropdownMenuContent>
+                                                        </DropdownMenu>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </AccordionTrigger>
+                                        <AccordionContent className="pl-4 border-l ml-2 text-sm">
+                                            <div className="grid gap-4 pt-2">
+                                                <div>
+                                                    <h4 className="font-semibold flex items-center gap-2 mb-2"><Trophy className="h-5 w-5 text-primary" />Kanadské bodování zápasu (Aces)</h4>
+                                                    {match.scorers && match.scorers.length > 0 ? (
+                                                        <ul className="space-y-2">
+                                                            {match.scorers.map((scorer, i) => (
+                                                                <li key={i} className="flex items-center gap-2">
+                                                                    <Disc className="h-4 w-4 text-primary" />
+                                                                    <span className="font-medium">{usersMap.get(scorer.goal) || 'Neznámý hráč'}</span>
+                                                                    {scorer.assist && (
+                                                                        <span className="ml-2 flex items-center gap-1.5 text-muted-foreground">
+                                                                            <span className="font-bold text-accent text-base">A</span>
+                                                                            <span>{usersMap.get(scorer.assist) || 'Neznámý'}</span>
+                                                                        </span>
+                                                                    )}
+                                                                </li>
+                                                            ))}
+                                                        </ul>
+                                                    ) : <p className="text-muted-foreground">Žádné zaznamenané góly.</p>}
+                                                </div>
+                                                 {match.goalieId && (
+                                                    <div className="mt-4">
+                                                        <h4 className="font-semibold flex items-center gap-2 mb-2"><ShieldCheck className="h-5 w-5 text-primary" />Výkon brankáře</h4>
+                                                        <p>
+                                                            <strong>Brankář:</strong> {usersMap.get(match.goalieId) || 'Neznámý'}
+                                                        </p>
+                                                        <p>
+                                                            <strong>Zásahy:</strong> {match.goalieSaves} / {match.goalieShotsAgainst}
+                                                        </p>
+                                                        <p>
+                                                            <strong>Úspěšnost:</strong> {match.goalieShotsAgainst ? ((match.goalieSaves || 0) / match.goalieShotsAgainst * 100).toFixed(2) : 'N/A'}%
+                                                        </p>
+                                                    </div>
+                                                )}
+                                                {match.lineup && (
+                                                    <div className="mt-4">
+                                                        <Button variant="outline" size="sm" onClick={() => handleViewLineup(match)}>
+                                                            <View className="mr-2 h-4 w-4" />
+                                                            Zobrazit sestavu
+                                                        </Button>
+                                                    </div>
                                                 )}
                                             </div>
-                                        </div>
-                                    </AccordionTrigger>
-                                    <AccordionContent className="pl-4 border-l ml-2 text-sm">
-                                        <div className="grid gap-4 pt-2">
-                                            <div>
-                                                <h4 className="font-semibold flex items-center gap-2 mb-2"><Trophy className="h-5 w-5 text-primary" />Kanadské bodování zápasu (Aces)</h4>
-                                                {match.scorers && match.scorers.length > 0 ? (
-                                                    <ul className="space-y-2">
-                                                        {match.scorers.map((scorer, i) => (
-                                                            <li key={i} className="flex items-center gap-2">
-                                                                <Disc className="h-4 w-4 text-primary" />
-                                                                <span className="font-medium">{usersMap.get(scorer.goal) || 'Neznámý hráč'}</span>
-                                                                {scorer.assist && (
-                                                                    <span className="ml-2 flex items-center gap-1.5 text-muted-foreground">
-                                                                        <span className="font-bold text-accent text-base">A</span>
-                                                                        <span>{usersMap.get(scorer.assist) || 'Neznámý'}</span>
-                                                                    </span>
-                                                                )}
-                                                            </li>
-                                                        ))}
-                                                    </ul>
-                                                ) : <p className="text-muted-foreground">Žádné zaznamenané góly.</p>}
-                                            </div>
-                                             {match.goalieId && (
-                                                <div className="mt-4">
-                                                    <h4 className="font-semibold flex items-center gap-2 mb-2"><ShieldCheck className="h-5 w-5 text-primary" />Výkon brankáře</h4>
-                                                    <p>
-                                                        <strong>Brankář:</strong> {usersMap.get(match.goalieId) || 'Neznámý'}
-                                                    </p>
-                                                    <p>
-                                                        <strong>Zásahy:</strong> {match.goalieSaves} / {match.goalieShotsAgainst}
-                                                    </p>
-                                                    <p>
-                                                        <strong>Úspěšnost:</strong> {match.goalieShotsAgainst ? ((match.goalieSaves || 0) / match.goalieShotsAgainst * 100).toFixed(2) : 'N/A'}%
-                                                    </p>
-                                                </div>
-                                            )}
-                                            {match.lineup && (
-                                                <div className="mt-4">
-                                                    <Button variant="outline" size="sm" onClick={() => handleViewLineup(match)}>
-                                                        <View className="mr-2 h-4 w-4" />
-                                                        Zobrazit sestavu
-                                                    </Button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </AccordionContent>
-                                </AccordionItem>
-                            ))}
+                                        </AccordionContent>
+                                    </AccordionItem>
+                                )
+                            })}
                         </Accordion>
                     ) : (
                         <p className="text-muted-foreground text-center py-8">Zatím nebyly odehrány žádné zápasy.</p>
@@ -858,7 +870,7 @@ function HistoryPageContent() {
                     {selectedMatch && users ? (
                         <form onSubmit={(e) => handleResultSave(e, false)}>
                             <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-4">
-                                <p className="text-center font-bold text-lg">{getEnhancedMatchTitle(selectedMatch)}</p>
+                                <p className="text-center font-bold text-lg">{getMatchDetails(selectedMatch).fullTitle}</p>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="grid gap-2">
                                         <Label htmlFor="type-edit">Typ</Label>
@@ -948,14 +960,18 @@ function HistoryPageContent() {
                     setTimeout(() => {
                         setViewLineupData(null);
                         setViewScorersData(undefined);
-                        setViewMatchTitle('');
+                        setViewMatchPrefix('');
+                        setViewMatchOpponent('');
                     }, 200);
                 }
             }}>
                 <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
                     <DialogHeader>
-                        <DialogTitle>{viewMatchTitle ? `Sestava: ${viewMatchTitle}` : 'Načítání sestavy...'}</DialogTitle>
-                        <DialogDescription>Sestava a body hráčů v zápase.</DialogDescription>
+                        <DialogTitle>{viewMatchOpponent ? `Sestava: ${viewMatchOpponent}` : 'Načítání sestavy...'}</DialogTitle>
+                        <DialogDescription>
+                            {viewMatchPrefix && <span className="block font-bold text-primary uppercase text-xs mb-1">{viewMatchPrefix}</span>}
+                            Sestava a body hráčů v zápase.
+                        </DialogDescription>
                     </DialogHeader>
                     {viewLineupData ? (
                         <LineupDisplay lineup={viewLineupData} scorers={viewScorersData} />
@@ -977,7 +993,7 @@ function HistoryPageContent() {
                      {lineupMatch && users ? (
                         <>
                             <DialogHeader>
-                                <DialogTitle>Upravit sestavu: {getEnhancedMatchTitle(lineupMatch)}</DialogTitle>
+                                <DialogTitle>Upravit sestavu: {getMatchDetails(lineupMatch).opponent}</DialogTitle>
                                 <DialogDescription>Upravte sestavu pro historický zápas. Výběr je možný z celého týmu.</DialogDescription>
                             </DialogHeader>
                             <LineupBuilder

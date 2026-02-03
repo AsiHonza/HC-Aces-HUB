@@ -123,16 +123,20 @@ interface AppSettings {
   leagueStandings?: LeagueStanding[];
 }
 
-function getEnhancedMatchTitle(match: Match) {
+function getMatchDetails(match: Match) {
     let prefix = '';
     if (match.type === 'regular' && match.round) {
-        prefix = `[${match.round}. kolo] `;
+        prefix = `${match.round}. kolo`;
     } else if (match.type === 'playoff' && match.playoffStage) {
         const stage = match.playoffStage.charAt(0).toUpperCase() + match.playoffStage.slice(1);
-        prefix = `[${stage}${match.playoffMatchNumber ? ` - ${match.playoffMatchNumber}. zápas` : ''}] `;
+        prefix = `${stage}${match.playoffMatchNumber ? ` - ${match.playoffMatchNumber}. zápas` : ''}`;
     }
     const opponent = match.team1 === 'Aces' ? match.team2 : match.team1;
-    return `${prefix}${opponent}`;
+    return { 
+        prefix, 
+        opponent, 
+        fullTitle: prefix ? `[${prefix}] ${opponent}` : opponent 
+    };
 }
 
 function RecordResultForm({ match, allUsers, onSave, onCancel, isSaving }: { match: Match, allUsers: UserProfile[], onSave: (e: React.FormEvent<HTMLFormElement>) => Promise<void>, onCancel: () => void, isSaving: boolean }) {
@@ -146,6 +150,8 @@ function RecordResultForm({ match, allUsers, onSave, onCancel, isSaving }: { mat
         setSelectedScorers(prev => ({ ...prev, [index]: scorerId }));
     };
     
+    const { fullTitle } = getMatchDetails(match);
+
     return (
         <form onSubmit={onSave}>
              <DialogHeader>
@@ -155,7 +161,7 @@ function RecordResultForm({ match, allUsers, onSave, onCancel, isSaving }: { mat
                   </DialogDescription>
               </DialogHeader>
             <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-4">
-                <p className="text-center font-bold text-lg">{getEnhancedMatchTitle(match)}</p>
+                <p className="text-center font-bold text-lg">{fullTitle}</p>
                 <div className="grid grid-cols-2 items-center gap-4">
                     <div className="grid gap-2 text-center">
                         <Label htmlFor="team1Score">Aces</Label>
@@ -1205,7 +1211,7 @@ function DashboardPageContent() {
   const fallback = userProfile?.name?.split(' ').map(n => n[0]).join('').toUpperCase() ?? ''
   
   const renderMatchCard = (match: Match) => {
-    const title = getEnhancedMatchTitle(match);
+    const { prefix, opponent } = getMatchDetails(match);
     const attendance = userAttendancesWithOptimistic.get(match.id)?.status;
     const attendeesForMatch = (attendancesByMatch.get(match.id) || []);
     const attendeeCount = attendeesForMatch.filter(a => a.status === 'going').length;
@@ -1217,8 +1223,9 @@ function DashboardPageContent() {
     return (
         <Card id={`match-${match.id}`} className={cn("w-full transition-all", highlightedMatchId === match.id && 'animate-highlight-card')}>
                 <CardHeader className="flex-row items-start justify-between pb-2">
-                    <div className="space-y-1">
-                        <CardTitle className="text-xl break-words pr-2">{title}</CardTitle>
+                    <div className="space-y-0.5">
+                        {prefix && <p className="text-[10px] sm:text-xs font-bold text-primary uppercase tracking-wider leading-none mb-1">{prefix}</p>}
+                        <CardTitle className="text-xl sm:text-2xl font-headline break-words pr-2">{opponent}</CardTitle>
                         <CardDescription className="font-semibold pt-1">{format(match.dateTime.toDate(), "EEEE, d. M. yyyy, HH:mm", { locale: cs })}</CardDescription>
                     </div>
                     <div className="flex items-center">
@@ -1304,7 +1311,7 @@ function DashboardPageContent() {
                                     <DialogHeader>
                                         <DialogTitle>Přihlášení na zápas</DialogTitle>
                                         <DialogDescription>
-                                            {title} - {format(match.dateTime.toDate(), "d. MMMM yyyy", { locale: cs })}
+                                            {opponent} - {format(match.dateTime.toDate(), "d. MMMM yyyy", { locale: cs })}
                                         </DialogDescription>
                                     </DialogHeader>
                                     <div className="max-h-[400px] overflow-y-auto pr-4 space-y-4">
@@ -1569,22 +1576,29 @@ function DashboardPageContent() {
                 {recentPlayedMatches.length > 0 ? (
                     <div className="space-y-4">
                         {recentPlayedMatches.map(match => {
-                            const title = getEnhancedMatchTitle(match);
+                            const { prefix, opponent } = getMatchDetails(match);
                             const hasScorers = match.scorers && match.scorers.length > 0
+                            const matchSummary = (
+                                <>
+                                    <div className="flex-1 text-left min-w-0">
+                                        <p className="text-[10px] text-muted-foreground uppercase mb-0.5">{format(match.dateTime.toDate(), "d. MMMM yyyy", { locale: cs })}</p>
+                                        {prefix && <p className="text-[9px] font-bold text-primary uppercase leading-tight mb-0.5">{prefix}</p>}
+                                        <p className="font-semibold truncate text-base">{opponent}</p>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-sm self-end sm:self-center">
+                                        <span className="text-lg font-bold font-mono">{match.team1Score} : {match.team2Score}</span>
+                                        <Badge variant={getResultBadgeVariant(match.team1Score, match.team2Score)}>{getResultText(match.team1Score, match.team2Score)}</Badge>
+                                    </div>
+                                </>
+                            )
+
                             if (hasScorers) {
                                 return (
                                     <Accordion type="single" collapsible key={match.id}>
                                         <AccordionItem value={match.id} className="border rounded-lg">
                                             <AccordionTrigger className="p-3 hover:no-underline rounded-lg">
                                                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between w-full gap-2">
-                                                    <div className="flex-1 text-left">
-                                                        <p className="text-xs text-muted-foreground">{format(match.dateTime.toDate(), "d. MMMM yyyy", { locale: cs })}</p>
-                                                        <p className="font-semibold">{title}</p>
-                                                    </div>
-                                                    <div className="flex items-center gap-2 text-sm self-end sm:self-center">
-                                                        <span className="text-lg font-bold font-mono">{match.team1Score} : {match.team2Score}</span>
-                                                        <Badge variant={getResultBadgeVariant(match.team1Score, match.team2Score)}>{getResultText(match.team1Score, match.team2Score)}</Badge>
-                                                    </div>
+                                                    {matchSummary}
                                                 </div>
                                             </AccordionTrigger>
                                             <AccordionContent className="px-4 pb-3">
@@ -1610,14 +1624,7 @@ function DashboardPageContent() {
                             }
                             return (
                                 <div key={match.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between rounded-lg border p-3 gap-2">
-                                    <div className="flex-1">
-                                        <p className="text-xs text-muted-foreground">{format(match.dateTime.toDate(), "d. MMMM yyyy", { locale: cs })}</p>
-                                        <p className="font-semibold">{title}</p>
-                                    </div>
-                                    <div className="flex items-center gap-2 text-sm self-end sm:self-center">
-                                        <span className="text-lg font-bold font-mono">{match.team1Score} : {match.team2Score}</span>
-                                        <Badge variant={getResultBadgeVariant(match.team1Score, match.team2Score)}>{getResultText(match.team1Score, match.team2Score)}</Badge>
-                                    </div>
+                                    {matchSummary}
                                 </div>
                             )
                         })}
@@ -2120,7 +2127,7 @@ function DashboardPageContent() {
                  {lineupMatch && allUsers ? (
                     <>
                         <DialogHeader>
-                            <DialogTitle>Tvorba sestavy: {getEnhancedMatchTitle(lineupMatch)}</DialogTitle>
+                            <DialogTitle>Tvorba sestavy: {getMatchDetails(lineupMatch).fullTitle}</DialogTitle>
                             <DialogDescription>
                                 Přetáhněte hráče na jejich pozice na hřišti.
                             </DialogDescription>
@@ -2148,8 +2155,13 @@ function DashboardPageContent() {
         }}>
             <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
                  <DialogHeader>
-                    <DialogTitle>{lineupMatch ? `Sestava: ${getEnhancedMatchTitle(lineupMatch)}` : 'Načítání sestavy...'}</DialogTitle>
-                    {lineupMatch && <DialogDescription>Uložená sestava pro nadcházející zápas.</DialogDescription>}
+                    <DialogTitle>{lineupMatch ? `Sestava: ${getMatchDetails(lineupMatch).opponent}` : 'Načítání sestavy...'}</DialogTitle>
+                    {lineupMatch && (
+                        <DialogDescription>
+                            {getMatchDetails(lineupMatch).prefix && <span className="block font-bold text-primary uppercase text-xs mb-1">{getMatchDetails(lineupMatch).prefix}</span>}
+                            Uložená sestava pro nadcházející zápas.
+                        </DialogDescription>
+                    )}
                 </DialogHeader>
                 {viewLineupData ? (
                     <LineupDisplay lineup={viewLineupData} />

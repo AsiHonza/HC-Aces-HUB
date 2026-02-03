@@ -1,4 +1,3 @@
-
 'use client'
 
 import React, { Suspense, useState, useMemo } from 'react'
@@ -17,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from '@/hooks/use-toast'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 
 interface UserProfile {
   id: string;
@@ -39,15 +39,20 @@ interface Match {
   playoffMatchNumber?: number;
 }
 
-function getEnhancedMatchTitle(match: Match) {
+function getMatchDetails(match: Match) {
     let prefix = '';
     if (match.type === 'regular' && match.round) {
-        prefix = `[${match.round}. kolo] `;
+        prefix = `${match.round}. kolo`;
     } else if (match.type === 'playoff' && match.playoffStage) {
         const stage = match.playoffStage.charAt(0).toUpperCase() + match.playoffStage.slice(1);
-        prefix = `[${stage}${match.playoffMatchNumber ? ` - ${match.playoffMatchNumber}. zápas` : ''}] `;
+        prefix = `${stage}${match.playoffMatchNumber ? ` - ${match.playoffMatchNumber}. zápas` : ''}`;
     }
-    return `${prefix}${match.team1} vs ${match.team2}`;
+    const opponent = match.team1 === 'Aces' ? match.team2 : match.team1;
+    return { 
+        prefix, 
+        opponent, 
+        fullTitle: prefix ? `[${prefix}] ${opponent}` : opponent 
+    };
 }
 
 function CalendarPageContent() {
@@ -217,36 +222,40 @@ function CalendarPageContent() {
                         )}
 
                         {matchesOnSelectedDate.length > 0 ? (
-                            matchesOnSelectedDate.map(match => (
-                                <Card key={match.id} className="overflow-hidden border-l-4 border-l-primary">
-                                    <CardHeader className="pb-2">
-                                        <div className="flex justify-between items-start">
-                                            <div className="flex-1 min-w-0">
-                                                <Badge variant="outline" className="mb-2">
-                                                    {match.type === 'regular' ? 'Základní část' : match.type === 'playoff' ? 'Play-off' : 'Přátelský'}
-                                                </Badge>
-                                                <CardTitle className="text-2xl break-words">{getEnhancedMatchTitle(match)}</CardTitle>
+                            matchesOnSelectedDate.map(match => {
+                                const { prefix, opponent } = getMatchDetails(match);
+                                return (
+                                    <Card key={match.id} className="overflow-hidden border-l-4 border-l-primary">
+                                        <CardHeader className="pb-2">
+                                            <div className="flex justify-between items-start">
+                                                <div className="flex-1 min-w-0">
+                                                    <Badge variant="outline" className="mb-2">
+                                                        {match.type === 'regular' ? 'Základní část' : match.type === 'playoff' ? 'Play-off' : 'Přátelský'}
+                                                    </Badge>
+                                                    {prefix && <p className="text-xs font-bold text-primary uppercase leading-tight mb-1">{prefix}</p>}
+                                                    <CardTitle className="text-2xl break-words">{opponent}</CardTitle>
+                                                </div>
+                                                {match.isPlayed && <Badge>Odehráno</Badge>}
                                             </div>
-                                            {match.isPlayed && <Badge>Odehráno</Badge>}
-                                        </div>
-                                    </CardHeader>
-                                    <CardContent className="grid gap-2 text-muted-foreground">
-                                        <div className="flex items-center gap-2">
-                                            <Clock className="h-4 w-4 text-primary" />
-                                            <span>{format(match.dateTime.toDate(), 'HH:mm')}</span>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <MapPin className="h-4 w-4 text-primary" />
-                                            <span>{match.location}</span>
-                                        </div>
-                                        {!match.isPlayed && (
-                                            <Button variant="link" className="p-0 h-auto text-primary w-fit mt-2" asChild>
-                                                <Link href={`/dashboard?matchId=${match.id}`}>Zobrazit účast a detaily na nástěnce</Link>
-                                            </Button>
-                                        )}
-                                    </CardContent>
-                                </Card>
-                            ))
+                                        </CardHeader>
+                                        <CardContent className="grid gap-2 text-muted-foreground">
+                                            <div className="flex items-center gap-2">
+                                                <Clock className="h-4 w-4 text-primary" />
+                                                <span>{format(match.dateTime.toDate(), 'HH:mm')}</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <MapPin className="h-4 w-4 text-primary" />
+                                                <span>{match.location}</span>
+                                            </div>
+                                            {!match.isPlayed && (
+                                                <Button variant="link" className="p-0 h-auto text-primary w-fit mt-2" asChild>
+                                                    <Link href={`/dashboard?matchId=${match.id}`}>Zobrazit účast a detaily na nástěnce</Link>
+                                                </Button>
+                                            )}
+                                        </CardContent>
+                                    </Card>
+                                )
+                            })
                         ) : (
                             !birthdaysOnSelectedDate.length && (
                                 <Card>
@@ -343,5 +352,3 @@ export default function CalendarPage() {
         </Suspense>
     )
 }
-
-    
