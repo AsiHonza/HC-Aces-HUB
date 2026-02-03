@@ -15,18 +15,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { MapPin, Users, Trophy, BarChart, Pencil, Check, X, Flame, Shield, Plus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal, FileText, View, Disc, Cake, Minus, ChevronDown } from "lucide-react"
 import { cn } from '@/lib/utils'
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase'
-import { doc, collection, collectionGroup, updateDoc, query, Timestamp, addDoc, orderBy, setDoc, deleteDoc, increment } from 'firebase/firestore'
+import { doc, collection, collectionGroup, updateDoc, query, Timestamp, addDoc, orderBy, setDoc, deleteDoc } from 'firebase/firestore'
 import { format, startOfDay, addDays, parseISO, isValid, differenceInDays, parse } from 'date-fns'
 import { cs } from 'date-fns/locale'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import Link from 'next/link'
 import { useToast } from "@/hooks/use-toast"
 import { Textarea } from '@/components/ui/textarea'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { LineupBuilder, LineupDisplay, type Lineup } from '@/components/lineup-builder'
 import { Badge } from '@/components/ui/badge'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
 
@@ -80,7 +78,6 @@ interface Match {
   team1: string;
   team2: string;
   isPlayed: boolean;
-  isStatsExported?: boolean;
   type: 'regular' | 'playoff' | 'friendly';
   round?: number;
   playoffStage?: 'čtvrtfinále' | 'semifinále' | 'finále';
@@ -335,11 +332,7 @@ function DashboardPageContent() {
   }, [allMatches]);
   
   const recentPlayedMatches = useMemo(() => playedMatches.slice(0, 5), [playedMatches]);
-  const otherUpcomingMatches = useMemo(() => upcomingMatches?.slice(1) || [], [upcomingMatches]);
-  const nextMatch = upcomingMatches?.[0];
     
-  const isScoringInPlayoffMode = leagueSettings?.isScoringInPlayoffMode ?? false;
-
   const teamScoring = useMemo(() => {
       if (!allUsers || !allSkaterStats) return [];
       const statsMap = new Map<string, SkaterStats>();
@@ -464,78 +457,6 @@ function DashboardPageContent() {
     navigator.clipboard.writeText(url.toString()).then(() => toast({ title: "Odkaz zkopírován" }));
   };
 
-  const handleExportStats = async (match: Match) => {
-    if (!firestore || !match.lineup) return;
-    if (match.type === 'friendly') {
-        toast({ title: "Přátelské zápasy se do statistik neexportují." });
-        return;
-    }
-
-    setIsSaving(true);
-    try {
-        const typePrefix = match.type === 'playoff' ? 'playoff' : 'season';
-        const skaterChanges = new Map<string, { goals: number, assists: number, games: number }>();
-
-        Object.values(match.lineup).forEach(p => {
-            if (p && p.id) {
-                skaterChanges.set(p.id, { goals: 0, assists: 0, games: 1 });
-            }
-        });
-
-        match.scorers?.forEach(s => {
-            if (s.goal) {
-                const current = skaterChanges.get(s.goal) || { goals: 0, assists: 0, games: 0 };
-                current.goals += 1;
-                skaterChanges.set(s.goal, current);
-            }
-            if (s.assist) {
-                const current = skaterChanges.get(s.assist) || { goals: 0, assists: 0, games: 0 };
-                current.assists += 1;
-                skaterChanges.set(s.assist, current);
-            }
-        });
-
-        // Perform individual writes to avoid Batch Permission Limit
-        const updatePromises: Promise<any>[] = [];
-
-        skaterChanges.forEach((vals, uId) => {
-            const ref = doc(firestore, 'users', uId, 'skaterStats', 'stats');
-            updatePromises.push(setDoc(ref, {
-                userProfileId: uId,
-                [`${typePrefix}Goals`]: increment(vals.goals),
-                [`${typePrefix}Assists`]: increment(vals.assists),
-                [`${typePrefix}GamesPlayed`]: increment(vals.games)
-            }, { merge: true }));
-        });
-
-        if (match.goalieId && match.goalieId !== 'none') {
-            const ref = doc(firestore, 'users', match.goalieId, 'goalieStats', 'stats');
-            const isWin = (match.team1Score || 0) > (match.team2Score || 0);
-            updatePromises.push(setDoc(ref, {
-                userProfileId: match.goalieId,
-                [`${typePrefix}GamesPlayed`]: increment(1),
-                [`${typePrefix}Wins`]: increment(isWin ? 1 : 0),
-                [`${typePrefix}Saves`]: increment(match.goalieSaves || 0),
-                [`${typePrefix}ShotsAgainst`]: increment(match.goalieShotsAgainst || 0)
-            }, { merge: true }));
-        }
-
-        updatePromises.push(updateDoc(doc(firestore, 'matches', match.id), { isStatsExported: true }));
-
-        await Promise.all(updatePromises);
-        toast({ title: `Statistiky byly úspěšně exportovány pro ${skaterChanges.size} hráčů.` });
-    } catch (error: any) {
-        const permissionError = new FirestorePermissionError({
-            path: 'stats-updates',
-            operation: 'write',
-            requestResourceData: { matchId: match.id }
-        });
-        errorEmitter.emit('permission-error', permissionError);
-    } finally {
-        setIsSaving(false);
-    }
-  };
-
   const handleSaveResult = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!selectedMatch || !firestore) return;
@@ -568,7 +489,7 @@ function DashboardPageContent() {
         };
 
         await updateDoc(doc(firestore, 'matches', selectedMatch.id), newMatchData);
-        toast({ title: "Výsledek uložen. Nezapomeňte exportovat body." });
+        toast({ title: "Výsledek uložen." });
         setIsResultDialogOpen(false);
     } catch (err: any) { 
         const permissionError = new FirestorePermissionError({
@@ -613,7 +534,7 @@ function DashboardPageContent() {
                 userProfileId: g.id, 
                 [goalieGamesPlayedKey]: Number(g.gamesPlayed) || 0, 
                 [goalieWinsKey]: Number(g.wins) || 0, 
-                [goalieSavesKey]: Number(g.saves) || 0, 
+                [ goalieSavesKey]: Number(g.saves) || 0, 
                 [goalieShotsAgainstKey]: Number(g.shotsAgainst) || 0 
             }, { merge: true }));
         }
@@ -722,7 +643,7 @@ function DashboardPageContent() {
                     <div className="mt-4">
                         <Table>
                             <TableBody>
-                                {userProfile?.playerType === 'player' && skaterStatsData && (
+                                {userProfile?.playerType === 'player' && (
                                     <>
                                         <TableRow><TableCell className="font-medium">Góly</TableCell><TableCell className="text-right font-bold">{String(teamScoring.find(p=>p.id===user.uid)?.[myStatsView]?.goals || 0)}</TableCell></TableRow>
                                         <TableRow><TableCell className="font-medium">Asistence</TableCell><TableCell className="text-right font-bold">{String(teamScoring.find(p=>p.id===user.uid)?.[myStatsView]?.assists || 0)}</TableCell></TableRow>
@@ -730,7 +651,7 @@ function DashboardPageContent() {
                                         <TableRow><TableCell className="font-medium">Zápasy</TableCell><TableCell className="text-right font-bold">{String(teamScoring.find(p=>p.id===user.uid)?.[myStatsView]?.gamesPlayed || 0)}</TableCell></TableRow>
                                     </>
                                 )}
-                                {userProfile?.playerType === 'goalie' && goalieStatsData && (
+                                {userProfile?.playerType === 'goalie' && (
                                     <>
                                         <TableRow><TableCell className="font-medium">Zápasy</TableCell><TableCell className="text-right font-bold">{String(goalieLeaderboard.find(g=>g.id===user.uid)?.[myStatsView]?.gamesPlayed || 0)}</TableCell></TableRow>
                                         <TableRow><TableCell className="font-medium">Výhry</TableCell><TableCell className="text-right font-bold">{String(goalieLeaderboard.find(g=>g.id===user.uid)?.[myStatsView]?.wins || 0)}</TableCell></TableRow>
@@ -753,11 +674,11 @@ function DashboardPageContent() {
         <div className="lg:col-span-3 space-y-4">
           <div className="flex items-center justify-between"><h2 className="text-xl font-bold flex items-center gap-2"><Trophy className="text-primary"/>Příští zápasy</h2>{userProfile?.role === 'admin' && <Button onClick={() => setIsAddDialogOpen(true)}><Plus className="h-4 mr-2" />Přidat zápas</Button>}</div>
           {nextMatch ? renderMatchCard(nextMatch) : <p className="text-center py-8 text-muted-foreground">Žádné blížící se zápasy.</p>}
-          {otherUpcomingMatches.length > 0 && (
+          {(allMatches?.filter(match => !match.isPlayed && match.dateTime.toDate() >= startOfDay(new Date())).slice(1) || []).length > 0 && (
                 <Accordion type="single" collapsible className="w-full" value={openAccordionValue} onValueChange={setOpenAccordionValue}>
                     <AccordionItem value="item-1" className="border-none">
                         <AccordionTrigger className="rounded-lg border px-4 bg-card">Další zápasy</AccordionTrigger>
-                        <AccordionContent className="pt-4 space-y-4">{otherUpcomingMatches.map(m => renderMatchCard(m))}</AccordionContent>
+                        <AccordionContent className="pt-4 space-y-4">{(allMatches?.filter(match => !match.isPlayed && match.dateTime.toDate() >= startOfDay(new Date())).slice(1) || []).map(m => renderMatchCard(m))}</AccordionContent>
                     </AccordionItem>
                 </Accordion>
           )}
@@ -816,31 +737,6 @@ function DashboardPageContent() {
                                                  <p className="text-sm italic">Žádné góly Aces nebyly k tomuto zápasu zaznamenány.</p>
                                             </div>
                                         )}
-
-                                        {userProfile?.role === 'admin' && (
-                                            <div className="flex justify-end pt-4 border-t">
-                                                <TooltipProvider>
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <div className="inline-block">
-                                                                <Button 
-                                                                    variant={m.isStatsExported ? "secondary" : "default"}
-                                                                    size="sm"
-                                                                    disabled={!m.lineup || m.isStatsExported || isSaving}
-                                                                    onClick={() => handleExportStats(m)}
-                                                                >
-                                                                    {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                                                    {m.isStatsExported ? "Body exportovány" : "Exportovat body"}
-                                                                </Button>
-                                                            </div>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent>
-                                                            {!m.lineup ? "Pro export bodů je nutné vyplnit sestavu." : m.isStatsExported ? "Statistiky již byly exportovány." : "Připíše zápas a body hráčům ze sestavy."}
-                                                        </TooltipContent>
-                                                    </Tooltip>
-                                                </TooltipProvider>
-                                            </div>
-                                        )}
                                     </div>
                                 </AccordionContent>
                             </AccordionItem>
@@ -856,7 +752,6 @@ function DashboardPageContent() {
                     <CardTitle className="flex items-center gap-2"><Flame className="text-primary"/>Bodování</CardTitle>
                     {userProfile?.role === 'admin' && !isStatEditMode && (
                         <Button size="sm" variant="outline" onClick={() => { 
-                            const view = scoringView === 'season' ? 'regular' : scoringView;
                             const initialEditData = sortedTeamScoring.map(p => ({ 
                                 ...p,
                                 goals: String(p.goals || 0),
@@ -950,7 +845,6 @@ function DashboardPageContent() {
                     <CardTitle className="flex items-center gap-2"><Shield className="text-primary"/>Brankáři</CardTitle>
                     {userProfile?.role === 'admin' && !isStatEditMode && (
                         <Button size="sm" variant="outline" onClick={() => { 
-                            const view = scoringView === 'season' ? 'regular' : scoringView;
                             const initialEditData = sortedGoalieLeaderboard.map(g => ({ 
                                 ...g,
                                 gamesPlayed: String(g.gamesPlayed || 0),
