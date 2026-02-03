@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { MapPin, Users, Trophy, BarChart, Pencil, Check, X, Flame, Shield, Plus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal, FileText, View, Disc, Cake, Minus, ChevronDown } from "lucide-react"
 import { cn } from '@/lib/utils'
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase'
-import { doc, collection, collectionGroup, updateDoc, query, Timestamp, addDoc, orderBy, setDoc, deleteDoc, increment, writeBatch } from 'firebase/firestore'
+import { doc, collection, collectionGroup, updateDoc, query, Timestamp, addDoc, orderBy, setDoc, deleteDoc, increment } from 'firebase/firestore'
 import { format, startOfDay, addDays, parseISO, isValid, differenceInDays, parse } from 'date-fns'
 import { cs } from 'date-fns/locale'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
@@ -466,9 +466,13 @@ function DashboardPageContent() {
 
   const handleExportStats = async (match: Match) => {
     if (!firestore || !match.lineup) return;
+    if (match.type === 'friendly') {
+        toast({ title: "Přátelské zápasy se do statistik neexportují." });
+        return;
+    }
+
     setIsSaving(true);
     try {
-        const batch = writeBatch(firestore);
         const typePrefix = match.type === 'playoff' ? 'playoff' : 'season';
         const skaterChanges = new Map<string, { goals: number, assists: number, games: number }>();
 
@@ -491,34 +495,38 @@ function DashboardPageContent() {
             }
         });
 
+        // Perform individual writes to avoid Batch Permission Limit
+        const updatePromises: Promise<any>[] = [];
+
         skaterChanges.forEach((vals, uId) => {
             const ref = doc(firestore, 'users', uId, 'skaterStats', 'stats');
-            batch.set(ref, {
+            updatePromises.push(setDoc(ref, {
                 userProfileId: uId,
                 [`${typePrefix}Goals`]: increment(vals.goals),
                 [`${typePrefix}Assists`]: increment(vals.assists),
                 [`${typePrefix}GamesPlayed`]: increment(vals.games)
-            }, { merge: true });
+            }, { merge: true }));
         });
 
         if (match.goalieId && match.goalieId !== 'none') {
             const ref = doc(firestore, 'users', match.goalieId, 'goalieStats', 'stats');
             const isWin = (match.team1Score || 0) > (match.team2Score || 0);
-            batch.set(ref, {
+            updatePromises.push(setDoc(ref, {
                 userProfileId: match.goalieId,
                 [`${typePrefix}GamesPlayed`]: increment(1),
                 [`${typePrefix}Wins`]: increment(isWin ? 1 : 0),
                 [`${typePrefix}Saves`]: increment(match.goalieSaves || 0),
                 [`${typePrefix}ShotsAgainst`]: increment(match.goalieShotsAgainst || 0)
-            }, { merge: true });
+            }, { merge: true }));
         }
 
-        batch.update(doc(firestore, 'matches', match.id), { isStatsExported: true });
-        await batch.commit();
-        toast({ title: "Body byly úspěšně exportovány hráčům." });
+        updatePromises.push(updateDoc(doc(firestore, 'matches', match.id), { isStatsExported: true }));
+
+        await Promise.all(updatePromises);
+        toast({ title: `Statistiky byly úspěšně exportovány pro ${skaterChanges.size} hráčů.` });
     } catch (error: any) {
         const permissionError = new FirestorePermissionError({
-            path: 'stats-batch',
+            path: 'stats-updates',
             operation: 'write',
             requestResourceData: { matchId: match.id }
         });
@@ -587,33 +595,36 @@ function DashboardPageContent() {
         const goalieShotsAgainstKey = `${prefix}ShotsAgainst`;
         const goalieGamesPlayedKey = `${prefix}GamesPlayed`;
 
+        const updatePromises: Promise<any>[] = [];
+
         for (const p of editableSkaterStats) {
             if (!p.id) continue;
-            await setDoc(doc(firestore, 'users', p.id, 'skaterStats', 'stats'), { 
+            updatePromises.push(setDoc(doc(firestore, 'users', p.id, 'skaterStats', 'stats'), { 
                 userProfileId: p.id, 
                 [goalsKey]: Number(p.goals) || 0, 
                 [assistsKey]: Number(p.assists) || 0, 
                 [gamesPlayedKey]: Number(p.gamesPlayed) || 0 
-            }, { merge: true });
+            }, { merge: true }));
         }
 
         for (const g of editableGoalieStats) {
             if (!g.id) continue;
-            await setDoc(doc(firestore, 'users', g.id, 'goalieStats', 'stats'), { 
+            updatePromises.push(setDoc(doc(firestore, 'users', g.id, 'goalieStats', 'stats'), { 
                 userProfileId: g.id, 
                 [goalieGamesPlayedKey]: Number(g.gamesPlayed) || 0, 
                 [goalieWinsKey]: Number(g.wins) || 0, 
                 [goalieSavesKey]: Number(g.saves) || 0, 
                 [goalieShotsAgainstKey]: Number(g.shotsAgainst) || 0 
-            }, { merge: true });
+            }, { merge: true }));
         }
 
+        await Promise.all(updatePromises);
         toast({ title: 'Statistiky úspěšně uloženy' });
         setIsStatEditMode(false);
         setExpandedStatId(null);
     } catch (err: any) { 
         const permissionError = new FirestorePermissionError({
-            path: 'stats-batch-manual',
+            path: 'manual-stats-updates',
             operation: 'write'
         });
         errorEmitter.emit('permission-error', permissionError);

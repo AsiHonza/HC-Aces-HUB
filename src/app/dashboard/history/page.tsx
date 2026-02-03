@@ -5,7 +5,7 @@ import { Suspense, useMemo, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase'
-import { query, collection, Timestamp, doc, updateDoc, orderBy, setDoc, deleteDoc, writeBatch, increment } from 'firebase/firestore'
+import { query, collection, Timestamp, doc, updateDoc, orderBy, setDoc, deleteDoc, increment } from 'firebase/firestore'
 import { format, parse } from 'date-fns'
 import { cs } from 'date-fns/locale'
 import { Loader2, Trophy, Pencil, Trash2, MoreHorizontal, View, Plus, Disc, Users, Share2 } from 'lucide-react'
@@ -189,9 +189,13 @@ function HistoryPageContent() {
 
     const handleExportStats = async (match: Match) => {
         if (!firestore || !match.lineup) return;
+        if (match.type === 'friendly') {
+            toast({ title: "Přátelské zápasy se do statistik neexportují." });
+            return;
+        }
+
         setIsSaving(true);
         try {
-            const batch = writeBatch(firestore);
             const typePrefix = match.type === 'playoff' ? 'playoff' : 'season';
             const skaterChanges = new Map<string, { goals: number, assists: number, games: number }>();
 
@@ -214,35 +218,38 @@ function HistoryPageContent() {
                 }
             });
 
+            // individual setDoc calls to avoid batch limits
+            const updatePromises: Promise<any>[] = [];
+
             skaterChanges.forEach((vals, uId) => {
                 const ref = doc(firestore, 'users', uId, 'skaterStats', 'stats');
-                batch.set(ref, {
+                updatePromises.push(setDoc(ref, {
                     userProfileId: uId,
                     [`${typePrefix}Goals`]: increment(vals.goals),
                     [`${typePrefix}Assists`]: increment(vals.assists),
                     [`${typePrefix}GamesPlayed`]: increment(vals.games)
-                }, { merge: true });
+                }, { merge: true }));
             });
 
             if (match.goalieId && match.goalieId !== 'none') {
                 const ref = doc(firestore, 'users', match.goalieId, 'goalieStats', 'stats');
                 const isWin = (match.team1Score || 0) > (match.team2Score || 0);
-                batch.set(ref, {
+                updatePromises.push(setDoc(ref, {
                     userProfileId: match.goalieId,
                     [`${typePrefix}GamesPlayed`]: increment(1),
                     [`${typePrefix}Wins`]: increment(isWin ? 1 : 0),
                     [`${typePrefix}Saves`]: increment(match.goalieSaves || 0),
                     [`${typePrefix}ShotsAgainst`]: increment(match.goalieShotsAgainst || 0)
-                }, { merge: true });
+                }, { merge: true }));
             }
 
-            batch.update(doc(firestore, 'matches', match.id), { isStatsExported: true });
-
-            await batch.commit();
-            toast({ title: "Body byly úspěšně exportovány hráčům." });
+            updatePromises.push(updateDoc(doc(firestore, 'matches', match.id), { isStatsExported: true }));
+            
+            await Promise.all(updatePromises);
+            toast({ title: `Statistiky byly úspěšně exportovány pro ${skaterChanges.size} hráčů.` });
         } catch (error: any) {
             const permissionError = new FirestorePermissionError({
-                path: 'stats-batch',
+                path: 'stats-updates',
                 operation: 'write',
                 requestResourceData: { matchId: match.id }
             });
