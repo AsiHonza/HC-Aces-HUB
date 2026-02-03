@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { MapPin, Users, Trophy, BarChart, Pencil, Check, X, Flame, Shield, Plus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal, FileText, View, Disc, Cake } from "lucide-react"
+import { MapPin, Users, Trophy, BarChart, Pencil, Check, X, Flame, Shield, Plus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal, FileText, View, Disc, Cake, Minus } from "lucide-react"
 import { cn } from '@/lib/utils'
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase'
 import { doc, collection, collectionGroup, updateDoc, query, Timestamp, addDoc, writeBatch, orderBy, setDoc, deleteDoc } from 'firebase/firestore'
@@ -171,6 +171,38 @@ function RecordResultForm({ match, allUsers, onSave, onCancel, isSaving }: { mat
     )
 }
 
+function StatAdjuster({ value, onChange, label }: { value: string, onChange: (val: string) => void, label?: string }) {
+    const num = parseInt(value || '0', 10);
+    const updateValue = (delta: number) => {
+        const newVal = Math.max(0, num + delta);
+        onChange(String(newVal));
+    };
+
+    return (
+        <div className="flex items-center justify-center gap-2">
+            <Button 
+                type="button" 
+                variant="outline" 
+                size="icon" 
+                className="h-7 w-7" 
+                onClick={() => updateValue(-1)}
+            >
+                <Minus className="h-3 w-3" />
+            </Button>
+            <div className="w-8 text-center font-bold">{value || '0'}</div>
+            <Button 
+                type="button" 
+                variant="outline" 
+                size="icon" 
+                className="h-7 w-7" 
+                onClick={() => updateValue(1)}
+            >
+                <Plus className="h-3 w-3" />
+            </Button>
+        </div>
+    );
+}
+
 function DashboardPageContent() {
   const { user } = useUser()
   const firestore = useFirestore()
@@ -293,7 +325,16 @@ function DashboardPageContent() {
   }, [allUsers, allGoalieStats]);
   
   const sortedTeamScoring = useMemo(() => {
-      const dataSet = isStatEditMode ? editableSkaterStats : teamScoring.map(p => ({ id: p.id, name: p.name, ...p[scoringView] }));
+      // If editing, use the captured state and map with current edit values but DON'T re-sort
+      if (isStatEditMode) {
+          return editableSkaterStats.map((p, i) => ({
+              ...p,
+              points: (Number(p.goals) || 0) + (Number(p.assists) || 0),
+              rank: i + 1
+          }));
+      }
+
+      const dataSet = teamScoring.map(p => ({ id: p.id, name: p.name, ...p[scoringView] }));
       return dataSet.map(p => ({ 
           ...p, 
           points: (Number(p.goals) || 0) + (Number(p.assists) || 0) 
@@ -303,7 +344,19 @@ function DashboardPageContent() {
   }, [teamScoring, scoringView, isStatEditMode, editableSkaterStats]);
 
   const sortedGoalieLeaderboard = useMemo(() => {
-      const dataSet = isStatEditMode ? editableGoalieStats : goalieLeaderboard.map(g => ({ id: g.id, name: g.name, ...g[scoringView] }));
+      if (isStatEditMode) {
+          return editableGoalieStats.map((g, i) => {
+              const sa = Number(g.shotsAgainst) || 0;
+              const s = Number(g.saves) || 0;
+              return {
+                  ...g,
+                  savePercentage: sa > 0 ? (s / sa) * 100 : 0,
+                  rank: i + 1
+              };
+          });
+      }
+
+      const dataSet = goalieLeaderboard.map(g => ({ id: g.id, name: g.name, ...g[scoringView] }));
       return dataSet.map(g => {
           const sa = Number(g.shotsAgainst) || 0;
           const s = Number(g.saves) || 0;
@@ -571,14 +624,14 @@ function DashboardPageContent() {
                     <CardTitle className="flex items-center gap-2"><Flame className="text-primary"/>Bodování</CardTitle>
                     {userProfile?.role === 'admin' && !isStatEditMode && (
                         <Button size="sm" variant="outline" onClick={() => { 
-                            setEditableSkaterStats(teamScoring.map(p => ({ 
-                                ...p[scoringView], 
-                                id: p.id, 
-                                name: p.name,
-                                goals: String(p[scoringView].goals ?? ''),
-                                assists: String(p[scoringView].assists ?? ''),
-                                gamesPlayed: String(p[scoringView].gamesPlayed ?? '')
-                            }))); 
+                            // Initial data capture for editing - captures the currently sorted order
+                            const initialEditData = sortedTeamScoring.map(p => ({ 
+                                ...p,
+                                goals: String(p.goals || 0),
+                                assists: String(p.assists || 0),
+                                gamesPlayed: String(p.gamesPlayed || 0)
+                            }));
+                            setEditableSkaterStats(initialEditData); 
                             setIsStatEditMode(true); 
                         }}><Pencil className="h-3 mr-2" />Upravit</Button>
                     )}
@@ -614,9 +667,24 @@ function DashboardPageContent() {
                                         <TableCell className="font-medium">{p.name}</TableCell>
                                         {isStatEditMode ? (
                                             <>
-                                                <TableCell><Input className="h-7 w-12 text-center" type="text" value={p.gamesPlayed} onChange={e => { const val = e.target.value; if (val === '' || /^\d+$/.test(val)) setEditableSkaterStats(cur => cur.map(it => it.id === p.id ? {...it, gamesPlayed: val} : it)) }} /></TableCell>
-                                                <TableCell><Input className="h-7 w-12 text-center" type="text" value={p.goals} onChange={e => { const val = e.target.value; if (val === '' || /^\d+$/.test(val)) setEditableSkaterStats(cur => cur.map(it => it.id === p.id ? {...it, goals: val} : it)) }} /></TableCell>
-                                                <TableCell><Input className="h-7 w-12 text-center" type="text" value={p.assists} onChange={e => { const val = e.target.value; if (val === '' || /^\d+$/.test(val)) setEditableSkaterStats(cur => cur.map(it => it.id === p.id ? {...it, assists: val} : it)) }} /></TableCell>
+                                                <TableCell>
+                                                    <StatAdjuster 
+                                                        value={p.gamesPlayed} 
+                                                        onChange={val => setEditableSkaterStats(cur => cur.map(it => it.id === p.id ? {...it, gamesPlayed: val} : it))} 
+                                                    />
+                                                </TableCell>
+                                                <TableCell>
+                                                    <StatAdjuster 
+                                                        value={p.goals} 
+                                                        onChange={val => setEditableSkaterStats(cur => cur.map(it => it.id === p.id ? {...it, goals: val} : it))} 
+                                                    />
+                                                </TableCell>
+                                                <TableCell>
+                                                    <StatAdjuster 
+                                                        value={p.assists} 
+                                                        onChange={val => setEditableSkaterStats(cur => cur.map(it => it.id === p.id ? {...it, assists: val} : it))} 
+                                                    />
+                                                </TableCell>
                                             </>
                                         ) : (
                                             <>
@@ -638,15 +706,14 @@ function DashboardPageContent() {
                     <CardTitle className="flex items-center gap-2"><Shield className="text-primary"/>Brankáři</CardTitle>
                     {userProfile?.role === 'admin' && !isStatEditMode && (
                         <Button size="sm" variant="outline" onClick={() => { 
-                            setEditableGoalieStats(goalieLeaderboard.map(g => ({ 
-                                ...g[scoringView], 
-                                id: g.id, 
-                                name: g.name,
-                                gamesPlayed: String(g[scoringView].gamesPlayed ?? ''),
-                                wins: String(g[scoringView].wins ?? ''),
-                                saves: String(g[scoringView].saves ?? ''),
-                                shotsAgainst: String(g[scoringView].shotsAgainst ?? '')
-                            }))); 
+                            const initialEditData = sortedGoalieLeaderboard.map(g => ({ 
+                                ...g,
+                                gamesPlayed: String(g.gamesPlayed || 0),
+                                wins: String(g.wins || 0),
+                                saves: String(g.saves || 0),
+                                shotsAgainst: String(g.shotsAgainst || 0)
+                            }));
+                            setEditableGoalieStats(initialEditData); 
                             setIsStatEditMode(true); 
                         }}><Pencil className="h-3 mr-2" />Upravit</Button>
                     )}
@@ -673,8 +740,18 @@ function DashboardPageContent() {
                                         <TableCell className="font-medium">{g.name}</TableCell>
                                         {isStatEditMode ? (
                                             <>
-                                                <TableCell><Input className="h-7 w-12 text-center" type="text" value={g.gamesPlayed} onChange={e => { const val = e.target.value; if (val === '' || /^\d+$/.test(val)) setEditableGoalieStats(cur => cur.map(it => it.id === g.id ? {...it, gamesPlayed: val} : it)) }} /></TableCell>
-                                                <TableCell><Input className="h-7 w-12 text-center" type="text" value={g.wins} onChange={e => { const val = e.target.value; if (val === '' || /^\d+$/.test(val)) setEditableGoalieStats(cur => cur.map(it => it.id === g.id ? {...it, wins: val} : it)) }} /></TableCell>
+                                                <TableCell>
+                                                    <StatAdjuster 
+                                                        value={g.gamesPlayed} 
+                                                        onChange={val => setEditableGoalieStats(cur => cur.map(it => it.id === g.id ? {...it, gamesPlayed: val} : it))} 
+                                                    />
+                                                </TableCell>
+                                                <TableCell>
+                                                    <StatAdjuster 
+                                                        value={g.wins} 
+                                                        onChange={val => setEditableGoalieStats(cur => cur.map(it => it.id === g.id ? {...it, wins: val} : it))} 
+                                                    />
+                                                </TableCell>
                                             </>
                                         ) : (
                                             <>
@@ -705,3 +782,4 @@ function DashboardPageContent() {
 }
 
 export default function DashboardPage() { return <Suspense fallback={<div className="container py-8">Načítání...</div>}><DashboardPageContent /></Suspense> }
+    
