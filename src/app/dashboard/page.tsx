@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { MapPin, Users, Trophy, BarChart, Pencil, Check, X, Flame, Shield, Plus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal, FileText, View, Disc, Cake, Minus, ChevronDown } from "lucide-react"
+import { MapPin, Users, Trophy, BarChart, Pencil, Check, X, Flame, Shield, Plus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal, FileText, View, Disc, Cake, Minus, ChevronDown, AlertCircle } from "lucide-react"
 import { cn } from '@/lib/utils'
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase'
 import { doc, collection, collectionGroup, updateDoc, query, Timestamp, addDoc, orderBy, setDoc, deleteDoc, increment, writeBatch } from 'firebase/firestore'
@@ -26,6 +26,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { LineupBuilder, LineupDisplay, type Lineup } from '@/components/lineup-builder'
 import { Badge } from '@/components/ui/badge'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 interface UserProfile {
   id: string;
@@ -77,6 +78,7 @@ interface Match {
   team1: string;
   team2: string;
   isPlayed: boolean;
+  isStatsExported?: boolean;
   type: 'regular' | 'playoff' | 'friendly';
   round?: number;
   playoffStage?: 'čtvrtfinále' | 'semifinále' | 'finále';
@@ -155,7 +157,7 @@ function RecordResultForm({ match, allUsers, onSave, onCancel, isSaving }: { mat
                     <p className="font-bold text-sm uppercase tracking-wider text-primary">Statistiky brankáře</p>
                     <div className="grid gap-2">
                         <Label>Brankář</Label>
-                        <Select name="goalieId" defaultValue={match.goalieId}>
+                        <Select name="goalieId" defaultValue={match.goalieId || 'none'}>
                             <SelectTrigger><SelectValue placeholder="Vyberte brankáře" /></SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="none">Žádný</SelectItem>
@@ -445,46 +447,65 @@ function DashboardPageContent() {
   const handleShareMatch = (mId: string) => {
     const url = new URL(window.location.origin + window.location.pathname);
     url.searchParams.set('matchId', mId);
-    navigator.clipboard.writeText(url.toString()).then(() => toast({ title: "Zkopírováno" }));
+    navigator.clipboard.writeText(url.toString()).then(() => toast({ title: "Odkaz zkopírován" }));
   };
 
-  const updateStatsForMatch = async (batch: any, match: Match, direction: 1 | -1) => {
-    const type = match.type === 'playoff' ? 'playoff' : 'season';
-    const skaterChanges = new Map<string, { goals: number, assists: number }>();
+  const handleExportStats = async (match: Match) => {
+    if (!firestore || !match.lineup) return;
+    setIsSaving(true);
+    try {
+        const batch = writeBatch(firestore);
+        const type = match.type === 'playoff' ? 'playoff' : 'season';
+        const skaterChanges = new Map<string, { goals: number, assists: number, games: number }>();
 
-    match.scorers?.forEach(s => {
-        if (s.goal) {
-            const current = skaterChanges.get(s.goal) || { goals: 0, assists: 0 };
-            current.goals += direction;
-            skaterChanges.set(s.goal, current);
+        Object.values(match.lineup).forEach(p => {
+            if (p && p.id) {
+                skaterChanges.set(p.id, { goals: 0, assists: 0, games: 1 });
+            }
+        });
+
+        match.scorers?.forEach(s => {
+            if (s.goal) {
+                const current = skaterChanges.get(s.goal) || { goals: 0, assists: 0, games: 0 };
+                current.goals += 1;
+                skaterChanges.set(s.goal, current);
+            }
+            if (s.assist) {
+                const current = skaterChanges.get(s.assist) || { goals: 0, assists: 0, games: 0 };
+                current.assists += 1;
+                skaterChanges.set(s.assist, current);
+            }
+        });
+
+        skaterChanges.forEach((vals, uId) => {
+            const ref = doc(firestore, 'users', uId, 'skaterStats', 'stats');
+            batch.set(ref, {
+                userProfileId: uId,
+                [`${type}Goals`]: increment(vals.goals),
+                [`${type}Assists`]: increment(vals.assists),
+                [`${type}GamesPlayed`]: increment(vals.games)
+            }, { merge: true });
+        });
+
+        if (match.goalieId && match.goalieId !== 'none') {
+            const ref = doc(firestore, 'users', match.goalieId, 'goalieStats', 'stats');
+            const isWin = (match.team1Score || 0) > (match.team2Score || 0);
+            batch.set(ref, {
+                userProfileId: match.goalieId,
+                [`${type}GamesPlayed`]: increment(1),
+                [`${type}Wins`]: increment(isWin ? 1 : 0),
+                [`${type}Saves`]: increment(match.goalieSaves || 0),
+                [`${type}ShotsAgainst`]: increment(match.goalieShotsAgainst || 0)
+            }, { merge: true });
         }
-        if (s.assist) {
-            const current = skaterChanges.get(s.assist) || { goals: 0, assists: 0 };
-            current.assists += direction;
-            skaterChanges.set(s.assist, current);
-        }
-    });
 
-    skaterChanges.forEach((vals, uId) => {
-        const ref = doc(firestore, 'users', uId, 'skaterStats', 'stats');
-        batch.set(ref, {
-            userProfileId: uId,
-            [`${type}Goals`]: increment(vals.goals),
-            [`${type}Assists`]: increment(vals.assists),
-            [`${type}GamesPlayed`]: increment(direction)
-        }, { merge: true });
-    });
-
-    if (match.goalieId && match.goalieId !== 'none') {
-        const ref = doc(firestore, 'users', match.goalieId, 'goalieStats', 'stats');
-        const isWin = (match.team1Score || 0) > (match.team2Score || 0);
-        batch.set(ref, {
-            userProfileId: match.goalieId,
-            [`${type}GamesPlayed`]: increment(direction),
-            [`${type}Wins`]: increment(isWin ? direction : 0),
-            [`${type}Saves`]: increment((match.goalieSaves || 0) * direction),
-            [`${type}ShotsAgainst`]: increment((match.goalieShotsAgainst || 0) * direction)
-        }, { merge: true });
+        batch.update(doc(firestore, 'matches', match.id), { isStatsExported: true });
+        await batch.commit();
+        toast({ title: "Body byly úspěšně exportovány hráčům." });
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: "Chyba exportu", description: error.message });
+    } finally {
+        setIsSaving(false);
     }
   };
 
@@ -519,20 +540,8 @@ function DashboardPageContent() {
             goalieShotsAgainst
         };
 
-        const batch = writeBatch(firestore);
-        
-        if (selectedMatch.isPlayed) {
-            await updateStatsForMatch(batch, selectedMatch, -1);
-        }
-        
-        batch.update(doc(firestore, 'matches', selectedMatch.id), newMatchData);
-        
-        const finalMatchData = { ...selectedMatch, ...newMatchData };
-        await updateStatsForMatch(batch, finalMatchData, 1);
-        
-        await batch.commit();
-        
-        toast({ title: "Výsledek uložen a body připsány." });
+        await updateDoc(doc(firestore, 'matches', selectedMatch.id), newMatchData);
+        toast({ title: "Výsledek uložen. Nezapomeňte exportovat body." });
         setIsResultDialogOpen(false);
     } catch (err: any) { 
         toast({ variant: 'destructive', title: 'Chyba', description: err.message }); 
@@ -733,34 +742,61 @@ function DashboardPageContent() {
                                     </div>
                                 </AccordionTrigger>
                                 <AccordionContent className="bg-muted/30 px-6 py-6 border-t">
-                                    {hasGoals ? (
-                                        <div className="space-y-4">
-                                            <div className="flex items-center gap-2 text-primary border-b border-primary/20 pb-2">
-                                                <Trophy className="h-4 w-4" />
-                                                <span className="text-xs font-bold uppercase tracking-widest">Detaily zápasu: Aces</span>
-                                            </div>
-                                            <div className="grid gap-3">
-                                                {m.scorers!.map((s, i) => (
-                                                    <div key={i} className="flex items-center gap-4 text-sm group">
-                                                        <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary shrink-0">
-                                                            <Disc className="h-3.5 w-3.5" />
+                                    <div className="space-y-6">
+                                        {hasGoals ? (
+                                            <div className="space-y-4">
+                                                <div className="flex items-center gap-2 text-primary border-b border-primary/20 pb-2">
+                                                    <Trophy className="h-4 w-4" />
+                                                    <span className="text-xs font-bold uppercase tracking-widest">Detaily zápasu: Aces</span>
+                                                </div>
+                                                <div className="grid gap-3">
+                                                    {m.scorers!.map((s, i) => (
+                                                        <div key={i} className="flex items-center gap-4 text-sm group">
+                                                            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary shrink-0">
+                                                                <Disc className="h-3.5 w-3.5" />
+                                                            </div>
+                                                            <div className="flex flex-wrap items-baseline gap-x-2">
+                                                                <span className="font-bold text-foreground">{formatName(usersMap.get(s.goal)?.name || 'Neznámý')}</span>
+                                                                {s.assist && (
+                                                                    <span className="text-muted-foreground text-xs italic">(asistence: {formatName(usersMap.get(s.assist)?.name || '?')})</span>
+                                                                )}
+                                                            </div>
                                                         </div>
-                                                        <div className="flex flex-wrap items-baseline gap-x-2">
-                                                            <span className="font-bold text-foreground">{formatName(usersMap.get(s.goal)?.name || 'Neznámý')}</span>
-                                                            {s.assist && (
-                                                                <span className="text-muted-foreground text-xs italic">(asistence: {formatName(usersMap.get(s.assist)?.name || '?')})</span>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                ))}
+                                                    ))}
+                                                </div>
                                             </div>
-                                        </div>
-                                    ) : (
-                                        <div className="flex flex-col items-center justify-center py-6 text-muted-foreground text-center">
-                                             <Disc className="h-8 w-8 opacity-20 mb-2" />
-                                             <p className="text-sm italic">Žádné góly Aces nebyly k tomuto zápasu zaznamenány.</p>
-                                        </div>
-                                    )}
+                                        ) : (
+                                            <div className="flex flex-col items-center justify-center py-6 text-muted-foreground text-center">
+                                                 <Disc className="h-8 w-8 opacity-20 mb-2" />
+                                                 <p className="text-sm italic">Žádné góly Aces nebyly k tomuto zápasu zaznamenány.</p>
+                                            </div>
+                                        )}
+
+                                        {userProfile?.role === 'admin' && (
+                                            <div className="flex justify-end pt-4 border-t">
+                                                <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <div className="inline-block">
+                                                                <Button 
+                                                                    variant={m.isStatsExported ? "secondary" : "default"}
+                                                                    size="sm"
+                                                                    disabled={!m.lineup || m.isStatsExported || isSaving}
+                                                                    onClick={() => handleExportStats(m)}
+                                                                >
+                                                                    {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                                                    {m.isStatsExported ? "Body exportovány" : "Exportovat body"}
+                                                                </Button>
+                                                            </div>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            {!m.lineup ? "Pro export bodů je nutné vyplnit sestavu." : m.isStatsExported ? "Statistiky již byly exportovány." : "Připíše zápas a body hráčům ze sestavy."}
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
+                                            </div>
+                                        )}
+                                    </div>
                                 </AccordionContent>
                             </AccordionItem>
                         )
