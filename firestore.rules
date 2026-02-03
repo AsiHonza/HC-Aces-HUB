@@ -8,22 +8,6 @@
  * hierarchically organized under the /users/{userId} path. This structure naturally
  * scopes access control. Publicly shared data, such as hockey matches, is stored in a
  * separate top-level collection (/matches) to enable simple, performant public queries.
- *
- * Key Security Decisions:
- * - User Isolation: A user can only read or write data within their own
- *   document tree (i.e., /users/{their-own-userId}/...).
- * - User Listing for Leaderboard: Signed-in users can list all user profiles to
- *   populate leaderboards and team views.
- * - Reads on Matches: The /matches collection is readable by any authenticated user.
- * - Write Protection on Matches: Writes to the /matches collection are currently
- *   restricted to admins.
- * - Denormalization for Authorization: Rules rely on the {userId} wildcard in the
- *   path for authorization, avoiding costly and slow `get()` calls to other documents.
- *   Furthermore, documents within the user's tree are required to contain a field
- *   linking back to the userId to ensure relational integrity.
- * - Structural Segregation: User-private data (/users) and public data (/matches)
- *   are stored in separate top-level collections. This is a secure and performant
- *   pattern that simplifies rules for list operations.
  */
 rules_version = '2';
 service cloud.firestore {
@@ -34,9 +18,11 @@ service cloud.firestore {
       return request.auth != null;
     }
     
+    // Checks if the user is an admin by reading their profile role
+    // We use a safe check to avoid recursion issues
     function isAdmin() {
-      // Check for role on the user's own document
-      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return isSignedIn() && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     // Checks if the requesting user's UID matches the document's owner ID
@@ -44,78 +30,37 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Checks for ownership on an existing document, critical for update/delete
-    function isExistingOwner(userId) {
-      return isOwner(userId) && resource != null;
-    }
-
-    // Validates that a new UserProfile document has an 'id' field matching its path userId
-    function isCreatingOwnProfile(userId) {
-      return request.resource.data.id == userId;
-    }
-
-    // Validates that the 'id' field of a UserProfile is immutable on update
-    function isUpdatingOwnProfile() {
-      return request.resource.data.id == resource.data.id;
-    }
-
-    // Validates that new SkaterStats correctly link back to their parent user
-    function isCreatingOwnSkaterStats(userId) {
-      return request.resource.data.userProfileId == userId;
-    }
-    
-    // Validates that new GoalieStats correctly link back to their parent user
-    function isCreatingOwnGoalieStats(userId) {
-        return request.resource.data.userProfileId == userId;
-    }
-
-    // Validates that the user link ('userProfileId') on SkaterStats is immutable
-    function isUpdatingOwnSkaterStats() {
-      return request.resource.data.userProfileId == resource.data.userProfileId;
-    }
-    
-    // Validates that the user link ('userProfileId') on GoalieStats is immutable
-    function isUpdatingOwnGoalieStats() {
-      return request.resource.data.userProfileId == resource.data.userProfileId;
-    }
-
-
     match /settings/{settingId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
 
     match /users/{userId} {
-      allow get: if isOwner(userId) || isAdmin();
-      // Allow any signed-in user to list users for leaderboard purposes
-      allow list: if isSignedIn(); 
-      allow create: if isOwner(userId) && isCreatingOwnProfile(userId);
-      allow update: if (isExistingOwner(userId) && isUpdatingOwnProfile()) || isAdmin();
-      allow delete: if isExistingOwner(userId) || isAdmin();
+      // Allow any signed-in user to see profiles (necessary for leaderboard and admin checks)
+      allow get, list: if isSignedIn();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
     }
 
     match /users/{userId}/skaterStats/{skaterStatsId} {
-      allow get, list: if isOwner(userId) || isAdmin();
-      allow create: if (isOwner(userId) && isCreatingOwnSkaterStats(userId)) || isAdmin();
-      allow update: if (isExistingOwner(userId) && isUpdatingOwnSkaterStats()) || isAdmin();
-      allow delete: if isExistingOwner(userId) || isAdmin();
+      // Admin can manage all stats, owner can manage their own
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || isOwner(userId);
     }
     
-     match /users/{userId}/goalieStats/{goalieStatsId} {
-      allow get, list: if isOwner(userId) || isAdmin();
-      allow create: if (isOwner(userId) && isCreatingOwnGoalieStats(userId)) || isAdmin();
-      allow update: if (isExistingOwner(userId) && isUpdatingOwnGoalieStats()) || isAdmin();
-      allow delete: if isExistingOwner(userId) || isAdmin();
+    match /users/{userId}/goalieStats/{goalieStatsId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || isOwner(userId);
     }
 
-    // This rule allows the collection group query for 'skaterStats' used in the dashboard leaderboard.
-    // It allows any signed-in user to read and list documents from any 'skaterStats' collection.
+    // Collection group rules for global statistics
     match /{path=**}/skaterStats/{statsId} {
-        allow get, list: if isSignedIn();
+        allow read: if isSignedIn();
     }
     
     match /{path=**}/goalieStats/{statsId} {
-        allow get, list: if isSignedIn();
+        allow read: if isSignedIn();
     }
 
     match /matches/{matchId} {

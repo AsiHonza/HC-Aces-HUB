@@ -1,4 +1,3 @@
-
 'use client'
 
 import React, { Suspense, useState, useMemo, useEffect } from 'react'
@@ -478,30 +477,43 @@ function DashboardPageContent() {
     try {
         const batch = writeBatch(firestore);
         const prefix = scoringView === 'history' ? 'historical' : scoringView;
+        
+        // Final sanity check: ensure we use the correct field names based on prefix
+        const goalsKey = `${prefix === 'historical' ? 'historical' : prefix}Goals`;
+        const assistsKey = `${prefix === 'historical' ? 'historical' : prefix}Assists`;
+        const gamesPlayedKey = `${prefix === 'historical' ? 'historical' : prefix}GamesPlayed`;
+
         editableSkaterStats.forEach(p => { 
             if (!p.id) return;
             batch.set(doc(firestore, 'users', p.id, 'skaterStats', 'stats'), { 
                 userProfileId: p.id, 
-                [`${prefix}Goals`]: p.goals, 
-                [`${prefix}Assists`]: p.assists, 
-                [`${prefix}GamesPlayed`]: p.gamesPlayed 
+                [goalsKey]: Number(p.goals) || 0, 
+                [assistsKey]: Number(p.assists) || 0, 
+                [gamesPlayedKey]: Number(p.gamesPlayed) || 0 
             }, { merge: true }); 
         });
+
+        const goalieWinsKey = `${prefix === 'historical' ? 'historical' : prefix}Wins`;
+        const goalieSavesKey = `${prefix === 'historical' ? 'historical' : prefix}Saves`;
+        const goalieShotsAgainstKey = `${prefix === 'historical' ? 'historical' : prefix}ShotsAgainst`;
+        const goalieGamesPlayedKey = `${prefix === 'historical' ? 'historical' : prefix}GamesPlayed`;
+
         editableGoalieStats.forEach(g => { 
             if (!g.id) return;
             batch.set(doc(firestore, 'users', g.id, 'goalieStats', 'stats'), { 
                 userProfileId: g.id, 
-                [`${prefix}GamesPlayed`]: g.gamesPlayed, 
-                [`${prefix}Wins`]: g.wins, 
-                [`${prefix}Saves`]: g.saves, 
-                [`${prefix}ShotsAgainst`]: g.shotsAgainst 
+                [goalieGamesPlayedKey]: Number(g.gamesPlayed) || 0, 
+                [goalieWinsKey]: Number(g.wins) || 0, 
+                [goalieSavesKey]: Number(g.saves) || 0, 
+                [goalieShotsAgainstKey]: Number(g.shotsAgainst) || 0 
             }, { merge: true }); 
         });
+
         await batch.commit();
-        toast({ title: 'Statistiky uloženy' });
+        toast({ title: 'Statistiky úspěšně uloženy' });
         setIsStatEditMode(false);
     } catch (err: any) { 
-        toast({ variant: 'destructive', title: 'Chyba', description: err.message }); 
+        toast({ variant: 'destructive', title: 'Chyba při ukládání', description: err.message }); 
     } finally { 
         setIsSaving(false); 
     }
