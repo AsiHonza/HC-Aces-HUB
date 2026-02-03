@@ -308,6 +308,8 @@ function DashboardPageContent() {
       return allMatches.filter(match => !match.isPlayed && match.dateTime.toDate() >= now);
   }, [allMatches]);
 
+  const nextMatch = upcomingMatches[0];
+
   const upcomingBirthdays = useMemo(() => {
       if (!allUsers) return [];
       const now = startOfDay(new Date());
@@ -376,7 +378,6 @@ function DashboardPageContent() {
   
   const sortedTeamScoring = useMemo(() => {
       if (isStatEditMode) {
-          const view = scoringView === 'season' ? 'regular' : scoringView;
           return editableSkaterStats.map((p, i) => ({
               ...p,
               points: (Number(p.goals) || 0) + (Number(p.assists) || 0),
