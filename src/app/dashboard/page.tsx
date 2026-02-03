@@ -823,8 +823,30 @@ function DashboardPageContent() {
         }
         await updateDoc(doc(firestore, 'matches', selectedMatch.id), upd); 
         setIsEditDialogOpen(false); setIsSaving(false); toast({ title: "Změny uloženy" }); 
-      }}><div className="grid gap-4 py-4"><div className="grid gap-2"><Label>Soupeř</Label><Input name="opponent" defaultValue={selectedMatch.team2} required /></div><div className="grid grid-cols-2 gap-2"><div className="grid gap-2"><Label>Datum</Label><Input name="date" type="date" defaultValue={format(selectedMatch.dateTime.toDate(), 'yyyy-MM-dd')} required /></div><div className="grid gap-2"><Label>Čas</Label><Input name="time" type="time" defaultValue={format(selectedMatch.dateTime.toDate(), 'HH:mm')} required /></div></div><div className="grid gap-2"><Label>Místo</Label><Input name="location" defaultValue={selectedMatch.location} required /></div><div className="grid gap-2"><Label>Typ</Label><Select name="type" required defaultValue={selectedMatch.type}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="regular">Základní</SelectItem><SelectItem value="playoff">Play-off</SelectItem></SelectContent></Select></div>
-      {/* Note: In Edit dialog, simplifying with direct inputs or conditional rendering if type changes would be needed, keeping it simple for now as per type */}
+      }}><div className="grid gap-4 py-4"><div className="grid gap-2"><Label>Soupeř</Label><Input name="opponent" defaultValue={selectedMatch.team2} required /></div><div className="grid grid-cols-2 gap-2"><div className="grid gap-2"><Label>Datum</Label><Input name="date" type="date" defaultValue={format(selectedMatch.dateTime.toDate(), 'yyyy-MM-dd')} required /></div><div className="grid gap-2"><Label>Čas</Label><Input name="time" type="time" defaultValue={format(selectedMatch.dateTime.toDate(), 'HH:mm')} required /></div></div><div className="grid gap-2"><Label>Místo</Label><Input name="location" defaultValue={selectedMatch.location} required /></div><div className="grid gap-2"><Label>Typ</Label><Select name="type" required defaultValue={selectedMatch.type} onValueChange={(v) => {
+          // Explicitly update if type changes to show correct additional fields if needed
+          // Local state could handle this but the form values will be read on submit
+      }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="regular">Základní</SelectItem><SelectItem value="playoff">Play-off</SelectItem></SelectContent></Select></div>
+      {/* Conditionally rendering additional fields for editing if needed, but the current simplified approach works if user selects the right type */}
+      <div className="grid gap-2">
+        <Label>Detaily kola / fáze (pokud se mění typ)</Label>
+        <div className="text-xs text-muted-foreground italic">Při změně typu nezapomeňte upravit detaily v polích níže (budou uloženy jen ty relevantní pro daný typ).</div>
+      </div>
+      <div className="grid grid-cols-2 gap-4 border p-2 rounded">
+        <div className="grid gap-2"><Label>Kolo (Zákl. část)</Label><Input name="round" type="number" defaultValue={selectedMatch.round || ''} /></div>
+        <div className="grid gap-2">
+            <Label>Fáze (Play-off)</Label>
+            <Select name="playoffStage" defaultValue={selectedMatch.playoffStage || 'čtvrtfinále'}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="čtvrtfinále">Čtvrtfinále</SelectItem>
+                    <SelectItem value="semifinále">Semifinále</SelectItem>
+                    <SelectItem value="finále">Finále</SelectItem>
+                </SelectContent>
+            </Select>
+        </div>
+        <div className="grid gap-2"><Label>Zápas č. (Play-off)</Label><Input name="playoffMatchNumber" type="number" defaultValue={selectedMatch.playoffMatchNumber || ''} /></div>
+      </div>
       </div><DialogFooter><Button type="submit">Uložit</Button></DialogFooter></form>}</DialogContent></Dialog>
     </div>
   )

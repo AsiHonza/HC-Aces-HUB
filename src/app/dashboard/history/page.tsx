@@ -8,7 +8,7 @@ import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@
 import { query, collection, Timestamp, doc, updateDoc, orderBy, addDoc, deleteDoc } from 'firebase/firestore'
 import { format, parse } from 'date-fns'
 import { cs } from 'date-fns/locale'
-import { Loader2, Trophy, Pencil, Trash2, MoreHorizontal, View, Plus, Disc } from 'lucide-react'
+import { Loader2, Trophy, Pencil, Trash2, MoreHorizontal, View, Plus, Disc, Users } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -175,7 +175,7 @@ function HistoryPageContent() {
         setIsSaving(true);
         try {
             const fd = new FormData(e.currentTarget);
-            const mType = fd.get('type') as any;
+            const mType = fd.get('type') as Match['type'];
             const t1Score = parseInt(fd.get('team1Score') as string, 10) || 0;
             const t2Score = parseInt(fd.get('team2Score') as string, 10) || 0;
             const newScorers: any[] = [];
@@ -369,7 +369,7 @@ function HistoryPageContent() {
             </Dialog>
 
             <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-                <DialogContent className="max-w-md">
+                <DialogContent className="max-w-2xl">
                     <DialogHeader><DialogTitle>Upravit výsledek</DialogTitle></DialogHeader>
                     {selectedMatch && users && (
                         <form onSubmit={(e) => handleResultSave(e, false)}>
