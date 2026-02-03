@@ -1,11 +1,10 @@
-
 'use client'
 
 import { Suspense, useMemo, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase'
-import { query, collection, Timestamp, collectionGroup, doc, writeBatch, updateDoc, orderBy, increment } from 'firebase/firestore'
+import { query, collection, Timestamp, collectionGroup, doc, writeBatch, updateDoc, orderBy, increment, setDoc } from 'firebase/firestore'
 import { format, parse } from 'date-fns'
 import { cs } from 'date-fns/locale'
 import { Loader2, Trophy, Users, Pencil, Trash2, MoreHorizontal, ShieldCheck, View, Plus, Disc } from 'lucide-react'
@@ -122,7 +121,7 @@ function HistoryPageContent() {
     const { user } = useUser();
     const { toast } = useToast();
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-    const [isAddMatchDialogOpen, setIsAddMatchDialogOpen] = useState(false);
+    const [isAddMatchDialogOpen, setIsAddDialogOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
     const [addMatchType, setAddMatchType] = useState<Match['type']>('regular');
@@ -143,12 +142,14 @@ function HistoryPageContent() {
     const { data: users, isLoading: usersLoading } = useCollection<UserProfile>(usersQuery);
     const attendancesQuery = useMemoFirebase(() => { if (!firestore || !user) return null; return query(collectionGroup(firestore, 'attendees')); }, [firestore, user]);
     const { data: allAttendances, isLoading: attendancesLoading } = useCollection<Attendance>(attendancesQuery);
+    
     const attendancesByMatch = useMemo(() => {
         const map = new Map<string, Attendance[]>();
         allAttendances?.forEach(att => { if (!map.has(att.matchId)) map.set(att.matchId, []); map.get(att.matchId)!.push(att); });
         return map;
       }, [allAttendances]);
-    const matches = useMemo(() => allMatches?.filter(m => m.isPlayed) || null, [allMatches]);
+
+    const playedMatches = useMemo(() => allMatches?.filter(m => m.isPlayed) || null, [allMatches]);
     const usersMap = useMemo(() => new Map(users?.map(u => [u.id, u.name]) || []), [users]);
     const isLoading = userProfileLoading || matchesLoading || usersLoading || attendancesLoading;
 
@@ -161,11 +162,12 @@ function HistoryPageContent() {
             const oldL = lineupMatch.lineup || {};
             const oldPids = new Set(Object.values(oldL).filter(p => p !== null).map(p => p!.id));
             const newPids = new Set(Object.values(lineup).filter(p => p !== null).map(p => p!.id));
-            const countedPids = new Set<string>();
-            lineupMatch.scorers?.forEach(s => { if (s.goal) countedPids.add(s.goal); if (s.assist) countedPids.add(s.assist); });
-            if (lineupMatch.goalieId) countedPids.add(lineupMatch.goalieId);
+            const participantsWithPoints = new Set<string>();
+            lineupMatch.scorers?.forEach(s => { if (s.goal) participantsWithPoints.add(s.goal); if (s.assist) participantsWithPoints.add(s.assist); });
+            if (lineupMatch.goalieId) participantsWithPoints.add(lineupMatch.goalieId);
+
             newPids.forEach(pid => {
-                if (!oldPids.has(pid) && !countedPids.has(pid)) {
+                if (!oldPids.has(pid) && !participantsWithPoints.has(pid)) {
                     const update: any = { historicalGamesPlayed: increment(1), userProfileId: pid };
                     if (lineupMatch.type === 'playoff') update.playoffGamesPlayed = increment(1);
                     else if (lineupMatch.type === 'regular') update.seasonGamesPlayed = increment(1);
@@ -173,7 +175,7 @@ function HistoryPageContent() {
                 }
             });
             oldPids.forEach(pid => {
-                if (!newPids.has(pid) && !countedPids.has(pid)) {
+                if (!newPids.has(pid) && !participantsWithPoints.has(pid)) {
                     const update: any = { historicalGamesPlayed: increment(-1), userProfileId: pid };
                     if (lineupMatch.type === 'playoff') update.playoffGamesPlayed = increment(-1);
                     else if (lineupMatch.type === 'regular') update.seasonGamesPlayed = increment(-1);
@@ -195,6 +197,7 @@ function HistoryPageContent() {
             if (selectedMatch.lineup) Object.values(selectedMatch.lineup).forEach(p => { if(p) participants.add(p.id); });
             selectedMatch.scorers?.forEach(s => { if (s.goal) participants.add(s.goal); if (s.assist) participants.add(s.assist); });
             if (selectedMatch.goalieId) participants.add(selectedMatch.goalieId);
+
             for (const pid of participants) {
                 const update: any = { historicalGamesPlayed: increment(-1), userProfileId: pid };
                 if (selectedMatch.type === 'playoff') update.playoffGamesPlayed = increment(-1);
@@ -242,6 +245,7 @@ function HistoryPageContent() {
             const commonData: any = { type: mType, team1Score: t1Score, team2Score: t2Score, scorers: newScorers, goalieId: gId, goalieSaves: gSaves, goalieShotsAgainst: gShots };
             if (mType === 'regular') { commonData.round = Number(formData.get('round')) || null; commonData.playoffStage = null; commonData.playoffMatchNumber = null; }
             else if (mType === 'playoff') { commonData.playoffStage = formData.get('playoffStage') as string; commonData.playoffMatchNumber = Number(formData.get('playoffMatchNumber')) || null; commonData.round = null; }
+            
             const oldPids = new Set<string>();
             const newPids = new Set<string>();
             if (!isNew && selectedMatch) {
@@ -252,6 +256,7 @@ function HistoryPageContent() {
             if (selectedMatch?.lineup) Object.values(selectedMatch.lineup).forEach(p => { if(p) newPids.add(p.id); });
             newScorers.forEach(s => { if(s.goal) newPids.add(s.goal); if(s.assist) newPids.add(s.assist); });
             if (gId) newPids.add(gId);
+
             const allPids = new Set([...oldPids, ...newPids]);
             for (const pid of allPids) {
                 const update: any = { userProfileId: pid };
@@ -268,6 +273,7 @@ function HistoryPageContent() {
                 if (aDiff !== 0) { update.historicalAssists = increment(aDiff); if (mType === 'playoff') update.playoffAssists = increment(aDiff); else if (mType === 'regular') update.seasonAssists = increment(aDiff); }
                 if (Object.keys(update).length > 1) batch.set(doc(firestore, 'users', pid, 'skaterStats', 'stats'), update, { merge: true });
             }
+
             const oldGid = isNew ? null : selectedMatch?.goalieId;
             if (oldGid) {
                 const oldIsWin = (selectedMatch?.team1Score ?? 0) > (selectedMatch?.team2Score ?? 0);
@@ -290,20 +296,20 @@ function HistoryPageContent() {
             await batch.commit();
             toast({ title: isNew ? "Zápas přidán." : "Aktualizováno." });
         } catch (error: any) { toast({ variant: 'destructive', title: "Chyba", description: error.message }); }
-        finally { setIsSaving(false); setIsEditDialogOpen(false); setIsAddMatchDialogOpen(false); setSelectedMatch(null); }
+        finally { setIsSaving(false); setIsEditDialogOpen(false); setIsAddDialogOpen(false); setSelectedMatch(null); }
     };
 
     if (isLoading) return <div className="flex justify-center h-64"><Loader2 className="animate-spin text-primary" /></div>
     return (
         <div className="py-8 space-y-8">
-            <Card><CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"><div><CardTitle>Historie</CardTitle><CardDescription>Zápasy a statistiky.</CardDescription></div>{userProfile?.role === 'admin' && <Button onClick={() => setIsAddMatchDialogOpen(true)}><Plus className="mr-2 h-4" />Přidat</Button>}</CardHeader>
-                <CardContent>{matches?.length ? (<Accordion type="single" collapsible className="w-full">{matches.map(m => {
+            <Card><CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"><div><CardTitle>Historie</CardTitle><CardDescription>Zápasy a statistiky.</CardDescription></div>{userProfile?.role === 'admin' && <Button onClick={() => setIsAddDialogOpen(true)}><Plus className="mr-2 h-4" />Přidat</Button>}</CardHeader>
+                <CardContent>{playedMatches?.length ? (<Accordion type="single" collapsible className="w-full">{playedMatches.map(m => {
                                 const { prefix, opponent } = getMatchDetails(m);
                                 return (
                                     <AccordionItem value={m.id} key={m.id}><AccordionTrigger className="text-left"><div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full pr-2 gap-2"><div className="flex-1">
                                                     <p className="text-[10px] text-muted-foreground uppercase">{format(m.dateTime.toDate(), "d. M. yy")}</p>{prefix && <p className="text-[9px] font-bold text-primary uppercase">{prefix}</p>}<p className="font-semibold">{opponent}</p></div>
                                                 <div className="flex items-center gap-2"><strong>{m.team1Score}:{m.team2Score}</strong><Badge variant={(m.team1Score||0)>(m.team2Score||0)?'default':'destructive'}>{(m.team1Score||0)>(m.team2Score||0)?'Výhra':'Prohra'}</Badge>
-                                                    {userProfile?.role === 'admin' && <DropdownMenu modal={false}><DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="h-4" /></Button></DropdownMenuTrigger><DropdownMenuContent><DropdownMenuItem onClick={() => { setSelectedMatch(m); setEditMatchType(m.type); setIsEditDialogOpen(true); }}><Pencil className="mr-2 h-4" />Upravit</DropdownMenuItem><DropdownMenuItem onClick={() => { setLineupMatch(m); setIsLineupBuilderOpen(true); }}><Users className="mr-2 h-4" />Sestava</DropdownMenuItem><DropdownMenuItem onClick={() => { setSelectedMatch(m); setIsDeleteDialogOpen(true); }} className="text-destructive"><Trash2 className="mr-2 h-4" />Smazat</DropdownMenuItem></DropdownMenuContent></DropdownMenu>}
+                                                    {userProfile?.role === 'admin' && <DropdownMenu modal={false}><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" onClick={(e) => e.stopPropagation()}><MoreHorizontal className="h-4" /></Button></DropdownMenuTrigger><DropdownMenuContent><DropdownMenuItem onClick={() => { setSelectedMatch(m); setEditMatchType(m.type); setIsEditDialogOpen(true); }}><Pencil className="mr-2 h-4" />Upravit</DropdownMenuItem><DropdownMenuItem onClick={() => { setLineupMatch(m); setIsLineupBuilderOpen(true); }}><Users className="mr-2 h-4" />Sestava</DropdownMenuItem><DropdownMenuItem onClick={() => { setSelectedMatch(m); setIsDeleteDialogOpen(true); }} className="text-destructive"><Trash2 className="mr-2 h-4" />Smazat</DropdownMenuItem></DropdownMenuContent></DropdownMenu>}
                                                 </div></div></AccordionTrigger>
                                         <AccordionContent className="pl-4 border-l ml-2 pt-4">
                                             <div className="grid gap-4"><div><h4 className="font-semibold flex items-center gap-2"><Trophy className="h-4 text-primary" />Bodování</h4>
@@ -314,19 +320,19 @@ function HistoryPageContent() {
                                 )
                             })}</Accordion>) : <p className="text-center py-12">Zatím nic.</p>}</CardContent>
             </Card>
-            <Dialog open={isAddMatchDialogOpen} onOpenChange={setIsAddMatchDialogOpen}><DialogContent className="max-w-2xl"><DialogHeader><DialogTitle>Přidat zápas</DialogTitle></DialogHeader><form onSubmit={(e) => handleResultSave(e, true)}><div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-4">
+            <Dialog open={isAddMatchDialogOpen} onOpenChange={setIsAddDialogOpen}><DialogContent className="max-w-2xl"><DialogHeader><DialogTitle>Přidat zápas</DialogTitle></DialogHeader><form onSubmit={(e) => handleResultSave(e, true)}><div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-4">
                             <div className="grid grid-cols-2 gap-4"><div><Label>Soupeř</Label><Input name="opponent" required /></div><div><Label>Místo</Label><Input name="location" required /></div></div>
                             <div className="grid grid-cols-3 gap-4"><div><Label>Datum</Label><Input name="date" type="date" required /></div><div><Label>Čas</Label><Input name="time" type="time" defaultValue="18:00" required /></div><div><Label>Typ</Label><Select name="type" value={addMatchType} onValueChange={(v) => setAddMatchType(v as any)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="regular">Základní</SelectItem><SelectItem value="playoff">Play-off</SelectItem><SelectItem value="friendly">Přátelský</SelectItem></SelectContent></Select></div></div>
                             {addMatchType === 'regular' && <div className="grid grid-cols-4 items-center gap-4"><Label className="text-right">Kolo</Label><Input name="round" type="number" min="1" className="col-span-3" /></div>}
                             {addMatchType === 'playoff' && <div className="grid grid-cols-2 gap-4"><div><Label>Fáze</Label><Select name="playoffStage" required defaultValue="čtvrtfinále"><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="čtvrtfinále">Čtvrtfinále</SelectItem><SelectItem value="semifinále">Semifinále</SelectItem><SelectItem value="finále">Finále</SelectItem></SelectContent></Select></div><div><Label>Zápas č.</Label><Input name="playoffMatchNumber" type="number" min="1" /></div></div>}
                             {users && <MatchResultFormFields allUsers={users} onGoalCountChange={() => {}} />}
-                        </div><DialogFooter><Button type="button" variant="outline" onClick={() => setIsAddMatchDialogOpen(false)}>Zrušit</Button><Button type="submit">Uložit</Button></DialogFooter></form></DialogContent></Dialog>
+                        </div><DialogFooter><Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>Zrušit</Button><Button type="submit">Uložit</Button></DialogFooter></form></DialogContent></Dialog>
             <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}><DialogContent className="max-w-md"><DialogHeader><DialogTitle>Upravit výsledek</DialogTitle></DialogHeader>{selectedMatch && users ? (<form onSubmit={(e) => handleResultSave(e, false)}><div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-4">
                                 <div className="grid grid-cols-2 gap-4"><div><Label>Typ</Label><Select name="type" value={editMatchType} onValueChange={(v) => setEditMatchType(v as any)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="regular">Základní</SelectItem><SelectItem value="playoff">Play-off</SelectItem><SelectItem value="friendly">Přátelský</SelectItem></SelectContent></Select></div>{editMatchType === 'regular' && <div><Label>Kolo</Label><Input name="round" type="number" min="1" defaultValue={selectedMatch.round} /></div>}</div>
                                 {editMatchType === 'playoff' && <div className="grid grid-cols-2 gap-4"><div><Label>Fáze</Label><Select name="playoffStage" required defaultValue={selectedMatch.playoffStage || "čtvrtfinále"}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="čtvrtfinále">Čtvrtfinále</SelectItem><SelectItem value="semifinále">Semifinále</SelectItem><SelectItem value="finále">Finále</SelectItem></SelectContent></Select></div><div><Label>Zápas č.</Label><Input name="playoffMatchNumber" type="number" min="1" defaultValue={selectedMatch.playoffMatchNumber} /></div></div>}
                                 <MatchResultFormFields match={selectedMatch} allUsers={users} onGoalCountChange={() => {}} />
                             </div><DialogFooter><Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>Zrušit</Button><Button type="submit">Uložit</Button></DialogFooter></form>) : <div className="flex justify-center h-24"><Loader2 className="animate-spin text-primary" /></div>}</DialogContent></Dialog>
-            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Smazat?</AlertDialogTitle><AlertDialogDescription>Statistiky budou odečteny.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Zrušit</AlertDialogCancel><AlertDialogAction onClick={confirmDeleteMatch} className="bg-destructive">Smazat</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Smazat?</AlertDialogTitle><AlertDialogDescription>Statistiky všech zúčastněných hráčů budou odečteny.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Zrušit</AlertDialogCancel><AlertDialogAction onClick={confirmDeleteMatch} className="bg-destructive">Smazat</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
             <Dialog open={isLineupViewOpen} onOpenChange={setIsLineupViewOpen}><DialogContent className="max-w-4xl h-[90vh] flex flex-col"><DialogHeader><DialogTitle>{viewMatchOpponent}</DialogTitle></DialogHeader>{viewLineupData ? <LineupDisplay lineup={viewLineupData} scorers={viewScorersData} /> : <div className="flex-1 flex justify-center"><Loader2 className="animate-spin text-primary" /></div>}</DialogContent></Dialog>
             <Dialog open={isLineupBuilderOpen} onOpenChange={setIsLineupBuilderOpen}><DialogContent className="max-w-4xl h-[90vh] flex flex-col">{lineupMatch && users ? (<><DialogHeader><DialogTitle>Sestava: {getMatchDetails(lineupMatch).opponent}</DialogTitle></DialogHeader><LineupBuilder players={users} initialData={lineupMatch.lineup} onSave={handleSaveLineup} onCancel={() => setIsLineupBuilderOpen(false)} /></>) : <div className="flex-1 flex justify-center"><Loader2 className="animate-spin text-primary" /></div>}</DialogContent></Dialog>
         </div>
