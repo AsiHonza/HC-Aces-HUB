@@ -16,6 +16,17 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    // Explicitní pravidla pro statistiky (aby se předešlo limitům vnořených cest)
+    match /users/{userId}/skaterStats/{statsId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    
+    match /users/{userId}/goalieStats/{statsId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
     match /settings/{settingId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
@@ -27,6 +38,7 @@ service cloud.firestore {
       allow update: if isOwner(userId) || isAdmin();
       allow delete: if isAdmin();
 
+      // Tyto pravidla jsou duplikována výše pro jistotu a rychlost
       match /skaterStats/{skaterStatsId} {
         allow read: if isSignedIn();
         allow write: if isAdmin();

@@ -119,7 +119,6 @@ function getMatchDetails(match: Match) {
 function RecordResultForm({ match, allUsers, onSave, onCancel, isSaving }: { match: Match, allUsers: UserProfile[], onSave: (e: React.FormEvent<HTMLFormElement>) => Promise<void>, onCancel: () => void, isSaving: boolean }) {
     const [goalCount, setGoalCount] = useState(0);
     const skaters = useMemo(() => allUsers.filter(u => u.playerType === 'player'), [allUsers]);
-    const goalies = useMemo(() => allUsers.filter(u => u.playerType === 'goalie'), [allUsers]);
     const { prefix, opponent } = getMatchDetails(match);
 
     return (
@@ -143,7 +142,7 @@ function RecordResultForm({ match, allUsers, onSave, onCancel, isSaving }: { mat
                         <Input id="team2Score" name="team2Score" type="number" className="text-center text-2xl font-bold h-16" min="0" required />
                     </div>
                 </div>
-                <p className="text-xs text-muted-foreground italic text-center px-4">Uložení výsledku zde pouze zaznamená skóre. Pro aktualizaci kanadského bodování a brankářských statistik použijte ruční úpravu v tabulkách na nástěnce.</p>
+                <p className="text-xs text-muted-foreground italic text-center px-4">Uložení výsledku zde pouze zaznamená skóre. Pro aktualizaci statistik použijte ruční úpravu v tabulkách na nástěnce.</p>
                 {goalCount > 0 && <p className="font-medium mt-4">Střelci (pro přehled v detailu)</p>}
                 {Array.from({ length: goalCount }).map((_, index) => (
                     <div key={index} className="grid grid-cols-2 gap-2 items-center">
@@ -373,7 +372,6 @@ function DashboardPageContent() {
             }
         }
 
-        // Zápis pouze dokumentu zápasu, žádná automatika pro hráče
         await updateDoc(doc(firestore, 'matches', selectedMatch.id), { 
             isPlayed: true, 
             team1Score: t1Score, 
@@ -381,7 +379,7 @@ function DashboardPageContent() {
             scorers 
         });
         
-        toast({ title: "Výsledek uložen. Body upravte ručně v tabulkách." });
+        toast({ title: "Výsledek uložen. Statistiky upravte ručně." });
         setIsResultDialogOpen(false);
     } catch (err: any) { 
         toast({ variant: 'destructive', title: 'Chyba', description: err.message }); 
@@ -399,14 +397,13 @@ function DashboardPageContent() {
         const assistsKey = `${prefix === 'historical' ? 'historical' : prefix}Assists`;
         const gamesPlayedKey = `${prefix === 'historical' ? 'historical' : prefix}GamesPlayed`;
 
-        // Ukládáme po jednom, abychom se vyhnuli limitům security rules pro batch
         const skaterPromises = editableSkaterStats.map(p => { 
             if (!p.id) return Promise.resolve();
             return setDoc(doc(firestore, 'users', p.id, 'skaterStats', 'stats'), { 
                 userProfileId: p.id, 
-                [goalsKey]: Number(p.goals) || 0, 
-                [assistsKey]: Number(p.assists) || 0, 
-                [gamesPlayedKey]: Number(p.gamesPlayed) || 0 
+                [goalsKey]: p.goals === '' ? 0 : Number(p.goals) || 0, 
+                [assistsKey]: p.assists === '' ? 0 : Number(p.assists) || 0, 
+                [gamesPlayedKey]: p.gamesPlayed === '' ? 0 : Number(p.gamesPlayed) || 0 
             }, { merge: true }); 
         });
 
@@ -419,10 +416,10 @@ function DashboardPageContent() {
             if (!g.id) return Promise.resolve();
             return setDoc(doc(firestore, 'users', g.id, 'goalieStats', 'stats'), { 
                 userProfileId: g.id, 
-                [goalieGamesPlayedKey]: Number(g.gamesPlayed) || 0, 
-                [goalieWinsKey]: Number(g.wins) || 0, 
-                [goalieSavesKey]: Number(g.saves) || 0, 
-                [goalieShotsAgainstKey]: Number(g.shotsAgainst) || 0 
+                [goalieGamesPlayedKey]: g.gamesPlayed === '' ? 0 : Number(g.gamesPlayed) || 0, 
+                [goalieWinsKey]: g.wins === '' ? 0 : Number(g.wins) || 0, 
+                [goalieSavesKey]: g.saves === '' ? 0 : Number(g.saves) || 0, 
+                [goalieShotsAgainstKey]: g.shotsAgainst === '' ? 0 : Number(g.shotsAgainst) || 0 
             }, { merge: true }); 
         });
 
@@ -430,7 +427,8 @@ function DashboardPageContent() {
         toast({ title: 'Statistiky úspěšně uloženy' });
         setIsStatEditMode(false);
     } catch (err: any) { 
-        toast({ variant: 'destructive', title: 'Chyba při ukládání', description: err.message }); 
+        console.error("Manual save error:", err);
+        toast({ variant: 'destructive', title: 'Chyba při ukládání', description: err.message || 'Nedostatečná oprávnění.' }); 
     } finally { 
         setIsSaving(false); 
     }
@@ -518,16 +516,16 @@ function DashboardPageContent() {
                             <TableBody>
                                 {userProfile?.playerType === 'player' && skaterStatsData && (
                                     <>
-                                        <TableRow><TableCell className="font-medium">Góly</TableCell><TableCell className="text-right font-bold">{String((myStatsView === 'playoff' ? skaterStatsData.playoffGoals : myStatsView === 'history' ? skaterStatsData.historicalGoals : skaterStatsData.seasonGoals) ?? 0)}</TableCell></TableRow>
-                                        <TableRow><TableCell className="font-medium">Asistence</TableCell><TableCell className="text-right font-bold">{String((myStatsView === 'playoff' ? skaterStatsData.playoffAssists : myStatsView === 'history' ? skaterStatsData.historicalAssists : skaterStatsData.seasonAssists) ?? 0)}</TableCell></TableRow>
-                                        <TableRow><TableCell className="font-medium">Body</TableCell><TableCell className="text-right font-bold">{String((myStatsView === 'playoff' ? (skaterStatsData.playoffGoals || 0) + (skaterStatsData.playoffAssists || 0) : myStatsView === 'history' ? (skaterStatsData.historicalGoals || 0) + (skaterStatsData.historicalAssists || 0) : (skaterStatsData.seasonGoals || 0) + (skaterStatsData.seasonAssists || 0)) ?? 0)}</TableCell></TableRow>
-                                        <TableRow><TableCell className="font-medium">Zápasy</TableCell><TableCell className="text-right font-bold">{String((myStatsView === 'playoff' ? skaterStatsData.playoffGamesPlayed : myStatsView === 'history' ? skaterStatsData.historicalGamesPlayed : skaterStatsData.seasonGamesPlayed) ?? 0)}</TableCell></TableRow>
+                                        <TableRow><TableCell className="font-medium">Góly</TableCell><TableCell className="text-right font-bold">{String((myStatsView === 'playoff' ? skaterStatsData.playoffGoals : myStatsView === 'history' ? skaterStatsData.historicalGoals : skaterStatsData.seasonGoals) || 0)}</TableCell></TableRow>
+                                        <TableRow><TableCell className="font-medium">Asistence</TableCell><TableCell className="text-right font-bold">{String((myStatsView === 'playoff' ? skaterStatsData.playoffAssists : myStatsView === 'history' ? skaterStatsData.historicalAssists : skaterStatsData.seasonAssists) || 0)}</TableCell></TableRow>
+                                        <TableRow><TableCell className="font-medium">Body</TableCell><TableCell className="text-right font-bold">{String((myStatsView === 'playoff' ? (skaterStatsData.playoffGoals || 0) + (skaterStatsData.playoffAssists || 0) : myStatsView === 'history' ? (skaterStatsData.historicalGoals || 0) + (skaterStatsData.historicalAssists || 0) : (skaterStatsData.seasonGoals || 0) + (skaterStatsData.seasonAssists || 0)) || 0)}</TableCell></TableRow>
+                                        <TableRow><TableCell className="font-medium">Zápasy</TableCell><TableCell className="text-right font-bold">{String((myStatsView === 'playoff' ? skaterStatsData.playoffGamesPlayed : myStatsView === 'history' ? skaterStatsData.historicalGamesPlayed : skaterStatsData.seasonGamesPlayed) || 0)}</TableCell></TableRow>
                                     </>
                                 )}
                                 {userProfile?.playerType === 'goalie' && goalieStatsData && (
                                     <>
-                                        <TableRow><TableCell className="font-medium">Zápasy</TableCell><TableCell className="text-right font-bold">{String((myStatsView === 'playoff' ? goalieStatsData.playoffGamesPlayed : myStatsView === 'history' ? goalieStatsData.historicalGamesPlayed : goalieStatsData.seasonGamesPlayed) ?? 0)}</TableCell></TableRow>
-                                        <TableRow><TableCell className="font-medium">Výhry</TableCell><TableCell className="text-right font-bold">{String((myStatsView === 'playoff' ? goalieStatsData.playoffWins : myStatsView === 'history' ? goalieStatsData.historicalWins : goalieStatsData.seasonWins) ?? 0)}</TableCell></TableRow>
+                                        <TableRow><TableCell className="font-medium">Zápasy</TableCell><TableCell className="text-right font-bold">{String((myStatsView === 'playoff' ? goalieStatsData.playoffGamesPlayed : myStatsView === 'history' ? goalieStatsData.historicalGamesPlayed : goalieStatsData.seasonGamesPlayed) || 0)}</TableCell></TableRow>
+                                        <TableRow><TableCell className="font-medium">Výhry</TableCell><TableCell className="text-right font-bold">{String((myStatsView === 'playoff' ? goalieStatsData.playoffWins : myStatsView === 'history' ? goalieStatsData.historicalWins : goalieStatsData.seasonWins) || 0)}</TableCell></TableRow>
                                         <TableRow><TableCell className="font-medium">Úspěšnost</TableCell><TableCell className="text-right font-bold">
                                             {(() => {
                                                 const sa = Number(myStatsView === 'playoff' ? goalieStatsData.playoffShotsAgainst : myStatsView === 'history' ? goalieStatsData.historicalShotsAgainst : goalieStatsData.seasonShotsAgainst) || 0;
@@ -616,18 +614,18 @@ function DashboardPageContent() {
                                         <TableCell className="font-medium">{p.name}</TableCell>
                                         {isStatEditMode ? (
                                             <>
-                                                <TableCell><Input className="h-7 w-12 text-center" type="text" value={p.gamesPlayed} onChange={e => setEditableSkaterStats(cur => cur.map(it => it.id === p.id ? {...it, gamesPlayed: e.target.value} : it))} /></TableCell>
-                                                <TableCell><Input className="h-7 w-12 text-center" type="text" value={p.goals} onChange={e => setEditableSkaterStats(cur => cur.map(it => it.id === p.id ? {...it, goals: e.target.value} : it))} /></TableCell>
-                                                <TableCell><Input className="h-7 w-12 text-center" type="text" value={p.assists} onChange={e => setEditableSkaterStats(cur => cur.map(it => it.id === p.id ? {...it, assists: e.target.value} : it))} /></TableCell>
+                                                <TableCell><Input className="h-7 w-12 text-center" type="text" value={p.gamesPlayed} onChange={e => { const val = e.target.value; if (val === '' || /^\d+$/.test(val)) setEditableSkaterStats(cur => cur.map(it => it.id === p.id ? {...it, gamesPlayed: val} : it)) }} /></TableCell>
+                                                <TableCell><Input className="h-7 w-12 text-center" type="text" value={p.goals} onChange={e => { const val = e.target.value; if (val === '' || /^\d+$/.test(val)) setEditableSkaterStats(cur => cur.map(it => it.id === p.id ? {...it, goals: val} : it)) }} /></TableCell>
+                                                <TableCell><Input className="h-7 w-12 text-center" type="text" value={p.assists} onChange={e => { const val = e.target.value; if (val === '' || /^\d+$/.test(val)) setEditableSkaterStats(cur => cur.map(it => it.id === p.id ? {...it, assists: val} : it)) }} /></TableCell>
                                             </>
                                         ) : (
                                             <>
-                                                <TableCell className="text-center">{String(p.gamesPlayed ?? 0)}</TableCell>
-                                                <TableCell className="text-center">{String(p.goals ?? 0)}</TableCell>
-                                                <TableCell className="text-center">{String(p.assists ?? 0)}</TableCell>
+                                                <TableCell className="text-center">{String(p.gamesPlayed || 0)}</TableCell>
+                                                <TableCell className="text-center">{String(p.goals || 0)}</TableCell>
+                                                <TableCell className="text-center">{String(p.assists || 0)}</TableCell>
                                             </>
                                         )}
-                                        <TableCell className="text-right font-bold">{String(p.points ?? 0)}</TableCell>
+                                        <TableCell className="text-right font-bold">{String(p.points || 0)}</TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>
@@ -675,13 +673,13 @@ function DashboardPageContent() {
                                         <TableCell className="font-medium">{g.name}</TableCell>
                                         {isStatEditMode ? (
                                             <>
-                                                <TableCell><Input className="h-7 w-12 text-center" type="text" value={g.gamesPlayed} onChange={e => setEditableGoalieStats(cur => cur.map(it => it.id === g.id ? {...it, gamesPlayed: e.target.value} : it))} /></TableCell>
-                                                <TableCell><Input className="h-7 w-12 text-center" type="text" value={g.wins} onChange={e => setEditableGoalieStats(cur => cur.map(it => it.id === g.id ? {...it, wins: e.target.value} : it))} /></TableCell>
+                                                <TableCell><Input className="h-7 w-12 text-center" type="text" value={g.gamesPlayed} onChange={e => { const val = e.target.value; if (val === '' || /^\d+$/.test(val)) setEditableGoalieStats(cur => cur.map(it => it.id === g.id ? {...it, gamesPlayed: val} : it)) }} /></TableCell>
+                                                <TableCell><Input className="h-7 w-12 text-center" type="text" value={g.wins} onChange={e => { const val = e.target.value; if (val === '' || /^\d+$/.test(val)) setEditableGoalieStats(cur => cur.map(it => it.id === g.id ? {...it, wins: val} : it)) }} /></TableCell>
                                             </>
                                         ) : (
                                             <>
-                                                <TableCell className="text-center">{String(g.gamesPlayed ?? 0)}</TableCell>
-                                                <TableCell className="text-center">{String(g.wins ?? 0)}</TableCell>
+                                                <TableCell className="text-center">{String(g.gamesPlayed || 0)}</TableCell>
+                                                <TableCell className="text-center">{String(g.wins || 0)}</TableCell>
                                             </>
                                         )}
                                         <TableCell className="text-right font-bold">{String((g.savePercentage || 0).toFixed(2))}%</TableCell>
