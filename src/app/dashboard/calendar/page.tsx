@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from '@/hooks/use-toast'
 import { Badge } from '@/components/ui/badge'
+import Link from 'next/link'
 
 interface UserProfile {
   id: string;
@@ -111,12 +112,12 @@ function CalendarPageContent() {
                         <CardTitle>Kalendář událostí</CardTitle>
                         <CardDescription>Vyberte den pro zobrazení detailů nebo přidání zápasu.</CardDescription>
                     </CardHeader>
-                    <CardContent className="flex justify-center">
+                    <CardContent className="flex justify-center px-2 sm:px-6">
                         <Calendar
                             mode="single"
                             selected={selectedDate}
                             onSelect={handleDateSelect}
-                            className="rounded-md border shadow"
+                            className="rounded-md border shadow w-full"
                             locale={cs}
                             modifiers={{
                                 hasMatch: matchDates,
