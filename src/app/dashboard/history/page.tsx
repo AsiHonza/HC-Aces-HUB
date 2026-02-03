@@ -5,7 +5,7 @@ import { Suspense, useMemo, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase'
-import { query, collection, Timestamp, doc, updateDoc, orderBy, addDoc, deleteDoc } from 'firebase/firestore'
+import { query, collection, Timestamp, doc, updateDoc, orderBy, addDoc, deleteDoc, writeBatch, increment } from 'firebase/firestore'
 import { format, parse } from 'date-fns'
 import { cs } from 'date-fns/locale'
 import { Loader2, Trophy, Pencil, Trash2, MoreHorizontal, View, Plus, Disc, Users } from 'lucide-react'
@@ -64,9 +64,17 @@ function getMatchDetails(match: Match) {
     };
 }
 
+const formatName = (name: string) => {
+    if (!name) return '';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length < 2) return name;
+    return `${parts[0].charAt(0)}. ${parts.slice(1).join(' ')}`;
+};
+
 function MatchResultFormFields({ match, allUsers, onGoalCountChange }: { match?: Partial<Match>, allUsers: UserProfile[], onGoalCountChange: (count: number) => void }) {
     const [goalCount, setGoalCount] = useState(match?.team1Score || 0);
     const skaters = useMemo(() => allUsers.filter(u => u.playerType === 'player'), [allUsers]);
+    const goalies = useMemo(() => allUsers.filter(u => u.playerType === 'goalie'), [allUsers]);
     
     const handleGoalCountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const newCount = parseInt(e.target.value, 10) || 0;
@@ -86,7 +94,34 @@ function MatchResultFormFields({ match, allUsers, onGoalCountChange }: { match?:
                     <Input id="team2Score" name="team2Score" type="number" className="text-center text-2xl font-bold h-16" min="0" required defaultValue={match?.team2Score} />
                 </div>
             </div>
-            <p className="text-xs text-muted-foreground italic text-center px-4 mt-2">Zde pouze zaznamenáváte výsledek a střelce pro detail zápasu.</p>
+
+            <div className="grid gap-4 border p-4 rounded-lg bg-muted/20">
+                <p className="font-bold text-sm uppercase tracking-wider text-primary">Statistiky brankáře</p>
+                <div className="grid gap-2">
+                    <Label>Brankář</Label>
+                    <Select name="goalieId" defaultValue={match?.goalieId || 'none'}>
+                        <SelectTrigger><SelectValue placeholder="Vyberte brankáře" /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="none">Žádný</SelectItem>
+                            {goalies.map(u => <SelectItem key={u.id} value={u.id}>{formatName(u.name)}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                        <Label>Zásahy</Label>
+                        <Input name="goalieSaves" type="number" min="0" defaultValue={match?.goalieSaves || 0} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="grid gap-2">
+                            <Label>Střely proti</Label>
+                            <Input name="goalieShotsAgainst" type="number" min="0" defaultValue={match?.goalieShotsAgainst || 0} />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <p className="text-xs text-muted-foreground italic text-center px-4 mt-2">Zde zaznamenáváte výsledek a střelce.</p>
             {goalCount > 0 && <p className="font-medium mt-4">Střelci a asistence (Aces)</p>}
             <div className="grid gap-3">
                 {Array.from({ length: goalCount }).map((_, index) => (
@@ -95,7 +130,7 @@ function MatchResultFormFields({ match, allUsers, onGoalCountChange }: { match?:
                            <Label className="text-xs text-muted-foreground">Střelec</Label>
                            <Select name={`goal-${index}`} defaultValue={match?.scorers?.[index]?.goal}>
                                 <SelectTrigger><SelectValue placeholder={`Vyberte hráče`} /></SelectTrigger>
-                                <SelectContent>{skaters.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}</SelectContent>
+                                <SelectContent>{skaters.map(u => <SelectItem key={u.id} value={u.id}>{formatName(u.name)}</SelectItem>)}</SelectContent>
                             </Select>
                         </div>
                         <div className="grid gap-1.5">
@@ -104,7 +139,7 @@ function MatchResultFormFields({ match, allUsers, onGoalCountChange }: { match?:
                                 <SelectTrigger><SelectValue placeholder="Asistence" /></SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="none">Žádná</SelectItem>
-                                    {skaters.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+                                    {skaters.map(u => <SelectItem key={u.id} value={u.id}>{formatName(u.name)}</SelectItem>)}
                                 </SelectContent>
                             </Select>
                         </div>
@@ -151,6 +186,46 @@ function HistoryPageContent() {
     const usersMap = useMemo(() => new Map(users?.map(u => [u.id, u.name]) || []), [users]);
     const isLoading = userProfileLoading || matchesLoading || usersLoading;
 
+    const updateStatsForMatch = async (batch: any, match: Match, direction: 1 | -1) => {
+        const type = match.type === 'playoff' ? 'playoff' : 'season';
+        const skaterChanges = new Map<string, { goals: number, assists: number }>();
+
+        match.scorers?.forEach(s => {
+            if (s.goal) {
+                const current = skaterChanges.get(s.goal) || { goals: 0, assists: 0 };
+                current.goals += direction;
+                skaterChanges.set(s.goal, current);
+            }
+            if (s.assist) {
+                const current = skaterChanges.get(s.assist) || { goals: 0, assists: 0 };
+                current.assists += direction;
+                skaterChanges.set(s.assist, current);
+            }
+        });
+
+        skaterChanges.forEach((vals, uId) => {
+            const ref = doc(firestore, 'users', uId, 'skaterStats', 'stats');
+            batch.set(ref, {
+                userProfileId: uId,
+                [`${type}Goals`]: increment(vals.goals),
+                [`${type}Assists`]: increment(vals.assists),
+                [`${type}GamesPlayed`]: increment(direction)
+            }, { merge: true });
+        });
+
+        if (match.goalieId && match.goalieId !== 'none') {
+            const ref = doc(firestore, 'users', match.goalieId, 'goalieStats', 'stats');
+            const isWin = (match.team1Score || 0) > (match.team2Score || 0);
+            batch.set(ref, {
+                userProfileId: match.goalieId,
+                [`${type}GamesPlayed`]: increment(direction),
+                [`${type}Wins`]: increment(isWin ? direction : 0),
+                [`${type}Saves`]: increment((match.goalieSaves || 0) * direction),
+                [`${type}ShotsAgainst`]: increment((match.goalieShotsAgainst || 0) * direction)
+            }, { merge: true });
+        }
+    };
+
     const handleSaveLineup = async (lineup: Lineup) => {
         if (!lineupMatch || !firestore) return;
         setIsSaving(true);
@@ -168,8 +243,13 @@ function HistoryPageContent() {
         if (!selectedMatch || !firestore) return;
         setIsSaving(true);
         try {
-            await deleteDoc(doc(firestore, 'matches', selectedMatch.id));
-            toast({ title: "Zápas smazán." });
+            const batch = writeBatch(firestore);
+            if (selectedMatch.isPlayed) {
+                await updateStatsForMatch(batch, selectedMatch, -1);
+            }
+            batch.delete(doc(firestore, 'matches', selectedMatch.id));
+            await batch.commit();
+            toast({ title: "Zápas smazán a body odečteny." });
         } catch (error: any) { 
             toast({ variant: 'destructive', title: "Chyba", description: error.message }); 
         } finally { 
@@ -186,6 +266,10 @@ function HistoryPageContent() {
             const mType = fd.get('type') as Match['type'];
             const t1Score = parseInt(fd.get('team1Score') as string, 10) || 0;
             const t2Score = parseInt(fd.get('team2Score') as string, 10) || 0;
+            const goalieId = fd.get('goalieId') as string;
+            const goalieSaves = parseInt(fd.get('goalieSaves') as string, 10) || 0;
+            const goalieShotsAgainst = parseInt(fd.get('goalieShotsAgainst') as string, 10) || 0;
+
             const newScorers: any[] = [];
             for (let i = 0; i < t1Score; i++) {
                 const goal = fd.get(`goal-${i}`) as string;
@@ -193,7 +277,16 @@ function HistoryPageContent() {
                 if (goal) newScorers.push({ goal, assist: (assist && assist !== 'none') ? assist : null });
             }
 
-            const common: any = { type: mType, team1Score: t1Score, team2Score: t2Score, scorers: newScorers, isPlayed: true };
+            const common: any = { 
+                type: mType, 
+                team1Score: t1Score, 
+                team2Score: t2Score, 
+                scorers: newScorers, 
+                isPlayed: true,
+                goalieId: goalieId !== 'none' ? goalieId : null,
+                goalieSaves,
+                goalieShotsAgainst
+            };
             if (mType === 'regular') {
                 common.round = Number(fd.get('round')) || null;
             } else if (mType === 'playoff') { 
@@ -201,13 +294,25 @@ function HistoryPageContent() {
                 common.playoffMatchNumber = Number(fd.get('playoffMatchNumber')) || null; 
             }
             
+            const batch = writeBatch(firestore);
+
             if (isNew) {
                 const dt = parse(`${fd.get('date')} ${fd.get('time')}`, 'yyyy-MM-dd HH:mm', new Date());
-                await addDoc(collection(firestore, 'matches'), { team1: 'Aces', team2: fd.get('opponent'), location: fd.get('location'), dateTime: Timestamp.fromDate(dt), ...common });
+                const matchId = doc(collection(firestore, 'matches')).id;
+                const matchDoc = { id: matchId, team1: 'Aces', team2: fd.get('opponent'), location: fd.get('location'), dateTime: Timestamp.fromDate(dt), ...common };
+                batch.set(doc(firestore, 'matches', matchId), matchDoc);
+                await updateStatsForMatch(batch, matchDoc as any, 1);
             } else if (selectedMatch) {
-                await updateDoc(doc(firestore, 'matches', selectedMatch.id), common);
+                // Revert old stats
+                await updateStatsForMatch(batch, selectedMatch, -1);
+                // Apply new match data
+                batch.update(doc(firestore, 'matches', selectedMatch.id), common);
+                const updatedMatch = { ...selectedMatch, ...common };
+                await updateStatsForMatch(batch, updatedMatch, 1);
             }
-            toast({ title: isNew ? "Zápas přidán." : "Aktualizováno." });
+            
+            await batch.commit();
+            toast({ title: isNew ? "Zápas přidán a body sečteny." : "Aktualizováno a body přepočteny." });
         } catch (error: any) { toast({ variant: 'destructive', title: "Chyba", description: error.message }); }
         finally { setIsSaving(false); setIsAddDialogOpen(false); setIsEditDialogOpen(false); setSelectedMatch(null); }
     };
@@ -220,7 +325,7 @@ function HistoryPageContent() {
                 <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div>
                         <CardTitle>Historie</CardTitle>
-                        <CardDescription>Odehrané zápasy.</CardDescription>
+                        <CardDescription>Odehrané zápasy. Body jsou automaticky sčítány do tabulek.</CardDescription>
                     </div>
                     {userProfile?.role === 'admin' && <Button onClick={() => setIsAddDialogOpen(true)}><Plus className="mr-2 h-4" />Přidat odehraný zápas</Button>}
                 </CardHeader>
@@ -279,9 +384,9 @@ function HistoryPageContent() {
                                                             {m.scorers.map((s, i) => (
                                                                 <li key={i} className="flex items-center gap-3 text-sm">
                                                                     <Disc className="h-4 w-4 text-primary" />
-                                                                    <span className="font-medium">{usersMap.get(s.goal) || 'Neznámý hráč'}</span>
+                                                                    <span className="font-medium">{formatName(usersMap.get(s.goal) || 'Neznámý hráč')}</span>
                                                                     {s.assist && (
-                                                                        <span className="text-muted-foreground">(A: {usersMap.get(s.assist) || '?'})</span>
+                                                                        <span className="text-muted-foreground">(A: {formatName(usersMap.get(s.assist) || '?')})</span>
                                                                     )}
                                                                 </li>
                                                             ))}

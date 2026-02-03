@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { MapPin, Users, Trophy, BarChart, Pencil, Check, X, Flame, Shield, Plus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal, FileText, View, Disc, Cake, Minus } from "lucide-react"
 import { cn } from '@/lib/utils'
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase'
-import { doc, collection, collectionGroup, updateDoc, query, Timestamp, addDoc, orderBy, setDoc, deleteDoc } from 'firebase/firestore'
+import { doc, collection, collectionGroup, updateDoc, query, Timestamp, addDoc, orderBy, setDoc, deleteDoc, increment, writeBatch } from 'firebase/firestore'
 import { format, startOfDay, addDays, parseISO, isValid, differenceInDays, parse } from 'date-fns'
 import { cs } from 'date-fns/locale'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
@@ -126,6 +126,7 @@ const formatName = (name: string) => {
 function RecordResultForm({ match, allUsers, onSave, onCancel, isSaving }: { match: Match, allUsers: UserProfile[], onSave: (e: React.FormEvent<HTMLFormElement>) => Promise<void>, onCancel: () => void, isSaving: boolean }) {
     const [goalCount, setGoalCount] = useState(match.team1Score || 0);
     const skaters = useMemo(() => allUsers.filter(u => u.playerType === 'player'), [allUsers]);
+    const goalies = useMemo(() => allUsers.filter(u => u.playerType === 'goalie'), [allUsers]);
     const { prefix, opponent } = getMatchDetails(match);
 
     return (
@@ -149,6 +150,31 @@ function RecordResultForm({ match, allUsers, onSave, onCancel, isSaving }: { mat
                         <Input id="team2Score" name="team2Score" type="number" className="text-center text-2xl font-bold h-16" min="0" required defaultValue={match.team2Score} />
                     </div>
                 </div>
+
+                <div className="grid gap-4 border p-4 rounded-lg bg-muted/20">
+                    <p className="font-bold text-sm uppercase tracking-wider text-primary">Statistiky brankáře</p>
+                    <div className="grid gap-2">
+                        <Label>Brankář</Label>
+                        <Select name="goalieId" defaultValue={match.goalieId}>
+                            <SelectTrigger><SelectValue placeholder="Vyberte brankáře" /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="none">Žádný</SelectItem>
+                                {goalies.map(u => <SelectItem key={u.id} value={u.id}>{formatName(u.name)}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="grid gap-2">
+                            <Label>Zásahy</Label>
+                            <Input name="goalieSaves" type="number" min="0" defaultValue={match.goalieSaves || 0} />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label>Střely proti</Label>
+                            <Input name="goalieShotsAgainst" type="number" min="0" defaultValue={match.goalieShotsAgainst || 0} />
+                        </div>
+                    </div>
+                </div>
+
                 {goalCount > 0 && <p className="font-medium mt-4">Střelci</p>}
                 <div className="grid gap-3">
                     {Array.from({ length: goalCount }).map((_, index) => (
@@ -421,6 +447,50 @@ function DashboardPageContent() {
     navigator.clipboard.writeText(url.toString()).then(() => toast({ title: "Zkopírováno" }));
   };
 
+  const updateStatsForMatch = async (batch: any, match: Match, direction: 1 | -1) => {
+    const type = match.type === 'playoff' ? 'playoff' : 'season';
+    const skaterChanges = new Map<string, { goals: number, assists: number }>();
+
+    match.scorers?.forEach(s => {
+        if (s.goal) {
+            const current = skaterChanges.get(s.goal) || { goals: 0, assists: 0 };
+            current.goals += direction;
+            skaterChanges.set(s.goal, current);
+        }
+        if (s.assist) {
+            const current = skaterChanges.get(s.assist) || { goals: 0, assists: 0 };
+            current.assists += direction;
+            skaterChanges.set(s.assist, current);
+        }
+    });
+
+    // In a simplified logic, we also add games played. 
+    // This is tricky if a player was in multiple goals. We only count 1 game played per match.
+    // We assume every scorer/assister played in the match.
+    skaterChanges.forEach((vals, uId) => {
+        const ref = doc(firestore, 'users', uId, 'skaterStats', 'stats');
+        batch.set(ref, {
+            userProfileId: uId,
+            [`${type}Goals`]: increment(vals.goals),
+            [`${type}Assists`]: increment(vals.assists),
+            [`${type}GamesPlayed`]: increment(direction)
+        }, { merge: true });
+    });
+
+    // Goalie stats
+    if (match.goalieId && match.goalieId !== 'none') {
+        const ref = doc(firestore, 'users', match.goalieId, 'goalieStats', 'stats');
+        const isWin = (match.team1Score || 0) > (match.team2Score || 0);
+        batch.set(ref, {
+            userProfileId: match.goalieId,
+            [`${type}GamesPlayed`]: increment(direction),
+            [`${type}Wins`]: increment(isWin ? direction : 0),
+            [`${type}Saves`]: increment((match.goalieSaves || 0) * direction),
+            [`${type}ShotsAgainst`]: increment((match.goalieShotsAgainst || 0) * direction)
+        }, { merge: true });
+    }
+  };
+
   const handleSaveResult = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!selectedMatch || !firestore) return;
@@ -429,6 +499,9 @@ function DashboardPageContent() {
         const fd = new FormData(e.currentTarget);
         const t1Score = parseInt(fd.get('team1Score') as string, 10) || 0;
         const t2Score = parseInt(fd.get('team2Score') as string, 10) || 0;
+        const goalieId = fd.get('goalieId') as string;
+        const goalieSaves = parseInt(fd.get('goalieSaves') as string, 10) || 0;
+        const goalieShotsAgainst = parseInt(fd.get('goalieShotsAgainst') as string, 10) || 0;
         
         const scorers: { goal: string, assist: string | null }[] = [];
         for (let i = 0; i < t1Score; i++) {
@@ -439,14 +512,33 @@ function DashboardPageContent() {
             }
         }
 
-        await updateDoc(doc(firestore, 'matches', selectedMatch.id), { 
+        const newMatchData: any = { 
             isPlayed: true, 
             team1Score: t1Score, 
             team2Score: t2Score, 
-            scorers 
-        });
+            scorers,
+            goalieId: goalieId !== 'none' ? goalieId : null,
+            goalieSaves,
+            goalieShotsAgainst
+        };
+
+        const batch = writeBatch(firestore);
         
-        toast({ title: "Výsledek uložen." });
+        // If it was already played, we should revert old stats first (but handleSaveResult is for upcoming matches usually)
+        if (selectedMatch.isPlayed) {
+            await updateStatsForMatch(batch, selectedMatch, -1);
+        }
+        
+        // Update match doc
+        batch.update(doc(firestore, 'matches', selectedMatch.id), newMatchData);
+        
+        // Apply new stats
+        const finalMatchData = { ...selectedMatch, ...newMatchData };
+        await updateStatsForMatch(batch, finalMatchData, 1);
+        
+        await batch.commit();
+        
+        toast({ title: "Výsledek uložen a body připsány." });
         setIsResultDialogOpen(false);
     } catch (err: any) { 
         toast({ variant: 'destructive', title: 'Chyba', description: err.message }); 
