@@ -127,7 +127,7 @@ function RecordResultForm({ match, allUsers, onSave, onCancel, isSaving }: { mat
                   <DialogTitle>Zapsat výsledek zápasu</DialogTitle>
                   <DialogDescription>Zadejte konečné skóre a detaily zápasu.</DialogDescription>
               </DialogHeader>
-            <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-4">
+            <div className="grid gap-6 py-4 max-h-[60vh] overflow-y-auto pr-4 p-1">
                 <div className="text-center">
                     {prefix && <p className="text-xs font-bold text-primary uppercase mb-1">{prefix}</p>}
                     <p className="font-bold text-lg">{opponent}</p>
@@ -143,21 +143,23 @@ function RecordResultForm({ match, allUsers, onSave, onCancel, isSaving }: { mat
                     </div>
                 </div>
                 {goalCount > 0 && <p className="font-medium mt-4">Střelci</p>}
-                {Array.from({ length: goalCount }).map((_, index) => (
-                    <div key={index} className="grid grid-cols-2 gap-2 items-center">
-                        <Select name={`goal-${index}`}>
-                            <SelectTrigger><SelectValue placeholder={`Gól ${index + 1}`} /></SelectTrigger>
-                            <SelectContent>{skaters.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}</SelectContent>
-                        </Select>
-                        <Select name={`assist-${index}`} defaultValue="none">
-                            <SelectTrigger><SelectValue placeholder="Asistence" /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="none">Žádná</SelectItem>
-                                {skaters.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                ))}
+                <div className="grid gap-3">
+                    {Array.from({ length: goalCount }).map((_, index) => (
+                        <div key={index} className="grid grid-cols-2 gap-2 items-center">
+                            <Select name={`goal-${index}`}>
+                                <SelectTrigger><SelectValue placeholder={`Gól ${index + 1}`} /></SelectTrigger>
+                                <SelectContent>{skaters.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}</SelectContent>
+                            </Select>
+                            <Select name={`assist-${index}`} defaultValue="none">
+                                <SelectTrigger><SelectValue placeholder="Asistence" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="none">Žádná</SelectItem>
+                                    {skaters.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    ))}
+                </div>
             </div>
             <DialogFooter className="pt-4">
                 <Button type="button" variant="outline" onClick={onCancel} disabled={isSaving}>Zrušit</Button>
@@ -768,9 +770,9 @@ function DashboardPageContent() {
             setIsSaving(false); 
             toast({ title: "Zápas přidán" }); 
           }}>
-            <div className="grid gap-4 py-4">
+            <div className="grid gap-6 py-4 p-1">
               <div className="grid gap-2"><Label>Soupeř</Label><Input name="opponent" required /></div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2"><Label>Datum</Label><Input name="date" type="date" required /></div>
                 <div className="grid gap-2"><Label>Čas</Label><Input name="time" type="time" defaultValue="18:00" required /></div>
               </div>
@@ -780,16 +782,19 @@ function DashboardPageContent() {
                 <Select name="type" required value={addMatchType} onValueChange={(v) => setAddMatchType(v as any)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="regular">Základní</SelectItem>
+                    <SelectItem value="regular">Základní část</SelectItem>
                     <SelectItem value="playoff">Play-off</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               {addMatchType === 'regular' && (
-                  <div className="grid gap-2"><Label>Kolo</Label><Input name="round" type="number" min="1" placeholder="Číslo kola" /></div>
+                  <div className="grid gap-2">
+                      <Label>Kolo</Label>
+                      <Input name="round" type="number" min="1" placeholder="Číslo kola" />
+                  </div>
               )}
               {addMatchType === 'playoff' && (
-                  <>
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="grid gap-2">
                         <Label>Fáze</Label>
                         <Select name="playoffStage" required defaultValue="čtvrtfinále">
@@ -801,8 +806,11 @@ function DashboardPageContent() {
                             </SelectContent>
                         </Select>
                     </div>
-                    <div className="grid gap-2"><Label>Zápas č.</Label><Input name="playoffMatchNumber" type="number" min="1" placeholder="Pořadí v sérii" /></div>
-                  </>
+                    <div className="grid gap-2">
+                        <Label>Zápas č.</Label>
+                        <Input name="playoffMatchNumber" type="number" min="1" placeholder="Pořadí v sérii" />
+                    </div>
+                  </div>
               )}
             </div>
             <DialogFooter><Button type="submit" disabled={isSaving}>Uložit</Button></DialogFooter>
@@ -823,29 +831,28 @@ function DashboardPageContent() {
         }
         await updateDoc(doc(firestore, 'matches', selectedMatch.id), upd); 
         setIsEditDialogOpen(false); setIsSaving(false); toast({ title: "Změny uloženy" }); 
-      }}><div className="grid gap-4 py-4"><div className="grid gap-2"><Label>Soupeř</Label><Input name="opponent" defaultValue={selectedMatch.team2} required /></div><div className="grid grid-cols-2 gap-2"><div className="grid gap-2"><Label>Datum</Label><Input name="date" type="date" defaultValue={format(selectedMatch.dateTime.toDate(), 'yyyy-MM-dd')} required /></div><div className="grid gap-2"><Label>Čas</Label><Input name="time" type="time" defaultValue={format(selectedMatch.dateTime.toDate(), 'HH:mm')} required /></div></div><div className="grid gap-2"><Label>Místo</Label><Input name="location" defaultValue={selectedMatch.location} required /></div><div className="grid gap-2"><Label>Typ</Label><Select name="type" required defaultValue={selectedMatch.type} onValueChange={(v) => {
-          // Explicitly update if type changes to show correct additional fields if needed
-          // Local state could handle this but the form values will be read on submit
-      }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="regular">Základní</SelectItem><SelectItem value="playoff">Play-off</SelectItem></SelectContent></Select></div>
-      {/* Conditionally rendering additional fields for editing if needed, but the current simplified approach works if user selects the right type */}
+      }}><div className="grid gap-6 py-4 p-1"><div className="grid gap-2"><Label>Soupeř</Label><Input name="opponent" defaultValue={selectedMatch.team2} required /></div><div className="grid grid-cols-2 gap-4"><div className="grid gap-2"><Label>Datum</Label><Input name="date" type="date" defaultValue={format(selectedMatch.dateTime.toDate(), 'yyyy-MM-dd')} required /></div><div className="grid gap-2"><Label>Čas</Label><Input name="time" type="time" defaultValue={format(selectedMatch.dateTime.toDate(), 'HH:mm')} required /></div></div><div className="grid gap-2"><Label>Místo</Label><Input name="location" defaultValue={selectedMatch.location} required /></div><div className="grid gap-2"><Label>Typ</Label><Select name="type" required defaultValue={selectedMatch.type} onValueChange={(v) => {
+      }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="regular">Základní část</SelectItem><SelectItem value="playoff">Play-off</SelectItem></SelectContent></Select></div>
       <div className="grid gap-2">
-        <Label>Detaily kola / fáze (pokud se mění typ)</Label>
-        <div className="text-xs text-muted-foreground italic">Při změně typu nezapomeňte upravit detaily v polích níže (budou uloženy jen ty relevantní pro daný typ).</div>
+        <Label>Detaily kola / fáze</Label>
+        <div className="text-xs text-muted-foreground italic">Při změně typu nezapomeňte upravit detaily v polích níže.</div>
       </div>
-      <div className="grid grid-cols-2 gap-4 border p-2 rounded">
-        <div className="grid gap-2"><Label>Kolo (Zákl. část)</Label><Input name="round" type="number" defaultValue={selectedMatch.round || ''} /></div>
-        <div className="grid gap-2">
-            <Label>Fáze (Play-off)</Label>
-            <Select name="playoffStage" defaultValue={selectedMatch.playoffStage || 'čtvrtfinále'}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="čtvrtfinále">Čtvrtfinále</SelectItem>
-                    <SelectItem value="semifinále">Semifinále</SelectItem>
-                    <SelectItem value="finále">Finále</SelectItem>
-                </SelectContent>
-            </Select>
+      <div className="grid gap-4 border p-3 rounded-lg bg-muted/20">
+        <div className="grid gap-2"><Label>Kolo (Zákl. část)</Label><Input name="round" type="number" defaultValue={selectedMatch.round || ''} placeholder="Číslo kola" /></div>
+        <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-2">
+                <Label>Fáze (Play-off)</Label>
+                <Select name="playoffStage" defaultValue={selectedMatch.playoffStage || 'čtvrtfinále'}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="čtvrtfinále">Čtvrtfinále</SelectItem>
+                        <SelectItem value="semifinále">Semifinále</SelectItem>
+                        <SelectItem value="finále">Finále</SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
+            <div className="grid gap-2"><Label>Zápas č. (Play-off)</Label><Input name="playoffMatchNumber" type="number" defaultValue={selectedMatch.playoffMatchNumber || ''} placeholder="Pořadí v sérii" /></div>
         </div>
-        <div className="grid gap-2"><Label>Zápas č. (Play-off)</Label><Input name="playoffMatchNumber" type="number" defaultValue={selectedMatch.playoffMatchNumber || ''} /></div>
       </div>
       </div><DialogFooter><Button type="submit">Uložit</Button></DialogFooter></form>}</DialogContent></Dialog>
     </div>

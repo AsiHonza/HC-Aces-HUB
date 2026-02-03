@@ -88,21 +88,23 @@ function MatchResultFormFields({ match, allUsers, onGoalCountChange }: { match?:
             </div>
             <p className="text-xs text-muted-foreground italic text-center px-4 mt-2">Zde pouze zaznamenáváte výsledek a střelce pro detail zápasu.</p>
             {goalCount > 0 && <p className="font-medium mt-4">Střelci a asistence (Aces)</p>}
-            {Array.from({ length: goalCount }).map((_, index) => (
-                <div key={index} className="grid grid-cols-2 gap-2 items-center">
-                    <Select name={`goal-${index}`} defaultValue={match?.scorers?.[index]?.goal}>
-                        <SelectTrigger><SelectValue placeholder={`Gól ${index + 1}`} /></SelectTrigger>
-                        <SelectContent>{skaters.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}</SelectContent>
-                    </Select>
-                    <Select name={`assist-${index}`} defaultValue={match?.scorers?.[index]?.assist || 'none'}>
-                        <SelectTrigger><SelectValue placeholder="Asistence" /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="none">Žádná</SelectItem>
-                            {skaters.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
-                        </SelectContent>
-                    </Select>
-                </div>
-            ))}
+            <div className="grid gap-3">
+                {Array.from({ length: goalCount }).map((_, index) => (
+                    <div key={index} className="grid grid-cols-2 gap-2 items-center">
+                        <Select name={`goal-${index}`} defaultValue={match?.scorers?.[index]?.goal}>
+                            <SelectTrigger><SelectValue placeholder={`Gól ${index + 1}`} /></SelectTrigger>
+                            <SelectContent>{skaters.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}</SelectContent>
+                        </Select>
+                        <Select name={`assist-${index}`} defaultValue={match?.scorers?.[index]?.assist || 'none'}>
+                            <SelectTrigger><SelectValue placeholder="Asistence" /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="none">Žádná</SelectItem>
+                                {skaters.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                ))}
+            </div>
         </div>
     )
 }
@@ -309,7 +311,7 @@ function HistoryPageContent() {
                 <DialogContent className="max-w-2xl">
                     <DialogHeader><DialogTitle>Přidat odehraný zápas</DialogTitle></DialogHeader>
                     <form onSubmit={(e) => handleResultSave(e, true)}>
-                        <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-4">
+                        <div className="grid gap-6 py-4 max-h-[70vh] overflow-y-auto pr-4 p-1">
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="grid gap-2"><Label>Soupeř</Label><Input name="opponent" required /></div>
                                 <div className="grid gap-2"><Label>Místo</Label><Input name="location" required /></div>
@@ -331,17 +333,17 @@ function HistoryPageContent() {
                             </div>
 
                             {addMatchType === 'regular' && (
-                                <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="round" className="text-right">Kolo</Label>
-                                    <Input id="round" name="round" type="number" min="1" className="col-span-3" placeholder="Číslo kola" />
+                                <div className="grid gap-2">
+                                    <Label htmlFor="round">Kolo</Label>
+                                    <Input id="round" name="round" type="number" min="1" placeholder="Číslo kola" />
                                 </div>
                             )}
                             {addMatchType === 'playoff' && (
-                                <>
-                                    <div className="grid grid-cols-4 items-center gap-4">
-                                        <Label htmlFor="playoffStage" className="text-right">Fáze</Label>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="playoffStage">Fáze</Label>
                                         <Select name="playoffStage" required defaultValue="čtvrtfinále">
-                                            <SelectTrigger className="col-span-3">
+                                            <SelectTrigger>
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -351,11 +353,11 @@ function HistoryPageContent() {
                                             </SelectContent>
                                         </Select>
                                     </div>
-                                    <div className="grid grid-cols-4 items-center gap-4">
-                                        <Label htmlFor="playoffMatchNumber" className="text-right">Zápas č.</Label>
-                                        <Input id="playoffMatchNumber" name="playoffMatchNumber" type="number" min="1" className="col-span-3" placeholder="Pořadí v sérii" />
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="playoffMatchNumber">Zápas č.</Label>
+                                        <Input id="playoffMatchNumber" name="playoffMatchNumber" type="number" min="1" placeholder="Pořadí v sérii" />
                                     </div>
-                                </>
+                                </div>
                             )}
 
                             {users && <MatchResultFormFields allUsers={users} onGoalCountChange={() => {}} />}
@@ -373,7 +375,7 @@ function HistoryPageContent() {
                     <DialogHeader><DialogTitle>Upravit výsledek</DialogTitle></DialogHeader>
                     {selectedMatch && users && (
                         <form onSubmit={(e) => handleResultSave(e, false)}>
-                            <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-4">
+                            <div className="grid gap-6 py-4 max-h-[60vh] overflow-y-auto pr-4 p-1">
                                 <div className="grid gap-2">
                                     <Label>Typ</Label>
                                     <Select name="type" defaultValue={selectedMatch.type}>

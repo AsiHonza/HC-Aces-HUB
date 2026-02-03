@@ -278,23 +278,25 @@ function CalendarPageContent() {
                         <DialogDescription>Zadejte detaily nového zápasu.</DialogDescription>
                     </DialogHeader>
                     <form onSubmit={handleAddMatch}>
-                        <div className="grid gap-4 py-4">
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="opponent" className="text-right">Soupeř</Label>
-                                <Input id="opponent" name="opponent" className="col-span-3" required />
+                        <div className="grid gap-6 py-4 p-1">
+                            <div className="grid gap-2">
+                                <Label htmlFor="opponent">Soupeř</Label>
+                                <Input id="opponent" name="opponent" required />
                             </div>
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="time" className="text-right">Čas</Label>
-                                <Input id="time" name="time" type="time" defaultValue="18:00" className="col-span-3" required />
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="grid gap-2">
+                                    <Label htmlFor="time">Čas</Label>
+                                    <Input id="time" name="time" type="time" defaultValue="18:00" required />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="location">Místo</Label>
+                                    <Input id="location" name="location" required />
+                                </div>
                             </div>
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="location" className="text-right">Místo</Label>
-                                <Input id="location" name="location" className="col-span-3" required />
-                            </div>
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="type" className="text-right">Typ</Label>
+                            <div className="grid gap-2">
+                                <Label htmlFor="type">Typ zápasu</Label>
                                 <Select name="type" required value={matchType} onValueChange={(val) => setMatchType(val as Match['type'])}>
-                                    <SelectTrigger className="col-span-3">
+                                    <SelectTrigger>
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -305,17 +307,17 @@ function CalendarPageContent() {
                                 </Select>
                             </div>
                             {matchType === 'regular' && (
-                                <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="round" className="text-right">Kolo</Label>
-                                    <Input id="round" name="round" type="number" min="1" className="col-span-3" placeholder="Číslo kola" />
+                                <div className="grid gap-2">
+                                    <Label htmlFor="round">Kolo</Label>
+                                    <Input id="round" name="round" type="number" min="1" placeholder="Číslo kola" />
                                 </div>
                             )}
                             {matchType === 'playoff' && (
-                                <>
-                                    <div className="grid grid-cols-4 items-center gap-4">
-                                        <Label htmlFor="playoffStage" className="text-right">Fáze</Label>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="playoffStage">Fáze</Label>
                                         <Select name="playoffStage" required defaultValue="čtvrtfinále">
-                                            <SelectTrigger className="col-span-3">
+                                            <SelectTrigger>
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -325,11 +327,11 @@ function CalendarPageContent() {
                                             </SelectContent>
                                         </Select>
                                     </div>
-                                    <div className="grid grid-cols-4 items-center gap-4">
-                                        <Label htmlFor="playoffMatchNumber" className="text-right">Zápas č.</Label>
-                                        <Input id="playoffMatchNumber" name="playoffMatchNumber" type="number" min="1" className="col-span-3" placeholder="Pořadí v sérii" />
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="playoffMatchNumber">Zápas č.</Label>
+                                        <Input id="playoffMatchNumber" name="playoffMatchNumber" type="number" min="1" placeholder="Pořadí v sérii" />
                                     </div>
-                                </>
+                                </div>
                             )}
                         </div>
                         <DialogFooter>
