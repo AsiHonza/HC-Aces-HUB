@@ -1,4 +1,3 @@
-
 'use client'
 
 import React, { Suspense, useState, useMemo, useEffect, useRef, useCallback } from 'react'
@@ -12,11 +11,11 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar as CalendarIcon, MapPin, Users, Trophy, BarChart, Sword, Pencil, Check, X, Flame, Shield, Plus, Minus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal, FileText, View, Disc, Cake } from "lucide-react"
+import { Calendar as CalendarIcon, MapPin, Users, Trophy, BarChart, Pencil, Check, X, Flame, Shield, Plus, Minus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal, FileText, View, Disc, Cake } from "lucide-react"
 import { cn } from '@/lib/utils'
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase'
-import { doc, collection, collectionGroup, updateDoc, query, Timestamp, addDoc, deleteDoc, writeBatch, orderBy, where, limit, setDoc } from 'firebase/firestore'
-import { format, parse, startOfDay, addDays, parseISO, isValid, differenceInDays } from 'date-fns'
+import { doc, collection, collectionGroup, updateDoc, query, Timestamp, addDoc, deleteDoc, writeBatch, orderBy, setDoc, increment } from 'firebase/firestore'
+import { format, startOfDay, addDays, parseISO, isValid, differenceInDays, parse } from 'date-fns'
 import { cs } from 'date-fns/locale'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import Link from 'next/link'
@@ -867,7 +866,7 @@ function DashboardPageContent() {
 
   const handleResultSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!selectedMatch || !firestore || !allSkaterStats || !allAttendances || !allGoalieStats) return;
+    if (!selectedMatch || !firestore) return;
 
     setIsSaving(true);
     const formData = new FormData(e.currentTarget);
@@ -878,6 +877,8 @@ function DashboardPageContent() {
     const goalieShotsAgainst = parseInt(formData.get('goalieShotsAgainst') as string, 10) || 0;
 
     const scorersData = [];
+    const playerStatUpdates = new Map<string, { goals: number, assists: number, gamesPlayed: number }>();
+
     for (let i = 0; i < team1Score; i++) {
         const goal = formData.get(`goal-${i}`) as string;
         const assist = formData.get(`assist-${i}`) as string;
@@ -886,8 +887,26 @@ function DashboardPageContent() {
                 goal,
                 assist: assist && assist !== 'none' ? assist : null,
             });
+            const currentG = playerStatUpdates.get(goal) || { goals: 0, assists: 0, gamesPlayed: 0 };
+            playerStatUpdates.set(goal, { ...currentG, goals: currentG.goals + 1 });
+            if (assist && assist !== 'none') {
+                const currentA = playerStatUpdates.get(assist) || { goals: 0, assists: 0, gamesPlayed: 0 };
+                playerStatUpdates.set(assist, { ...currentA, assists: currentA.assists + 1 });
+            }
         }
     }
+
+    const playersInMatch = new Set<string>();
+    if (selectedMatch.lineup) {
+        Object.values(selectedMatch.lineup).forEach(p => { if(p) playersInMatch.add(p.id); });
+    } else {
+        const matchAttendees = attendancesByMatch.get(selectedMatch.id) || [];
+        matchAttendees.forEach(att => { if (att.status === 'going') playersInMatch.add(att.userId); });
+    }
+    playersInMatch.forEach(pid => {
+        const current = playerStatUpdates.get(pid) || { goals: 0, assists: 0, gamesPlayed: 0 };
+        playerStatUpdates.set(pid, { ...current, gamesPlayed: 1 });
+    });
 
     const batch = writeBatch(firestore);
 
@@ -903,98 +922,46 @@ function DashboardPageContent() {
           goalieShotsAgainst,
       });
       
-      const allSkaterStatsMap = new Map(allSkaterStats.map(s => [s.userProfileId, s]));
-      const playerStatUpdates = new Map<string, { goals: number, assists: number, gamesPlayed: number }>();
-      
-      // Goals and Assists from scorers
-      scorersData.forEach(s => {
-          if (s.goal) {
-              const current = playerStatUpdates.get(s.goal) || { goals: 0, assists: 0, gamesPlayed: 0 };
-              playerStatUpdates.set(s.goal, { ...current, goals: current.goals + 1 });
-          }
-          if (s.assist) {
-              const current = playerStatUpdates.get(s.assist) || { goals: 0, assists: 0, gamesPlayed: 0 };
-              playerStatUpdates.set(s.assist, { ...current, assists: current.assists + 1 });
-          }
-      });
-
-      // Games played from attendance
-      const matchAttendees = attendancesByMatch.get(selectedMatch.id) || [];
-      matchAttendees.forEach(att => {
-          if (att.status !== 'going') return;
-          const current = playerStatUpdates.get(att.userId) || { goals: 0, assists: 0, gamesPlayed: 0 };
-          playerStatUpdates.set(att.userId, { ...current, gamesPlayed: 1 });
-      });
-
-      // Apply Skater Stats
       for (const [userId, updates] of playerStatUpdates.entries()) {
-          const userStats = allSkaterStatsMap.get(userId);
-          if (userStats) {
-              const statDocRef = doc(firestore, 'users', userId, 'skaterStats', userStats.id);
-              const update: any = {
-                  historicalGoals: (userStats.historicalGoals || 0) + updates.goals,
-                  historicalAssists: (userStats.historicalAssists || 0) + updates.assists,
-                  historicalGamesPlayed: (userStats.historicalGamesPlayed || 0) + updates.gamesPlayed,
-              };
-              if (selectedMatch.type === 'playoff') {
-                  update.playoffGoals = (userStats.playoffGoals || 0) + updates.goals;
-                  update.playoffAssists = (userStats.playoffAssists || 0) + updates.assists;
-                  update.playoffGamesPlayed = (userStats.playoffGamesPlayed || 0) + updates.gamesPlayed;
-              } else if (selectedMatch.type === 'regular') {
-                  update.seasonGoals = (userStats.seasonGoals || 0) + updates.goals;
-                  update.seasonAssists = (userStats.seasonAssists || 0) + updates.assists;
-                  update.seasonGamesPlayed = (userStats.seasonGamesPlayed || 0) + updates.gamesPlayed;
-              }
-              batch.update(statDocRef, update);
+          const statDocRef = doc(firestore, 'users', userId, 'skaterStats', 'stats');
+          const update: any = {
+              historicalGoals: increment(updates.goals),
+              historicalAssists: increment(updates.assists),
+              historicalGamesPlayed: increment(updates.gamesPlayed),
+          };
+          if (selectedMatch.type === 'playoff') {
+              update.playoffGoals = increment(updates.goals);
+              update.playoffAssists = increment(updates.assists);
+              update.playoffGamesPlayed = increment(updates.gamesPlayed);
+          } else if (selectedMatch.type === 'regular') {
+              update.seasonGoals = increment(updates.goals);
+              update.seasonAssists = increment(updates.assists);
+              update.seasonGamesPlayed = increment(updates.gamesPlayed);
           }
+          batch.set(statDocRef, update, { merge: true });
       }
       
-      // Goalie Stats
       if (goalieId && goalieId !== 'none') {
-          const allGoalieStatsMap = new Map(allGoalieStats.map(s => [s.userProfileId, s]));
-          const goalieStats = allGoalieStatsMap.get(goalieId);
+          const goalieStatRef = doc(firestore, 'users', goalieId, 'goalieStats', 'stats');
           const isWin = team1Score > team2Score;
-          
-          if (goalieStats) {
-              const goalieStatRef = doc(firestore, 'users', goalieId, 'goalieStats', goalieStats.id);
-              const update: any = {
-                  historicalGamesPlayed: (goalieStats.historicalGamesPlayed || 0) + 1,
-                  historicalWins: (goalieStats.historicalWins || 0) + (isWin ? 1 : 0),
-                  historicalSaves: (goalieStats.historicalSaves || 0) + goalieSaves,
-                  historicalShotsAgainst: (goalieStats.historicalShotsAgainst || 0) + goalieShotsAgainst,
-              };
-
-              if (selectedMatch.type === 'playoff') {
-                  update.playoffGamesPlayed = (goalieStats.playoffGamesPlayed || 0) + 1;
-                  update.playoffWins = (goalieStats.playoffWins || 0) + (isWin ? 1 : 0);
-                  update.playoffSaves = (goalieStats.playoffSaves || 0) + goalieSaves;
-                  update.playoffShotsAgainst = (goalieStats.playoffShotsAgainst || 0) + goalieShotsAgainst;
-              } else if (selectedMatch.type === 'regular') {
-                  update.seasonGamesPlayed = (goalieStats.seasonGamesPlayed || 0) + 1;
-                  update.seasonWins = (goalieStats.seasonWins || 0) + (isWin ? 1 : 0);
-                  update.seasonSaves = (goalieStats.seasonSaves || 0) + goalieSaves;
-                  update.seasonShotsAgainst = (goalieStats.seasonShotsAgainst || 0) + goalieShotsAgainst;
-              }
-              batch.update(goalieStatRef, update);
-          } else {
-               const goalieStatRef = doc(firestore, 'users', goalieId, 'goalieStats', 'stats');
-               const update: any = {
-                  userProfileId: goalieId,
-                  historicalGamesPlayed: 1,
-                  historicalWins: isWin ? 1 : 0,
-                  historicalSaves: goalieSaves,
-                  historicalShotsAgainst: goalieShotsAgainst,
-                  seasonGamesPlayed: selectedMatch.type === 'regular' ? 1 : 0,
-                  seasonWins: selectedMatch.type === 'regular' && isWin ? 1 : 0,
-                  seasonSaves: selectedMatch.type === 'regular' ? goalieSaves : 0,
-                  seasonShotsAgainst: selectedMatch.type === 'regular' ? goalieShotsAgainst : 0,
-                  playoffGamesPlayed: selectedMatch.type === 'playoff' ? 1 : 0,
-                  playoffWins: selectedMatch.type === 'playoff' && isWin ? 1 : 0,
-                  playoffSaves: selectedMatch.type === 'playoff' ? goalieSaves : 0,
-                  playoffShotsAgainst: selectedMatch.type === 'playoff' ? goalieShotsAgainst : 0,
-               };
-               batch.set(goalieStatRef, update);
+          const update: any = {
+              historicalGamesPlayed: increment(1),
+              historicalWins: isWin ? increment(1) : increment(0),
+              historicalSaves: increment(goalieSaves),
+              historicalShotsAgainst: increment(goalieShotsAgainst),
+          };
+          if (selectedMatch.type === 'playoff') {
+              update.playoffGamesPlayed = increment(1);
+              update.playoffWins = isWin ? increment(1) : increment(0);
+              update.playoffSaves = increment(goalieSaves);
+              update.playoffShotsAgainst = increment(goalieShotsAgainst);
+          } else if (selectedMatch.type === 'regular') {
+              update.seasonGamesPlayed = increment(1);
+              update.seasonWins = isWin ? increment(1) : increment(0);
+              update.seasonSaves = increment(goalieSaves);
+              update.seasonShotsAgainst = increment(goalieShotsAgainst);
           }
+          batch.set(goalieStatRef, update, { merge: true });
       }
 
       await batch.commit();
@@ -1139,42 +1106,31 @@ function DashboardPageContent() {
     };
 
     const handleSaveStatsClick = async () => {
-        if (!firestore || !allSkaterStats || !allGoalieStats) return;
+        if (!firestore) return;
 
         setIsSaving(true);
         try {
             const batch = writeBatch(firestore);
-            const skaterStatsMap = new Map(allSkaterStats.map(s => [s.userProfileId, s.id]));
-            const goalieStatsMap = new Map(allGoalieStats.map(s => [s.userProfileId, s.id]));
-
             let fieldPrefix = scoringView;
-            if (scoringView === 'history') {
-                fieldPrefix = 'historical';
-            }
+            if (scoringView === 'history') fieldPrefix = 'historical';
 
             editableSkaterStats.forEach(player => {
-                const statId = skaterStatsMap.get(player.id);
-                if (statId) {
-                    const statRef = doc(firestore, 'users', player.id, 'skaterStats', statId);
-                    batch.update(statRef, {
-                        [`${fieldPrefix}Goals`]: player.goals,
-                        [`${fieldPrefix}Assists`]: player.assists,
-                        [`${fieldPrefix}GamesPlayed`]: player.gamesPlayed,
-                    });
-                }
+                const statRef = doc(firestore, 'users', player.id, 'skaterStats', 'stats');
+                batch.update(statRef, {
+                    [`${fieldPrefix}Goals`]: player.goals,
+                    [`${fieldPrefix}Assists`]: player.assists,
+                    [`${fieldPrefix}GamesPlayed`]: player.gamesPlayed,
+                });
             });
 
             editableGoalieStats.forEach(goalie => {
-                const statId = goalieStatsMap.get(goalie.id);
-                if (statId) {
-                    const statRef = doc(firestore, 'users', goalie.id, 'goalieStats', statId);
-                    batch.update(statRef, {
-                        [`${fieldPrefix}GamesPlayed`]: goalie.gamesPlayed,
-                        [`${fieldPrefix}Wins`]: goalie.wins,
-                        [`${fieldPrefix}Saves`]: goalie.saves,
-                        [`${fieldPrefix}ShotsAgainst`]: goalie.shotsAgainst,
-                    });
-                }
+                const statRef = doc(firestore, 'users', goalie.id, 'goalieStats', 'stats');
+                batch.update(statRef, {
+                    [`${fieldPrefix}GamesPlayed`]: goalie.gamesPlayed,
+                    [`${fieldPrefix}Wins`]: goalie.wins,
+                    [`${fieldPrefix}Saves`]: goalie.saves,
+                    [`${fieldPrefix}ShotsAgainst`]: goalie.shotsAgainst,
+                });
             });
 
             await batch.commit();
