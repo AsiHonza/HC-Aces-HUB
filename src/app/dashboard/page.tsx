@@ -1196,9 +1196,9 @@ function DashboardPageContent() {
                         <span className="truncate">{match.location}</span>
                     </div>
                 </CardContent>
-                <CardFooter className="flex-col items-start gap-4">
-                    <div className="flex w-full flex-wrap items-center justify-between gap-2">
-                        <div className="flex gap-2">
+                <CardFooter className="flex-col items-start gap-4 p-4 sm:p-6">
+                    <div className="flex w-full flex-wrap items-center justify-between gap-3">
+                        <div className="flex gap-2 w-full sm:w-auto">
                             <Button
                                 variant={attendance === 'going' ? 'default' : 'outline'}
                                 size="sm"
@@ -1208,7 +1208,7 @@ function DashboardPageContent() {
                                     setAttendanceNote(currentNote);
                                     setIsAttendanceDialogOpen(true);
                                 }}
-                                className={cn('text-xs sm:text-sm', attendance === 'going' && "bg-green-500/10 border-green-500 text-green-600 dark:text-green-400 dark:border-green-400 hover:bg-green-500/20 hover:text-green-600")}
+                                className={cn('flex-1 sm:flex-initial text-xs sm:text-sm', attendance === 'going' && "bg-green-500/10 border-green-500 text-green-600 dark:text-green-400 dark:border-green-400 hover:bg-green-500/20 hover:text-green-600")}
                             >
                                 <Check className="h-4 w-4 mr-1 sm:mr-2" /> Jdu
                             </Button>
@@ -1221,12 +1221,12 @@ function DashboardPageContent() {
                                     setAttendanceNote(currentNote);
                                     setIsAttendanceDialogOpen(true);
                                 }}
-                                className={cn('text-xs sm:text-sm', attendance === 'not-going' && "bg-destructive/10 border-destructive text-destructive hover:bg-destructive/20 hover:text-destructive")}
+                                className={cn('flex-1 sm:flex-initial text-xs sm:text-sm', attendance === 'not-going' && "bg-destructive/10 border-destructive text-destructive hover:bg-destructive/20 hover:text-destructive")}
                             >
                                 <X className="h-4 w-4 mr-1 sm:mr-2" /> Nejdu
                             </Button>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
                             {match.lineup && (
                                 <Button variant="outline" size="sm" className="text-xs sm:text-sm" onClick={() => handleViewLineup(match)}>
                                     <View className="mr-1 sm:mr-2" /> Sestava
@@ -1325,8 +1325,8 @@ function DashboardPageContent() {
                                 <TableBody>
                                     {stats.map(stat => (
                                     <TableRow key={stat.metric}>
-                                        <TableCell className="font-medium text-base">{stat.metric}</TableCell>
-                                        <TableCell className="text-right font-mono text-lg font-bold">{stat.value}</TableCell>
+                                        <TableCell className="font-medium text-base py-3">{stat.metric}</TableCell>
+                                        <TableCell className="text-right font-mono text-lg font-bold py-3">{stat.value}</TableCell>
                                     </TableRow>
                                     ))}
                                 </TableBody>
@@ -1340,11 +1340,11 @@ function DashboardPageContent() {
         </Card>
 
         <div className="lg:col-span-3" ref={upcomingMatchesRef}>
-          <div className="flex flex-row items-center justify-between mb-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
             <h2 className="flex items-center gap-2 font-headline text-xl font-semibold"><Trophy className="text-primary"/>Příští zápas (v příštích 14 dnech)</h2>
             {userProfile?.role === 'admin' && (
-                <div className="flex gap-2">
-                    <Button variant="outline" asChild>
+                <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                    <Button variant="outline" className="flex-1 sm:flex-initial" asChild>
                         <Link href="/dashboard/calendar">
                             <CalendarIcon className="mr-2 h-4 w-4" />
                             Kalendář
@@ -1352,7 +1352,7 @@ function DashboardPageContent() {
                     </Button>
                     <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                     <DialogTrigger asChild>
-                        <Button>
+                        <Button className="flex-1 sm:flex-initial">
                         <Plus className="mr-2 h-4 w-4" />
                         Přidat zápas
                         </Button>
@@ -1520,20 +1520,20 @@ function DashboardPageContent() {
 
         <div className="lg:col-span-3 grid gap-8 md:grid-cols-2">
             <Card>
-                <CardHeader>
-                     <div className="flex items-center justify-between">
+                <CardHeader className="pb-4">
+                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                         <CardTitle className="flex items-center gap-2 font-headline"><Flame className="text-primary"/>Kanadské bodování</CardTitle>
                         {userProfile?.role === 'admin' && (
                             isStatEditMode ? (
-                                <div className="flex gap-2">
-                                    <Button variant="outline" size="sm" onClick={handleCancelStatsEditClick}>Zrušit</Button>
-                                    <Button size="sm" onClick={handleSaveStatsClick} disabled={isSaving}>
+                                <div className="flex gap-2 w-full sm:w-auto">
+                                    <Button variant="outline" size="sm" className="flex-1" onClick={handleCancelStatsEditClick}>Zrušit</Button>
+                                    <Button size="sm" className="flex-1" onClick={handleSaveStatsClick} disabled={isSaving}>
                                         {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                         Uložit
                                     </Button>
                                 </div>
                             ) : (
-                                <Button variant="outline" size="sm" onClick={handleEditStatsClick}>
+                                <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={handleEditStatsClick}>
                                     <Pencil className="mr-2 h-4 w-4" /> Upravit
                                 </Button>
                             )
@@ -1551,19 +1551,19 @@ function DashboardPageContent() {
                             <Table>
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead className="w-[20px] px-1 sm:px-4">#</TableHead>
-                                        <TableHead>Hráč</TableHead>
+                                        <TableHead className="w-[30px] px-2 sm:px-4">#</TableHead>
+                                        <TableHead className="px-2 sm:px-4">Hráč</TableHead>
                                         <TableHead className="text-center w-[40px] px-1 sm:px-4">Z</TableHead>
                                         <TableHead className="text-center w-[40px] px-1 sm:px-4">G</TableHead>
                                         <TableHead className="text-center w-[40px] px-1 sm:px-4">A</TableHead>
-                                        <TableHead className="text-right w-[40px] px-1 sm:px-4">B</TableHead>
+                                        <TableHead className="text-right w-[40px] px-2 sm:px-4">B</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {sortedTeamScoring.map((player) => (
                                         <TableRow key={player.id} className={player.id === user?.uid ? 'bg-primary/10' : ''}>
-                                            <TableCell className="font-medium px-1 sm:px-4">{player.rank}</TableCell>
-                                            <TableCell className="py-2 px-1 sm:px-4">{player.name}</TableCell>
+                                            <TableCell className="font-medium px-2 sm:px-4">{player.rank}</TableCell>
+                                            <TableCell className="py-3 px-2 sm:px-4 font-medium truncate max-w-[100px] sm:max-w-none">{player.name}</TableCell>
                                              {isStatEditMode ? (
                                                 <>
                                                     <TableCell className="p-0"><StatEditControl value={player.gamesPlayed} onDecrement={() => handleSkaterStatChange(player.id, 'gamesPlayed', -1)} onIncrement={() => handleSkaterStatChange(player.id, 'gamesPlayed', 1)} /></TableCell>
@@ -1572,12 +1572,12 @@ function DashboardPageContent() {
                                                 </>
                                             ) : (
                                                 <>
-                                                    <TableCell className="text-center font-mono py-2 px-1 sm:px-4">{player.gamesPlayed}</TableCell>
-                                                    <TableCell className="text-center font-mono py-2 px-1 sm:px-4">{player.goals}</TableCell>
-                                                    <TableCell className="text-center font-mono py-2 px-1 sm:px-4">{player.assists}</TableCell>
+                                                    <TableCell className="text-center font-mono py-3 px-1 sm:px-4">{player.gamesPlayed}</TableCell>
+                                                    <TableCell className="text-center font-mono py-3 px-1 sm:px-4">{player.goals}</TableCell>
+                                                    <TableCell className="text-center font-mono py-3 px-1 sm:px-4">{player.assists}</TableCell>
                                                 </>
                                             )}
-                                            <TableCell className="text-right font-mono font-bold py-2 px-1 sm:px-4">{player.points}</TableCell>
+                                            <TableCell className="text-right font-mono font-bold py-3 px-2 sm:px-4">{player.points}</TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>
@@ -1588,20 +1588,20 @@ function DashboardPageContent() {
             </Card>
 
             <Card>
-                <CardHeader>
-                     <div className="flex items-center justify-between">
+                <CardHeader className="pb-4">
+                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                         <CardTitle className="flex items-center gap-2 font-headline"><Shield className="text-primary"/>Statistiky brankářů</CardTitle>
                          {userProfile?.role === 'admin' && (
                             isStatEditMode ? (
-                                <div className="flex gap-2">
-                                    <Button variant="outline" size="sm" onClick={handleCancelStatsEditClick}>Zrušit</Button>
-                                    <Button size="sm" onClick={handleSaveStatsClick} disabled={isSaving}>
+                                <div className="flex gap-2 w-full sm:w-auto">
+                                    <Button variant="outline" size="sm" className="flex-1" onClick={handleCancelStatsEditClick}>Zrušit</Button>
+                                    <Button size="sm" className="flex-1" onClick={handleSaveStatsClick} disabled={isSaving}>
                                         {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                         Uložit
                                     </Button>
                                 </div>
                             ) : (
-                                <Button variant="outline" size="sm" onClick={handleEditStatsClick}>
+                                <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={handleEditStatsClick}>
                                     <Pencil className="mr-2 h-4 w-4" /> Upravit
                                 </Button>
                             )
@@ -1619,18 +1619,18 @@ function DashboardPageContent() {
                             <Table>
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead>Brankář</TableHead>
-                                        <TableHead className="text-center">Z</TableHead>
-                                        <TableHead className="text-center">V</TableHead>
-                                        <TableHead className="text-center hidden sm:table-cell">Střely</TableHead>
-                                        <TableHead className="text-center hidden sm:table-cell">Zásahy</TableHead>
-                                        <TableHead className="text-right">Úsp%</TableHead>
+                                        <TableHead className="px-2 sm:px-4">Brankář</TableHead>
+                                        <TableHead className="text-center px-1 sm:px-4">Z</TableHead>
+                                        <TableHead className="text-center px-1 sm:px-4">V</TableHead>
+                                        <TableHead className="text-center hidden sm:table-cell px-1 sm:px-4">Střely</TableHead>
+                                        <TableHead className="text-center hidden sm:table-cell px-1 sm:px-4">Zásahy</TableHead>
+                                        <TableHead className="text-right px-2 sm:px-4">Úsp%</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {sortedGoalieLeaderboard.map((goalie) => (
                                         <TableRow key={goalie.id} className={goalie.id === user?.uid ? 'bg-primary/10' : ''}>
-                                            <TableCell className="font-medium py-2 px-1 sm:px-4">{goalie.name}</TableCell>
+                                            <TableCell className="font-medium py-3 px-2 sm:px-4 truncate max-w-[100px] sm:max-w-none">{goalie.name}</TableCell>
                                              {isStatEditMode ? (
                                                 <>
                                                      <TableCell className="p-0"><StatEditControl value={goalie.gamesPlayed} onDecrement={() => handleGoalieStatChange(goalie.id, 'gamesPlayed', -1)} onIncrement={() => handleGoalieStatChange(goalie.id, 'gamesPlayed', 1)} /></TableCell>
@@ -1640,13 +1640,13 @@ function DashboardPageContent() {
                                                 </>
                                             ) : (
                                                 <>
-                                                    <TableCell className="text-center font-mono py-2 px-1 sm:px-4">{goalie.gamesPlayed}</TableCell>
-                                                    <TableCell className="text-center font-mono py-2 px-1 sm:px-4">{goalie.wins}</TableCell>
-                                                    <TableCell className="text-center font-mono hidden sm:table-cell py-2 px-1 sm:px-4">{goalie.shotsAgainst}</TableCell>
-                                                    <TableCell className="text-center font-mono hidden sm:table-cell py-2 px-1 sm:px-4">{goalie.saves}</TableCell>
+                                                    <TableCell className="text-center font-mono py-3 px-1 sm:px-4">{goalie.gamesPlayed}</TableCell>
+                                                    <TableCell className="text-center font-mono py-3 px-1 sm:px-4">{goalie.wins}</TableCell>
+                                                    <TableCell className="text-center font-mono hidden sm:table-cell py-3 px-1 sm:px-4">{goalie.shotsAgainst}</TableCell>
+                                                    <TableCell className="text-center font-mono hidden sm:table-cell py-3 px-1 sm:px-4">{goalie.saves}</TableCell>
                                                 </>
                                             )}
-                                            <TableCell className="text-right font-mono font-bold py-2 px-1 sm:px-4">{goalie.savePercentage.toFixed(2)}%</TableCell>
+                                            <TableCell className="text-right font-mono font-bold py-3 px-2 sm:px-4">{goalie.savePercentage.toFixed(2)}%</TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>
@@ -1658,7 +1658,7 @@ function DashboardPageContent() {
         </div>
          <div className="lg:col-span-3 mt-8">
             <Card>
-                <CardHeader className="flex-row items-start justify-between">
+                <CardHeader className="flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                      <div>
                         <CardTitle className="flex items-center gap-2 font-headline"><Shield className="text-primary"/>Tabulka soutěže</CardTitle>
                         {isLeagueEditMode && userProfile?.role === 'admin' && (
@@ -1679,17 +1679,17 @@ function DashboardPageContent() {
                     </div>
                     
                     {userProfile?.role === 'admin' && (
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 w-full sm:w-auto">
                         {isLeagueEditMode ? (
                           <>
-                            <Button variant="outline" onClick={handleCancelLeague}>Zrušit</Button>
-                            <Button onClick={handleSaveLeague} disabled={isSaving}>
+                            <Button variant="outline" className="flex-1 sm:flex-initial" onClick={handleCancelLeague}>Zrušit</Button>
+                            <Button className="flex-1 sm:flex-initial" onClick={handleSaveLeague} disabled={isSaving}>
                                 {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 Uložit
                             </Button>
                           </>
                         ) : (
-                          <Button variant="outline" size="icon" onClick={handleEditLeagueClick}>
+                          <Button variant="outline" size="icon" className="ml-auto sm:ml-0" onClick={handleEditLeagueClick}>
                             <Pencil className="h-4 w-4" />
                             <span className="sr-only">Upravit tabulku</span>
                           </Button>
@@ -1709,11 +1709,11 @@ function DashboardPageContent() {
                             <Table>
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead className="w-auto px-2 sm:px-4">#</TableHead>
-                                        <TableHead>Tým</TableHead>
-                                        <TableHead className="text-center hidden sm:table-cell">GF</TableHead>
-                                        <TableHead className="text-center hidden sm:table-cell">GA</TableHead>
-                                        <TableHead className="text-center w-auto px-2 sm:px-4">B</TableHead>
+                                        <TableHead className="w-[30px] px-2 sm:px-4">#</TableHead>
+                                        <TableHead className="px-2 sm:px-4">Tým</TableHead>
+                                        <TableHead className="text-center hidden sm:table-cell px-2 sm:px-4">GF</TableHead>
+                                        <TableHead className="text-center hidden sm:table-cell px-2 sm:px-4">GA</TableHead>
+                                        <TableHead className="text-center w-[40px] px-2 sm:px-4">B</TableHead>
                                         {isLeagueEditMode && <TableHead className="w-[50px]"><span className="sr-only">Akce</span></TableHead>}
                                     </TableRow>
                                 </TableHeader>
@@ -1721,7 +1721,7 @@ function DashboardPageContent() {
                                     {sortedLeagueStandings.map((team) => (
                                         <TableRow key={team.id} className={team.name === 'Aces' ? 'bg-primary/10' : ''}>
                                             <TableCell className="font-medium px-2 sm:px-4">{team.rank}</TableCell>
-                                            <TableCell>
+                                            <TableCell className="px-2 sm:px-4 py-3">
                                                 {isLeagueEditMode ? (
                                                     <Input value={team.name} onChange={(e) => handleTeamNameChange(team.id, e.target.value)} className="h-8" />
                                                 ) : ( team.name )}
@@ -1744,7 +1744,7 @@ function DashboardPageContent() {
                                                     </div>
                                                 ) : ( team.ga )}
                                             </TableCell>
-                                            <TableCell className="text-center font-mono px-2 sm:px-4">
+                                            <TableCell className="text-center font-mono px-2 sm:px-4 py-3">
                                                 {isLeagueEditMode ? (
                                                     <div className="flex items-center justify-center gap-1 sm:gap-2">
                                                         <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => handleLeagueChange(team.id, 'points', -1)}><Minus className="h-4 w-4" /></Button>
