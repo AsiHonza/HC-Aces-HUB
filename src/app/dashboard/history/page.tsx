@@ -29,6 +29,9 @@ interface Match {
   team2: string;
   isPlayed: boolean;
   type: 'regular' | 'playoff' | 'friendly';
+  round?: number;
+  playoffStage?: 'čtvrtfinále' | 'semifinále' | 'finále';
+  playoffMatchNumber?: number;
   team1Score?: number;
   team2Score?: number;
   scorers?: { goal: string; assist: string | null }[];
@@ -84,6 +87,17 @@ interface Attendance {
     matchId: string;
     status: 'going' | 'not-going' | 'unknown';
     note?: string;
+}
+
+function getEnhancedMatchTitle(match: Match) {
+    let prefix = '';
+    if (match.type === 'regular' && match.round) {
+        prefix = `[${match.round}. kolo] `;
+    } else if (match.type === 'playoff' && match.playoffStage) {
+        const stage = match.playoffStage.charAt(0).toUpperCase() + match.playoffStage.slice(1);
+        prefix = `[${stage}${match.playoffMatchNumber ? ` - ${match.playoffMatchNumber}. zápas` : ''}] `;
+    }
+    return `${prefix}${match.team1} vs ${match.team2}`;
 }
 
 function MatchResultFormFields({ match, allUsers, onGoalCountChange }: { match?: Partial<Match>, allUsers: UserProfile[], onGoalCountChange: (count: number) => void }) {
@@ -181,6 +195,9 @@ function HistoryPageContent() {
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
 
+    const [addMatchType, setAddMatchType] = useState<Match['type']>('regular');
+    const [editMatchType, setEditMatchType] = useState<Match['type']>('regular');
+
     const [isSaving, setIsSaving] = useState(false);
 
     const [isLineupViewOpen, setIsLineupViewOpen] = useState(false);
@@ -249,6 +266,7 @@ function HistoryPageContent() {
 
     const handleEditMatch = (match: Match) => {
         setSelectedMatch(match);
+        setEditMatchType(match.type);
         setIsEditDialogOpen(true);
     };
 
@@ -261,7 +279,7 @@ function HistoryPageContent() {
         if (match.lineup) {
           setViewLineupData(match.lineup);
           setViewScorersData(match.scorers);
-          setViewMatchTitle(`${match.team1} vs ${match.team2}`);
+          setViewMatchTitle(getEnhancedMatchTitle(match));
           setIsLineupViewOpen(true);
         }
     };
@@ -401,7 +419,7 @@ function HistoryPageContent() {
         try {
             const formData = new FormData(e.currentTarget);
             
-            const matchType = formData.get('type') as 'regular' | 'playoff' | 'friendly' || selectedMatch?.type;
+            const matchType = formData.get('type') as 'regular' | 'playoff' | 'friendly';
             const team1Score = parseInt(formData.get('team1Score') as string, 10);
             const team2Score = parseInt(formData.get('team2Score') as string, 10);
             const goalieId = formData.get('goalieId') as string | null;
@@ -425,6 +443,30 @@ function HistoryPageContent() {
             const allGoalieStatsMap = new Map(allGoalieStats.map(s => [s.userProfileId, s]));
 
             let matchId = selectedMatch?.id;
+            const commonMatchData: any = {
+                type: matchType,
+                team1Score,
+                team2Score,
+                scorers: newScorersData,
+                goalieId: goalieId && goalieId !== 'none' ? goalieId : null,
+                goalieSaves,
+                goalieShotsAgainst,
+            };
+
+            if (matchType === 'regular') {
+                commonMatchData.round = Number(formData.get('round')) || null;
+                commonMatchData.playoffStage = null;
+                commonMatchData.playoffMatchNumber = null;
+            } else if (matchType === 'playoff') {
+                commonMatchData.playoffStage = formData.get('playoffStage') as string;
+                commonMatchData.playoffMatchNumber = Number(formData.get('playoffMatchNumber')) || null;
+                commonMatchData.round = null;
+            } else {
+                commonMatchData.round = null;
+                commonMatchData.playoffStage = null;
+                commonMatchData.playoffMatchNumber = null;
+            }
+
             if (isNew) {
                 const dateStr = formData.get('date') as string;
                 const timeStr = formData.get('time') as string;
@@ -439,13 +481,7 @@ function HistoryPageContent() {
                     team1: 'Aces',
                     team2: formData.get('opponent') as string,
                     isPlayed: true,
-                    type: matchType,
-                    team1Score,
-                    team2Score,
-                    scorers: newScorersData,
-                    goalieId: goalieId && goalieId !== 'none' ? goalieId : null,
-                    goalieSaves,
-                    goalieShotsAgainst,
+                    ...commonMatchData,
                 });
             }
 
@@ -457,9 +493,6 @@ function HistoryPageContent() {
                     if (scorer.goal) statsDiff.set(scorer.goal, { ...statsDiff.get(scorer.goal) || { goals: 0, assists: 0, gamesPlayed: 0 }, goals: -1 });
                     if (scorer.assist) statsDiff.set(scorer.assist, { ...statsDiff.get(scorer.assist) || { goals: 0, assists: 0, gamesPlayed: 0 }, assists: -1 });
                 });
-                // Note: We don't easily know who played beyond scorers without checking attendance/lineup
-                // For simplicity in edit, we only update scorers unless we're doing a full recalculation.
-                // In this app, we'll assume scorers definitely played.
             }
 
             newScorersData.forEach(scorer => {
@@ -471,7 +504,7 @@ function HistoryPageContent() {
                 // For a new match, we mark anyone involved as having played a game
                 const involvedUsers = new Set(newScorersData.flatMap(s => [s.goal, s.assist]).filter(Boolean) as string[]);
                 involvedUsers.forEach(uid => {
-                    statsDiff.set(uid, { ...statsDiff.get(uid) || { goals: 0, assists: 0, gamesPlayed: 0 }, gamesPlayed: 1 });
+                    statsDiff.set(uid, { ...statsDiff.get(uid) || { goals: 0, assists: 0, gamesPlayed: 1 }, gamesPlayed: 1 });
                 });
             }
 
@@ -572,14 +605,7 @@ function HistoryPageContent() {
 
             if (!isNew && selectedMatch) {
                 const matchRef = doc(firestore, 'matches', selectedMatch.id);
-                batch.update(matchRef, {
-                    team1Score,
-                    team2Score,
-                    scorers: newScorersData,
-                    goalieId: newGoalieId,
-                    goalieSaves: goalieSaves || null,
-                    goalieShotsAgainst: goalieShotsAgainst || null,
-                });
+                batch.update(matchRef, commonMatchData);
             }
 
             await batch.commit();
@@ -648,7 +674,7 @@ function HistoryPageContent() {
                                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full pr-2 gap-y-1 gap-x-2">
                                             <div className="flex-1 min-w-0">
                                                 <p className="text-xs text-muted-foreground">{format(match.dateTime.toDate(), "d. M. yy", { locale: cs })}</p>
-                                                <p className="font-semibold truncate">{match.team1} vs {match.team2}</p>
+                                                <p className="font-semibold truncate">{getEnhancedMatchTitle(match)}</p>
                                             </div>
                                             <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
                                                 <div className="flex items-center gap-2">
@@ -766,7 +792,7 @@ function HistoryPageContent() {
                                 </div>
                                 <div className="grid gap-2">
                                     <Label htmlFor="type">Typ</Label>
-                                    <Select name="type" defaultValue="regular">
+                                    <Select name="type" value={addMatchType} onValueChange={(val) => setAddMatchType(val as Match['type'])}>
                                         <SelectTrigger>
                                             <SelectValue />
                                         </SelectTrigger>
@@ -778,6 +804,33 @@ function HistoryPageContent() {
                                     </Select>
                                 </div>
                             </div>
+                            {addMatchType === 'regular' && (
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="round-add" className="text-right">Kolo</Label>
+                                    <Input id="round-add" name="round" type="number" min="1" className="col-span-3" />
+                                </div>
+                            )}
+                            {addMatchType === 'playoff' && (
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="playoffStage-add">Fáze</Label>
+                                        <Select name="playoffStage" required defaultValue="čtvrtfinále">
+                                            <SelectTrigger>
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="čtvrtfinále">Čtvrtfinále</SelectItem>
+                                                <SelectItem value="semifinále">Semifinále</SelectItem>
+                                                <SelectItem value="finále">Finále</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="playoffMatchNumber-add">Zápas č.</Label>
+                                        <Input id="playoffMatchNumber-add" name="playoffMatchNumber" type="number" min="1" />
+                                    </div>
+                                </div>
+                            )}
                             {users && <MatchResultFormFields allUsers={users} onGoalCountChange={() => {}} />}
                         </div>
                         <DialogFooter className="pt-4">
@@ -806,7 +859,49 @@ function HistoryPageContent() {
                     {selectedMatch && users ? (
                         <form onSubmit={(e) => handleResultSave(e, false)}>
                             <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-4">
-                                <p className="text-center font-bold text-lg">{selectedMatch.team1} vs {selectedMatch.team2}</p>
+                                <p className="text-center font-bold text-lg">{getEnhancedMatchTitle(selectedMatch)}</p>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="type-edit">Typ</Label>
+                                        <Select name="type" value={editMatchType} onValueChange={(val) => setEditMatchType(val as Match['type'])}>
+                                            <SelectTrigger>
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="regular">Základní část</SelectItem>
+                                                <SelectItem value="playoff">Play-off</SelectItem>
+                                                <SelectItem value="friendly">Přátelský</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    {editMatchType === 'regular' && (
+                                        <div className="grid gap-2">
+                                            <Label htmlFor="round-edit">Kolo</Label>
+                                            <Input id="round-edit" name="round" type="number" min="1" defaultValue={selectedMatch.round} />
+                                        </div>
+                                    )}
+                                </div>
+                                {editMatchType === 'playoff' && (
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="grid gap-2">
+                                            <Label htmlFor="playoffStage-edit">Fáze</Label>
+                                            <Select name="playoffStage" required defaultValue={selectedMatch.playoffStage || "čtvrtfinále"}>
+                                                <SelectTrigger>
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="čtvrtfinále">Čtvrtfinále</SelectItem>
+                                                    <SelectItem value="semifinále">Semifinále</SelectItem>
+                                                    <SelectItem value="finále">Finále</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="grid gap-2">
+                                            <Label htmlFor="playoffMatchNumber-edit">Zápas č.</Label>
+                                            <Input id="playoffMatchNumber-edit" name="playoffMatchNumber" type="number" min="1" defaultValue={selectedMatch.playoffMatchNumber} />
+                                        </div>
+                                    </div>
+                                )}
                                 <MatchResultFormFields match={selectedMatch} allUsers={users} onGoalCountChange={() => {}} />
                             </div>
                             <DialogFooter className="pt-4">
@@ -883,7 +978,7 @@ function HistoryPageContent() {
                      {lineupMatch && users ? (
                         <>
                             <DialogHeader>
-                                <DialogTitle>Upravit sestavu: {lineupMatch.team1} vs {lineupMatch.team2}</DialogTitle>
+                                <DialogTitle>Upravit sestavu: {getEnhancedMatchTitle(lineupMatch)}</DialogTitle>
                                 <DialogDescription>Upravte sestavu pro historický zápas. Výběr je možný z celého týmu.</DialogDescription>
                             </DialogHeader>
                             <LineupBuilder
@@ -912,4 +1007,5 @@ export default function HistoryPage() {
         </Suspense>
     )
 }
+
     

@@ -1,3 +1,4 @@
+
 'use client'
 
 import React, { Suspense, useState, useMemo } from 'react'
@@ -22,6 +23,7 @@ interface UserProfile {
   name: string;
   role: 'admin' | 'classic';
   dob?: string;
+  email: string;
 }
 
 interface Match {
@@ -32,6 +34,20 @@ interface Match {
   team2: string;
   isPlayed: boolean;
   type: 'regular' | 'playoff' | 'friendly';
+  round?: number;
+  playoffStage?: 'čtvrtfinále' | 'semifinále' | 'finále';
+  playoffMatchNumber?: number;
+}
+
+function getEnhancedMatchTitle(match: Match) {
+    let prefix = '';
+    if (match.type === 'regular' && match.round) {
+        prefix = `[${match.round}. kolo] `;
+    } else if (match.type === 'playoff' && match.playoffStage) {
+        const stage = match.playoffStage.charAt(0).toUpperCase() + match.playoffStage.slice(1);
+        prefix = `[${stage}${match.playoffMatchNumber ? ` - ${match.playoffMatchNumber}. zápas` : ''}] `;
+    }
+    return `${prefix}${match.team1} vs ${match.team2}`;
 }
 
 function CalendarPageContent() {
@@ -42,6 +58,7 @@ function CalendarPageContent() {
     const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
     const [isAddMatchDialogOpen, setIsAddMatchDialogOpen] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [matchType, setMatchType] = useState<Match['type']>('regular');
 
     const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
     const { data: userProfile, isLoading: isUserProfileLoading } = useDoc<UserProfile>(userDocRef);
@@ -92,14 +109,21 @@ function CalendarPageContent() {
             const matchDateTime = new Date(selectedDate);
             matchDateTime.setHours(hours, minutes);
 
-            const newMatchData = {
+            const newMatchData: any = {
                 team1: 'Aces',
                 team2: formData.get('opponent') as string,
                 location: formData.get('location') as string,
                 dateTime: Timestamp.fromDate(matchDateTime),
                 isPlayed: false,
-                type: formData.get('type') as Match['type'],
+                type: matchType,
             };
+
+            if (matchType === 'regular') {
+                newMatchData.round = Number(formData.get('round')) || null;
+            } else if (matchType === 'playoff') {
+                newMatchData.playoffStage = formData.get('playoffStage') as string;
+                newMatchData.playoffMatchNumber = Number(formData.get('playoffMatchNumber')) || null;
+            }
             
             await addDoc(collection(firestore, 'matches'), newMatchData);
             toast({ title: 'Zápas přidán do kalendáře.' });
@@ -130,10 +154,10 @@ function CalendarPageContent() {
     return (
         <div className="py-8 space-y-8">
             <div className="grid gap-8 md:grid-cols-12">
-                <Card className="md:col-span-5 lg:col-span-4">
+                <Card className="md:col-span-5 lg:col-span-4 h-fit">
                     <CardHeader>
                         <CardTitle>Kalendář událostí</CardTitle>
-                        <CardDescription>Vyberte den pro zobrazení detailů nebo přidání zápasu.</CardDescription>
+                        <CardDescription>Vyberte den pro detaily nebo přidání zápasu.</CardDescription>
                     </CardHeader>
                     <CardContent className="flex justify-center px-2 sm:px-6">
                         <Calendar
@@ -179,7 +203,13 @@ function CalendarPageContent() {
                                 <CardContent>
                                     <div className="space-y-1">
                                         {birthdaysOnSelectedDate.map(u => (
-                                            <p key={u.id} className="font-semibold text-lg">{u.name}</p>
+                                            <div key={u.id} className="flex items-center gap-2">
+                                                <Avatar className="h-8 w-8">
+                                                    <AvatarImage src={`https://picsum.photos/seed/${u.email}/100/100`} />
+                                                    <AvatarFallback>{u.name.split(' ').map(n=>n[0]).join('')}</AvatarFallback>
+                                                </Avatar>
+                                                <p className="font-semibold text-lg">{u.name}</p>
+                                            </div>
                                         ))}
                                     </div>
                                 </CardContent>
@@ -191,11 +221,11 @@ function CalendarPageContent() {
                                 <Card key={match.id} className="overflow-hidden border-l-4 border-l-primary">
                                     <CardHeader className="pb-2">
                                         <div className="flex justify-between items-start">
-                                            <div>
+                                            <div className="flex-1 min-w-0">
                                                 <Badge variant="outline" className="mb-2">
                                                     {match.type === 'regular' ? 'Základní část' : match.type === 'playoff' ? 'Play-off' : 'Přátelský'}
                                                 </Badge>
-                                                <CardTitle className="text-2xl">{match.team1} vs {match.team2}</CardTitle>
+                                                <CardTitle className="text-2xl break-words">{getEnhancedMatchTitle(match)}</CardTitle>
                                             </div>
                                             {match.isPlayed && <Badge>Odehráno</Badge>}
                                         </div>
@@ -253,7 +283,7 @@ function CalendarPageContent() {
                             </div>
                             <div className="grid grid-cols-4 items-center gap-4">
                                 <Label htmlFor="type" className="text-right">Typ</Label>
-                                <Select name="type" required defaultValue="regular">
+                                <Select name="type" required value={matchType} onValueChange={(val) => setMatchType(val as Match['type'])}>
                                     <SelectTrigger className="col-span-3">
                                         <SelectValue />
                                     </SelectTrigger>
@@ -264,6 +294,33 @@ function CalendarPageContent() {
                                     </SelectContent>
                                 </Select>
                             </div>
+                            {matchType === 'regular' && (
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="round" className="text-right">Kolo</Label>
+                                    <Input id="round" name="round" type="number" min="1" className="col-span-3" placeholder="Číslo kola" />
+                                </div>
+                            )}
+                            {matchType === 'playoff' && (
+                                <>
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                        <Label htmlFor="playoffStage" className="text-right">Fáze</Label>
+                                        <Select name="playoffStage" required defaultValue="čtvrtfinále">
+                                            <SelectTrigger className="col-span-3">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="čtvrtfinále">Čtvrtfinále</SelectItem>
+                                                <SelectItem value="semifinále">Semifinále</SelectItem>
+                                                <SelectItem value="finále">Finále</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                        <Label htmlFor="playoffMatchNumber" className="text-right">Zápas č.</Label>
+                                        <Input id="playoffMatchNumber" name="playoffMatchNumber" type="number" min="1" className="col-span-3" placeholder="Pořadí v sérii" />
+                                    </div>
+                                </>
+                            )}
                         </div>
                         <DialogFooter>
                             <Button type="button" variant="outline" onClick={() => setIsAddMatchDialogOpen(false)} disabled={isSaving}>Zrušit</Button>
@@ -286,3 +343,5 @@ export default function CalendarPage() {
         </Suspense>
     )
 }
+
+    

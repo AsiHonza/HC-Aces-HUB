@@ -1,3 +1,4 @@
+
 'use client'
 
 import React, { Suspense, useState, useMemo, useEffect, useRef, useCallback } from 'react'
@@ -80,6 +81,9 @@ interface Match {
   team2: string;
   isPlayed: boolean;
   type: 'regular' | 'playoff' | 'friendly';
+  round?: number;
+  playoffStage?: 'čtvrtfinále' | 'semifinále' | 'finále';
+  playoffMatchNumber?: number;
   team1Score?: number;
   team2Score?: number;
   scorers?: { goal: string; assist: string | null }[];
@@ -120,6 +124,18 @@ interface AppSettings {
   leagueStandings?: LeagueStanding[];
 }
 
+function getEnhancedMatchTitle(match: Match) {
+    let prefix = '';
+    if (match.type === 'regular' && match.round) {
+        prefix = `[${match.round}. kolo] `;
+    } else if (match.type === 'playoff' && match.playoffStage) {
+        const stage = match.playoffStage.charAt(0).toUpperCase() + match.playoffStage.slice(1);
+        prefix = `[${stage}${match.playoffMatchNumber ? ` - ${match.playoffMatchNumber}. zápas` : ''}] `;
+    }
+    const opponent = match.team1 === 'Aces' ? match.team2 : match.team1;
+    return `${prefix}${opponent}`;
+}
+
 function RecordResultForm({ match, allUsers, onSave, onCancel, isSaving }: { match: Match, allUsers: UserProfile[], onSave: (e: React.FormEvent<HTMLFormElement>) => Promise<void>, onCancel: () => void, isSaving: boolean }) {
     const [goalCount, setGoalCount] = useState(0);
     const [selectedScorers, setSelectedScorers] = useState<Record<number, string | null>>({});
@@ -140,7 +156,7 @@ function RecordResultForm({ match, allUsers, onSave, onCancel, isSaving }: { mat
                   </DialogDescription>
               </DialogHeader>
             <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-4">
-                <p className="text-center font-bold text-lg">{match.team1} vs {match.team2}</p>
+                <p className="text-center font-bold text-lg">{getEnhancedMatchTitle(match)}</p>
                 <div className="grid grid-cols-2 items-center gap-4">
                     <div className="grid gap-2 text-center">
                         <Label htmlFor="team1Score">Aces</Label>
@@ -219,6 +235,9 @@ function DashboardPageContent() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isResultDialogOpen, setIsResultDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
+
+  const [addMatchType, setAddMatchType] = useState<Match['type']>('regular');
+  const [editMatchType, setEditMatchType] = useState<Match['type']>('regular');
 
   const [isSaving, setIsSaving] = useState(false);
 
@@ -610,6 +629,7 @@ function DashboardPageContent() {
 
   const handleEditMatch = (match: Match) => {
     setSelectedMatch(match);
+    setEditMatchType(match.type);
     setIsEditDialogOpen(true);
   };
   const handleDeleteMatch = (match: Match) => {
@@ -751,6 +771,7 @@ function DashboardPageContent() {
     const formData = new FormData(e.currentTarget);
     const timeStr = formData.get('time') as string;
     const dateStr = formData.get('date') as string;
+    const type = formData.get('type') as Match['type'];
     
     try {
         const newDateTime = parse(`${dateStr} ${timeStr}`, 'yyyy-MM-dd HH:mm', new Date());
@@ -760,20 +781,32 @@ function DashboardPageContent() {
             return;
         }
 
-        const updatedData = {
+        const updatedData: any = {
             team2: formData.get('opponent') as string,
             location: formData.get('location') as string,
             dateTime: Timestamp.fromDate(newDateTime),
+            type: type,
         };
+
+        if (type === 'regular') {
+            updatedData.round = Number(formData.get('round')) || null;
+            updatedData.playoffStage = null;
+            updatedData.playoffMatchNumber = null;
+        } else if (type === 'playoff') {
+            updatedData.playoffStage = formData.get('playoffStage') as string;
+            updatedData.playoffMatchNumber = Number(formData.get('playoffMatchNumber')) || null;
+            updatedData.round = null;
+        } else {
+            updatedData.round = null;
+            updatedData.playoffStage = null;
+            updatedData.playoffMatchNumber = null;
+        }
         
         const matchRef = doc(firestore, 'matches', selectedMatch.id);
         await updateDoc(matchRef, updatedData);
         toast({ title: 'Zápas aktualizován' });
     } catch (error: any) {
         toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se uložit zápas.' });
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-            operation: 'update', path: doc(firestore, 'matches', selectedMatch.id).path, requestResourceData: (error as any).requestResourceData,
-        }));
     } finally {
         setIsSaving(false);
         setIsEditDialogOpen(false);
@@ -789,6 +822,7 @@ function DashboardPageContent() {
     const formData = new FormData(e.currentTarget);
     const timeStr = formData.get('time') as string;
     const dateStr = formData.get('date') as string;
+    const type = formData.get('type') as Match['type'];
     
     try {
       const newDateTime = parse(`${dateStr} ${timeStr}`, 'yyyy-MM-dd HH:mm', new Date());
@@ -798,23 +832,27 @@ function DashboardPageContent() {
             return;
       }
 
-      const newMatchData = {
+      const newMatchData: any = {
           team1: 'Aces',
           team2: formData.get('opponent') as string,
           location: formData.get('location') as string,
           dateTime: Timestamp.fromDate(newDateTime),
           isPlayed: false,
-          type: formData.get('type') as 'regular' | 'playoff' | 'friendly',
+          type: type,
       };
+
+      if (type === 'regular') {
+          newMatchData.round = Number(formData.get('round')) || null;
+      } else if (type === 'playoff') {
+          newMatchData.playoffStage = formData.get('playoffStage') as string;
+          newMatchData.playoffMatchNumber = Number(formData.get('playoffMatchNumber')) || null;
+      }
       
       const matchesCollection = collection(firestore, 'matches');
       await addDoc(matchesCollection, newMatchData);
       toast({ title: 'Zápas přidán.' });
     } catch (error: any) {
        toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se přidat zápas.' });
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          operation: 'create', path: collection(firestore, 'matches').path, requestResourceData: (error as any).requestResourceData
-        }));
     } finally {
         setIsSaving(false);
         setIsAddDialogOpen(false);
@@ -911,7 +949,7 @@ function DashboardPageContent() {
       });
       
       if (goalieId && goalieId !== 'none') {
-          const allGoalieStatsMap = new Map(allGoalieStats.map(s => [s.userProfileId, s.id]));
+          const allGoalieStatsMap = new Map(allGoalieStats.map(s => [s.userProfileId, s]));
           const goalieStats = allGoalieStatsMap.get(goalieId);
           const isWin = team1Score > team2Score;
           
@@ -994,10 +1032,6 @@ function DashboardPageContent() {
         toast({ title: 'Nastavení ligy uloženo.' });
     } catch (error) {
         toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se uložit nastavení ligy.' });
-        const settingsRef = doc(firestore, 'settings', 'league');
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-            operation: 'write', path: settingsRef.path, requestResourceData: updatedSettings,
-        }));
     } finally {
         setIsSaving(false);
         setIsLeagueEditMode(false);
@@ -1171,7 +1205,7 @@ function DashboardPageContent() {
   const fallback = userProfile?.name?.split(' ').map(n => n[0]).join('').toUpperCase() ?? ''
   
   const renderMatchCard = (match: Match) => {
-    const opponent = match.team1 === 'Aces' ? match.team2 : match.team1;
+    const title = getEnhancedMatchTitle(match);
     const attendance = userAttendancesWithOptimistic.get(match.id)?.status;
     const attendeesForMatch = (attendancesByMatch.get(match.id) || []);
     const attendeeCount = attendeesForMatch.filter(a => a.status === 'going').length;
@@ -1184,7 +1218,7 @@ function DashboardPageContent() {
         <Card id={`match-${match.id}`} className={cn("w-full transition-all", highlightedMatchId === match.id && 'animate-highlight-card')}>
                 <CardHeader className="flex-row items-start justify-between pb-2">
                     <div className="space-y-1">
-                        <CardTitle className="text-xl break-words pr-2">{opponent}</CardTitle>
+                        <CardTitle className="text-xl break-words pr-2">{title}</CardTitle>
                         <CardDescription className="font-semibold pt-1">{format(match.dateTime.toDate(), "EEEE, d. M. yyyy, HH:mm", { locale: cs })}</CardDescription>
                     </div>
                     <div className="flex items-center">
@@ -1270,7 +1304,7 @@ function DashboardPageContent() {
                                     <DialogHeader>
                                         <DialogTitle>Přihlášení na zápas</DialogTitle>
                                         <DialogDescription>
-                                            {match.team1} vs {match.team2} - {format(match.dateTime.toDate(), "d. MMMM yyyy", { locale: cs })}
+                                            {title} - {format(match.dateTime.toDate(), "d. MMMM yyyy", { locale: cs })}
                                         </DialogDescription>
                                     </DialogHeader>
                                     <div className="max-h-[400px] overflow-y-auto pr-4 space-y-4">
@@ -1437,7 +1471,7 @@ function DashboardPageContent() {
                             </div>
                             <div className="grid grid-cols-4 items-center gap-4">
                                 <Label htmlFor="type-add" className="text-right">Typ zápasu</Label>
-                                <Select name="type" required defaultValue="regular">
+                                <Select name="type" required value={addMatchType} onValueChange={(val) => setAddMatchType(val as Match['type'])}>
                                     <SelectTrigger className="col-span-3">
                                         <SelectValue placeholder="Vyberte typ" />
                                     </SelectTrigger>
@@ -1448,6 +1482,33 @@ function DashboardPageContent() {
                                     </SelectContent>
                                 </Select>
                             </div>
+                            {addMatchType === 'regular' && (
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="round-add" className="text-right">Číslo kola</Label>
+                                    <Input id="round-add" name="round" type="number" min="1" className="col-span-3" placeholder="Např. 12" />
+                                </div>
+                            )}
+                            {addMatchType === 'playoff' && (
+                                <>
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                        <Label htmlFor="playoffStage-add" className="text-right">Fáze</Label>
+                                        <Select name="playoffStage" required defaultValue="čtvrtfinále">
+                                            <SelectTrigger className="col-span-3">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="čtvrtfinále">Čtvrtfinále</SelectItem>
+                                                <SelectItem value="semifinále">Semifinále</SelectItem>
+                                                <SelectItem value="finále">Finále</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                        <Label htmlFor="playoffMatchNumber-add" className="text-right">Číslo zápasu</Label>
+                                        <Input id="playoffMatchNumber-add" name="playoffMatchNumber" type="number" min="1" className="col-span-3" placeholder="Např. 1" />
+                                    </div>
+                                </>
+                            )}
                         </div>
                         <DialogFooter>
                             <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)} disabled={isSaving}>Zrušit</Button>
@@ -1508,6 +1569,7 @@ function DashboardPageContent() {
                 {recentPlayedMatches.length > 0 ? (
                     <div className="space-y-4">
                         {recentPlayedMatches.map(match => {
+                            const title = getEnhancedMatchTitle(match);
                             const hasScorers = match.scorers && match.scorers.length > 0
                             if (hasScorers) {
                                 return (
@@ -1517,7 +1579,7 @@ function DashboardPageContent() {
                                                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between w-full gap-2">
                                                     <div className="flex-1 text-left">
                                                         <p className="text-xs text-muted-foreground">{format(match.dateTime.toDate(), "d. MMMM yyyy", { locale: cs })}</p>
-                                                        <p className="font-semibold">{match.team1} vs {match.team2}</p>
+                                                        <p className="font-semibold">{title}</p>
                                                     </div>
                                                     <div className="flex items-center gap-2 text-sm self-end sm:self-center">
                                                         <span className="text-lg font-bold font-mono">{match.team1Score} : {match.team2Score}</span>
@@ -1550,7 +1612,7 @@ function DashboardPageContent() {
                                 <div key={match.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between rounded-lg border p-3 gap-2">
                                     <div className="flex-1">
                                         <p className="text-xs text-muted-foreground">{format(match.dateTime.toDate(), "d. MMMM yyyy", { locale: cs })}</p>
-                                        <p className="font-semibold">{match.team1} vs {match.team2}</p>
+                                        <p className="font-semibold">{title}</p>
                                     </div>
                                     <div className="flex items-center gap-2 text-sm self-end sm:self-center">
                                         <span className="text-lg font-bold font-mono">{match.team1Score} : {match.team2Score}</span>
@@ -1908,6 +1970,46 @@ function DashboardPageContent() {
                           <Label htmlFor="location" className="text-right">Místo</Label>
                           <Input id="location" name="location" defaultValue={selectedMatch.location} className="col-span-3" />
                       </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="type-edit" className="text-right">Typ zápasu</Label>
+                        <Select name="type" required value={editMatchType} onValueChange={(val) => setEditMatchType(val as Match['type'])}>
+                            <SelectTrigger className="col-span-3">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="regular">Základní část</SelectItem>
+                                <SelectItem value="playoff">Play-off</SelectItem>
+                                <SelectItem value="friendly">Přátelský</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    {editMatchType === 'regular' && (
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="round-edit" className="text-right">Číslo kola</Label>
+                            <Input id="round-edit" name="round" type="number" min="1" defaultValue={selectedMatch.round} className="col-span-3" />
+                        </div>
+                    )}
+                    {editMatchType === 'playoff' && (
+                        <>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="playoffStage-edit" className="text-right">Fáze</Label>
+                                <Select name="playoffStage" required defaultValue={selectedMatch.playoffStage || "čtvrtfinále"}>
+                                    <SelectTrigger className="col-span-3">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="čtvrtfinále">Čtvrtfinále</SelectItem>
+                                        <SelectItem value="semifinále">Semifinále</SelectItem>
+                                        <SelectItem value="finále">Finále</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="playoffMatchNumber-edit" className="text-right">Číslo zápasu</Label>
+                                <Input id="playoffMatchNumber-edit" name="playoffMatchNumber" type="number" min="1" defaultValue={selectedMatch.playoffMatchNumber} className="col-span-3" />
+                            </div>
+                        </>
+                    )}
                   </div>
                   <DialogFooter>
                       <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={isSaving}>Zrušit</Button>
@@ -2018,7 +2120,7 @@ function DashboardPageContent() {
                  {lineupMatch && allUsers ? (
                     <>
                         <DialogHeader>
-                            <DialogTitle>Tvorba sestavy: {lineupMatch.team1} vs {lineupMatch.team2}</DialogTitle>
+                            <DialogTitle>Tvorba sestavy: {getEnhancedMatchTitle(lineupMatch)}</DialogTitle>
                             <DialogDescription>
                                 Přetáhněte hráče na jejich pozice na hřišti.
                             </DialogDescription>
@@ -2046,7 +2148,7 @@ function DashboardPageContent() {
         }}>
             <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
                  <DialogHeader>
-                    <DialogTitle>{lineupMatch ? `Sestava: ${lineupMatch.team1} vs ${lineupMatch.team2}` : 'Načítání sestavy...'}</DialogTitle>
+                    <DialogTitle>{lineupMatch ? `Sestava: ${getEnhancedMatchTitle(lineupMatch)}` : 'Načítání sestavy...'}</DialogTitle>
                     {lineupMatch && <DialogDescription>Uložená sestava pro nadcházející zápas.</DialogDescription>}
                 </DialogHeader>
                 {viewLineupData ? (
@@ -2069,3 +2171,5 @@ export default function DashboardPage() {
     </Suspense>
   )
 }
+
+    
