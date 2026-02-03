@@ -5,10 +5,10 @@ import { Suspense, useMemo, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase'
-import { query, collection, Timestamp, doc, updateDoc, orderBy, addDoc, deleteDoc, writeBatch, increment } from 'firebase/firestore'
+import { query, collection, Timestamp, doc, updateDoc, orderBy, setDoc, deleteDoc, writeBatch, increment } from 'firebase/firestore'
 import { format, parse } from 'date-fns'
 import { cs } from 'date-fns/locale'
-import { Loader2, Trophy, Pencil, Trash2, MoreHorizontal, View, Plus, Disc, Users, Share2, AlertCircle } from 'lucide-react'
+import { Loader2, Trophy, Pencil, Trash2, MoreHorizontal, View, Plus, Disc, Users, Share2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -190,7 +190,8 @@ function HistoryPageContent() {
         setIsSaving(true);
         try {
             const batch = writeBatch(firestore);
-            const type = match.type === 'playoff' ? 'playoff' : 'season';
+            // Match regular/friendly to season fields, playoff to playoff fields
+            const typePrefix = match.type === 'playoff' ? 'playoff' : 'season';
             const skaterChanges = new Map<string, { goals: number, assists: number, games: number }>();
 
             // 1. Identification of players from lineup
@@ -219,9 +220,9 @@ function HistoryPageContent() {
                 const ref = doc(firestore, 'users', uId, 'skaterStats', 'stats');
                 batch.set(ref, {
                     userProfileId: uId,
-                    [`${type}Goals`]: increment(vals.goals),
-                    [`${type}Assists`]: increment(vals.assists),
-                    [`${type}GamesPlayed`]: increment(vals.games)
+                    [`${typePrefix}Goals`]: increment(vals.goals),
+                    [`${typePrefix}Assists`]: increment(vals.assists),
+                    [`${typePrefix}GamesPlayed`]: increment(vals.games)
                 }, { merge: true });
             });
 
@@ -231,10 +232,10 @@ function HistoryPageContent() {
                 const isWin = (match.team1Score || 0) > (match.team2Score || 0);
                 batch.set(ref, {
                     userProfileId: match.goalieId,
-                    [`${type}GamesPlayed`]: increment(1),
-                    [`${type}Wins`]: increment(isWin ? 1 : 0),
-                    [`${type}Saves`]: increment(match.goalieSaves || 0),
-                    [`${type}ShotsAgainst`]: increment(match.goalieShotsAgainst || 0)
+                    [`${typePrefix}GamesPlayed`]: increment(1),
+                    [`${typePrefix}Wins`]: increment(isWin ? 1 : 0),
+                    [`${typePrefix}Saves`]: increment(match.goalieSaves || 0),
+                    [`${typePrefix}ShotsAgainst`]: increment(match.goalieShotsAgainst || 0)
                 }, { merge: true });
             }
 
