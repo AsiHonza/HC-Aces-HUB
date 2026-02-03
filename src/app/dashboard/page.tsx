@@ -756,9 +756,9 @@ function DashboardPageContent() {
             <CardContent>
                 <Tabs value={myStatsView} onValueChange={(v) => setMyStatsView(v as any)}>
                     <TabsList className="grid w-full grid-cols-4">
-                      <TabsTrigger value="regular" className="text-xs sm:text-sm">Základ</TabsTrigger>
-                      <TabsTrigger value="playoff" className="text-xs sm:text-sm">P.off</TabsTrigger>
-                      <TabsTrigger value="season" className="text-xs sm:text-sm">Sezóna</TabsTrigger>
+                      <TabsTrigger value="regular" className="text-xs sm:text-sm">ZČ</TabsTrigger>
+                      <TabsTrigger value="playoff" className="text-xs sm:text-sm">Play-off</TabsTrigger>
+                      <TabsTrigger value="season" className="text-xs sm:text-sm">Sezona</TabsTrigger>
                       <TabsTrigger value="history" className="text-xs sm:text-sm">Historie</TabsTrigger>
                     </TabsList>
                     <div className="mt-4">
@@ -807,12 +807,12 @@ function DashboardPageContent() {
 
         {/* League and Playoff Section */}
         <Card className="lg:col-span-3">
-            <CardHeader className="flex-row items-center justify-between">
-                <CardTitle className="flex items-center gap-2"><ListOrdered className="text-primary"/>Soutěž</CardTitle>
+            <CardHeader className="flex-row items-center justify-between gap-4">
+                <CardTitle className="flex items-center gap-2 whitespace-nowrap"><ListOrdered className="text-primary"/>Soutěž</CardTitle>
                 {userProfile?.role === 'admin' && (
-                    <div className="flex gap-2">
-                         <Button size="sm" variant="outline" onClick={() => setIsLeagueDialogOpen(true)}><Pencil className="h-3 mr-2" />Tabulka</Button>
-                         <Button size="sm" variant="outline" onClick={() => setIsPlayoffDialogOpen(true)}><Pencil className="h-3 mr-2" />Play-off</Button>
+                    <div className="flex items-center gap-2">
+                         <Button size="sm" variant="outline" onClick={() => setIsLeagueDialogOpen(true)} className="h-8"><Pencil className="h-3.5 w-3.5 mr-2" />Tabulka</Button>
+                         <Button size="sm" variant="outline" onClick={() => setIsPlayoffDialogOpen(true)} className="h-8"><Pencil className="h-3.5 w-3.5 mr-2" />Play-off</Button>
                     </div>
                 )}
             </CardHeader>
@@ -968,9 +968,9 @@ function DashboardPageContent() {
                 <CardContent>
                     <Tabs value={scoringView} onValueChange={(v) => { if (!isStatEditMode) setScoringView(v as any); }}>
                         <TabsList className="grid w-full grid-cols-4 mb-4">
-                            <TabsTrigger value="regular" className="text-xs">Základ</TabsTrigger>
-                            <TabsTrigger value="playoff" className="text-xs">P.off</TabsTrigger>
-                            <TabsTrigger value="season" className="text-xs">Sezóna</TabsTrigger>
+                            <TabsTrigger value="regular" className="text-xs">ZČ</TabsTrigger>
+                            <TabsTrigger value="playoff" className="text-xs">Play-off</TabsTrigger>
+                            <TabsTrigger value="season" className="text-xs">Sezona</TabsTrigger>
                             <TabsTrigger value="history" className="text-xs">Historie</TabsTrigger>
                         </TabsList>
                         <Table>
@@ -1056,9 +1056,9 @@ function DashboardPageContent() {
                 <CardContent>
                     <Tabs value={scoringView} onValueChange={(v) => { if (!isStatEditMode) setScoringView(v as any); }}>
                         <TabsList className="grid w-full grid-cols-4 mb-4">
-                            <TabsTrigger value="regular" className="text-xs">Základ</TabsTrigger>
-                            <TabsTrigger value="playoff" className="text-xs">P.off</TabsTrigger>
-                            <TabsTrigger value="season" className="text-xs">Sezóna</TabsTrigger>
+                            <TabsTrigger value="regular" className="text-xs">ZČ</TabsTrigger>
+                            <TabsTrigger value="playoff" className="text-xs">Play-off</TabsTrigger>
+                            <TabsTrigger value="season" className="text-xs">Sezona</TabsTrigger>
                             <TabsTrigger value="history" className="text-xs">Historie</TabsTrigger>
                         </TabsList>
                         <Table>
