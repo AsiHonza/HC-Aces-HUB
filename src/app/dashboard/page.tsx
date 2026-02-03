@@ -211,7 +211,6 @@ function DashboardPageContent() {
   const [viewLineupData, setViewLineupData] = useState<Lineup | null>(null);
   const [isStatEditMode, setIsStatEditMode] = useState(false);
   
-  // Use strings for editable stats to allow empty input fields
   const [editableSkaterStats, setEditableSkaterStats] = useState<any[]>([]);
   const [editableGoalieStats, setEditableGoalieStats] = useState<any[]>([]);
 
@@ -277,30 +276,6 @@ function DashboardPageContent() {
     
   const isScoringInPlayoffMode = leagueSettings?.isScoringInPlayoffMode ?? false;
 
-  const myStatsToDisplay = useMemo(() => {
-      if (userProfile?.playerType === 'player' && skaterStatsData) {
-          const stats = skaterStatsData;
-          switch(myStatsView) {
-              case 'playoff': return { goals: stats.playoffGoals, assists: stats.playoffAssists, gamesPlayed: stats.playoffGamesPlayed };
-              case 'history': return { goals: stats.historicalGoals, assists: stats.historicalAssists, gamesPlayed: stats.historicalGamesPlayed };
-              default: return { goals: stats.seasonGoals, assists: stats.seasonAssists, gamesPlayed: stats.seasonGamesPlayed };
-          }
-      }
-      return { goals: 0, assists: 0, gamesPlayed: 0 };
-  }, [myStatsView, skaterStatsData, userProfile]);
-
-  const myGoalieStatsToDisplay = useMemo(() => {
-      if (userProfile?.playerType === 'goalie' && goalieStatsData) {
-          const stats = goalieStatsData;
-          switch(myStatsView) {
-              case 'playoff': return { gamesPlayed: stats.playoffGamesPlayed, wins: stats.playoffWins, savePct: stats.playoffShotsAgainst > 0 ? (stats.playoffSaves / stats.playoffShotsAgainst) * 100 : 0 };
-              case 'history': return { gamesPlayed: stats.historicalGamesPlayed, wins: stats.historicalWins, savePct: stats.historicalShotsAgainst > 0 ? (stats.historicalSaves / stats.historicalShotsAgainst) * 100 : 0 };
-              default: return { gamesPlayed: stats.seasonGamesPlayed, wins: stats.seasonWins, savePct: stats.seasonShotsAgainst > 0 ? (stats.seasonSaves / stats.seasonShotsAgainst) * 100 : 0 };
-          }
-      }
-      return { gamesPlayed: 0, wins: 0, savePct: 0 };
-  }, [myStatsView, goalieStatsData, userProfile]);
-  
   const teamScoring = useMemo(() => {
       if (!allUsers || !allSkaterStats) return [];
       const statsMap = new Map<string, SkaterStats>();
@@ -360,17 +335,6 @@ function DashboardPageContent() {
 
   const usersMap = useMemo(() => new Map(allUsers?.map(u => [u.id, u])), [allUsers]);
   
-  const personalStats = useMemo(() => userProfile?.playerType === 'player' ? [
-      { metric: 'Góly', value: myStatsToDisplay.goals ?? 0 },
-      { metric: 'Asistence', value: myStatsToDisplay.assists ?? 0 },
-      { metric: 'Body', value: (myStatsToDisplay.goals ?? 0) + (myStatsToDisplay.assists ?? 0) },
-      { metric: 'Zápasy', value: myStatsToDisplay.gamesPlayed ?? 0 },
-  ] : userProfile?.playerType === 'goalie' ? [
-      { metric: 'Zápasy', value: myGoalieStatsToDisplay.gamesPlayed },
-      { metric: 'Výhry', value: myGoalieStatsToDisplay.wins },
-      { metric: 'Úspěšnost', value: `${myGoalieStatsToDisplay.savePct.toFixed(2)} %` },
-  ] : [], [myStatsToDisplay, myGoalieStatsToDisplay, userProfile?.playerType]);
-
   const isLoading = isUserProfileLoading || isSkaterStatsLoading || isGoalieStatsLoading || areMatchesLoading || areUsersLoading || areSkaterStatsLoading || areGoalieStatsLoading || attendancesLoading || leagueSettingsLoading;
 
   useEffect(() => {
@@ -478,7 +442,6 @@ function DashboardPageContent() {
     if (!firestore) return;
     setIsSaving(true);
     try {
-        // Use individual setDoc calls instead of batch to avoid Firestore Security Rule "get" limit (10 reads per request)
         const prefix = scoringView === 'history' ? 'historical' : scoringView;
         const goalsKey = `${prefix === 'historical' ? 'historical' : prefix}Goals`;
         const assistsKey = `${prefix === 'historical' ? 'historical' : prefix}Assists`;
@@ -597,7 +560,33 @@ function DashboardPageContent() {
             <CardContent>
                 <Tabs value={myStatsView} onValueChange={(v) => setMyStatsView(v as any)}>
                     <TabsList className="grid w-full grid-cols-3"><TabsTrigger value="season">Sezóna</TabsTrigger><TabsTrigger value="playoff" disabled={!isScoringInPlayoffMode}>Play-off</TabsTrigger><TabsTrigger value="history">Historie</TabsTrigger></TabsList>
-                    <div className="mt-4"><Table><TableBody>{personalStats.map(s => (<TableRow key={s.metric}><TableCell className="font-medium">{s.metric}</TableCell><TableCell className="text-right font-bold">{s.value}</TableCell></TableRow>))}</TableBody></Table></div>
+                    <div className="mt-4">
+                        <Table>
+                            <TableBody>
+                                {userProfile?.playerType === 'player' && skaterStatsData && (
+                                    <>
+                                        <TableRow><TableCell className="font-medium">Góly</TableCell><TableCell className="text-right font-bold">{myStatsView === 'playoff' ? skaterStatsData.playoffGoals : myStatsView === 'history' ? skaterStatsData.historicalGoals : skaterStatsData.seasonGoals}</TableCell></TableRow>
+                                        <TableRow><TableCell className="font-medium">Asistence</TableCell><TableCell className="text-right font-bold">{myStatsView === 'playoff' ? skaterStatsData.playoffAssists : myStatsView === 'history' ? skaterStatsData.historicalAssists : skaterStatsData.seasonAssists}</TableCell></TableRow>
+                                        <TableRow><TableCell className="font-medium">Body</TableCell><TableCell className="text-right font-bold">{(myStatsView === 'playoff' ? skaterStatsData.playoffGoals + skaterStatsData.playoffAssists : myStatsView === 'history' ? skaterStatsData.historicalGoals + skaterStatsData.historicalAssists : skaterStatsData.seasonGoals + skaterStatsData.seasonAssists)}</TableCell></TableRow>
+                                        <TableRow><TableCell className="font-medium">Zápasy</TableCell><TableCell className="text-right font-bold">{myStatsView === 'playoff' ? skaterStatsData.playoffGamesPlayed : myStatsView === 'history' ? skaterStatsData.historicalGamesPlayed : skaterStatsData.seasonGamesPlayed}</TableCell></TableRow>
+                                    </>
+                                )}
+                                {userProfile?.playerType === 'goalie' && goalieStatsData && (
+                                    <>
+                                        <TableRow><TableCell className="font-medium">Zápasy</TableCell><TableCell className="text-right font-bold">{myStatsView === 'playoff' ? goalieStatsData.playoffGamesPlayed : myStatsView === 'history' ? goalieStatsData.historicalGamesPlayed : goalieStatsData.seasonGamesPlayed}</TableCell></TableRow>
+                                        <TableRow><TableCell className="font-medium">Výhry</TableCell><TableCell className="text-right font-bold">{myStatsView === 'playoff' ? goalieStatsData.playoffWins : myStatsView === 'history' ? goalieStatsData.historicalWins : goalieStatsData.seasonWins}</TableCell></TableRow>
+                                        <TableRow><TableCell className="font-medium">Úspěšnost</TableCell><TableCell className="text-right font-bold">
+                                            {(() => {
+                                                const sa = myStatsView === 'playoff' ? goalieStatsData.playoffShotsAgainst : myStatsView === 'history' ? goalieStatsData.historicalShotsAgainst : goalieStatsData.seasonShotsAgainst;
+                                                const s = myStatsView === 'playoff' ? goalieStatsData.playoffSaves : myStatsView === 'history' ? goalieStatsData.historicalSaves : goalieStatsData.seasonSaves;
+                                                return sa > 0 ? ((s / sa) * 100).toFixed(2) : '0.00';
+                                            })()}%
+                                        </TableCell></TableRow>
+                                    </>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
                 </Tabs>
             </CardContent>
         </Card>
@@ -629,17 +618,25 @@ function DashboardPageContent() {
             <Card>
                 <CardHeader className="flex-row items-center justify-between">
                     <CardTitle className="flex items-center gap-2"><Flame className="text-primary"/>Bodování</CardTitle>
-                    {userProfile?.role === 'admin' && (isStatEditMode ? <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => setIsStatEditMode(false)}>Zrušit</Button><Button size="sm" onClick={handleSaveStatsManual}>Uložit</Button></div> : <Button size="sm" variant="outline" onClick={() => { 
-                        setEditableSkaterStats(teamScoring.map(p => ({ 
-                            ...p[scoringView], 
-                            id: p.id, 
-                            name: p.name,
-                            goals: String(p[scoringView].goals),
-                            assists: String(p[scoringView].assists),
-                            gamesPlayed: String(p[scoringView].gamesPlayed)
-                        }))); 
-                        setIsStatEditMode(true); 
-                    }}><Pencil className="h-3 mr-2" />Upravit</Button>)}
+                    {userProfile?.role === 'admin' && !isStatEditMode && (
+                        <Button size="sm" variant="outline" onClick={() => { 
+                            setEditableSkaterStats(teamScoring.map(p => ({ 
+                                ...p[scoringView], 
+                                id: p.id, 
+                                name: p.name,
+                                goals: String(p[scoringView].goals),
+                                assists: String(p[scoringView].assists),
+                                gamesPlayed: String(p[scoringView].gamesPlayed)
+                            }))); 
+                            setIsStatEditMode(true); 
+                        }}><Pencil className="h-3 mr-2" />Upravit</Button>
+                    )}
+                    {isStatEditMode && (
+                        <div className="flex gap-2">
+                            <Button size="sm" variant="outline" onClick={() => setIsStatEditMode(false)}>Zrušit</Button>
+                            <Button size="sm" onClick={handleSaveStatsManual}>Uložit</Button>
+                        </div>
+                    )}
                 </CardHeader>
                 <CardContent>
                     <Tabs value={scoringView} onValueChange={(v) => { if (!isStatEditMode) setScoringView(v as any); }}>
@@ -688,18 +685,20 @@ function DashboardPageContent() {
             <Card>
                 <CardHeader className="flex-row items-center justify-between">
                     <CardTitle className="flex items-center gap-2"><Shield className="text-primary"/>Brankáři</CardTitle>
-                    {userProfile?.role === 'admin' && (isStatEditMode ? null : <Button size="sm" variant="outline" onClick={() => { 
-                        setEditableGoalieStats(goalieLeaderboard.map(g => ({ 
-                            ...g[scoringView], 
-                            id: g.id, 
-                            name: g.name,
-                            gamesPlayed: String(g[scoringView].gamesPlayed),
-                            wins: String(g[scoringView].wins),
-                            saves: String(g[scoringView].saves),
-                            shotsAgainst: String(g[scoringView].shotsAgainst)
-                        }))); 
-                        setIsStatEditMode(true); 
-                    }}><Pencil className="h-3 mr-2" />Upravit</Button>)}
+                    {userProfile?.role === 'admin' && !isStatEditMode && (
+                        <Button size="sm" variant="outline" onClick={() => { 
+                            setEditableGoalieStats(goalieLeaderboard.map(g => ({ 
+                                ...g[scoringView], 
+                                id: g.id, 
+                                name: g.name,
+                                gamesPlayed: String(g[scoringView].gamesPlayed),
+                                wins: String(g[scoringView].wins),
+                                saves: String(g[scoringView].saves),
+                                shotsAgainst: String(g[scoringView].shotsAgainst)
+                            }))); 
+                            setIsStatEditMode(true); 
+                        }}><Pencil className="h-3 mr-2" />Upravit</Button>
+                    )}
                 </CardHeader>
                 <CardContent>
                     <Tabs value={scoringView} onValueChange={(v) => { if (!isStatEditMode) setScoringView(v as any); }}>

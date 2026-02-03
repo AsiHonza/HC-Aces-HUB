@@ -308,8 +308,8 @@ function HistoryPageContent() {
                             {playedMatches.map(m => {
                                 const { prefix, opponent } = getMatchDetails(m);
                                 return (
-                                    <AccordionItem value={m.id} key={m.id} className="relative group">
-                                        <div className="flex items-center w-full border-b">
+                                    <AccordionItem value={m.id} key={m.id} className="relative">
+                                        <div className="flex items-center w-full border-b relative">
                                             <AccordionTrigger className="flex-1 text-left hover:no-underline px-4">
                                                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full pr-12 gap-2">
                                                     <div className="flex-1">
@@ -326,7 +326,7 @@ function HistoryPageContent() {
                                                 </div>
                                             </AccordionTrigger>
                                             {userProfile?.role === 'admin' && (
-                                                <div className="absolute right-1 top-4 z-10">
+                                                <div className="absolute right-1 top-1/2 -translate-y-1/2 z-10">
                                                     <DropdownMenu modal={false}>
                                                         <DropdownMenuTrigger asChild>
                                                             <Button variant="ghost" size="icon">
