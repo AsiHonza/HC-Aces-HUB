@@ -623,43 +623,45 @@ function DashboardPageContent() {
         </div>
         <Card className="lg:col-span-3">
             <CardHeader><CardTitle className="flex items-center gap-2"><History className="text-primary" />Nedávné výsledky</CardTitle></CardHeader>
-            <CardContent className="px-0">
-                <Accordion type="single" collapsible className="w-full">
+            <CardContent>
+                <Accordion type="single" collapsible className="w-full space-y-2">
                     {recentPlayedMatches.map(m => {
                         const { prefix, opponent } = getMatchDetails(m);
                         const hasGoals = m.scorers && m.scorers.length > 0;
                         return (
-                            <AccordionItem value={m.id} key={m.id} className="border-b last:border-0 border-muted">
-                                <AccordionTrigger className="hover:no-underline py-3 px-4 sm:px-6 [&>svg]:ml-2">
+                            <AccordionItem value={m.id} key={m.id} className="border rounded-lg bg-card overflow-hidden shadow-sm hover:border-primary/50 transition-colors">
+                                <AccordionTrigger className="hover:no-underline py-4 px-6 [&>svg]:ml-2">
                                     <div className="flex items-center justify-between w-full text-left gap-4">
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-[10px] text-muted-foreground uppercase leading-tight">{format(m.dateTime.toDate(), "d. M.")}</p>
-                                            {prefix && <p className="text-[9px] font-bold text-primary uppercase truncate">{prefix}</p>}
-                                            <p className="font-semibold text-sm sm:text-base truncate">{opponent}</p>
+                                            <p className="text-[10px] text-muted-foreground uppercase leading-tight font-bold tracking-wider">{format(m.dateTime.toDate(), "d. M. yyyy")}</p>
+                                            {prefix && <p className="text-[10px] font-bold text-primary uppercase truncate">{prefix}</p>}
+                                            <p className="font-bold text-base sm:text-lg truncate">{opponent}</p>
                                         </div>
-                                        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-                                            <span className="font-bold text-lg tabular-nums">{m.team1Score} : {m.team2Score}</span>
-                                            <Badge variant={(m.team1Score || 0) > (m.team2Score || 0) ? 'default' : 'destructive'} className="h-7 w-7 p-0 flex items-center justify-center shrink-0 rounded-md">
+                                        <div className="flex items-center gap-4 shrink-0">
+                                            <span className="font-bold text-xl tabular-nums tracking-tighter">{m.team1Score} : {m.team2Score}</span>
+                                            <Badge variant={(m.team1Score || 0) > (m.team2Score || 0) ? 'default' : 'destructive'} className="h-8 w-8 p-0 flex items-center justify-center shrink-0 rounded-full font-bold">
                                                 {(m.team1Score || 0) > (m.team2Score || 0) ? 'V' : 'P'}
                                             </Badge>
                                         </div>
                                     </div>
                                 </AccordionTrigger>
-                                <AccordionContent className="bg-muted/30 px-4 sm:px-6 py-4">
+                                <AccordionContent className="bg-muted/30 px-6 py-6 border-t">
                                     {hasGoals ? (
-                                        <div className="space-y-3">
-                                            <div className="flex items-center gap-2 text-primary border-b border-primary/20 pb-1.5">
+                                        <div className="space-y-4">
+                                            <div className="flex items-center gap-2 text-primary border-b border-primary/20 pb-2">
                                                 <Trophy className="h-4 w-4" />
-                                                <span className="text-xs font-bold uppercase tracking-wider">Bodování Aces</span>
+                                                <span className="text-xs font-bold uppercase tracking-widest">Detaily zápasu: Aces</span>
                                             </div>
-                                            <div className="grid gap-2.5">
+                                            <div className="grid gap-3">
                                                 {m.scorers!.map((s, i) => (
-                                                    <div key={i} className="flex items-center gap-3 text-sm">
-                                                        <Disc className="h-3.5 w-3.5 text-primary/60 shrink-0" />
+                                                    <div key={i} className="flex items-center gap-4 text-sm group">
+                                                        <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary shrink-0">
+                                                            <Disc className="h-3.5 w-3.5" />
+                                                        </div>
                                                         <div className="flex flex-wrap items-baseline gap-x-2">
-                                                            <span className="font-semibold">{formatName(usersMap.get(s.goal)?.name || 'Neznámý')}</span>
+                                                            <span className="font-bold text-foreground">{formatName(usersMap.get(s.goal)?.name || 'Neznámý')}</span>
                                                             {s.assist && (
-                                                                <span className="text-muted-foreground text-xs">(asistence: {formatName(usersMap.get(s.assist)?.name || '?')})</span>
+                                                                <span className="text-muted-foreground text-xs italic">(asistence: {formatName(usersMap.get(s.assist)?.name || '?')})</span>
                                                             )}
                                                         </div>
                                                     </div>
@@ -667,8 +669,9 @@ function DashboardPageContent() {
                                             </div>
                                         </div>
                                     ) : (
-                                        <div className="flex flex-col items-center justify-center py-4 text-muted-foreground">
-                                             <p className="text-sm italic">Žádné góly Aces nebyly zaznamenány.</p>
+                                        <div className="flex flex-col items-center justify-center py-6 text-muted-foreground text-center">
+                                             <Disc className="h-8 w-8 opacity-20 mb-2" />
+                                             <p className="text-sm italic">Žádné góly Aces nebyly k tomuto zápasu zaznamenány.</p>
                                         </div>
                                     )}
                                 </AccordionContent>
@@ -677,7 +680,7 @@ function DashboardPageContent() {
                     })}
                 </Accordion>
             </CardContent>
-            <CardFooter className="pt-2"><Button variant="link" asChild className="p-0 h-auto"><Link href="/dashboard/history">Všechny výsledky</Link></Button></CardFooter>
+            <CardFooter className="pt-2"><Button variant="link" asChild className="p-0 h-auto font-bold text-primary"><Link href="/dashboard/history">Zobrazit celou historii</Link></Button></CardFooter>
         </Card>
         <div className="lg:col-span-3 grid gap-8 md:grid-cols-2">
             <Card>
@@ -724,7 +727,7 @@ function DashboardPageContent() {
                                 {sortedTeamScoring.map(p => (
                                     <TableRow key={p.id} className={p.id === user?.uid ? 'bg-primary/10' : ''}>
                                         <TableCell>{String(p.rank || 0)}</TableCell>
-                                        <TableCell className="font-medium whitespace-nowrap">{isStatEditMode ? p.name : p.name}</TableCell>
+                                        <TableCell className="font-medium whitespace-nowrap">{formatName(p.name)}</TableCell>
                                         {isStatEditMode ? (
                                             <>
                                                 <TableCell><StatAdjuster value={String(p.gamesPlayed || 0)} onChange={val => setEditableSkaterStats(cur => cur.map(it => it.id === p.id ? {...it, gamesPlayed: val} : it))} /></TableCell>
@@ -782,7 +785,7 @@ function DashboardPageContent() {
                             <TableBody>
                                 {sortedGoalieLeaderboard.map(g => (
                                     <TableRow key={g.id} className={g.id === user?.uid ? 'bg-primary/10' : ''}>
-                                        <TableCell className="font-medium whitespace-nowrap">{g.name}</TableCell>
+                                        <TableCell className="font-medium whitespace-nowrap">{formatName(g.name)}</TableCell>
                                         {isStatEditMode ? (
                                             <>
                                                 <TableCell><StatAdjuster value={String(g.gamesPlayed || 0)} onChange={val => setEditableGoalieStats(cur => cur.map(it => it.id === g.id ? {...it, gamesPlayed: val} : it))} /></TableCell>
