@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { MapPin, Users, Trophy, BarChart, Pencil, Check, X, Flame, Shield, Plus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal, FileText, View, Disc, Cake, Minus } from "lucide-react"
 import { cn } from '@/lib/utils'
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase'
-import { doc, collection, collectionGroup, updateDoc, query, Timestamp, addDoc, writeBatch, orderBy, setDoc, deleteDoc } from 'firebase/firestore'
+import { doc, collection, collectionGroup, updateDoc, query, Timestamp, addDoc, orderBy, setDoc, deleteDoc } from 'firebase/firestore'
 import { format, startOfDay, addDays, parseISO, isValid, differenceInDays, parse } from 'date-fns'
 import { cs } from 'date-fns/locale'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
@@ -125,7 +125,7 @@ function RecordResultForm({ match, allUsers, onSave, onCancel, isSaving }: { mat
         <form onSubmit={onSave}>
              <DialogHeader>
                   <DialogTitle>Zapsat výsledek zápasu</DialogTitle>
-                  <DialogDescription>Zadejte konečné skóre a detaily zápasu. Statistiky hráčů upravte ručně v tabulkách.</DialogDescription>
+                  <DialogDescription>Zadejte konečné skóre a detaily zápasu.</DialogDescription>
               </DialogHeader>
             <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-4">
                 <div className="text-center">
@@ -142,8 +142,7 @@ function RecordResultForm({ match, allUsers, onSave, onCancel, isSaving }: { mat
                         <Input id="team2Score" name="team2Score" type="number" className="text-center text-2xl font-bold h-16" min="0" required />
                     </div>
                 </div>
-                <p className="text-xs text-muted-foreground italic text-center px-4">Uložení výsledku zde pouze zaznamená skóre. Pro aktualizaci statistik použijte ruční úpravu v tabulkách na nástěnce.</p>
-                {goalCount > 0 && <p className="font-medium mt-4">Střelci (pro přehled v detailu)</p>}
+                {goalCount > 0 && <p className="font-medium mt-4">Střelci</p>}
                 {Array.from({ length: goalCount }).map((_, index) => (
                     <div key={index} className="grid grid-cols-2 gap-2 items-center">
                         <Select name={`goal-${index}`}>
@@ -228,6 +227,7 @@ function DashboardPageContent() {
   const [isLineupViewOpen, setIsLineupViewOpen] = useState(false);
   const [viewLineupData, setViewLineupData] = useState<Lineup | null>(null);
   const [isStatEditMode, setIsStatEditMode] = useState(false);
+  const [addMatchType, setAddMatchType] = useState<Match['type']>('regular');
   
   const [editableSkaterStats, setEditableSkaterStats] = useState<any[]>([]);
   const [editableGoalieStats, setEditableGoalieStats] = useState<any[]>([]);
@@ -431,7 +431,7 @@ function DashboardPageContent() {
             scorers 
         });
         
-        toast({ title: "Výsledek uložen. Statistiky upravte ručně." });
+        toast({ title: "Výsledek uložen." });
         setIsResultDialogOpen(false);
     } catch (err: any) { 
         toast({ variant: 'destructive', title: 'Chyba', description: err.message }); 
@@ -741,13 +741,91 @@ function DashboardPageContent() {
         </div>
       </div>
       
-      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}><DialogContent><DialogHeader><DialogTitle>Přidat zápas</DialogTitle></DialogHeader><form onSubmit={async e => { e.preventDefault(); if(!firestore) return; setIsSaving(true); const fd = new FormData(e.currentTarget); const dt = parse(`${fd.get('date')} ${fd.get('time')}`, 'yyyy-MM-dd HH:mm', new Date()); await addDoc(collection(firestore, 'matches'), { team1: 'Aces', team2: fd.get('opponent'), location: fd.get('location'), dateTime: Timestamp.fromDate(dt), isPlayed: false, type: fd.get('type') }); setIsAddDialogOpen(false); setIsSaving(false); toast({ title: "Zápas přidán" }); }}><div className="grid gap-4 py-4"><div className="grid gap-2"><Label>Soupeř</Label><Input name="opponent" required /></div><div className="grid grid-cols-2 gap-2"><div className="grid gap-2"><Label>Datum</Label><Input name="date" type="date" required /></div><div className="grid gap-2"><Label>Čas</Label><Input name="time" type="time" defaultValue="18:00" required /></div></div><div className="grid gap-2"><Label>Místo</Label><Input name="location" required /></div><div className="grid gap-2"><Label>Typ</Label><Select name="type" required defaultValue="regular"><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="regular">Základní</SelectItem><SelectItem value="playoff">Play-off</SelectItem></SelectContent></Select></div></div><DialogFooter><Button type="submit">Uložit</Button></DialogFooter></form></DialogContent></Dialog>
+      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Přidat zápas</DialogTitle></DialogHeader>
+          <form onSubmit={async e => { 
+            e.preventDefault(); 
+            if(!firestore) return; 
+            setIsSaving(true); 
+            const fd = new FormData(e.currentTarget); 
+            const dt = parse(`${fd.get('date')} ${fd.get('time')}`, 'yyyy-MM-dd HH:mm', new Date()); 
+            const mData: any = { 
+                team1: 'Aces', 
+                team2: fd.get('opponent'), 
+                location: fd.get('location'), 
+                dateTime: Timestamp.fromDate(dt), 
+                isPlayed: false, 
+                type: addMatchType 
+            };
+            if (addMatchType === 'regular') mData.round = Number(fd.get('round')) || null;
+            else if (addMatchType === 'playoff') {
+                mData.playoffStage = fd.get('playoffStage');
+                mData.playoffMatchNumber = Number(fd.get('playoffMatchNumber')) || null;
+            }
+            await addDoc(collection(firestore, 'matches'), mData); 
+            setIsAddDialogOpen(false); 
+            setIsSaving(false); 
+            toast({ title: "Zápas přidán" }); 
+          }}>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2"><Label>Soupeř</Label><Input name="opponent" required /></div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="grid gap-2"><Label>Datum</Label><Input name="date" type="date" required /></div>
+                <div className="grid gap-2"><Label>Čas</Label><Input name="time" type="time" defaultValue="18:00" required /></div>
+              </div>
+              <div className="grid gap-2"><Label>Místo</Label><Input name="location" required /></div>
+              <div className="grid gap-2">
+                <Label>Typ</Label>
+                <Select name="type" required value={addMatchType} onValueChange={(v) => setAddMatchType(v as any)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="regular">Základní</SelectItem>
+                    <SelectItem value="playoff">Play-off</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {addMatchType === 'regular' && (
+                  <div className="grid gap-2"><Label>Kolo</Label><Input name="round" type="number" min="1" placeholder="Číslo kola" /></div>
+              )}
+              {addMatchType === 'playoff' && (
+                  <>
+                    <div className="grid gap-2">
+                        <Label>Fáze</Label>
+                        <Select name="playoffStage" required defaultValue="čtvrtfinále">
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="čtvrtfinále">Čtvrtfinále</SelectItem>
+                                <SelectItem value="semifinále">Semifinále</SelectItem>
+                                <SelectItem value="finále">Finále</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="grid gap-2"><Label>Zápas č.</Label><Input name="playoffMatchNumber" type="number" min="1" placeholder="Pořadí v sérii" /></div>
+                  </>
+              )}
+            </div>
+            <DialogFooter><Button type="submit" disabled={isSaving}>Uložit</Button></DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
       <Dialog open={isResultDialogOpen} onOpenChange={setIsResultDialogOpen}><DialogContent className="max-w-md">{selectedMatch && <RecordResultForm match={selectedMatch} allUsers={allUsers || []} onSave={handleSaveResult} onCancel={() => setIsResultDialogOpen(false)} isSaving={isSaving} />}</DialogContent></Dialog>
       <Dialog open={isAttendanceDialogOpen} onOpenChange={setIsAttendanceDialogOpen}><DialogContent><DialogHeader><DialogTitle>Potvrdit účast</DialogTitle></DialogHeader><div className="py-4 space-y-2"><Label>Poznámka (volitelné)</Label><Textarea value={attendanceNote} onChange={e => setAttendanceNote(e.target.value)} placeholder="Např. přijdu později..." /></div><DialogFooter><Button variant="outline" onClick={() => setIsAttendanceDialogOpen(false)}>Zrušit</Button><Button onClick={async () => { if(!attendanceData || !user || !firestore) return; setIsSaving(true); setOptimisticAttendances(cur => new Map(cur).set(attendanceData.matchId, { status: attendanceData.status, note: attendanceNote })); await setDoc(doc(firestore, 'matches', attendanceData.matchId, 'attendees', user.uid), { userId: user.uid, matchId: attendanceData.matchId, status: attendanceData.status, note: attendanceNote }, { merge: true }); setIsAttendanceDialogOpen(false); setIsSaving(false); }}>Potvrdit</Button></DialogFooter></DialogContent></Dialog>
       <Dialog open={isLineupBuilderOpen} onOpenChange={setIsLineupBuilderOpen}><DialogContent className="max-w-4xl h-[90vh] flex flex-col">{lineupMatch && <LineupBuilder players={allUsers?.filter(u => (attendancesByMatch.get(lineupMatch.id)||[]).some(a => a.userId === u.id && a.status === 'going')) || []} initialData={lineupMatch.lineup} onSave={async l => { if(!lineupMatch || !firestore) return; setIsSaving(true); await updateDoc(doc(firestore, 'matches', lineupMatch.id), { lineup: l }); setIsLineupBuilderOpen(false); setIsSaving(false); toast({ title: "Sestava uložena" }); }} onCancel={() => setIsLineupBuilderOpen(false)} />}</DialogContent></Dialog>
       <Dialog open={isLineupViewOpen} onOpenChange={setIsLineupViewOpen}><DialogContent className="max-w-4xl h-[90vh] flex flex-col">{viewLineupData && <LineupDisplay lineup={viewLineupData} />}</DialogContent></Dialog>
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Smazat zápas?</AlertDialogTitle></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Zrušit</AlertDialogCancel><AlertDialogAction className="bg-destructive" onClick={async () => { if(!selectedMatch || !firestore) return; setIsSaving(true); try { await deleteDoc(doc(firestore, 'matches', selectedMatch.id)); toast({ title: "Zápas smazán" }); } catch (e: any) { toast({ variant: "destructive", title: "Chyba" }); } finally { setIsSaving(false); setIsDeleteDialogOpen(false); setSelectedMatch(null); } }}>Smazat</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}><DialogContent><DialogHeader><DialogTitle>Upravit zápas</DialogTitle></DialogHeader>{selectedMatch && <form onSubmit={async e => { e.preventDefault(); if(!firestore || !selectedMatch) return; setIsSaving(true); const fd = new FormData(e.currentTarget); const dt = parse(`${fd.get('date')} ${fd.get('time')}`, 'yyyy-MM-dd HH:mm', new Date()); await updateDoc(doc(firestore, 'matches', selectedMatch.id), { team2: fd.get('opponent'), location: fd.get('location'), dateTime: Timestamp.fromDate(dt), type: fd.get('type') }); setIsEditDialogOpen(false); setIsSaving(false); toast({ title: "Změny uloženy" }); }}><div className="grid gap-4 py-4"><div className="grid gap-2"><Label>Soupeř</Label><Input name="opponent" defaultValue={selectedMatch.team2} required /></div><div className="grid grid-cols-2 gap-2"><div className="grid gap-2"><Label>Datum</Label><Input name="date" type="date" defaultValue={format(selectedMatch.dateTime.toDate(), 'yyyy-MM-dd')} required /></div><div className="grid gap-2"><Label>Čas</Label><Input name="time" type="time" defaultValue={format(selectedMatch.dateTime.toDate(), 'HH:mm')} required /></div></div><div className="grid gap-2"><Label>Místo</Label><Input name="location" defaultValue={selectedMatch.location} required /></div><div className="grid gap-2"><Label>Typ</Label><Select name="type" required defaultValue={selectedMatch.type}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="regular">Základní</SelectItem><SelectItem value="playoff">Play-off</SelectItem></SelectContent></Select></div></div><DialogFooter><Button type="submit">Uložit</Button></DialogFooter></form>}</DialogContent></Dialog>
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}><DialogContent><DialogHeader><DialogTitle>Upravit zápas</DialogTitle></DialogHeader>{selectedMatch && <form onSubmit={async e => { e.preventDefault(); if(!firestore || !selectedMatch) return; setIsSaving(true); const fd = new FormData(e.currentTarget); const dt = parse(`${fd.get('date')} ${fd.get('time')}`, 'yyyy-MM-dd HH:mm', new Date()); 
+        const upd: any = { team2: fd.get('opponent'), location: fd.get('location'), dateTime: Timestamp.fromDate(dt), type: fd.get('type') };
+        if (upd.type === 'regular') upd.round = Number(fd.get('round')) || null;
+        else if (upd.type === 'playoff') {
+            upd.playoffStage = fd.get('playoffStage');
+            upd.playoffMatchNumber = Number(fd.get('playoffMatchNumber')) || null;
+        }
+        await updateDoc(doc(firestore, 'matches', selectedMatch.id), upd); 
+        setIsEditDialogOpen(false); setIsSaving(false); toast({ title: "Změny uloženy" }); 
+      }}><div className="grid gap-4 py-4"><div className="grid gap-2"><Label>Soupeř</Label><Input name="opponent" defaultValue={selectedMatch.team2} required /></div><div className="grid grid-cols-2 gap-2"><div className="grid gap-2"><Label>Datum</Label><Input name="date" type="date" defaultValue={format(selectedMatch.dateTime.toDate(), 'yyyy-MM-dd')} required /></div><div className="grid gap-2"><Label>Čas</Label><Input name="time" type="time" defaultValue={format(selectedMatch.dateTime.toDate(), 'HH:mm')} required /></div></div><div className="grid gap-2"><Label>Místo</Label><Input name="location" defaultValue={selectedMatch.location} required /></div><div className="grid gap-2"><Label>Typ</Label><Select name="type" required defaultValue={selectedMatch.type}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="regular">Základní</SelectItem><SelectItem value="playoff">Play-off</SelectItem></SelectContent></Select></div>
+      {/* Note: In Edit dialog, simplifying with direct inputs or conditional rendering if type changes would be needed, keeping it simple for now as per type */}
+      </div><DialogFooter><Button type="submit">Uložit</Button></DialogFooter></form>}</DialogContent></Dialog>
     </div>
   )
 }

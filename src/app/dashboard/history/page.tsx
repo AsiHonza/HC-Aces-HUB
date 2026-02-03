@@ -5,13 +5,13 @@ import { Suspense, useMemo, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase'
-import { query, collection, Timestamp, collectionGroup, doc, writeBatch, updateDoc, orderBy, increment, setDoc, deleteDoc } from 'firebase/firestore'
+import { query, collection, Timestamp, doc, updateDoc, orderBy, addDoc, deleteDoc } from 'firebase/firestore'
 import { format, parse } from 'date-fns'
 import { cs } from 'date-fns/locale'
-import { Loader2, Trophy, Users, Pencil, Trash2, MoreHorizontal, ShieldCheck, View, Plus, Disc } from 'lucide-react'
+import { Loader2, Trophy, Pencil, Trash2, MoreHorizontal, View, Plus, Disc } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -86,7 +86,7 @@ function MatchResultFormFields({ match, allUsers, onGoalCountChange }: { match?:
                     <Input id="team2Score" name="team2Score" type="number" className="text-center text-2xl font-bold h-16" min="0" required defaultValue={match?.team2Score} />
                 </div>
             </div>
-            <p className="text-xs text-muted-foreground italic text-center px-4 mt-2">Zde pouze zaznamenáváte výsledek a střelce pro detail zápasu. Žádná data se nepropisují do kanadského bodování automaticky.</p>
+            <p className="text-xs text-muted-foreground italic text-center px-4 mt-2">Zde pouze zaznamenáváte výsledek a střelce pro detail zápasu.</p>
             {goalCount > 0 && <p className="font-medium mt-4">Střelci a asistence (Aces)</p>}
             {Array.from({ length: goalCount }).map((_, index) => (
                 <div key={index} className="grid grid-cols-2 gap-2 items-center">
@@ -176,8 +176,8 @@ function HistoryPageContent() {
         try {
             const fd = new FormData(e.currentTarget);
             const mType = fd.get('type') as any;
-            const t1Score = parseInt(fd.get('team1Score') as string, 10);
-            const t2Score = parseInt(fd.get('team2Score') as string, 10);
+            const t1Score = parseInt(fd.get('team1Score') as string, 10) || 0;
+            const t2Score = parseInt(fd.get('team2Score') as string, 10) || 0;
             const newScorers: any[] = [];
             for (let i = 0; i < t1Score; i++) {
                 const goal = fd.get(`goal-${i}`) as string;
@@ -186,8 +186,12 @@ function HistoryPageContent() {
             }
 
             const common: any = { type: mType, team1Score: t1Score, team2Score: t2Score, scorers: newScorers, isPlayed: true };
-            if (mType === 'regular') common.round = Number(fd.get('round')) || null;
-            else if (mType === 'playoff') { common.playoffStage = fd.get('playoffStage'); common.playoffMatchNumber = Number(fd.get('playoffMatchNumber')) || null; }
+            if (mType === 'regular') {
+                common.round = Number(fd.get('round')) || null;
+            } else if (mType === 'playoff') { 
+                common.playoffStage = fd.get('playoffStage'); 
+                common.playoffMatchNumber = Number(fd.get('playoffMatchNumber')) || null; 
+            }
             
             if (isNew) {
                 const dt = parse(`${fd.get('date')} ${fd.get('time')}`, 'yyyy-MM-dd HH:mm', new Date());
@@ -208,7 +212,7 @@ function HistoryPageContent() {
                 <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div>
                         <CardTitle>Historie</CardTitle>
-                        <CardDescription>Odehrané zápasy (statistiky hráčů upravte ručně na nástěnce).</CardDescription>
+                        <CardDescription>Odehrané zápasy.</CardDescription>
                     </div>
                     {userProfile?.role === 'admin' && <Button onClick={() => setIsAddDialogOpen(true)}><Plus className="mr-2 h-4" />Přidat odehraný zápas</Button>}
                 </CardHeader>
@@ -325,6 +329,35 @@ function HistoryPageContent() {
                                     </Select>
                                 </div>
                             </div>
+
+                            {addMatchType === 'regular' && (
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="round" className="text-right">Kolo</Label>
+                                    <Input id="round" name="round" type="number" min="1" className="col-span-3" placeholder="Číslo kola" />
+                                </div>
+                            )}
+                            {addMatchType === 'playoff' && (
+                                <>
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                        <Label htmlFor="playoffStage" className="text-right">Fáze</Label>
+                                        <Select name="playoffStage" required defaultValue="čtvrtfinále">
+                                            <SelectTrigger className="col-span-3">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="čtvrtfinále">Čtvrtfinále</SelectItem>
+                                                <SelectItem value="semifinále">Semifinále</SelectItem>
+                                                <SelectItem value="finále">Finále</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                        <Label htmlFor="playoffMatchNumber" className="text-right">Zápas č.</Label>
+                                        <Input id="playoffMatchNumber" name="playoffMatchNumber" type="number" min="1" className="col-span-3" placeholder="Pořadí v sérii" />
+                                    </div>
+                                </>
+                            )}
+
                             {users && <MatchResultFormFields allUsers={users} onGoalCountChange={() => {}} />}
                         </div>
                         <DialogFooter>
@@ -341,6 +374,17 @@ function HistoryPageContent() {
                     {selectedMatch && users && (
                         <form onSubmit={(e) => handleResultSave(e, false)}>
                             <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-4">
+                                <div className="grid gap-2">
+                                    <Label>Typ</Label>
+                                    <Select name="type" defaultValue={selectedMatch.type}>
+                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="regular">Základní část</SelectItem>
+                                            <SelectItem value="playoff">Play-off</SelectItem>
+                                            <SelectItem value="friendly">Přátelský</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                                 <MatchResultFormFields match={selectedMatch} allUsers={users} onGoalCountChange={() => {}} />
                             </div>
                             <DialogFooter>
