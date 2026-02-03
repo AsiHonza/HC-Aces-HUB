@@ -673,8 +673,42 @@ function DashboardPageContent() {
 
     setIsSaving(true);
     try {
+      const batch = writeBatch(firestore);
       const matchRef = doc(firestore, 'matches', lineupMatch.id);
-      await updateDoc(matchRef, { lineup: lineupToSave });
+      
+      // Update the match document
+      batch.update(matchRef, { lineup: lineupToSave });
+
+      // If the match was already played, update the gamesPlayed stats for added/removed players
+      if (lineupMatch.isPlayed) {
+          const oldLineup = lineupMatch.lineup || {};
+          const oldPlayerIds = new Set(Object.values(oldLineup).filter(p => p !== null).map(p => p!.id));
+          const newPlayerIds = new Set(Object.values(lineupToSave).filter(p => p !== null).map(p => p!.id));
+
+          // Players added to lineup
+          newPlayerIds.forEach(pid => {
+              if (!oldPlayerIds.has(pid)) {
+                  const statRef = doc(firestore, 'users', pid, 'skaterStats', 'stats');
+                  const update: any = { historicalGamesPlayed: increment(1) };
+                  if (lineupMatch.type === 'playoff') update.playoffGamesPlayed = increment(1);
+                  else if (lineupMatch.type === 'regular') update.seasonGamesPlayed = increment(1);
+                  batch.set(statRef, update, { merge: true });
+              }
+          });
+
+          // Players removed from lineup
+          oldPlayerIds.forEach(pid => {
+              if (!newPlayerIds.has(pid)) {
+                  const statRef = doc(firestore, 'users', pid, 'skaterStats', 'stats');
+                  const update: any = { historicalGamesPlayed: increment(-1) };
+                  if (lineupMatch.type === 'playoff') update.playoffGamesPlayed = increment(-1);
+                  else if (lineupMatch.type === 'regular') update.seasonGamesPlayed = increment(-1);
+                  batch.set(statRef, update, { merge: true });
+              }
+          });
+      }
+
+      await batch.commit();
       toast({ title: "Sestava uložena." });
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Chyba', description: `Nepodařilo se uložit sestavu: ${error.message}` });
@@ -903,6 +937,11 @@ function DashboardPageContent() {
         const matchAttendees = attendancesByMatch.get(selectedMatch.id) || [];
         matchAttendees.forEach(att => { if (att.status === 'going') playersInMatch.add(att.userId); });
     }
+    // Safety fallback: if no lineup/attendees, count scorers
+    if (playersInMatch.size === 0) {
+        playerStatUpdates.forEach((val, pid) => playersInMatch.add(pid));
+    }
+
     playersInMatch.forEach(pid => {
         const current = playerStatUpdates.get(pid) || { goals: 0, assists: 0, gamesPlayed: 0 };
         playerStatUpdates.set(pid, { ...current, gamesPlayed: 1 });
@@ -1116,21 +1155,21 @@ function DashboardPageContent() {
 
             editableSkaterStats.forEach(player => {
                 const statRef = doc(firestore, 'users', player.id, 'skaterStats', 'stats');
-                batch.update(statRef, {
+                batch.set(statRef, {
                     [`${fieldPrefix}Goals`]: player.goals,
                     [`${fieldPrefix}Assists`]: player.assists,
                     [`${fieldPrefix}GamesPlayed`]: player.gamesPlayed,
-                });
+                }, { merge: true });
             });
 
             editableGoalieStats.forEach(goalie => {
                 const statRef = doc(firestore, 'users', goalie.id, 'goalieStats', 'stats');
-                batch.update(statRef, {
+                batch.set(statRef, {
                     [`${fieldPrefix}GamesPlayed`]: goalie.gamesPlayed,
                     [`${fieldPrefix}Wins`]: goalie.wins,
                     [`${fieldPrefix}Saves`]: goalie.saves,
                     [`${fieldPrefix}ShotsAgainst`]: goalie.shotsAgainst,
-                });
+                }, { merge: true });
             });
 
             await batch.commit();

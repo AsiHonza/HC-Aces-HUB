@@ -256,9 +256,41 @@ function HistoryPageContent() {
         if (!lineupMatch || !firestore) return;
         setIsSaving(true);
         try {
+            const batch = writeBatch(firestore);
             const matchRef = doc(firestore, 'matches', lineupMatch.id);
-            await updateDoc(matchRef, { lineup });
-            toast({ title: "Sestava uložena." });
+            
+            // Update the match document
+            batch.update(matchRef, { lineup });
+
+            // Since it's history, we must update the gamesPlayed stats for added/removed players
+            const oldLineup = lineupMatch.lineup || {};
+            const oldPlayerIds = new Set(Object.values(oldLineup).filter(p => p !== null).map(p => p!.id));
+            const newPlayerIds = new Set(Object.values(lineup).filter(p => p !== null).map(p => p!.id));
+
+            // Players added to lineup
+            newPlayerIds.forEach(pid => {
+                if (!oldPlayerIds.has(pid)) {
+                    const statRef = doc(firestore, 'users', pid, 'skaterStats', 'stats');
+                    const update: any = { historicalGamesPlayed: increment(1) };
+                    if (lineupMatch.type === 'playoff') update.playoffGamesPlayed = increment(1);
+                    else if (lineupMatch.type === 'regular') update.seasonGamesPlayed = increment(1);
+                    batch.set(statRef, update, { merge: true });
+                }
+            });
+
+            // Players removed from lineup
+            oldPlayerIds.forEach(pid => {
+                if (!newPlayerIds.has(pid)) {
+                    const statRef = doc(firestore, 'users', pid, 'skaterStats', 'stats');
+                    const update: any = { historicalGamesPlayed: increment(-1) };
+                    if (lineupMatch.type === 'playoff') update.playoffGamesPlayed = increment(-1);
+                    else if (lineupMatch.type === 'regular') update.seasonGamesPlayed = increment(-1);
+                    batch.set(statRef, update, { merge: true });
+                }
+            });
+
+            await batch.commit();
+            toast({ title: "Sestava uložena a statistiky aktualizovány." });
         } catch (error: any) {
             toast({ variant: 'destructive', title: "Chyba", description: `Nepodařilo se uložit sestavu: ${error.message}` });
         } finally {
@@ -477,6 +509,7 @@ function HistoryPageContent() {
             } else {
                 const attendees = attendancesByMatch.get(matchId!) || [];
                 attendees.forEach(a => { if(a.status === 'going') newPlayers.add(a.userId); });
+                // Fallback for History (where often no attendees/lineup exist yet)
                 if (newPlayers.size === 0) {
                     newScorersData.forEach(s => { if(s.goal) newPlayers.add(s.goal); if(s.assist) newPlayers.add(s.assist); });
                 }
