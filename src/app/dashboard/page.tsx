@@ -216,11 +216,11 @@ function DashboardPageContent() {
   const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
   const { data: userProfile, isLoading: isUserProfileLoading } = useDoc<UserProfile>(userDocRef);
 
-  const skaterStatsCollectionRef = useMemoFirebase(() => user ? collection(firestore, 'users', user.uid, 'skaterStats') : null, [firestore, user]);
-  const { data: skaterStatsData, isLoading: isSkaterStatsLoading } = useDoc<SkaterStats>(skaterStatsCollectionRef ? doc(skaterStatsCollectionRef, 'stats') : null);
+  const skaterStatsRef = useMemoFirebase(() => (firestore && user) ? doc(firestore, 'users', user.uid, 'skaterStats', 'stats') : null, [firestore, user]);
+  const { data: skaterStatsData, isLoading: isSkaterStatsLoading } = useDoc<SkaterStats>(skaterStatsRef);
   
-  const goalieStatsCollectionRef = useMemoFirebase(() => user ? collection(firestore, 'users', user.uid, 'goalieStats') : null, [firestore, user]);
-  const { data: goalieStatsData, isLoading: isGoalieStatsLoading } = useDoc<GoalieStats>(goalieStatsCollectionRef ? doc(goalieStatsCollectionRef, 'stats') : null);
+  const goalieStatsRef = useMemoFirebase(() => (firestore && user) ? doc(firestore, 'users', user.uid, 'goalieStats', 'stats') : null, [firestore, user]);
+  const { data: goalieStatsData, isLoading: isGoalieStatsLoading } = useDoc<GoalieStats>(goalieStatsRef);
   
   const matchesQuery = useMemoFirebase(() => (firestore && user) ? query(collection(firestore, 'matches'), orderBy('dateTime', 'asc')) : null, [firestore, user]);
   const { data: allMatches, isLoading: areMatchesLoading } = useCollection<Match>(matchesQuery);
@@ -592,7 +592,7 @@ function DashboardPageContent() {
                 return (
                     <div key={m.id} className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
                         <div className="flex-1"><p className="text-[10px] text-muted-foreground uppercase">{format(m.dateTime.toDate(), "d. M.")}</p>{prefix && <p className="text-[9px] font-bold text-primary uppercase">{prefix}</p>}<p className="font-semibold">{opponent}</p></div>
-                        <div className="flex items-center gap-3"><span className="font-bold text-lg">{m.team1Score} : {m.team2Score}</span><Badge variant={m.team1Score! > m.team2Score! ? 'default' : 'destructive'}>{m.team1Score! > m.team2Score! ? 'V' : 'P'}</Badge></div>
+                        <div className="flex items-center gap-3"><span className="font-bold text-lg">{m.team1Score} : {m.team2Score}</span><Badge variant={(m.team1Score || 0) > (m.team2Score || 0) ? 'default' : 'destructive'}>{(m.team1Score || 0) > (m.team2Score || 0) ? 'V' : 'P'}</Badge></div>
                     </div>
                 )
             })}</CardContent>
