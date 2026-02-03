@@ -1,6 +1,6 @@
 'use client'
 
-import React, { Suspense, useState, useMemo, useEffect, useCallback } from 'react'
+import React, { Suspense, useState, useMemo, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar as CalendarIcon, MapPin, Users, Trophy, BarChart, Pencil, Check, X, Flame, Shield, Plus, Minus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal, FileText, View, Disc, Cake } from "lucide-react"
+import { MapPin, Users, Trophy, BarChart, Pencil, Check, X, Flame, Shield, Plus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal, FileText, View, Disc, Cake } from "lucide-react"
 import { cn } from '@/lib/utils'
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase'
 import { doc, collection, collectionGroup, updateDoc, query, Timestamp, addDoc, writeBatch, orderBy, setDoc, increment } from 'firebase/firestore'
@@ -97,19 +97,10 @@ interface Attendance {
     note?: string;
 }
 
-interface LeagueStanding {
-    id: string;
-    name: string;
-    points: number;
-    gf: number;
-    ga: number;
-}
-
 interface AppSettings {
   isPlayoffEnabled: boolean;
   isScoringInPlayoffMode: boolean;
   playoffSeries: any[];
-  leagueStandings?: LeagueStanding[];
 }
 
 function getMatchDetails(match: Match) {
@@ -205,14 +196,12 @@ function DashboardPageContent() {
   const [isResultDialogOpen, setIsResultDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [isLeagueEditMode, setIsLeagueEditMode] = useState(false);
   const [optimisticAttendances, setOptimisticAttendances] = useState<Map<string, Partial<Attendance>>>(new Map());
   const [isAttendanceDialogOpen, setIsAttendanceDialogOpen] = useState(false);
   const [attendanceData, setAttendanceData] = useState<{ matchId: string; status: 'going' | 'not-going' } | null>(null);
   const [attendanceNote, setAttendanceNote] = useState('');
   const [highlightedMatchId, setHighlightedMatchId] = useState<string | null>(null);
   const [openAccordionValue, setOpenAccordionValue] = useState('');
-  const [editableLeagueStandings, setEditableLeagueStandings] = useState<LeagueStanding[]>([]);
   const [myStatsView, setMyStatsView] = useState<'season' | 'playoff' | 'history'>('season');
   const [scoringView, setScoringView] = useState<'season' | 'playoff' | 'history'>('season');
   const [isLineupBuilderOpen, setIsLineupBuilderOpen] = useState(false);
@@ -227,10 +216,10 @@ function DashboardPageContent() {
   const { data: userProfile, isLoading: isUserProfileLoading } = useDoc<UserProfile>(userDocRef);
 
   const skaterStatsCollectionRef = useMemoFirebase(() => user ? collection(firestore, 'users', user.uid, 'skaterStats') : null, [firestore, user]);
-  const { data: skaterStatsData, isLoading: isSkaterStatsLoading } = useCollection<SkaterStats>(skaterStatsCollectionRef);
+  const { data: skaterStatsData, isLoading: isSkaterStatsLoading } = useDoc<SkaterStats>(skaterStatsCollectionRef ? doc(skaterStatsCollectionRef, 'stats') : null);
   
   const goalieStatsCollectionRef = useMemoFirebase(() => user ? collection(firestore, 'users', user.uid, 'goalieStats') : null, [firestore, user]);
-  const { data: goalieStatsData, isLoading: isGoalieStatsLoading } = useCollection<GoalieStats>(goalieStatsCollectionRef);
+  const { data: goalieStatsData, isLoading: isGoalieStatsLoading } = useDoc<GoalieStats>(goalieStatsCollectionRef ? doc(goalieStatsCollectionRef, 'stats') : null);
   
   const matchesQuery = useMemoFirebase(() => (firestore && user) ? query(collection(firestore, 'matches'), orderBy('dateTime', 'asc')) : null, [firestore, user]);
   const { data: allMatches, isLoading: areMatchesLoading } = useCollection<Match>(matchesQuery);
@@ -284,11 +273,10 @@ function DashboardPageContent() {
   const nextMatch = upcomingMatches?.[0];
     
   const isScoringInPlayoffMode = leagueSettings?.isScoringInPlayoffMode ?? false;
-  const leagueStandings = useMemo(() => leagueSettings?.leagueStandings ?? [], [leagueSettings]);
 
   const myStatsToDisplay = useMemo(() => {
-      if (userProfile?.playerType === 'player' && skaterStatsData?.[0]) {
-          const stats = skaterStatsData[0];
+      if (userProfile?.playerType === 'player' && skaterStatsData) {
+          const stats = skaterStatsData;
           switch(myStatsView) {
               case 'playoff': return { goals: stats.playoffGoals, assists: stats.playoffAssists, gamesPlayed: stats.playoffGamesPlayed };
               case 'history': return { goals: stats.historicalGoals, assists: stats.historicalAssists, gamesPlayed: stats.historicalGamesPlayed };
@@ -299,8 +287,8 @@ function DashboardPageContent() {
   }, [myStatsView, skaterStatsData, userProfile]);
 
   const myGoalieStatsToDisplay = useMemo(() => {
-      if (userProfile?.playerType === 'goalie' && goalieStatsData?.[0]) {
-          const stats = goalieStatsData[0];
+      if (userProfile?.playerType === 'goalie' && goalieStatsData) {
+          const stats = goalieStatsData;
           switch(myStatsView) {
               case 'playoff': return { gamesPlayed: stats.playoffGamesPlayed, wins: stats.playoffWins, savePct: stats.playoffShotsAgainst > 0 ? (stats.playoffSaves / stats.playoffShotsAgainst) * 100 : 0 };
               case 'history': return { gamesPlayed: stats.historicalGamesPlayed, wins: stats.historicalWins, savePct: stats.historicalShotsAgainst > 0 ? (stats.historicalSaves / stats.historicalShotsAgainst) * 100 : 0 };
@@ -351,11 +339,6 @@ function DashboardPageContent() {
       const data = dataSet.map(g => ({...g, savePercentage: (g.shotsAgainst ?? 0) > 0 ? ((g.saves ?? 0) / g.shotsAgainst) * 100 : 0}));
       return data.sort((a, b) => b.savePercentage - a.savePercentage || b.wins - a.wins).map((g, i) => ({...g, rank: i + 1}));
   }, [goalieLeaderboard, scoringView, isStatEditMode, editableGoalieStats]);
-
-  const sortedLeagueStandings = useMemo(() => {
-      const data = isLeagueEditMode ? editableLeagueStandings : leagueStandings;
-      return [...(data || [])].sort((a, b) => b.points - a.points).map((t, i) => ({ ...t, rank: i + 1 }));
-  }, [leagueStandings, editableLeagueStandings, isLeagueEditMode]);
   
   const attendancesByMatch = useMemo(() => {
       const map = new Map<string, Attendance[]>();
@@ -417,21 +400,27 @@ function DashboardPageContent() {
         const gId = goalieId !== 'none' ? goalieId : null;
         const gSaves = parseInt(fd.get('goalieSaves') as string, 10) || 0;
         const gShots = parseInt(fd.get('goalieShotsAgainst') as string, 10) || 0;
-        const scorers: { goal: string, assist: string | null }[] = [];
-        const pStatsMap = new Map<string, { g: number, a: number }>();
-        const participants = new Set<string>();
         
+        const participants = new Set<string>();
         if (selectedMatch.lineup) Object.values(selectedMatch.lineup).forEach(p => { if(p) participants.add(p.id); });
         else (attendancesByMatch.get(selectedMatch.id) || []).forEach(att => { if (att.status === 'going') participants.add(att.userId); });
 
+        const scorers: { goal: string, assist: string | null }[] = [];
+        const playerStatsUpdate = new Map<string, { g: number, a: number }>();
+        
         for (let i = 0; i < t1Score; i++) {
             const goal = fd.get(`goal-${i}`) as string;
             const assist = fd.get(`assist-${i}`) as string;
             if (goal) {
                 scorers.push({ goal, assist: (assist && assist !== 'none') ? assist : null });
-                const cur = pStatsMap.get(goal) || { g: 0, a: 0 }; pStatsMap.set(goal, { ...cur, g: cur.g + 1 });
+                const cur = playerStatsUpdate.get(goal) || { g: 0, a: 0 };
+                playerStatsUpdate.set(goal, { ...cur, g: cur.g + 1 });
                 participants.add(goal);
-                if (assist && assist !== 'none') { const ac = pStatsMap.get(assist) || { g: 0, a: 0 }; pStatsMap.set(assist, { ...ac, a: ac.a + 1 }); participants.add(assist); }
+                if (assist && assist !== 'none') {
+                    const ac = playerStatsUpdate.get(assist) || { g: 0, a: 0 };
+                    playerStatsUpdate.set(assist, { ...ac, a: ac.a + 1 });
+                    participants.add(assist);
+                }
             }
         }
         if (gId) participants.add(gId);
@@ -441,7 +430,7 @@ function DashboardPageContent() {
         
         const typePrefix = selectedMatch.type === 'playoff' ? 'playoff' : 'season';
         for (const pid of participants) {
-            const p = pStatsMap.get(pid) || { g: 0, a: 0 };
+            const p = playerStatsUpdate.get(pid) || { g: 0, a: 0 };
             batch.set(doc(firestore, 'users', pid, 'skaterStats', 'stats'), {
                 userProfileId: pid,
                 historicalGamesPlayed: increment(1),
@@ -469,8 +458,11 @@ function DashboardPageContent() {
         await batch.commit();
         toast({ title: "Výsledek uložen" });
         setIsResultDialogOpen(false);
-    } catch (err: any) { toast({ variant: 'destructive', title: 'Chyba', description: err.message }); }
-    finally { setIsSaving(false); }
+    } catch (err: any) { 
+        toast({ variant: 'destructive', title: 'Chyba', description: err.message }); 
+    } finally { 
+        setIsSaving(false); 
+    }
   };
 
   const handleSaveStatsManual = async () => {
@@ -479,16 +471,21 @@ function DashboardPageContent() {
     try {
         const batch = writeBatch(firestore);
         const prefix = scoringView === 'history' ? 'historical' : scoringView;
-        editableSkaterStats.forEach(p => { batch.set(doc(firestore, 'users', p.id, 'skaterStats', 'stats'), { userProfileId: p.id, [`${prefix}Goals`]: p.goals, [`${prefix}Assists`]: p.assists, [`${prefix}GamesPlayed`]: p.gamesPlayed }, { merge: true }); });
-        editableGoalieStats.forEach(g => { batch.set(doc(firestore, 'users', g.id, 'goalieStats', 'stats'), { userProfileId: g.id, [`${prefix}GamesPlayed`]: g.gamesPlayed, [`${prefix}Wins`]: g.wins, [`${prefix}Saves`]: g.saves, [`${prefix}ShotsAgainst`]: g.shotsAgainst }, { merge: true }); });
+        editableSkaterStats.forEach(p => { 
+            batch.set(doc(firestore, 'users', p.id, 'skaterStats', 'stats'), { userProfileId: p.id, [`${prefix}Goals`]: p.goals, [`${prefix}Assists`]: p.assists, [`${prefix}GamesPlayed`]: p.gamesPlayed }, { merge: true }); 
+        });
+        editableGoalieStats.forEach(g => { 
+            batch.set(doc(firestore, 'users', g.id, 'goalieStats', 'stats'), { userProfileId: g.id, [`${prefix}GamesPlayed`]: g.gamesPlayed, [`${prefix}Wins`]: g.wins, [`${prefix}Saves`]: g.saves, [`${prefix}ShotsAgainst`]: g.shotsAgainst }, { merge: true }); 
+        });
         await batch.commit();
         toast({ title: 'Statistiky uloženy' });
         setIsStatEditMode(false);
-    } catch (err: any) { toast({ variant: 'destructive', title: 'Chyba' }); }
-    finally { setIsSaving(false); }
+    } catch (err: any) { 
+        toast({ variant: 'destructive', title: 'Chyba' }); 
+    } finally { 
+        setIsSaving(false); 
+    }
   };
-
-  if (isLoading || !user) return <div className="flex justify-center py-12"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>
 
   const renderMatchCard = (m: Match) => {
     const { prefix, opponent } = getMatchDetails(m);
@@ -549,6 +546,8 @@ function DashboardPageContent() {
     )
   }
 
+  if (isLoading || !user) return <div className="flex justify-center py-12"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>
+
   return (
     <div className="py-8 space-y-8">
       {upcomingBirthdays.length > 0 && (
@@ -595,7 +594,10 @@ function DashboardPageContent() {
         </Card>
         <div className="lg:col-span-3 grid gap-8 md:grid-cols-2">
             <Card>
-                <CardHeader className="flex-row items-center justify-between"><CardTitle className="flex items-center gap-2"><Flame className="text-primary"/>Bodování</CardTitle>{userProfile?.role === 'admin' && (isStatEditMode ? <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => setIsStatEditMode(false)}>Zrušit</Button><Button size="sm" onClick={handleSaveStatsManual}>Uložit</Button></div> : <Button size="sm" variant="outline" onClick={() => { setEditableSkaterStats(teamScoring.map(p => ({ ...p[scoringView], id: p.id, name: p.name }))); setIsStatEditMode(true); }}><Pencil className="h-3 mr-2" />Upravit</Button>)}</CardHeader>
+                <CardHeader className="flex-row items-center justify-between">
+                    <CardTitle className="flex items-center gap-2"><Flame className="text-primary"/>Bodování</CardTitle>
+                    {userProfile?.role === 'admin' && (isStatEditMode ? <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => setIsStatEditMode(false)}>Zrušit</Button><Button size="sm" onClick={handleSaveStatsManual}>Uložit</Button></div> : <Button size="sm" variant="outline" onClick={() => { setEditableSkaterStats(teamScoring.map(p => ({ ...p[scoringView], id: p.id, name: p.name }))); setIsStatEditMode(true); }}><Pencil className="h-3 mr-2" />Upravit</Button>)}
+                </CardHeader>
                 <CardContent><Tabs value={scoringView} onValueChange={(v) => setScoringView(v as any)}>
                     <TabsList className="grid w-full grid-cols-3 mb-4"><TabsTrigger value="season">Sezóna</TabsTrigger><TabsTrigger value="playoff" disabled={!isScoringInPlayoffMode}>Play-off</TabsTrigger><TabsTrigger value="history">Historie</TabsTrigger></TabsList>
                     <Table><TableHeader><TableRow><TableHead className="w-8">#</TableHead><TableHead>Hráč</TableHead><TableHead className="text-center">Z</TableHead><TableHead className="text-center">G</TableHead><TableHead className="text-center">A</TableHead><TableHead className="text-right">B</TableHead></TableRow></TableHeader>
@@ -609,7 +611,10 @@ function DashboardPageContent() {
                 </Tabs></CardContent>
             </Card>
             <Card>
-                <CardHeader className="flex-row items-center justify-between"><CardTitle className="flex items-center gap-2"><Shield className="text-primary"/>Brankáři</CardTitle>{userProfile?.role === 'admin' && (isStatEditMode ? null : <Button size="sm" variant="outline" onClick={() => { setEditableGoalieStats(goalieLeaderboard.map(g => ({ ...g[scoringView], id: g.id, name: g.name }))); setIsStatEditMode(true); }}><Pencil className="h-3 mr-2" />Upravit</Button>)}</CardHeader>
+                <CardHeader className="flex-row items-center justify-between">
+                    <CardTitle className="flex items-center gap-2"><Shield className="text-primary"/>Brankáři</CardTitle>
+                    {userProfile?.role === 'admin' && (isStatEditMode ? null : <Button size="sm" variant="outline" onClick={() => { setEditableGoalieStats(goalieLeaderboard.map(g => ({ ...g[scoringView], id: g.id, name: g.name }))); setIsStatEditMode(true); }}><Pencil className="h-3 mr-2" />Upravit</Button>)}
+                </CardHeader>
                 <CardContent><Tabs value={scoringView} onValueChange={(v) => setScoringView(v as any)}>
                     <TabsList className="grid w-full grid-cols-3 mb-4"><TabsTrigger value="season">Sezóna</TabsTrigger><TabsTrigger value="playoff" disabled={!isScoringInPlayoffMode}>Play-off</TabsTrigger><TabsTrigger value="history">Historie</TabsTrigger></TabsList>
                     <Table><TableHeader><TableRow><TableHead>Jméno</TableHead><TableHead className="text-center">Z</TableHead><TableHead className="text-center">V</TableHead><TableHead className="text-right">Úspěšnost</TableHead></TableRow></TableHeader>
