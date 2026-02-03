@@ -385,14 +385,14 @@ function DashboardPageContent() {
           }));
       }
 
-      const dataSet = teamScoring.map(p => ({ id: p.id, name: p.name, ...p[myStatsView === 'season' ? 'season' : myStatsView] }));
+      const dataSet = teamScoring.map(p => ({ id: p.id, name: p.name, ...p[scoringView] }));
       return dataSet.map(p => ({ 
           ...p, 
           points: (Number(p.goals) || 0) + (Number(p.assists) || 0) 
       }))
       .sort((a, b) => (Number(b.points) || 0) - (Number(a.points) || 0) || (Number(b.goals) || 0) - (Number(a.goals) || 0))
       .map((p, i) => ({ ...p, rank: i + 1 }));
-  }, [teamScoring, scoringView, myStatsView, isStatEditMode, editableSkaterStats]);
+  }, [teamScoring, scoringView, isStatEditMode, editableSkaterStats]);
 
   const sortedGoalieLeaderboard = useMemo(() => {
       if (isStatEditMode) {
@@ -407,7 +407,7 @@ function DashboardPageContent() {
           });
       }
 
-      const dataSet = goalieLeaderboard.map(g => ({ id: g.id, name: g.name, ...g[myStatsView === 'season' ? 'season' : myStatsView] }));
+      const dataSet = goalieLeaderboard.map(g => ({ id: g.id, name: g.name, ...g[scoringView] }));
       return dataSet.map(g => {
           const sa = Number(g.shotsAgainst) || 0;
           const s = Number(g.saves) || 0;
@@ -418,7 +418,7 @@ function DashboardPageContent() {
       })
       .sort((a, b) => (b.savePercentage || 0) - (a.savePercentage || 0) || (Number(b.wins) || 0) - (Number(a.wins) || 0))
       .map((g, i) => ({...g, rank: i + 1}));
-  }, [goalieLeaderboard, scoringView, myStatsView, isStatEditMode, editableGoalieStats]);
+  }, [goalieLeaderboard, scoringView, isStatEditMode, editableGoalieStats]);
   
   const attendancesByMatch = useMemo(() => {
       const map = new Map<string, Attendance[]>();
@@ -507,7 +507,14 @@ function DashboardPageContent() {
     if (!firestore) return;
     setIsSaving(true);
     try {
-        const prefix = scoringView === 'history' ? 'historical' : (scoringView === 'regular' ? 'season' : scoringView);
+        const prefix = scoringView === 'history' ? 'historical' : (scoringView === 'regular' ? 'season' : (scoringView === 'playoff' ? 'playoff' : null));
+        
+        if (!prefix) {
+            toast({ variant: 'destructive', title: 'Chyba', description: 'Tuto sekci nelze přímo upravovat.' });
+            setIsSaving(false);
+            return;
+        }
+
         const goalsKey = `${prefix}Goals`;
         const assistsKey = `${prefix}Assists`;
         const gamesPlayedKey = `${prefix}GamesPlayed`;
@@ -535,7 +542,7 @@ function DashboardPageContent() {
                 userProfileId: g.id, 
                 [goalieGamesPlayedKey]: Number(g.gamesPlayed) || 0, 
                 [goalieWinsKey]: Number(g.wins) || 0, 
-                [ goalieSavesKey]: Number(g.saves) || 0, 
+                [goalieSavesKey]: Number(g.saves) || 0, 
                 [goalieShotsAgainstKey]: Number(g.shotsAgainst) || 0 
             }, { merge: true }));
         }
@@ -546,7 +553,7 @@ function DashboardPageContent() {
         setExpandedStatId(null);
     } catch (err: any) { 
         const permissionError = new FirestorePermissionError({
-            path: 'manual-stats-updates',
+            path: 'users/{userId}/stats',
             operation: 'write'
         });
         errorEmitter.emit('permission-error', permissionError);
@@ -628,7 +635,7 @@ function DashboardPageContent() {
       <div className="grid gap-8 lg:grid-cols-3">
         <Card className="p-6 text-center flex flex-col items-center">
             <Avatar className="h-24 w-24 mb-4 border-2 border-primary"><AvatarImage src={userProfile?.photoURL || `https://picsum.photos/seed/${userProfile?.email}/200/200`} /><AvatarFallback>{userProfile?.name[0]}</AvatarFallback></Avatar>
-            <CardTitle>{userProfile?.name}</CardTitle>
+            <CardTitle>{formatName(userProfile?.name || '')}</CardTitle>
             {userProfile?.jerseyNumber && <p className="text-3xl font-bold text-primary mt-1">#{userProfile.jerseyNumber}</p>}
         </Card>
         <Card className="lg:col-span-2">
@@ -751,7 +758,7 @@ function DashboardPageContent() {
             <Card>
                 <CardHeader className="flex-row items-center justify-between">
                     <CardTitle className="flex items-center gap-2"><Flame className="text-primary"/>Bodování</CardTitle>
-                    {userProfile?.role === 'admin' && !isStatEditMode && (
+                    {userProfile?.role === 'admin' && !isStatEditMode && scoringView !== 'season' && (
                         <Button size="sm" variant="outline" onClick={() => { 
                             const initialEditData = sortedTeamScoring.map(p => ({ 
                                 ...p,
@@ -844,7 +851,7 @@ function DashboardPageContent() {
             <Card>
                 <CardHeader className="flex-row items-center justify-between">
                     <CardTitle className="flex items-center gap-2"><Shield className="text-primary"/>Brankáři</CardTitle>
-                    {userProfile?.role === 'admin' && !isStatEditMode && (
+                    {userProfile?.role === 'admin' && !isStatEditMode && scoringView !== 'season' && (
                         <Button size="sm" variant="outline" onClick={() => { 
                             const initialEditData = sortedGoalieLeaderboard.map(g => ({ 
                                 ...g,
