@@ -27,6 +27,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { LineupBuilder, LineupDisplay, type Lineup } from '@/components/lineup-builder'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { errorEmitter } from '@/firebase/error-emitter'
+import { FirestorePermissionError } from '@/firebase/errors'
 
 interface UserProfile {
   id: string;
@@ -381,8 +383,6 @@ function DashboardPageContent() {
   
   const sortedTeamScoring = useMemo(() => {
       if (isStatEditMode) {
-          // In edit mode, we only edit one "base" category at a time (regular, playoff, or history)
-          // Season (total) is a calculated category and shouldn't be edited directly
           const view = scoringView === 'season' ? 'regular' : scoringView;
           return editableSkaterStats.map((p, i) => ({
               ...p,
@@ -469,7 +469,6 @@ function DashboardPageContent() {
     setIsSaving(true);
     try {
         const batch = writeBatch(firestore);
-        // Map match type to database field prefix
         const typePrefix = match.type === 'playoff' ? 'playoff' : 'season';
         const skaterChanges = new Map<string, { goals: number, assists: number, games: number }>();
 
@@ -518,7 +517,12 @@ function DashboardPageContent() {
         await batch.commit();
         toast({ title: "Body byly úspěšně exportovány hráčům." });
     } catch (error: any) {
-        toast({ variant: 'destructive', title: "Chyba exportu", description: error.message });
+        const permissionError = new FirestorePermissionError({
+            path: 'stats-batch',
+            operation: 'write',
+            requestResourceData: { matchId: match.id }
+        });
+        errorEmitter.emit('permission-error', permissionError);
     } finally {
         setIsSaving(false);
     }
@@ -559,7 +563,11 @@ function DashboardPageContent() {
         toast({ title: "Výsledek uložen. Nezapomeňte exportovat body." });
         setIsResultDialogOpen(false);
     } catch (err: any) { 
-        toast({ variant: 'destructive', title: 'Chyba', description: err.message }); 
+        const permissionError = new FirestorePermissionError({
+            path: `matches/${selectedMatch.id}`,
+            operation: 'update'
+        });
+        errorEmitter.emit('permission-error', permissionError);
     } finally { 
         setIsSaving(false); 
     }
@@ -604,7 +612,11 @@ function DashboardPageContent() {
         setIsStatEditMode(false);
         setExpandedStatId(null);
     } catch (err: any) { 
-        toast({ variant: 'destructive', title: 'Chyba při ukládání', description: err.message }); 
+        const permissionError = new FirestorePermissionError({
+            path: 'stats-batch-manual',
+            operation: 'write'
+        });
+        errorEmitter.emit('permission-error', permissionError);
     } finally { 
         setIsSaving(false); 
     }
@@ -732,7 +744,8 @@ function DashboardPageContent() {
           {nextMatch ? renderMatchCard(nextMatch) : <p className="text-center py-8 text-muted-foreground">Žádné blížící se zápasy.</p>}
           {otherUpcomingMatches.length > 0 && (
                 <Accordion type="single" collapsible className="w-full" value={openAccordionValue} onValueChange={setOpenAccordionValue}>
-                    <AccordionItem value="item-1" className="border-none"><AccordionTrigger className="rounded-lg border px-4 bg-card">Další zápasy</AccordionTrigger>
+                    <AccordionItem value="item-1" className="border-none">
+                        <AccordionTrigger className="rounded-lg border px-4 bg-card">Další zápasy</AccordionTrigger>
                         <AccordionContent className="pt-4 space-y-4">{otherUpcomingMatches.map(m => renderMatchCard(m))}</AccordionContent>
                     </AccordionItem>
                 </Accordion>
@@ -1015,30 +1028,41 @@ function DashboardPageContent() {
       
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Přidat zápas</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Přidat zápas</DialogTitle>
+          </DialogHeader>
           <form onSubmit={async e => { 
             e.preventDefault(); 
             if(!firestore) return; 
             setIsSaving(true); 
-            const fd = new FormData(e.currentTarget); 
-            const dt = parse(`${fd.get('date')} ${fd.get('time')}`, 'yyyy-MM-dd HH:mm', new Date()); 
-            const mData: any = { 
-                team1: 'Aces', 
-                team2: fd.get('opponent'), 
-                location: fd.get('location'), 
-                dateTime: Timestamp.fromDate(dt), 
-                isPlayed: false, 
-                type: addMatchType 
-            };
-            if (addMatchType === 'regular') mData.round = Number(fd.get('round')) || null;
-            else if (addMatchType === 'playoff') {
-                mData.playoffStage = fd.get('playoffStage');
-                mData.playoffMatchNumber = Number(fd.get('playoffMatchNumber')) || null;
+            try {
+                const fd = new FormData(e.currentTarget); 
+                const dt = parse(`${fd.get('date')} ${fd.get('time')}`, 'yyyy-MM-dd HH:mm', new Date()); 
+                const mData: any = { 
+                    team1: 'Aces', 
+                    team2: fd.get('opponent'), 
+                    location: fd.get('location'), 
+                    dateTime: Timestamp.fromDate(dt), 
+                    isPlayed: false, 
+                    type: addMatchType 
+                };
+                if (addMatchType === 'regular') mData.round = Number(fd.get('round')) || null;
+                else if (addMatchType === 'playoff') {
+                    mData.playoffStage = fd.get('playoffStage');
+                    mData.playoffMatchNumber = Number(fd.get('playoffMatchNumber')) || null;
+                }
+                await addDoc(collection(firestore, 'matches'), mData); 
+                setIsAddDialogOpen(false); 
+                toast({ title: "Zápas přidán" }); 
+            } catch (err: any) {
+                const permissionError = new FirestorePermissionError({
+                    path: 'matches',
+                    operation: 'create'
+                });
+                errorEmitter.emit('permission-error', permissionError);
+            } finally {
+                setIsSaving(false); 
             }
-            await addDoc(collection(firestore, 'matches'), mData); 
-            setIsAddDialogOpen(false); 
-            setIsSaving(false); 
-            toast({ title: "Zápas přidán" }); 
           }}>
             <div className="grid gap-6 py-4 p-1">
               <div className="grid gap-2"><Label>Soupeř</Label><Input name="opponent" required /></div>
@@ -1101,7 +1125,23 @@ function DashboardPageContent() {
               </div>
               <DialogFooter>
                   <Button variant="outline" onClick={() => setIsAttendanceDialogOpen(false)}>Zrušit</Button>
-                  <Button onClick={async () => { if(!attendanceData || !user || !firestore) return; setIsSaving(true); setOptimisticAttendances(cur => new Map(cur).set(attendanceData.matchId, { status: attendanceData.status, note: attendanceNote })); await setDoc(doc(firestore, 'matches', attendanceData.matchId, 'attendees', user.uid), { userId: user.uid, matchId: attendanceData.matchId, status: attendanceData.status, note: attendanceNote }, { merge: true }); setIsAttendanceDialogOpen(false); setIsSaving(false); }}>Potvrdit</Button>
+                  <Button onClick={async () => { 
+                    if(!attendanceData || !user || !firestore) return; 
+                    setIsSaving(true); 
+                    try {
+                        setOptimisticAttendances(cur => new Map(cur).set(attendanceData.matchId, { status: attendanceData.status, note: attendanceNote })); 
+                        await setDoc(doc(firestore, 'matches', attendanceData.matchId, 'attendees', user.uid), { userId: user.uid, matchId: attendanceData.matchId, status: attendanceData.status, note: attendanceNote }, { merge: true }); 
+                        setIsAttendanceDialogOpen(false); 
+                    } catch (err: any) {
+                        const permissionError = new FirestorePermissionError({
+                            path: `matches/${attendanceData.matchId}/attendees/${user.uid}`,
+                            operation: 'write'
+                        });
+                        errorEmitter.emit('permission-error', permissionError);
+                    } finally {
+                        setIsSaving(false); 
+                    }
+                  }}>Potvrdit</Button>
               </DialogFooter>
           </DialogContent>
       </Dialog>
@@ -1110,7 +1150,23 @@ function DashboardPageContent() {
             <DialogHeader className="p-6 pb-0">
                 <DialogTitle>Editor sestavy</DialogTitle>
             </DialogHeader>
-            {lineupMatch && <LineupBuilder players={allUsers?.filter(u => (attendancesByMatch.get(lineupMatch.id)||[]).some(a => a.userId === u.id && a.status === 'going')) || []} initialData={lineupMatch.lineup} onSave={async l => { if(!lineupMatch || !firestore) return; setIsSaving(true); await updateDoc(doc(firestore, 'matches', lineupMatch.id), { lineup: l }); setIsLineupBuilderOpen(false); setIsSaving(false); toast({ title: "Sestava uložena" }); }} onCancel={() => setIsLineupBuilderOpen(false)} />}
+            {lineupMatch && <LineupBuilder players={allUsers?.filter(u => (attendancesByMatch.get(lineupMatch.id)||[]).some(a => a.userId === u.id && a.status === 'going')) || []} initialData={lineupMatch.lineup} onSave={async l => { 
+                if(!lineupMatch || !firestore) return; 
+                setIsSaving(true); 
+                try {
+                    await updateDoc(doc(firestore, 'matches', lineupMatch.id), { lineup: l }); 
+                    setIsLineupBuilderOpen(false); 
+                    toast({ title: "Sestava uložena" }); 
+                } catch (err: any) {
+                    const permissionError = new FirestorePermissionError({
+                        path: `matches/${lineupMatch.id}`,
+                        operation: 'update'
+                    });
+                    errorEmitter.emit('permission-error', permissionError);
+                } finally {
+                    setIsSaving(false); 
+                }
+            }} onCancel={() => setIsLineupBuilderOpen(false)} />}
         </DialogContent>
       </Dialog>
       <Dialog open={isLineupViewOpen} onOpenChange={setIsLineupViewOpen}>
@@ -1126,22 +1182,55 @@ function DashboardPageContent() {
               <AlertDialogHeader><AlertDialogTitle>Smazat zápas?</AlertDialogTitle></AlertDialogHeader>
               <AlertDialogFooter>
                   <AlertDialogCancel>Zrušit</AlertDialogCancel>
-                  <AlertDialogAction className="bg-destructive" onClick={async () => { if(!selectedMatch || !firestore) return; setIsSaving(true); try { await deleteDoc(doc(firestore, 'matches', selectedMatch.id)); toast({ title: "Zápas smazán" }); } catch (e: any) { toast({ variant: "destructive", title: "Chyba" }); } finally { setIsSaving(false); setIsDeleteDialogOpen(false); setSelectedMatch(null); } }}>Smazat</AlertDialogAction>
+                  <AlertDialogAction className="bg-destructive" onClick={async () => { 
+                    if(!selectedMatch || !firestore) return; 
+                    setIsSaving(true); 
+                    try { 
+                        await deleteDoc(doc(firestore, 'matches', selectedMatch.id)); 
+                        toast({ title: "Zápas smazán" }); 
+                    } catch (e: any) { 
+                        const permissionError = new FirestorePermissionError({
+                            path: `matches/${selectedMatch.id}`,
+                            operation: 'delete'
+                        });
+                        errorEmitter.emit('permission-error', permissionError);
+                    } finally { 
+                        setIsSaving(false); 
+                        setIsDeleteDialogOpen(false); 
+                        setSelectedMatch(null); 
+                    } 
+                  }}>Smazat</AlertDialogAction>
               </AlertDialogFooter>
           </AlertDialogContent>
       </AlertDialog>
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
           <DialogContent>
               <DialogHeader><DialogTitle>Upravit zápas</DialogTitle></DialogHeader>
-              {selectedMatch && <form onSubmit={async e => { e.preventDefault(); if(!firestore || !selectedMatch) return; setIsSaving(true); const fd = new FormData(e.currentTarget); const dt = parse(`${fd.get('date')} ${fd.get('time')}`, 'yyyy-MM-dd HH:mm', new Date()); 
-                const upd: any = { team2: fd.get('opponent'), location: fd.get('location'), dateTime: Timestamp.fromDate(dt), type: fd.get('type') };
-                if (upd.type === 'regular') upd.round = Number(fd.get('round')) || null;
-                else if (upd.type === 'playoff') {
-                    upd.playoffStage = fd.get('playoffStage');
-                    upd.playoffMatchNumber = Number(fd.get('playoffMatchNumber')) || null;
+              {selectedMatch && <form onSubmit={async e => { 
+                e.preventDefault(); 
+                if(!firestore || !selectedMatch) return; 
+                setIsSaving(true); 
+                try {
+                    const fd = new FormData(e.currentTarget); 
+                    const dt = parse(`${fd.get('date')} ${fd.get('time')}`, 'yyyy-MM-dd HH:mm', new Date()); 
+                    const upd: any = { team2: fd.get('opponent'), location: fd.get('location'), dateTime: Timestamp.fromDate(dt), type: fd.get('type') };
+                    if (upd.type === 'regular') upd.round = Number(fd.get('round')) || null;
+                    else if (upd.type === 'playoff') {
+                        upd.playoffStage = fd.get('playoffStage');
+                        upd.playoffMatchNumber = Number(fd.get('playoffMatchNumber')) || null;
+                    }
+                    await updateDoc(doc(firestore, 'matches', selectedMatch.id), upd); 
+                    setIsEditDialogOpen(false); 
+                    toast({ title: "Změny uloženy" }); 
+                } catch (err: any) {
+                    const permissionError = new FirestorePermissionError({
+                        path: `matches/${selectedMatch.id}`,
+                        operation: 'update'
+                    });
+                    errorEmitter.emit('permission-error', permissionError);
+                } finally {
+                    setIsSaving(false); 
                 }
-                await updateDoc(doc(firestore, 'matches', selectedMatch.id), upd); 
-                setIsEditDialogOpen(false); setIsSaving(false); toast({ title: "Změny uloženy" }); 
               }}>
                   <div className="grid gap-6 py-4 p-1">
                       <div className="grid gap-2"><Label>Soupeř</Label><Input name="opponent" defaultValue={selectedMatch.team2} required /></div>

@@ -20,6 +20,8 @@ import { useToast } from '@/hooks/use-toast'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { LineupBuilder, LineupDisplay, type Lineup } from '@/components/lineup-builder'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { errorEmitter } from '@/firebase/error-emitter'
+import { FirestorePermissionError } from '@/firebase/errors'
 
 interface Match {
   id: string;
@@ -190,18 +192,15 @@ function HistoryPageContent() {
         setIsSaving(true);
         try {
             const batch = writeBatch(firestore);
-            // Match regular/friendly to season fields, playoff to playoff fields
             const typePrefix = match.type === 'playoff' ? 'playoff' : 'season';
             const skaterChanges = new Map<string, { goals: number, assists: number, games: number }>();
 
-            // 1. Identification of players from lineup
             Object.values(match.lineup).forEach(p => {
                 if (p && p.id) {
                     skaterChanges.set(p.id, { goals: 0, assists: 0, games: 1 });
                 }
             });
 
-            // 2. Addition of goals and assists
             match.scorers?.forEach(s => {
                 if (s.goal) {
                     const current = skaterChanges.get(s.goal) || { goals: 0, assists: 0, games: 0 };
@@ -215,7 +214,6 @@ function HistoryPageContent() {
                 }
             });
 
-            // 3. Application to SkaterStats
             skaterChanges.forEach((vals, uId) => {
                 const ref = doc(firestore, 'users', uId, 'skaterStats', 'stats');
                 batch.set(ref, {
@@ -226,7 +224,6 @@ function HistoryPageContent() {
                 }, { merge: true });
             });
 
-            // 4. Goalies
             if (match.goalieId && match.goalieId !== 'none') {
                 const ref = doc(firestore, 'users', match.goalieId, 'goalieStats', 'stats');
                 const isWin = (match.team1Score || 0) > (match.team2Score || 0);
@@ -239,13 +236,17 @@ function HistoryPageContent() {
                 }, { merge: true });
             }
 
-            // 5. Mark match as exported
             batch.update(doc(firestore, 'matches', match.id), { isStatsExported: true });
 
             await batch.commit();
             toast({ title: "Body byly úspěšně exportovány hráčům." });
         } catch (error: any) {
-            toast({ variant: 'destructive', title: "Chyba exportu", description: error.message });
+            const permissionError = new FirestorePermissionError({
+                path: 'stats-batch',
+                operation: 'write',
+                requestResourceData: { matchId: match.id }
+            });
+            errorEmitter.emit('permission-error', permissionError);
         } finally {
             setIsSaving(false);
         }
@@ -258,7 +259,12 @@ function HistoryPageContent() {
             await updateDoc(doc(firestore, 'matches', lineupMatch.id), { lineup });
             toast({ title: "Sestava uložena." });
         } catch (error: any) { 
-            toast({ variant: 'destructive', title: "Chyba", description: error.message }); 
+            const permissionError = new FirestorePermissionError({
+                path: `matches/${lineupMatch.id}`,
+                operation: 'update',
+                requestResourceData: { lineup }
+            });
+            errorEmitter.emit('permission-error', permissionError);
         } finally { 
             setIsSaving(false); setIsLineupBuilderOpen(false); setLineupMatch(null); 
         }
@@ -271,7 +277,11 @@ function HistoryPageContent() {
             await deleteDoc(doc(firestore, 'matches', selectedMatch.id));
             toast({ title: "Zápas smazán." });
         } catch (error: any) { 
-            toast({ variant: 'destructive', title: "Chyba", description: error.message }); 
+            const permissionError = new FirestorePermissionError({
+                path: `matches/${selectedMatch.id}`,
+                operation: 'delete'
+            });
+            errorEmitter.emit('permission-error', permissionError);
         } finally { 
             setIsSaving(false); setIsDeleteDialogOpen(false); setSelectedMatch(null); 
         }
@@ -323,7 +333,13 @@ function HistoryPageContent() {
             }
             
             toast({ title: isNew ? "Zápas přidán." : "Zápas aktualizován." });
-        } catch (error: any) { toast({ variant: 'destructive', title: "Chyba", description: error.message }); }
+        } catch (error: any) { 
+            const permissionError = new FirestorePermissionError({
+                path: isNew ? 'matches' : `matches/${selectedMatch?.id}`,
+                operation: isNew ? 'create' : 'update'
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        }
         finally { setIsSaving(false); setIsAddDialogOpen(false); setIsEditDialogOpen(false); setSelectedMatch(null); }
     };
 
@@ -465,7 +481,9 @@ function HistoryPageContent() {
 
             <Dialog open={isAddMatchDialogOpen} onOpenChange={setIsAddDialogOpen}>
                 <DialogContent className="max-w-2xl">
-                    <DialogHeader><DialogTitle>Přidat odehraný zápas</DialogTitle></DialogHeader>
+                    <DialogHeader>
+                        <DialogTitle>Přidat odehraný zápas</DialogTitle>
+                    </DialogHeader>
                     <form onSubmit={(e) => handleResultSave(e, true)}>
                         <div className="grid gap-6 py-4 max-h-[70vh] overflow-y-auto pr-4 p-1">
                             <div className="grid grid-cols-2 gap-4">
@@ -528,7 +546,9 @@ function HistoryPageContent() {
 
             <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
                 <DialogContent className="max-w-2xl">
-                    <DialogHeader><DialogTitle>Upravit výsledek</DialogTitle></DialogHeader>
+                    <DialogHeader>
+                        <DialogTitle>Upravit výsledek</DialogTitle>
+                    </DialogHeader>
                     {selectedMatch && users && (
                         <form onSubmit={(e) => handleResultSave(e, false)}>
                             <div className="grid gap-6 py-4 max-h-[60vh] overflow-y-auto pr-4 p-1">
@@ -566,7 +586,9 @@ function HistoryPageContent() {
 
             <Dialog open={isLineupViewOpen} onOpenChange={setIsLineupViewOpen}>
                 <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
-                    <DialogHeader><DialogTitle>Sestava: {viewMatchOpponent}</DialogTitle></DialogHeader>
+                    <DialogHeader>
+                        <DialogTitle>Sestava: {viewMatchOpponent}</DialogTitle>
+                    </DialogHeader>
                     {viewLineupData && <LineupDisplay lineup={viewLineupData} scorers={viewScorersData} />}
                 </DialogContent>
             </Dialog>

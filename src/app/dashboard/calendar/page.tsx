@@ -40,6 +40,13 @@ interface Match {
   playoffMatchNumber?: number;
 }
 
+const formatName = (name: string) => {
+    if (!name) return '';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length < 2) return name;
+    return `${parts[0].charAt(0)}. ${parts.slice(1).join(' ')}`;
+};
+
 function getMatchDetails(match: Match) {
     let prefix = '';
     if (match.type === 'regular' && match.round) {
@@ -153,7 +160,6 @@ function CalendarPageContent() {
     const birthdayDates = allUsers?.filter(u => u.dob).map(u => {
         const dob = parseISO(u.dob!);
         if (!isValid(dob)) return null;
-        // Map birthday to current year for display in calendar
         return setYear(dob, new Date().getFullYear());
     }).filter(Boolean) as Date[];
 
@@ -214,7 +220,7 @@ function CalendarPageContent() {
                                                     <AvatarImage src={`https://picsum.photos/seed/${u.email}/100/100`} />
                                                     <AvatarFallback>{u.name.split(' ').map(n=>n[0]).join('')}</AvatarFallback>
                                                 </Avatar>
-                                                <p className="font-semibold text-lg">{u.name}</p>
+                                                <p className="font-semibold text-lg">{formatName(u.name)}</p>
                                             </div>
                                         ))}
                                     </div>
