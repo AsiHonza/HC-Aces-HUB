@@ -179,7 +179,7 @@ function StatAdjuster({ value, onChange, label }: { value: string, onChange: (va
     };
 
     return (
-        <div className="flex items-center justify-center gap-2">
+        <div className="flex items-center justify-center gap-1.5">
             <Button 
                 type="button" 
                 variant="outline" 
@@ -189,7 +189,7 @@ function StatAdjuster({ value, onChange, label }: { value: string, onChange: (va
             >
                 <Minus className="h-3 w-3" />
             </Button>
-            <div className="w-8 text-center font-bold">{value || '0'}</div>
+            <div className="w-8 text-center font-bold text-sm">{value || '0'}</div>
             <Button 
                 type="button" 
                 variant="outline" 
@@ -325,7 +325,6 @@ function DashboardPageContent() {
   }, [allUsers, allGoalieStats]);
   
   const sortedTeamScoring = useMemo(() => {
-      // If editing, use the captured state and map with current edit values but DON'T re-sort
       if (isStatEditMode) {
           return editableSkaterStats.map((p, i) => ({
               ...p,
@@ -446,42 +445,40 @@ function DashboardPageContent() {
     setIsSaving(true);
     try {
         const prefix = scoringView === 'history' ? 'historical' : scoringView;
-        const goalsKey = `${prefix === 'historical' ? 'historical' : prefix}Goals`;
-        const assistsKey = `${prefix === 'historical' ? 'historical' : prefix}Assists`;
-        const gamesPlayedKey = `${prefix === 'historical' ? 'historical' : prefix}GamesPlayed`;
+        const goalsKey = `${prefix}Goals`;
+        const assistsKey = `${prefix}Assists`;
+        const gamesPlayedKey = `${prefix}GamesPlayed`;
 
-        const skaterPromises = editableSkaterStats.map(p => { 
-            if (!p.id) return Promise.resolve();
-            return setDoc(doc(firestore, 'users', p.id, 'skaterStats', 'stats'), { 
+        const goalieWinsKey = `${prefix}Wins`;
+        const goalieSavesKey = `${prefix}Saves`;
+        const goalieShotsAgainstKey = `${prefix}ShotsAgainst`;
+        const goalieGamesPlayedKey = `${prefix}GamesPlayed`;
+
+        for (const p of editableSkaterStats) {
+            if (!p.id) continue;
+            await setDoc(doc(firestore, 'users', p.id, 'skaterStats', 'stats'), { 
                 userProfileId: p.id, 
-                [goalsKey]: p.goals === '' ? 0 : Number(p.goals) || 0, 
-                [assistsKey]: p.assists === '' ? 0 : Number(p.assists) || 0, 
-                [gamesPlayedKey]: p.gamesPlayed === '' ? 0 : Number(p.gamesPlayed) || 0 
-            }, { merge: true }); 
-        });
+                [goalsKey]: Number(p.goals) || 0, 
+                [assistsKey]: Number(p.assists) || 0, 
+                [gamesPlayedKey]: Number(p.gamesPlayed) || 0 
+            }, { merge: true });
+        }
 
-        const goalieWinsKey = `${prefix === 'historical' ? 'historical' : prefix}Wins`;
-        const goalieSavesKey = `${prefix === 'historical' ? 'historical' : prefix}Saves`;
-        const goalieShotsAgainstKey = `${prefix === 'historical' ? 'historical' : prefix}ShotsAgainst`;
-        const goalieGamesPlayedKey = `${prefix === 'historical' ? 'historical' : prefix}GamesPlayed`;
-
-        const goaliePromises = editableGoalieStats.map(g => { 
-            if (!g.id) return Promise.resolve();
-            return setDoc(doc(firestore, 'users', g.id, 'goalieStats', 'stats'), { 
+        for (const g of editableGoalieStats) {
+            if (!g.id) continue;
+            await setDoc(doc(firestore, 'users', g.id, 'goalieStats', 'stats'), { 
                 userProfileId: g.id, 
-                [goalieGamesPlayedKey]: g.gamesPlayed === '' ? 0 : Number(g.gamesPlayed) || 0, 
-                [goalieWinsKey]: g.wins === '' ? 0 : Number(g.wins) || 0, 
-                [goalieSavesKey]: g.saves === '' ? 0 : Number(g.saves) || 0, 
-                [goalieShotsAgainstKey]: g.shotsAgainst === '' ? 0 : Number(g.shotsAgainst) || 0 
-            }, { merge: true }); 
-        });
+                [goalieGamesPlayedKey]: Number(g.gamesPlayed) || 0, 
+                [goalieWinsKey]: Number(g.wins) || 0, 
+                [goalieSavesKey]: Number(g.saves) || 0, 
+                [goalieShotsAgainstKey]: Number(g.shotsAgainst) || 0 
+            }, { merge: true });
+        }
 
-        await Promise.all([...skaterPromises, ...goaliePromises]);
         toast({ title: 'Statistiky úspěšně uloženy' });
         setIsStatEditMode(false);
     } catch (err: any) { 
-        console.error("Manual save error:", err);
-        toast({ variant: 'destructive', title: 'Chyba při ukládání', description: err.message || 'Nedostatečná oprávnění.' }); 
+        toast({ variant: 'destructive', title: 'Chyba při ukládání', description: err.message }); 
     } finally { 
         setIsSaving(false); 
     }
@@ -624,7 +621,6 @@ function DashboardPageContent() {
                     <CardTitle className="flex items-center gap-2"><Flame className="text-primary"/>Bodování</CardTitle>
                     {userProfile?.role === 'admin' && !isStatEditMode && (
                         <Button size="sm" variant="outline" onClick={() => { 
-                            // Initial data capture for editing - captures the currently sorted order
                             const initialEditData = sortedTeamScoring.map(p => ({ 
                                 ...p,
                                 goals: String(p.goals || 0),
@@ -663,28 +659,13 @@ function DashboardPageContent() {
                             <TableBody>
                                 {sortedTeamScoring.map(p => (
                                     <TableRow key={p.id} className={p.id === user?.uid ? 'bg-primary/10' : ''}>
-                                        <TableCell>{String(p.rank)}</TableCell>
-                                        <TableCell className="font-medium">{p.name}</TableCell>
+                                        <TableCell>{String(p.rank || 0)}</TableCell>
+                                        <TableCell className="font-medium">{p.name || 'Neznámý'}</TableCell>
                                         {isStatEditMode ? (
                                             <>
-                                                <TableCell>
-                                                    <StatAdjuster 
-                                                        value={p.gamesPlayed} 
-                                                        onChange={val => setEditableSkaterStats(cur => cur.map(it => it.id === p.id ? {...it, gamesPlayed: val} : it))} 
-                                                    />
-                                                </TableCell>
-                                                <TableCell>
-                                                    <StatAdjuster 
-                                                        value={p.goals} 
-                                                        onChange={val => setEditableSkaterStats(cur => cur.map(it => it.id === p.id ? {...it, goals: val} : it))} 
-                                                    />
-                                                </TableCell>
-                                                <TableCell>
-                                                    <StatAdjuster 
-                                                        value={p.assists} 
-                                                        onChange={val => setEditableSkaterStats(cur => cur.map(it => it.id === p.id ? {...it, assists: val} : it))} 
-                                                    />
-                                                </TableCell>
+                                                <TableCell><StatAdjuster value={String(p.gamesPlayed || 0)} onChange={val => setEditableSkaterStats(cur => cur.map(it => it.id === p.id ? {...it, gamesPlayed: val} : it))} /></TableCell>
+                                                <TableCell><StatAdjuster value={String(p.goals || 0)} onChange={val => setEditableSkaterStats(cur => cur.map(it => it.id === p.id ? {...it, goals: val} : it))} /></TableCell>
+                                                <TableCell><StatAdjuster value={String(p.assists || 0)} onChange={val => setEditableSkaterStats(cur => cur.map(it => it.id === p.id ? {...it, assists: val} : it))} /></TableCell>
                                             </>
                                         ) : (
                                             <>
@@ -737,21 +718,11 @@ function DashboardPageContent() {
                             <TableBody>
                                 {sortedGoalieLeaderboard.map(g => (
                                     <TableRow key={g.id} className={g.id === user?.uid ? 'bg-primary/10' : ''}>
-                                        <TableCell className="font-medium">{g.name}</TableCell>
+                                        <TableCell className="font-medium">{g.name || 'Neznámý'}</TableCell>
                                         {isStatEditMode ? (
                                             <>
-                                                <TableCell>
-                                                    <StatAdjuster 
-                                                        value={g.gamesPlayed} 
-                                                        onChange={val => setEditableGoalieStats(cur => cur.map(it => it.id === g.id ? {...it, gamesPlayed: val} : it))} 
-                                                    />
-                                                </TableCell>
-                                                <TableCell>
-                                                    <StatAdjuster 
-                                                        value={g.wins} 
-                                                        onChange={val => setEditableGoalieStats(cur => cur.map(it => it.id === g.id ? {...it, wins: val} : it))} 
-                                                    />
-                                                </TableCell>
+                                                <TableCell><StatAdjuster value={String(g.gamesPlayed || 0)} onChange={val => setEditableGoalieStats(cur => cur.map(it => it.id === g.id ? {...it, gamesPlayed: val} : it))} /></TableCell>
+                                                <TableCell><StatAdjuster value={String(g.wins || 0)} onChange={val => setEditableGoalieStats(cur => cur.map(it => it.id === g.id ? {...it, wins: val} : it))} /></TableCell>
                                             </>
                                         ) : (
                                             <>
@@ -782,4 +753,3 @@ function DashboardPageContent() {
 }
 
 export default function DashboardPage() { return <Suspense fallback={<div className="container py-8">Načítání...</div>}><DashboardPageContent /></Suspense> }
-    

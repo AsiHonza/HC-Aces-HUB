@@ -16,13 +16,24 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Explicitní pravidla pro statistiky (aby se předešlo limitům vnořených cest)
+    // Explicitní pravidla pro statistiky (aby se předešlo limitům vnořených cest při hromadných operacích)
     match /users/{userId}/skaterStats/{statsId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
     
     match /users/{userId}/goalieStats/{statsId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    
+    // Globální pravidla pro subkolekce (pomáhá při write operacích adminů)
+    match /{path=**}/skaterStats/{statsId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    
+    match /{path=**}/goalieStats/{statsId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
@@ -37,25 +48,6 @@ service cloud.firestore {
       allow create: if isOwner(userId);
       allow update: if isOwner(userId) || isAdmin();
       allow delete: if isAdmin();
-
-      // Tyto pravidla jsou duplikována výše pro jistotu a rychlost
-      match /skaterStats/{skaterStatsId} {
-        allow read: if isSignedIn();
-        allow write: if isAdmin();
-      }
-      
-      match /goalieStats/{goalieStatsId} {
-        allow read: if isSignedIn();
-        allow write: if isAdmin();
-      }
-    }
-
-    match /{path=**}/skaterStats/{statsId} {
-        allow read: if isSignedIn();
-    }
-    
-    match /{path=**}/goalieStats/{statsId} {
-        allow read: if isSignedIn();
     }
 
     match /matches/{matchId} {
