@@ -676,18 +676,24 @@ function DashboardPageContent() {
       const batch = writeBatch(firestore);
       const matchRef = doc(firestore, 'matches', lineupMatch.id);
       
-      // Update the match document
       batch.update(matchRef, { lineup: lineupToSave });
 
-      // If the match was already played, update the gamesPlayed stats for added/removed players
       if (lineupMatch.isPlayed) {
           const oldLineup = lineupMatch.lineup || {};
           const oldPlayerIds = new Set(Object.values(oldLineup).filter(p => p !== null).map(p => p!.id));
           const newPlayerIds = new Set(Object.values(lineupToSave).filter(p => p !== null).map(p => p!.id));
 
+          // Players who were already counted via scorers/goalie should not be re-counted
+          const alreadyCountedIds = new Set<string>();
+          lineupMatch.scorers?.forEach(s => {
+              if (s.goal) alreadyCountedIds.add(s.goal);
+              if (s.assist) alreadyCountedIds.add(s.assist);
+          });
+          if (lineupMatch.goalieId) alreadyCountedIds.add(lineupMatch.goalieId);
+
           // Players added to lineup
           newPlayerIds.forEach(pid => {
-              if (!oldPlayerIds.has(pid)) {
+              if (!oldPlayerIds.has(pid) && !alreadyCountedIds.has(pid)) {
                   const statRef = doc(firestore, 'users', pid, 'skaterStats', 'stats');
                   const update: any = { historicalGamesPlayed: increment(1) };
                   if (lineupMatch.type === 'playoff') update.playoffGamesPlayed = increment(1);
@@ -698,7 +704,7 @@ function DashboardPageContent() {
 
           // Players removed from lineup
           oldPlayerIds.forEach(pid => {
-              if (!newPlayerIds.has(pid)) {
+              if (!newPlayerIds.has(pid) && !alreadyCountedIds.has(pid)) {
                   const statRef = doc(firestore, 'users', pid, 'skaterStats', 'stats');
                   const update: any = { historicalGamesPlayed: increment(-1) };
                   if (lineupMatch.type === 'playoff') update.playoffGamesPlayed = increment(-1);
@@ -712,9 +718,6 @@ function DashboardPageContent() {
       toast({ title: "Sestava uložena." });
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Chyba', description: `Nepodařilo se uložit sestavu: ${error.message}` });
-      errorEmitter.emit('permission-error', new FirestorePermissionError({
-        operation: 'update', path: doc(firestore, 'matches', lineupMatch.id).path, requestResourceData: { lineup: lineupToSave },
-      }));
     } finally {
       setIsSaving(false);
       setIsLineupBuilderOpen(false);
@@ -726,14 +729,90 @@ function DashboardPageContent() {
     
     setIsSaving(true);
     try {
+        const batch = writeBatch(firestore);
+        
+        // If match was played, we must revert all stats
+        if (selectedMatch.isPlayed) {
+            const participants = new Set<string>();
+            if (selectedMatch.lineup) {
+                Object.values(selectedMatch.lineup).forEach(p => { if(p) participants.add(p.id); });
+            }
+            selectedMatch.scorers?.forEach(s => {
+                if (s.goal) participants.add(s.goal);
+                if (s.assist) participants.add(s.assist);
+            });
+            if (selectedMatch.goalieId) participants.add(selectedMatch.goalieId);
+
+            const skaterUpdates = new Map<string, any>();
+            participants.forEach(pid => {
+                const update = { historicalGamesPlayed: increment(-1) };
+                if (selectedMatch.type === 'playoff') (update as any).playoffGamesPlayed = increment(-1);
+                else if (selectedMatch.type === 'regular') (update as any).seasonGamesPlayed = increment(-1);
+                skaterUpdates.set(pid, update);
+            });
+
+            selectedMatch.scorers?.forEach(s => {
+                if (s.goal) {
+                    const u = skaterUpdates.get(s.goal) || {};
+                    u.historicalGoals = increment((u.historicalGoals ? -1 : -1)); // this is complex with increment, let's just add to map
+                }
+            });
+            // Actually simpler to just iterate and apply batch.set for each participant
+            for (const pid of participants) {
+                const statRef = doc(firestore, 'users', pid, 'skaterStats', 'stats');
+                const update: any = { historicalGamesPlayed: increment(-1) };
+                if (selectedMatch.type === 'playoff') update.playoffGamesPlayed = increment(-1);
+                else if (selectedMatch.type === 'regular') update.seasonGamesPlayed = increment(-1);
+                
+                // Add goal/assist reverts for this specific player
+                let g = 0, a = 0;
+                selectedMatch.scorers?.forEach(s => {
+                    if (s.goal === pid) g++;
+                    if (s.assist === pid) a++;
+                });
+                if (g > 0) {
+                    update.historicalGoals = increment(-g);
+                    if (selectedMatch.type === 'playoff') update.playoffGoals = increment(-g);
+                    else if (selectedMatch.type === 'regular') update.seasonGoals = increment(-g);
+                }
+                if (a > 0) {
+                    update.historicalAssists = increment(-a);
+                    if (selectedMatch.type === 'playoff') update.playoffAssists = increment(-a);
+                    else if (selectedMatch.type === 'regular') update.seasonAssists = increment(-a);
+                }
+                batch.set(statRef, update, { merge: true });
+            }
+
+            if (selectedMatch.goalieId) {
+                const goalieRef = doc(firestore, 'users', selectedMatch.goalieId, 'goalieStats', 'stats');
+                const isWin = (selectedMatch.team1Score ?? 0) > (selectedMatch.team2Score ?? 0);
+                const update: any = {
+                    historicalGamesPlayed: increment(-1),
+                    historicalWins: isWin ? increment(-1) : increment(0),
+                    historicalSaves: increment(-(selectedMatch.goalieSaves || 0)),
+                    historicalShotsAgainst: increment(-(selectedMatch.goalieShotsAgainst || 0)),
+                };
+                if (selectedMatch.type === 'playoff') {
+                    update.playoffGamesPlayed = increment(-1);
+                    if (isWin) update.playoffWins = increment(-1);
+                    update.playoffSaves = increment(-(selectedMatch.goalieSaves || 0));
+                    update.playoffShotsAgainst = increment(-(selectedMatch.goalieShotsAgainst || 0));
+                } else if (selectedMatch.type === 'regular') {
+                    update.seasonGamesPlayed = increment(-1);
+                    if (isWin) update.seasonWins = increment(-1);
+                    update.seasonSaves = increment(-(selectedMatch.goalieSaves || 0));
+                    update.seasonShotsAgainst = increment(-(selectedMatch.goalieShotsAgainst || 0));
+                }
+                batch.set(goalieRef, update, { merge: true });
+            }
+        }
+
         const matchRef = doc(firestore, 'matches', selectedMatch.id);
-        await deleteDoc(matchRef)
+        batch.delete(matchRef);
+        await batch.commit();
         toast({ title: "Zápas smazán." });
     } catch (error: any) {
         toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se smazat zápas.' });
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-            operation: 'delete', path: doc(firestore, 'matches', selectedMatch.id).path
-        }));
     } finally {
         setIsSaving(false);
         setIsDeleteDialogOpen(false);
@@ -743,11 +822,7 @@ function DashboardPageContent() {
 
   const handleAttendanceChange = (matchId: string, newStatus: 'going' | 'not-going', note: string) => {
     if (!user || !firestore) {
-      toast({
-        variant: 'destructive',
-        title: "Chyba",
-        description: "Uživatel není přihlášen.",
-      });
+      toast({ variant: 'destructive', title: "Chyba", description: "Uživatel není přihlášen." });
       return Promise.reject(new Error("User not logged in"));
     }
 
@@ -760,42 +835,28 @@ function DashboardPageContent() {
     const revertOptimisticUpdate = () => {
       setOptimisticAttendances(prev => {
         const newMap = new Map(prev);
-        if (originalAttendance) {
-          newMap.set(matchId, originalAttendance);
-        } else {
-           newMap.delete(matchId);
-        }
+        if (originalAttendance) newMap.set(matchId, originalAttendance);
+        else newMap.delete(matchId);
         return newMap;
       });
     };
 
-    const data = {
-      userId: user.uid,
-      matchId: matchId,
-      status: newStatus,
-      note: note || '',
-    };
-
+    const data = { userId: user.uid, matchId: matchId, status: newStatus, note: note || '' };
     return setDoc(attendanceRef, data, { merge: true }).catch(async (error) => {
       revertOptimisticUpdate();
       toast({ variant: 'destructive', title: "Chyba", description: "Nepodařilo se uložit vaši účast." });
-      errorEmitter.emit('permission-error', new FirestorePermissionError({
-        operation: 'write', path: attendanceRef.path, requestResourceData: data,
-      }));
       throw error;
     });
   };
 
   const confirmAttendance = async () => {
     if (!attendanceData) return;
-    
     setIsSaving(true);
     try {
         await handleAttendanceChange(attendanceData.matchId, attendanceData.status, attendanceNote);
         setIsAttendanceDialogOpen(false);
-    } catch (error) {
-        // Error is handled inside handleAttendanceChange
-    } finally {
+    } catch (error) { /* handled in handleAttendanceChange */ } 
+    finally {
         setIsSaving(false);
         setAttendanceData(null);
         setAttendanceNote('');
@@ -910,42 +971,34 @@ function DashboardPageContent() {
     const goalieSaves = parseInt(formData.get('goalieSaves') as string, 10) || 0;
     const goalieShotsAgainst = parseInt(formData.get('goalieShotsAgainst') as string, 10) || 0;
 
-    const scorersData = [];
-    const playerStatUpdates = new Map<string, { goals: number, assists: number, gamesPlayed: number }>();
+    const scorersData: { goal: string, assist: string | null }[] = [];
+    const playerStatsMap = new Map<string, { goals: number, assists: number, gamesPlayed: number }>();
 
     for (let i = 0; i < team1Score; i++) {
         const goal = formData.get(`goal-${i}`) as string;
         const assist = formData.get(`assist-${i}`) as string;
         if (goal) {
-            scorersData.push({
-                goal,
-                assist: assist && assist !== 'none' ? assist : null,
-            });
-            const currentG = playerStatUpdates.get(goal) || { goals: 0, assists: 0, gamesPlayed: 0 };
-            playerStatUpdates.set(goal, { ...currentG, goals: currentG.goals + 1 });
+            scorersData.push({ goal, assist: assist && assist !== 'none' ? assist : null });
+            const gStat = playerStatsMap.get(goal) || { goals: 0, assists: 0, gamesPlayed: 0 };
+            playerStatsMap.set(goal, { ...gStat, goals: gStat.goals + 1 });
             if (assist && assist !== 'none') {
-                const currentA = playerStatUpdates.get(assist) || { goals: 0, assists: 0, gamesPlayed: 0 };
-                playerStatUpdates.set(assist, { ...currentA, assists: currentA.assists + 1 });
+                const aStat = playerStatsMap.get(assist) || { goals: 0, assists: 0, gamesPlayed: 0 };
+                playerStatsMap.set(assist, { ...aStat, assists: aStat.assists + 1 });
             }
         }
     }
 
-    const playersInMatch = new Set<string>();
+    // Determine everyone who played
+    const participants = new Set<string>();
     if (selectedMatch.lineup) {
-        Object.values(selectedMatch.lineup).forEach(p => { if(p) playersInMatch.add(p.id); });
+        Object.values(selectedMatch.lineup).forEach(p => { if(p) participants.add(p.id); });
     } else {
         const matchAttendees = attendancesByMatch.get(selectedMatch.id) || [];
-        matchAttendees.forEach(att => { if (att.status === 'going') playersInMatch.add(att.userId); });
+        matchAttendees.forEach(att => { if (att.status === 'going') participants.add(att.userId); });
     }
-    // Safety fallback: if no lineup/attendees, count scorers
-    if (playersInMatch.size === 0) {
-        playerStatUpdates.forEach((val, pid) => playersInMatch.add(pid));
-    }
-
-    playersInMatch.forEach(pid => {
-        const current = playerStatUpdates.get(pid) || { goals: 0, assists: 0, gamesPlayed: 0 };
-        playerStatUpdates.set(pid, { ...current, gamesPlayed: 1 });
-    });
+    // Safety: ensure scorers and goalie are always counted
+    playerStatsMap.forEach((_, pid) => participants.add(pid));
+    if (goalieId && goalieId !== 'none') participants.add(goalieId);
 
     const batch = writeBatch(firestore);
 
@@ -961,23 +1014,27 @@ function DashboardPageContent() {
           goalieShotsAgainst,
       });
       
-      for (const [userId, updates] of playerStatUpdates.entries()) {
-          const statDocRef = doc(firestore, 'users', userId, 'skaterStats', 'stats');
+      // Apply updates to all participants
+      const processedIds = new Set<string>();
+      for (const pid of participants) {
+          const statDocRef = doc(firestore, 'users', pid, 'skaterStats', 'stats');
+          const updates = playerStatsMap.get(pid) || { goals: 0, assists: 0, gamesPlayed: 0 };
           const update: any = {
+              historicalGamesPlayed: increment(1),
               historicalGoals: increment(updates.goals),
               historicalAssists: increment(updates.assists),
-              historicalGamesPlayed: increment(updates.gamesPlayed),
           };
           if (selectedMatch.type === 'playoff') {
               update.playoffGoals = increment(updates.goals);
               update.playoffAssists = increment(updates.assists);
-              update.playoffGamesPlayed = increment(updates.gamesPlayed);
+              update.playoffGamesPlayed = increment(1);
           } else if (selectedMatch.type === 'regular') {
               update.seasonGoals = increment(updates.goals);
               update.seasonAssists = increment(updates.assists);
-              update.seasonGamesPlayed = increment(updates.gamesPlayed);
+              update.seasonGamesPlayed = increment(1);
           }
           batch.set(statDocRef, update, { merge: true });
+          processedIds.add(pid);
       }
       
       if (goalieId && goalieId !== 'none') {
@@ -1024,19 +1081,16 @@ function DashboardPageContent() {
 
   const handleSaveLeague = async () => {
     if (!firestore) return;
-    
     setIsSaving(true);
     let seriesToSave = editablePlayoffSeries;
     if (editableIsPlayoffEnabled && seriesToSave.length === 0) {
         seriesToSave = [{ round: 'Čtvrtfinále', opponent: 'TBD', wins: 0, losses: 0 }];
     }
-
     const updatedSettings = {
         isPlayoffEnabled: editableIsPlayoffEnabled,
         playoffSeries: seriesToSave,
         leagueStandings: editableLeagueStandings,
     };
-
     try {
         const settingsRef = doc(firestore, 'settings', 'league');
         await setDoc(settingsRef, updatedSettings, { merge: true });
@@ -1049,14 +1103,10 @@ function DashboardPageContent() {
     }
   };
 
-  const handleCancelLeague = () => {
-    setIsLeagueEditMode(false);
-  };
+  const handleCancelLeague = () => setIsLeagueEditMode(false);
   
   const handleTeamNameChange = (teamId: string, newName: string) => {
-    setEditableLeagueStandings(current => current.map(t => 
-        t.id === teamId ? { ...t, name: newName } : t
-    ));
+    setEditableLeagueStandings(current => current.map(t => t.id === teamId ? { ...t, name: newName } : t));
   };
 
   const handleDeleteTeam = (teamId: string) => {
@@ -1064,28 +1114,15 @@ function DashboardPageContent() {
   };
 
   const handleAddNewTeam = () => {
-    setEditableLeagueStandings(current => [
-        ...current,
-        {
-            id: crypto.randomUUID(),
-            name: 'Nový tým',
-            points: 0,
-            gf: 0,
-            ga: 0,
-        }
-    ]);
+    setEditableLeagueStandings(current => [...current, { id: crypto.randomUUID(), name: 'Nový tým', points: 0, gf: 0, ga: 0 }]);
   };
-
 
   const handleLeagueChange = (teamId: string, stat: 'points' | 'gf' | 'ga', delta: number) => {
     setEditableLeagueStandings(currentStandings =>
       currentStandings.map(t => {
         if (t.id === teamId) {
           const newStatValue = t[stat] + delta;
-          return {
-            ...t,
-            [stat]: Math.max(0, newStatValue),
-          };
+          return { ...t, [stat]: Math.max(0, newStatValue) };
         }
         return t;
       })
@@ -1104,27 +1141,16 @@ function DashboardPageContent() {
       setEditablePlayoffSeries(currentSeries => {
           const newSeries = [...currentSeries];
           const seriesItem = { ...newSeries[index] };
-          
           seriesItem[field] = Math.max(0, seriesItem[field] + delta);
-          
           if (field === 'wins' && seriesItem.wins >= 3 && seriesItem.round !== 'Vítěz') {
               if (seriesItem.round === 'Čtvrtfinále') {
-                  seriesItem.round = 'Semifinále';
-                  seriesItem.opponent = 'TBD';
-                  seriesItem.wins = 0;
-                  seriesItem.losses = 0;
+                  seriesItem.round = 'Semifinále'; seriesItem.opponent = 'TBD'; seriesItem.wins = 0; seriesItem.losses = 0;
               } else if (seriesItem.round === 'Semifinále') {
-                  seriesItem.round = 'Finále';
-                  seriesItem.opponent = 'TBD';
-                  seriesItem.wins = 0;
-                  seriesItem.losses = 0;
+                  seriesItem.round = 'Finále'; seriesItem.opponent = 'TBD'; seriesItem.wins = 0; seriesItem.losses = 0;
               } else if (seriesItem.round === 'Finále') {
-                   seriesItem.round = 'Vítěz';
-                   seriesItem.opponent = '';
-                   seriesItem.wins = 3;
+                   seriesItem.round = 'Vítěz'; seriesItem.opponent = ''; seriesItem.wins = 3;
               }
           }
-          
           newSeries[index] = seriesItem;
           return newSeries;
       });
@@ -1138,7 +1164,7 @@ function DashboardPageContent() {
         } else if (scoringView === 'playoff') {
             setEditableSkaterStats(JSON.parse(JSON.stringify(teamScoring.map(p => ({ id: p.id, name: p.name, ...p.playoff })))));
             setEditableGoalieStats(JSON.parse(JSON.stringify(goalieLeaderboard.map(p => ({ id: p.id, name: p.name, ...p.playoff })))));
-        } else { // history
+        } else {
             setEditableSkaterStats(JSON.parse(JSON.stringify(teamScoring.map(p => ({ id: p.id, name: p.name, ...p.history })))));
             setEditableGoalieStats(JSON.parse(JSON.stringify(goalieLeaderboard.map(p => ({ id: p.id, name: p.name, ...p.history })))));
         }
@@ -1146,12 +1172,10 @@ function DashboardPageContent() {
 
     const handleSaveStatsClick = async () => {
         if (!firestore) return;
-
         setIsSaving(true);
         try {
             const batch = writeBatch(firestore);
-            let fieldPrefix = scoringView;
-            if (scoringView === 'history') fieldPrefix = 'historical';
+            let fieldPrefix = scoringView === 'history' ? 'historical' : scoringView;
 
             editableSkaterStats.forEach(player => {
                 const statRef = doc(firestore, 'users', player.id, 'skaterStats', 'stats');
@@ -1177,29 +1201,15 @@ function DashboardPageContent() {
             handleCancelStatsEditClick();
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se uložit statistiky.' });
-        } finally {
-            setIsSaving(false);
-        }
+        } finally { setIsSaving(false); }
     };
 
     const handleSkaterStatChange = (playerId: string, field: 'goals' | 'assists' | 'gamesPlayed', delta: number) => {
-        setEditableSkaterStats(current =>
-            current.map(p =>
-                p.id === playerId
-                    ? { ...p, [field]: Math.max(0, p[field] + delta) }
-                    : p
-            )
-        );
+        setEditableSkaterStats(current => current.map(p => p.id === playerId ? { ...p, [field]: Math.max(0, p[field] + delta) } : p));
     };
 
     const handleGoalieStatChange = (goalieId: string, field: 'gamesPlayed' | 'wins' | 'saves' | 'shotsAgainst', delta: number) => {
-        setEditableGoalieStats(current =>
-            current.map(g =>
-                g.id === goalieId
-                    ? { ...g, [field]: Math.max(0, g[field] + delta) }
-                    : g
-            )
-        );
+        setEditableGoalieStats(current => current.map(g => g.id === goalieId ? { ...g, [field]: Math.max(0, g[field] + delta) } : g));
     };
   
   const fallback = userProfile?.name?.split(' ').map(n => n[0]).join('').toUpperCase() ?? ''
@@ -1949,9 +1959,7 @@ function DashboardPageContent() {
           <DialogContent>
               <DialogHeader>
                   <DialogTitle>Upravit zápas</DialogTitle>
-                  <DialogDescription>
-                      Změňte podrobnosti o nadcházejícím zápase.
-                  </DialogDescription>
+                  <DialogDescription>Změňte podrobnosti o nadcházejícím zápase.</DialogDescription>
               </DialogHeader>
               {selectedMatch && <form onSubmit={handleMatchUpdate}>
                   <div className="grid gap-4 py-4">
@@ -2026,9 +2034,7 @@ function DashboardPageContent() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Opravdu chcete smazat tento zápas?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Tato akce je nevratná. Záznam o zápase bude trvale odstraněn.
-            </AlertDialogDescription>
+            <AlertDialogDescription>Tato akce je nevratná. Záznam o zápase bude trvale odstraněn.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isSaving} onClick={() => setSelectedMatch(null)}>Zrušit</AlertDialogCancel>
@@ -2058,9 +2064,7 @@ function DashboardPageContent() {
                         <>
                             <DialogHeader>
                                 <DialogTitle>Zapsat výsledek zápasu</DialogTitle>
-                                <DialogDescription>
-                                    Nelze zapsat výsledek, protože na zápas nejsou přihlášeni žádní hráči.
-                                </DialogDescription>
+                                <DialogDescription>Nelze zapsat výsledek, protože na zápas nejsou přihlášeni žádní hráči.</DialogDescription>
                             </DialogHeader>
                             <DialogFooter>
                                 <Button variant="outline" onClick={() => {
@@ -2082,9 +2086,7 @@ function DashboardPageContent() {
           <DialogContent>
               <DialogHeader>
                   <DialogTitle>Potvrdit účast</DialogTitle>
-                  <DialogDescription>
-                      Můžete přidat volitelnou poznámku ke své účasti.
-                  </DialogDescription>
+                  <DialogDescription>Můžete přidat volitelnou poznámku ke své účasti.</DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                   <Label htmlFor="attendance-note">Poznámka</Label>
@@ -2112,9 +2114,7 @@ function DashboardPageContent() {
         <Dialog open={isLineupBuilderOpen} onOpenChange={(isOpen) => {
             if (!isSaving) {
                 setIsLineupBuilderOpen(isOpen);
-                if (!isOpen) {
-                    setLineupMatch(null);
-                }
+                if (!isOpen) setLineupMatch(null);
             }
         }}>
             <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
@@ -2122,9 +2122,7 @@ function DashboardPageContent() {
                     <>
                         <DialogHeader>
                             <DialogTitle>Tvorba sestavy: {getMatchDetails(lineupMatch).fullTitle}</DialogTitle>
-                            <DialogDescription>
-                                Přetáhněte hráče na jejich pozice na hřišti.
-                            </DialogDescription>
+                            <DialogDescription>Přetáhněte hráče na jejich pozice na hřišti.</DialogDescription>
                         </DialogHeader>
                         <LineupBuilder
                             players={allUsers.filter(u => (attendancesByMatch.get(lineupMatch.id) || []).some(a => a.userId === u.id && a.status === 'going'))}
