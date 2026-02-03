@@ -559,15 +559,15 @@ function HistoryPageContent() {
                     };
                     if (matchType !== 'friendly') {
                         if (matchType === 'playoff') {
-                            update.playoffGamesPlayed = Math.max(0, (oldGoalieStats.playoffGamesPlayed || 0) - 1);
-                            update.playoffWins = Math.max(0, (oldGoalieStats.playoffWins || 0) - (oldIsWin ? 1 : 0));
-                            update.playoffSaves = Math.max(0, (oldGoalieStats.playoffSaves || 0) - (selectedMatch.goalieSaves || 0));
-                            update.playoffShotsAgainst = Math.max(0, (oldGoalieStats.playoffShotsAgainst || 0) - (selectedMatch.goalieShotsAgainst || 0));
+                            update.playoffGamesPlayed: Math.max(0, (oldGoalieStats.playoffGamesPlayed || 0) - 1);
+                            update.playoffWins: Math.max(0, (oldGoalieStats.playoffWins || 0) - (oldIsWin ? 1 : 0));
+                            update.playoffSaves: Math.max(0, (oldGoalieStats.playoffSaves || 0) - (selectedMatch.goalieSaves || 0));
+                            update.playoffShotsAgainst: Math.max(0, (oldGoalieStats.playoffShotsAgainst || 0) - (selectedMatch.goalieShotsAgainst || 0));
                         } else {
-                            update.seasonGamesPlayed = Math.max(0, (oldGoalieStats.seasonGamesPlayed || 0) - 1);
-                            update.seasonWins = Math.max(0, (oldGoalieStats.seasonWins || 0) - (oldIsWin ? 1 : 0));
-                            update.seasonSaves = Math.max(0, (oldGoalieStats.seasonSaves || 0) - (selectedMatch.goalieSaves || 0));
-                            update.seasonShotsAgainst = Math.max(0, (oldGoalieStats.seasonShotsAgainst || 0) - (selectedMatch.goalieShotsAgainst || 0));
+                            update.seasonGamesPlayed: Math.max(0, (oldGoalieStats.seasonGamesPlayed || 0) - 1);
+                            update.seasonWins: Math.max(0, (oldGoalieStats.seasonWins || 0) - (oldIsWin ? 1 : 0));
+                            update.seasonSaves: Math.max(0, (oldGoalieStats.seasonSaves || 0) - (selectedMatch.goalieSaves || 0));
+                            update.seasonShotsAgainst: Math.max(0, (oldGoalieStats.seasonShotsAgainst || 0) - (selectedMatch.goalieShotsAgainst || 0));
                         }
                     }
                     batch.update(oldGoalieStatRef, update);
@@ -595,15 +595,15 @@ function HistoryPageContent() {
 
                     if (matchType !== 'friendly') {
                         if (matchType === 'playoff') {
-                            update.playoffGamesPlayed = Math.max(0, (newGoalieStats.playoffGamesPlayed || 0) - oldGameVal + 1);
-                            update.playoffWins = Math.max(0, (newGoalieStats.playoffWins || 0) - oldWinVal + (newIsWin ? 1 : 0));
-                            update.playoffSaves = Math.max(0, (newGoalieStats.playoffSaves || 0) - oldSaves + goalieSaves);
-                            update.playoffShotsAgainst = Math.max(0, (newGoalieStats.playoffShotsAgainst || 0) - oldShots + goalieShotsAgainst);
+                            update.playoffGamesPlayed: Math.max(0, (newGoalieStats.playoffGamesPlayed || 0) - oldGameVal + 1);
+                            update.playoffWins: Math.max(0, (newGoalieStats.playoffWins || 0) - oldWinVal + (newIsWin ? 1 : 0));
+                            update.playoffSaves: Math.max(0, (newGoalieStats.playoffSaves || 0) - oldSaves + goalieSaves);
+                            update.playoffShotsAgainst: Math.max(0, (newGoalieStats.playoffShotsAgainst || 0) - oldShots + goalieShotsAgainst);
                         } else {
-                            update.seasonGamesPlayed = Math.max(0, (newGoalieStats.seasonGamesPlayed || 0) - oldGameVal + 1);
-                            update.seasonWins = Math.max(0, (newGoalieStats.seasonWins || 0) - oldWinVal + (newIsWin ? 1 : 0));
-                            update.seasonSaves = Math.max(0, (newGoalieStats.seasonSaves || 0) - oldSaves + goalieSaves);
-                            update.seasonShotsAgainst = Math.max(0, (newGoalieStats.seasonShotsAgainst || 0) - oldShots + goalieShotsAgainst);
+                            update.seasonGamesPlayed: Math.max(0, (newGoalieStats.seasonGamesPlayed || 0) - oldGameVal + 1);
+                            update.seasonWins: Math.max(0, (newGoalieStats.seasonWins || 0) - oldWinVal + (newIsWin ? 1 : 0));
+                            update.seasonSaves: Math.max(0, (newGoalieStats.seasonSaves || 0) - oldSaves + goalieSaves);
+                            update.seasonShotsAgainst: Math.max(0, (newGoalieStats.seasonShotsAgainst || 0) - oldShots + goalieShotsAgainst);
                         }
                     }
                     batch.update(newGoalieStatRef, update);
@@ -660,13 +660,13 @@ function HistoryPageContent() {
     return (
         <div className="py-4 sm:py-6 lg:py-8">
             <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
+                <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div>
                         <CardTitle>Historie zápasů</CardTitle>
                         <CardDescription>Přehled všech odehraných zápasů a jejich statistik.</CardDescription>
                     </div>
                     {userProfile?.role === 'admin' && (
-                        <Button onClick={() => setIsAddMatchDialogOpen(true)}>
+                        <Button onClick={() => setIsAddMatchDialogOpen(true)} className="w-full sm:w-auto">
                             <Plus className="mr-2 h-4 w-4" />
                             Přidat odehraný zápas
                         </Button>
@@ -768,7 +768,7 @@ function HistoryPageContent() {
                             })}
                         </Accordion>
                     ) : (
-                        <p className="text-muted-foreground text-center py-8">Zatím nebyly odehrány žádné zápasy.</p>
+                        <p className="text-muted-foreground text-center py-12">Zatím nebyly odehrány žádné zápasy.</p>
                     )}
                 </CardContent>
             </Card>

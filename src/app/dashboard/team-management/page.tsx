@@ -245,19 +245,17 @@ function TeamManagementContent() {
   return (
     <div className="py-8">
       <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-              <div>
-                <CardTitle>Správa týmu</CardTitle>
-                <CardDescription>
-                  Zde můžete spravovat uživatelské účty, měnit role a upravovat profily.
-                </CardDescription>
-              </div>
-              <Button onClick={() => setIsAddDialogOpen(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Přidat účet
-              </Button>
+        <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <CardTitle>Správa týmu</CardTitle>
+            <CardDescription>
+              Zde můžete spravovat uživatelské účty, měnit role a upravovat profily.
+            </CardDescription>
           </div>
+          <Button onClick={() => setIsAddDialogOpen(true)} className="w-full sm:w-auto">
+            <Plus className="mr-2 h-4 w-4" />
+            Přidat účet
+          </Button>
         </CardHeader>
         <CardContent>
           <Table>
@@ -298,7 +296,7 @@ function TeamManagementContent() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
-                    <DropdownMenu>
+                    <DropdownMenu modal={false}>
                         <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon">
                                 <MoreHorizontal className="h-4 w-4" />
@@ -490,5 +488,3 @@ export default function TeamManagementPage() {
         </Suspense>
     )
 }
-
-    
