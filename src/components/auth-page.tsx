@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useEffect } from 'react'
+import { useActionState, useEffect, useState } from 'react'
 import { useFormStatus } from 'react-dom'
 import { login, register } from '@/lib/actions'
 import { registerSchema } from '@/lib/schemas'
@@ -12,18 +12,19 @@ import { Label } from '@/components/ui/label'
 import { Logo } from '@/components/icons/logo'
 import { Loader2 } from 'lucide-react'
 import { useAuth, useFirestore, useUser } from '@/firebase'
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth'
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile, sendPasswordResetEmail } from 'firebase/auth'
 import { doc, setDoc } from 'firebase/firestore'
 import { useToast } from '@/hooks/use-toast'
 import { useRouter } from 'next/navigation'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 const initialLoginState = {
   errors: {},
   message: null,
 }
 
-function LoginForm() {
+function LoginForm({ onForgotPassword }: { onForgotPassword: () => void }) {
   const [state, dispatch] = useActionState(login, initialLoginState)
   const auth = useAuth()
   const { toast } = useToast()
@@ -54,7 +55,17 @@ function LoginForm() {
         {state.errors?.email && <p className="text-sm text-destructive">{state.errors.email[0]}</p>}
       </div>
       <div className="space-y-2">
-        <Label htmlFor="password">Heslo</Label>
+        <div className="flex items-center justify-between">
+          <Label htmlFor="password">Heslo</Label>
+          <Button 
+            variant="link" 
+            className="px-0 font-normal text-xs h-auto" 
+            type="button"
+            onClick={onForgotPassword}
+          >
+            Zapomněli jste heslo?
+          </Button>
+        </div>
         <Input id="password" name="password" type="password" required />
         {state.errors?.password && <p className="text-sm text-destructive">{state.errors.password[0]}</p>}
       </div>
@@ -216,13 +227,47 @@ function SubmitButton({ text, pendingText }: { text: string; pendingText: string
 
 export function AuthPage() {
   const { user, isUserLoading } = useUser()
+  const auth = useAuth()
+  const { toast } = useToast()
   const router = useRouter()
+
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false)
+  const [resetEmail, setResetEmail] = useState('')
+  const [isResetLoading, setIsResetLoading] = useState(false)
 
   useEffect(() => {
     if (!isUserLoading && user) {
       router.replace('/dashboard')
     }
   }, [user, isUserLoading, router])
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!auth || !resetEmail) return
+
+    setIsResetLoading(true)
+    try {
+      await sendPasswordResetEmail(auth, resetEmail)
+      toast({
+        title: "E-mail odeslán",
+        description: "Na váš e-mail jsme poslali odkaz pro obnovení hesla. Zkontrolujte prosím i složku se spamem.",
+      })
+      setIsResetDialogOpen(false)
+      setResetEmail('')
+    } catch (error: any) {
+      let message = "Nepodařilo se odeslat e-mail pro obnovu hesla."
+      if (error.code === 'auth/user-not-found') {
+        message = "Uživatel s tímto e-mailem neexistuje."
+      }
+      toast({
+        variant: "destructive",
+        title: "Chyba",
+        description: message,
+      })
+    } finally {
+      setIsResetLoading(false)
+    }
+  }
 
 
   if (isUserLoading || user) {
@@ -256,7 +301,7 @@ export function AuthPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <LoginForm />
+              <LoginForm onForgotPassword={() => setIsResetDialogOpen(true)} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -274,6 +319,41 @@ export function AuthPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Zapomenuté heslo</DialogTitle>
+            <DialogDescription>
+              Zadejte svůj e-mail a my vám pošleme odkaz pro nastavení nového hesla.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleResetPassword}>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="reset-email">E-mailová adresa</Label>
+                <Input 
+                  id="reset-email" 
+                  type="email" 
+                  placeholder="hrac@email.com" 
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  required 
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsResetDialogOpen(false)} disabled={isResetLoading}>
+                Zrušit
+              </Button>
+              <Button type="submit" disabled={isResetLoading || !resetEmail}>
+                {isResetLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Poslat odkaz
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
