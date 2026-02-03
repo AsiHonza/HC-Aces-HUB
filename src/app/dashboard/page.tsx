@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { MapPin, Users, Trophy, BarChart, Pencil, Check, X, Flame, Shield, Plus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal, FileText, View, Disc, Cake, Minus, ChevronDown } from "lucide-react"
+import { MapPin, Users, Trophy, BarChart, Pencil, Check, X, Flame, Shield, Plus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal, FileText, View, Disc, Cake, Minus, ChevronDown, ListOrdered } from "lucide-react"
 import { cn } from '@/lib/utils'
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase'
 import { doc, collection, collectionGroup, updateDoc, query, Timestamp, addDoc, orderBy, setDoc, deleteDoc } from 'firebase/firestore'
@@ -99,10 +99,26 @@ interface Attendance {
     note?: string;
 }
 
+interface LeagueStanding {
+    id: string;
+    name: string;
+    points: number;
+    gf: number;
+    ga: number;
+}
+
+interface PlayoffSeries {
+    round: 'Čtvrtfinále' | 'Semifinále' | 'Finále' | 'Vítěz';
+    opponent: string;
+    wins: number;
+    losses: number;
+}
+
 interface AppSettings {
   isPlayoffEnabled: boolean;
   isScoringInPlayoffMode: boolean;
-  playoffSeries: any[];
+  playoffSeries?: PlayoffSeries[];
+  leagueStandings?: LeagueStanding[];
 }
 
 function getMatchDetails(match: Match) {
@@ -274,6 +290,10 @@ function DashboardPageContent() {
   
   const [editableSkaterStats, setEditableSkaterStats] = useState<any[]>([]);
   const [editableGoalieStats, setEditableGoalieStats] = useState<any[]>([]);
+
+  // League Management States
+  const [isLeagueDialogOpen, setIsLeagueDialogOpen] = useState(false);
+  const [isPlayoffDialogOpen, setIsPlayoffDialogOpen] = useState(false);
 
   const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
   const { data: userProfile, isLoading: isUserProfileLoading } = useDoc<UserProfile>(userDocRef);
@@ -562,6 +582,99 @@ function DashboardPageContent() {
     }
   };
 
+  // League Standings and Playoff Series Save Logic
+  const handleSaveLeagueStandings = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!firestore) return;
+    setIsSaving(true);
+    try {
+        const formData = new FormData(e.currentTarget);
+        const teams: LeagueStanding[] = [];
+        const entries = Array.from(formData.entries());
+        
+        // Group by index
+        const teamGroups = new Map<number, Partial<LeagueStanding>>();
+        entries.forEach(([key, value]) => {
+            const match = key.match(/^(name|points|gf|ga)-(\d+)$/);
+            if (match) {
+                const [, field, idx] = match;
+                const index = parseInt(idx, 10);
+                if (!teamGroups.has(index)) teamGroups.set(index, {});
+                const group = teamGroups.get(index)!;
+                if (field === 'name') group.name = value as string;
+                else if (field === 'points') group.points = Number(value);
+                else if (field === 'gf') group.gf = Number(value);
+                else if (field === 'ga') group.ga = Number(value);
+            }
+        });
+
+        teamGroups.forEach((group, idx) => {
+            if (group.name) {
+                teams.push({
+                    id: `team-${idx}`,
+                    name: group.name,
+                    points: group.points || 0,
+                    gf: group.gf || 0,
+                    ga: group.ga || 0
+                });
+            }
+        });
+
+        await setDoc(doc(firestore, 'settings', 'league'), { leagueStandings: teams }, { merge: true });
+        toast({ title: "Tabulka uložena." });
+        setIsLeagueDialogOpen(false);
+    } catch (err: any) {
+        toast({ variant: 'destructive', title: "Chyba", description: "Nepodařilo se uložit tabulku." });
+    } finally {
+        setIsSaving(false);
+    }
+  };
+
+  const handleSavePlayoffSeries = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!firestore) return;
+    setIsSaving(true);
+    try {
+        const formData = new FormData(e.currentTarget);
+        const series: PlayoffSeries[] = [];
+        const entries = Array.from(formData.entries());
+        
+        const seriesGroups = new Map<number, Partial<PlayoffSeries>>();
+        entries.forEach(([key, value]) => {
+            const match = key.match(/^(round|opponent|wins|losses)-(\d+)$/);
+            if (match) {
+                const [, field, idx] = match;
+                const index = parseInt(idx, 10);
+                if (!seriesGroups.has(index)) seriesGroups.set(index, {});
+                const group = seriesGroups.get(index)!;
+                if (field === 'round') group.round = value as any;
+                else if (field === 'opponent') group.opponent = value as string;
+                else if (field === 'wins') group.wins = Number(value);
+                else if (field === 'losses') group.losses = Number(value);
+            }
+        });
+
+        seriesGroups.forEach((group) => {
+            if (group.opponent && group.round) {
+                series.push({
+                    round: group.round as any,
+                    opponent: group.opponent,
+                    wins: group.wins || 0,
+                    losses: group.losses || 0
+                });
+            }
+        });
+
+        await setDoc(doc(firestore, 'settings', 'league'), { playoffSeries: series }, { merge: true });
+        toast({ title: "Play-off série uloženy." });
+        setIsPlayoffDialogOpen(false);
+    } catch (err: any) {
+        toast({ variant: 'destructive', title: "Chyba", description: "Nepodařilo se uložit série." });
+    } finally {
+        setIsSaving(false);
+    }
+  };
+
   const renderMatchCard = (m: Match) => {
     const { prefix, opponent } = getMatchDetails(m);
     const attStatus = userAttendancesWithOptimistic.get(m.id)?.status;
@@ -691,6 +804,78 @@ function DashboardPageContent() {
                 </Accordion>
           )}
         </div>
+
+        {/* League and Playoff Section */}
+        <Card className="lg:col-span-3">
+            <CardHeader className="flex-row items-center justify-between">
+                <CardTitle className="flex items-center gap-2"><ListOrdered className="text-primary"/>Soutěž</CardTitle>
+                {userProfile?.role === 'admin' && (
+                    <div className="flex gap-2">
+                         <Button size="sm" variant="outline" onClick={() => setIsLeagueDialogOpen(true)}><Pencil className="h-3 mr-2" />Tabulka</Button>
+                         <Button size="sm" variant="outline" onClick={() => setIsPlayoffDialogOpen(true)}><Pencil className="h-3 mr-2" />Play-off</Button>
+                    </div>
+                )}
+            </CardHeader>
+            <CardContent>
+                <Tabs defaultValue="standings">
+                    <TabsList className="grid w-full grid-cols-2 mb-4">
+                        <TabsTrigger value="standings">Tabulka</TabsTrigger>
+                        <TabsTrigger value="playoff">Play-off série</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="standings">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className="w-8">#</TableHead>
+                                    <TableHead>Tým</TableHead>
+                                    <TableHead className="text-center">GF</TableHead>
+                                    <TableHead className="text-center">GA</TableHead>
+                                    <TableHead className="text-right">Body</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {(leagueSettings?.leagueStandings || [])
+                                    .sort((a,b) => b.points - a.points || (b.gf - b.ga) - (a.gf - a.ga))
+                                    .map((team, idx) => (
+                                    <TableRow key={team.id} className={cn(team.name.toLowerCase().includes('aces') && 'bg-primary/10 font-bold')}>
+                                        <TableCell>{idx + 1}.</TableCell>
+                                        <TableCell>{team.name}</TableCell>
+                                        <TableCell className="text-center">{team.gf}</TableCell>
+                                        <TableCell className="text-center">{team.ga}</TableCell>
+                                        <TableCell className="text-right font-bold">{team.points}</TableCell>
+                                    </TableRow>
+                                ))}
+                                {(!leagueSettings?.leagueStandings || leagueSettings.leagueStandings.length === 0) && (
+                                    <TableRow><TableCell colSpan={5} className="text-center py-4 text-muted-foreground italic">Tabulka zatím není vyplněna.</TableCell></TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </TabsContent>
+                    <TabsContent value="playoff">
+                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                            {(leagueSettings?.playoffSeries || []).map((series, idx) => (
+                                <Card key={idx} className="bg-muted/30">
+                                    <CardHeader className="pb-2">
+                                        <p className="text-[10px] font-bold text-primary uppercase">{series.round}</p>
+                                        <CardTitle className="text-lg">{series.opponent}</CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-sm font-medium">Stav série</p>
+                                            <p className="text-2xl font-bold text-primary">{series.wins} : {series.losses}</p>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            ))}
+                            {(!leagueSettings?.playoffSeries || leagueSettings.playoffSeries.length === 0) && (
+                                <div className="col-span-full py-8 text-center text-muted-foreground italic">Play-off série zatím nebyly definovány.</div>
+                            )}
+                        </div>
+                    </TabsContent>
+                </Tabs>
+            </CardContent>
+        </Card>
+
         <Card className="lg:col-span-3">
             <CardHeader><CardTitle className="flex items-center gap-2"><History className="text-primary" />Nedávné výsledky</CardTitle></CardHeader>
             <CardContent>
@@ -754,6 +939,8 @@ function DashboardPageContent() {
             </CardContent>
             <CardFooter className="pt-2"><Button variant="link" asChild className="p-0 h-auto font-bold text-primary"><Link href="/dashboard/history">Zobrazit celou historii</Link></Button></CardFooter>
         </Card>
+
+        {/* Scoring Leaderboards */}
         <div className="lg:col-span-3 grid gap-8 md:grid-cols-2">
             <Card>
                 <CardHeader className="flex-row items-center justify-between">
@@ -939,6 +1126,7 @@ function DashboardPageContent() {
         </div>
       </div>
       
+      {/* Existing Dialogs (Matches, Results, Attendance, Lineup) */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -1024,11 +1212,103 @@ function DashboardPageContent() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* League Standing Edit Dialog */}
+      <Dialog open={isLeagueDialogOpen} onOpenChange={setIsLeagueDialogOpen}>
+          <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                  <DialogTitle>Upravit ligovou tabulku</DialogTitle>
+                  <DialogDescription>Aktualizujte statistiky týmů v lize.</DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleSaveLeagueStandings}>
+                  <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-4 p-1">
+                        {Array.from({ length: 10 }).map((_, i) => (
+                            <div key={i} className="grid grid-cols-12 gap-2 items-end border-b pb-4 last:border-0">
+                                <div className="col-span-1 text-center font-bold text-muted-foreground pb-2">{i+1}.</div>
+                                <div className="col-span-5 space-y-1">
+                                    <Label className="text-[10px] uppercase">Název týmu</Label>
+                                    <Input name={`name-${i}`} defaultValue={leagueSettings?.leagueStandings?.[i]?.name || ''} placeholder="Tým" />
+                                </div>
+                                <div className="col-span-2 space-y-1">
+                                    <Label className="text-[10px] uppercase">GF</Label>
+                                    <Input name={`gf-${i}`} type="number" defaultValue={leagueSettings?.leagueStandings?.[i]?.gf || 0} />
+                                </div>
+                                <div className="col-span-2 space-y-1">
+                                    <Label className="text-[10px] uppercase">GA</Label>
+                                    <Input name={`ga-${i}`} type="number" defaultValue={leagueSettings?.leagueStandings?.[i]?.ga || 0} />
+                                </div>
+                                <div className="col-span-2 space-y-1">
+                                    <Label className="text-[10px] uppercase font-bold text-primary">Body</Label>
+                                    <Input name={`points-${i}`} type="number" defaultValue={leagueSettings?.leagueStandings?.[i]?.points || 0} className="font-bold border-primary" />
+                                </div>
+                            </div>
+                        ))}
+                  </div>
+                  <DialogFooter className="pt-4">
+                      <Button type="button" variant="outline" onClick={() => setIsLeagueDialogOpen(false)}>Zrušit</Button>
+                      <Button type="submit" disabled={isSaving}>Uložit tabulku</Button>
+                  </DialogFooter>
+              </form>
+          </DialogContent>
+      </Dialog>
+
+      {/* Playoff Series Edit Dialog */}
+      <Dialog open={isPlayoffDialogOpen} onOpenChange={setIsPlayoffDialogOpen}>
+          <DialogContent className="max-w-xl">
+              <DialogHeader>
+                  <DialogTitle>Upravit play-off série</DialogTitle>
+                  <DialogDescription>Nastavte aktuální soupeře a stavy sérií.</DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleSavePlayoffSeries}>
+                  <div className="grid gap-6 py-4 max-h-[60vh] overflow-y-auto pr-4 p-1">
+                        {Array.from({ length: 4 }).map((_, i) => (
+                            <div key={i} className="grid gap-4 p-4 border rounded-lg bg-muted/20">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <Label className="text-xs uppercase">Fáze</Label>
+                                        <Select name={`round-${i}`} defaultValue={leagueSettings?.playoffSeries?.[i]?.round || 'Čtvrtfinále'}>
+                                            <SelectTrigger><SelectValue /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="Čtvrtfinále">Čtvrtfinále</SelectItem>
+                                                <SelectItem value="Semifinále">Semifinále</SelectItem>
+                                                <SelectItem value="Finále">Finále</SelectItem>
+                                                <SelectItem value="Vítěz">Vítěz</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label className="text-xs uppercase">Soupeř</Label>
+                                        <Input name={`opponent-${i}`} defaultValue={leagueSettings?.playoffSeries?.[i]?.opponent || ''} placeholder="Název týmu" />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <Label className="text-xs uppercase">Výhry Aces</Label>
+                                        <Input name={`wins-${i}`} type="number" min="0" defaultValue={leagueSettings?.playoffSeries?.[i]?.wins || 0} />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label className="text-xs uppercase">Prohry Aces</Label>
+                                        <Input name={`losses-${i}`} type="number" min="0" defaultValue={leagueSettings?.playoffSeries?.[i]?.losses || 0} />
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                  </div>
+                  <DialogFooter className="pt-4">
+                      <Button type="button" variant="outline" onClick={() => setIsPlayoffDialogOpen(false)}>Zrušit</Button>
+                      <Button type="submit" disabled={isSaving}>Uložit série</Button>
+                  </DialogFooter>
+              </form>
+          </DialogContent>
+      </Dialog>
+
+      {/* Existing Match Result, Attendance, Lineup Dialogs */}
       <Dialog open={isResultDialogOpen} onOpenChange={setIsResultDialogOpen}>
           <DialogContent className="max-w-md">
               {selectedMatch && <RecordResultForm match={selectedMatch} allUsers={allUsers || []} onSave={handleSaveResult} onCancel={() => setIsResultDialogOpen(false)} isSaving={isSaving} />}
           </DialogContent>
       </Dialog>
+
       <Dialog open={isAttendanceDialogOpen} onOpenChange={setIsAttendanceDialogOpen}>
           <DialogContent>
               <DialogHeader><DialogTitle>Potvrdit účast</DialogTitle></DialogHeader>
@@ -1058,6 +1338,7 @@ function DashboardPageContent() {
               </DialogFooter>
           </DialogContent>
       </Dialog>
+
       <Dialog open={isLineupBuilderOpen} onOpenChange={setIsLineupBuilderOpen}>
         <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 overflow-hidden">
             <DialogHeader className="p-6 pb-0">
@@ -1082,6 +1363,7 @@ function DashboardPageContent() {
             }} onCancel={() => setIsLineupBuilderOpen(false)} />}
         </DialogContent>
       </Dialog>
+
       <Dialog open={isLineupViewOpen} onOpenChange={setIsLineupViewOpen}>
         <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 overflow-hidden">
             <DialogHeader className="p-6 pb-0">
@@ -1090,6 +1372,7 @@ function DashboardPageContent() {
             {viewLineupData && <LineupDisplay lineup={viewLineupData} />}
         </DialogContent>
       </Dialog>
+
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
           <AlertDialogContent>
               <AlertDialogHeader><AlertDialogTitle>Smazat zápas?</AlertDialogTitle></AlertDialogHeader>
@@ -1116,6 +1399,7 @@ function DashboardPageContent() {
               </AlertDialogFooter>
           </AlertDialogContent>
       </AlertDialog>
+
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
           <DialogContent>
               <DialogHeader><DialogTitle>Upravit zápas</DialogTitle></DialogHeader>
