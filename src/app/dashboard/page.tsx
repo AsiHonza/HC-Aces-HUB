@@ -62,8 +62,8 @@ interface GoalieStats {
   seasonSaves: number;
   playoffGamesPlayed: number;
   playoffWins: number;
-  playoffShotsAgainst: number;
   playoffSaves: number;
+  playoffShotsAgainst: number;
   historicalGamesPlayed: number;
   historicalWins: number;
   historicalShotsAgainst: number;
@@ -116,8 +116,15 @@ function getMatchDetails(match: Match) {
     return { prefix, opponent };
 }
 
+const formatName = (name: string) => {
+    if (!name) return '';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length < 2) return name;
+    return `${parts[0].charAt(0)}. ${parts.slice(1).join(' ')}`;
+};
+
 function RecordResultForm({ match, allUsers, onSave, onCancel, isSaving }: { match: Match, allUsers: UserProfile[], onSave: (e: React.FormEvent<HTMLFormElement>) => Promise<void>, onCancel: () => void, isSaving: boolean }) {
-    const [goalCount, setGoalCount] = useState(0);
+    const [goalCount, setGoalCount] = useState(match.team1Score || 0);
     const skaters = useMemo(() => allUsers.filter(u => u.playerType === 'player'), [allUsers]);
     const { prefix, opponent } = getMatchDetails(match);
 
@@ -135,11 +142,11 @@ function RecordResultForm({ match, allUsers, onSave, onCancel, isSaving }: { mat
                 <div className="grid grid-cols-2 items-center gap-4">
                     <div className="grid gap-2 text-center">
                         <Label htmlFor="team1Score">Aces</Label>
-                        <Input id="team1Score" name="team1Score" type="number" className="text-center text-2xl font-bold h-16" min="0" required onChange={(e) => setGoalCount(parseInt(e.target.value) || 0)} />
+                        <Input id="team1Score" name="team1Score" type="number" className="text-center text-2xl font-bold h-16" min="0" required defaultValue={match.team1Score} onChange={(e) => setGoalCount(parseInt(e.target.value) || 0)} />
                     </div>
                      <div className="grid gap-2 text-center">
                         <Label htmlFor="team2Score">Soupeř</Label>
-                        <Input id="team2Score" name="team2Score" type="number" className="text-center text-2xl font-bold h-16" min="0" required />
+                        <Input id="team2Score" name="team2Score" type="number" className="text-center text-2xl font-bold h-16" min="0" required defaultValue={match.team2Score} />
                     </div>
                 </div>
                 {goalCount > 0 && <p className="font-medium mt-4">Střelci</p>}
@@ -148,18 +155,18 @@ function RecordResultForm({ match, allUsers, onSave, onCancel, isSaving }: { mat
                         <div key={index} className="grid grid-cols-2 gap-2 items-center">
                             <div className="grid gap-1.5">
                                 <Label className="text-xs text-muted-foreground">Střelec</Label>
-                                <Select name={`goal-${index}`}>
+                                <Select name={`goal-${index}`} defaultValue={match.scorers?.[index]?.goal}>
                                     <SelectTrigger><SelectValue placeholder={`Vyberte hráče`} /></SelectTrigger>
-                                    <SelectContent>{skaters.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}</SelectContent>
+                                    <SelectContent>{skaters.map(u => <SelectItem key={u.id} value={u.id}>{formatName(u.name)}</SelectItem>)}</SelectContent>
                                 </Select>
                             </div>
                             <div className="grid gap-1.5">
                                 <Label className="text-xs text-muted-foreground">Asistence</Label>
-                                <Select name={`assist-${index}`} defaultValue="none">
+                                <Select name={`assist-${index}`} defaultValue={match.scorers?.[index]?.assist || "none"}>
                                     <SelectTrigger><SelectValue placeholder="Asistence" /></SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="none">Žádná</SelectItem>
-                                        {skaters.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+                                        {skaters.map(u => <SelectItem key={u.id} value={u.id}>{formatName(u.name)}</SelectItem>)}
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -178,7 +185,7 @@ function RecordResultForm({ match, allUsers, onSave, onCancel, isSaving }: { mat
     )
 }
 
-function StatAdjuster({ value, onChange, label }: { value: string, onChange: (val: string) => void, label?: string }) {
+function StatAdjuster({ value, onChange }: { value: string, onChange: (val: string) => void }) {
     const num = parseInt(value || '0', 10);
     const updateValue = (delta: number) => {
         const newVal = Math.max(0, num + delta);
@@ -296,7 +303,7 @@ function DashboardPageContent() {
       return allMatches.filter(match => match.isPlayed).sort((a, b) => b.dateTime.toDate().getTime() - a.dateTime.toDate().getTime());
   }, [allMatches]);
   
-  const recentPlayedMatches = useMemo(() => playedMatches.slice(0, 3), [playedMatches]);
+  const recentPlayedMatches = useMemo(() => playedMatches.slice(0, 5), [playedMatches]);
   const otherUpcomingMatches = useMemo(() => upcomingMatches?.slice(1) || [], [upcomingMatches]);
   const nextMatch = upcomingMatches?.[0];
     
@@ -309,7 +316,7 @@ function DashboardPageContent() {
       return allUsers.filter(u => u.playerType === 'player').map(u => {
           const stats = statsMap.get(u.id);
           return {
-              id: u.id, name: u.name,
+              id: u.id, name: formatName(u.name),
               season: { goals: stats?.seasonGoals ?? 0, assists: stats?.seasonAssists ?? 0, gamesPlayed: stats?.seasonGamesPlayed ?? 0 },
               playoff: { goals: stats?.playoffGoals ?? 0, assists: stats?.playoffAssists ?? 0, gamesPlayed: stats?.playoffGamesPlayed ?? 0 },
               history: { goals: stats?.historicalGoals ?? 0, assists: stats?.historicalAssists ?? 0, gamesPlayed: stats?.historicalGamesPlayed ?? 0 },
@@ -324,7 +331,7 @@ function DashboardPageContent() {
       return allUsers.filter(u => u.playerType === 'goalie').map(u => {
           const stats = statsMap.get(u.id);
           return {
-              id: u.id, name: u.name,
+              id: u.id, name: formatName(u.name),
               season: { gamesPlayed: stats?.seasonGamesPlayed ?? 0, wins: stats?.seasonWins ?? 0, shotsAgainst: stats?.seasonShotsAgainst ?? 0, saves: stats?.seasonSaves ?? 0 },
               playoff: { gamesPlayed: stats?.playoffGamesPlayed ?? 0, wins: stats?.playoffWins ?? 0, shotsAgainst: stats?.playoffShotsAgainst ?? 0, saves: stats?.playoffSaves ?? 0 },
               history: { gamesPlayed: stats?.historicalGamesPlayed ?? 0, wins: stats?.historicalWins ?? 0, shotsAgainst: stats?.historicalShotsAgainst ?? 0, saves: stats?.historicalSaves ?? 0 },
@@ -528,7 +535,8 @@ function DashboardPageContent() {
                     </div>
                     <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
                         {m.lineup && <Button variant="outline" size="sm" onClick={() => { setViewLineupData(m.lineup!); setIsLineupViewOpen(true); }}><View className="mr-2 h-4" /> Sestava</Button>}
-                        <Dialog><DialogTrigger asChild><Button variant="outline" size="sm"><Users className="mr-2 h-4" /> Účast: {goesCount}</Button></DialogTrigger>
+                        <Dialog>
+                            <DialogTrigger asChild><Button variant="outline" size="sm"><Users className="mr-2 h-4" /> Účast: {goesCount}</Button></DialogTrigger>
                             <DialogContent className="p-0">
                                 <DialogHeader className="p-6 pb-0">
                                     <DialogTitle>Účastníci</DialogTitle>
@@ -539,7 +547,7 @@ function DashboardPageContent() {
                                         return (
                                             <div key={att.userId} className={cn("flex items-center gap-3 p-2 rounded-lg border", att.status === 'going' ? "bg-green-500/5" : "bg-destructive/5")}>
                                                 <Avatar className="h-8 w-8"><AvatarImage src={p.photoURL || `https://picsum.photos/seed/${p.email}/80/80`} /><AvatarFallback>{p.name[0]}</AvatarFallback></Avatar>
-                                                <div className="flex-1"><p className="text-sm font-medium">{p.name}</p>{att.note && <p className="text-xs text-muted-foreground italic">"{att.note}"</p>}</div>
+                                                <div className="flex-1"><p className="text-sm font-medium">{formatName(p.name)}</p>{att.note && <p className="text-xs text-muted-foreground italic">"{att.note}"</p>}</div>
                                                 {att.status === 'going' ? <Check className="h-4 text-green-500" /> : <X className="h-4 text-destructive" />}
                                             </div>
                                         )
@@ -559,7 +567,7 @@ function DashboardPageContent() {
   return (
     <div className="py-8 space-y-8">
       {upcomingBirthdays.length > 0 && (
-          <Card className="border-l-4 border-l-accent bg-accent/5"><CardContent className="flex items-center gap-4 py-4"><Cake className="h-6 text-accent" /><div className="flex-1 text-sm"><span className="font-bold">Narozeniny: </span>{upcomingBirthdays.map((u, i) => (<span key={u.id} className="font-medium">{u.name} ({format(parseISO(u.dob!), "d. M.")}){i < upcomingBirthdays.length - 1 ? ', ' : ''}</span>))}</div></CardContent></Card>
+          <Card className="border-l-4 border-l-accent bg-accent/5"><CardContent className="flex items-center gap-4 py-4"><Cake className="h-6 text-accent" /><div className="flex-1 text-sm"><span className="font-bold">Narozeniny: </span>{upcomingBirthdays.map((u, i) => (<span key={u.id} className="font-medium">{formatName(u.name)} ({format(parseISO(u.dob!), "d. M.")}){i < upcomingBirthdays.length - 1 ? ', ' : ''}</span>))}</div></CardContent></Card>
       )}
       <div className="grid gap-8 lg:grid-cols-3">
         <Card className="p-6 text-center flex flex-col items-center">
@@ -615,16 +623,61 @@ function DashboardPageContent() {
         </div>
         <Card className="lg:col-span-3">
             <CardHeader><CardTitle className="flex items-center gap-2"><History className="text-primary" />Nedávné výsledky</CardTitle></CardHeader>
-            <CardContent className="space-y-3">{recentPlayedMatches.map(m => {
-                const { prefix, opponent } = getMatchDetails(m);
-                return (
-                    <div key={m.id} className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
-                        <div className="flex-1"><p className="text-[10px] text-muted-foreground uppercase">{format(m.dateTime.toDate(), "d. M.")}</p>{prefix && <p className="text-[9px] font-bold text-primary uppercase">{prefix}</p>}<p className="font-semibold">{opponent}</p></div>
-                        <div className="flex items-center gap-3"><span className="font-bold text-lg">{m.team1Score} : {m.team2Score}</span><Badge variant={(m.team1Score || 0) > (m.team2Score || 0) ? 'default' : 'destructive'}>{(m.team1Score || 0) > (m.team2Score || 0) ? 'V' : 'P'}</Badge></div>
-                    </div>
-                )
-            })}</CardContent>
-            <CardFooter><Button variant="link" asChild><Link href="/dashboard/history">Všechny výsledky</Link></Button></CardFooter>
+            <CardContent className="px-0">
+                <Accordion type="single" collapsible className="w-full">
+                    {recentPlayedMatches.map(m => {
+                        const { prefix, opponent } = getMatchDetails(m);
+                        const hasGoals = m.scorers && m.scorers.length > 0;
+                        return (
+                            <AccordionItem value={m.id} key={m.id} className="border-b last:border-0 border-muted">
+                                <AccordionTrigger className="hover:no-underline py-3 px-4 sm:px-6 [&>svg]:ml-2">
+                                    <div className="flex items-center justify-between w-full text-left gap-4">
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-[10px] text-muted-foreground uppercase leading-tight">{format(m.dateTime.toDate(), "d. M.")}</p>
+                                            {prefix && <p className="text-[9px] font-bold text-primary uppercase truncate">{prefix}</p>}
+                                            <p className="font-semibold text-sm sm:text-base truncate">{opponent}</p>
+                                        </div>
+                                        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                                            <span className="font-bold text-lg tabular-nums">{m.team1Score} : {m.team2Score}</span>
+                                            <Badge variant={(m.team1Score || 0) > (m.team2Score || 0) ? 'default' : 'destructive'} className="h-7 w-7 p-0 flex items-center justify-center shrink-0 rounded-md">
+                                                {(m.team1Score || 0) > (m.team2Score || 0) ? 'V' : 'P'}
+                                            </Badge>
+                                        </div>
+                                    </div>
+                                </AccordionTrigger>
+                                <AccordionContent className="bg-muted/30 px-4 sm:px-6 py-4">
+                                    {hasGoals ? (
+                                        <div className="space-y-3">
+                                            <div className="flex items-center gap-2 text-primary border-b border-primary/20 pb-1.5">
+                                                <Trophy className="h-4 w-4" />
+                                                <span className="text-xs font-bold uppercase tracking-wider">Bodování Aces</span>
+                                            </div>
+                                            <div className="grid gap-2.5">
+                                                {m.scorers!.map((s, i) => (
+                                                    <div key={i} className="flex items-center gap-3 text-sm">
+                                                        <Disc className="h-3.5 w-3.5 text-primary/60 shrink-0" />
+                                                        <div className="flex flex-wrap items-baseline gap-x-2">
+                                                            <span className="font-semibold">{formatName(usersMap.get(s.goal)?.name || 'Neznámý')}</span>
+                                                            {s.assist && (
+                                                                <span className="text-muted-foreground text-xs">(asistence: {formatName(usersMap.get(s.assist)?.name || '?')})</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col items-center justify-center py-4 text-muted-foreground">
+                                             <p className="text-sm italic">Žádné góly Aces nebyly zaznamenány.</p>
+                                        </div>
+                                    )}
+                                </AccordionContent>
+                            </AccordionItem>
+                        )
+                    })}
+                </Accordion>
+            </CardContent>
+            <CardFooter className="pt-2"><Button variant="link" asChild className="p-0 h-auto"><Link href="/dashboard/history">Všechny výsledky</Link></Button></CardFooter>
         </Card>
         <div className="lg:col-span-3 grid gap-8 md:grid-cols-2">
             <Card>
@@ -671,7 +724,7 @@ function DashboardPageContent() {
                                 {sortedTeamScoring.map(p => (
                                     <TableRow key={p.id} className={p.id === user?.uid ? 'bg-primary/10' : ''}>
                                         <TableCell>{String(p.rank || 0)}</TableCell>
-                                        <TableCell className="font-medium">{p.name || 'Neznámý'}</TableCell>
+                                        <TableCell className="font-medium whitespace-nowrap">{isStatEditMode ? p.name : p.name}</TableCell>
                                         {isStatEditMode ? (
                                             <>
                                                 <TableCell><StatAdjuster value={String(p.gamesPlayed || 0)} onChange={val => setEditableSkaterStats(cur => cur.map(it => it.id === p.id ? {...it, gamesPlayed: val} : it))} /></TableCell>
@@ -729,7 +782,7 @@ function DashboardPageContent() {
                             <TableBody>
                                 {sortedGoalieLeaderboard.map(g => (
                                     <TableRow key={g.id} className={g.id === user?.uid ? 'bg-primary/10' : ''}>
-                                        <TableCell className="font-medium">{g.name || 'Neznámý'}</TableCell>
+                                        <TableCell className="font-medium whitespace-nowrap">{g.name}</TableCell>
                                         {isStatEditMode ? (
                                             <>
                                                 <TableCell><StatAdjuster value={String(g.gamesPlayed || 0)} onChange={val => setEditableGoalieStats(cur => cur.map(it => it.id === g.id ? {...it, gamesPlayed: val} : it))} /></TableCell>
@@ -826,8 +879,24 @@ function DashboardPageContent() {
           </form>
         </DialogContent>
       </Dialog>
-      <Dialog open={isResultDialogOpen} onOpenChange={setIsResultDialogOpen}><DialogContent className="max-w-md">{selectedMatch && <RecordResultForm match={selectedMatch} allUsers={allUsers || []} onSave={handleSaveResult} onCancel={() => setIsResultDialogOpen(false)} isSaving={isSaving} />}</DialogContent></Dialog>
-      <Dialog open={isAttendanceDialogOpen} onOpenChange={setIsAttendanceDialogOpen}><DialogContent><DialogHeader><DialogTitle>Potvrdit účast</DialogTitle></DialogHeader><div className="py-4 space-y-2 p-1"><Label>Poznámka (volitelné)</Label><Textarea value={attendanceNote} onChange={e => setAttendanceNote(e.target.value)} placeholder="Např. přijdu později..." /></div><DialogFooter><Button variant="outline" onClick={() => setIsAttendanceDialogOpen(false)}>Zrušit</Button><Button onClick={async () => { if(!attendanceData || !user || !firestore) return; setIsSaving(true); setOptimisticAttendances(cur => new Map(cur).set(attendanceData.matchId, { status: attendanceData.status, note: attendanceNote })); await setDoc(doc(firestore, 'matches', attendanceData.matchId, 'attendees', user.uid), { userId: user.uid, matchId: attendanceData.matchId, status: attendanceData.status, note: attendanceNote }, { merge: true }); setIsAttendanceDialogOpen(false); setIsSaving(false); }}>Potvrdit</Button></DialogFooter></DialogContent></Dialog>
+      <Dialog open={isResultDialogOpen} onOpenChange={setIsResultDialogOpen}>
+          <DialogContent className="max-w-md">
+              {selectedMatch && <RecordResultForm match={selectedMatch} allUsers={allUsers || []} onSave={handleSaveResult} onCancel={() => setIsResultDialogOpen(false)} isSaving={isSaving} />}
+          </DialogContent>
+      </Dialog>
+      <Dialog open={isAttendanceDialogOpen} onOpenChange={setIsAttendanceDialogOpen}>
+          <DialogContent>
+              <DialogHeader><DialogTitle>Potvrdit účast</DialogTitle></DialogHeader>
+              <div className="py-4 space-y-2 p-1">
+                  <Label>Poznámka (volitelné)</Label>
+                  <Textarea value={attendanceNote} onChange={e => setAttendanceNote(e.target.value)} placeholder="Např. přijdu později..." />
+              </div>
+              <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsAttendanceDialogOpen(false)}>Zrušit</Button>
+                  <Button onClick={async () => { if(!attendanceData || !user || !firestore) return; setIsSaving(true); setOptimisticAttendances(cur => new Map(cur).set(attendanceData.matchId, { status: attendanceData.status, note: attendanceNote })); await setDoc(doc(firestore, 'matches', attendanceData.matchId, 'attendees', user.uid), { userId: user.uid, matchId: attendanceData.matchId, status: attendanceData.status, note: attendanceNote }, { merge: true }); setIsAttendanceDialogOpen(false); setIsSaving(false); }}>Potvrdit</Button>
+              </DialogFooter>
+          </DialogContent>
+      </Dialog>
       <Dialog open={isLineupBuilderOpen} onOpenChange={setIsLineupBuilderOpen}>
         <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 overflow-hidden">
             <DialogHeader className="p-6 pb-0">
@@ -844,40 +913,64 @@ function DashboardPageContent() {
             {viewLineupData && <LineupDisplay lineup={viewLineupData} />}
         </DialogContent>
       </Dialog>
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Smazat zápas?</AlertDialogTitle></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Zrušit</AlertDialogCancel><AlertDialogAction className="bg-destructive" onClick={async () => { if(!selectedMatch || !firestore) return; setIsSaving(true); try { await deleteDoc(doc(firestore, 'matches', selectedMatch.id)); toast({ title: "Zápas smazán" }); } catch (e: any) { toast({ variant: "destructive", title: "Chyba" }); } finally { setIsSaving(false); setIsDeleteDialogOpen(false); setSelectedMatch(null); } }}>Smazat</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}><DialogContent><DialogHeader><DialogTitle>Upravit zápas</DialogTitle></DialogHeader>{selectedMatch && <form onSubmit={async e => { e.preventDefault(); if(!firestore || !selectedMatch) return; setIsSaving(true); const fd = new FormData(e.currentTarget); const dt = parse(`${fd.get('date')} ${fd.get('time')}`, 'yyyy-MM-dd HH:mm', new Date()); 
-        const upd: any = { team2: fd.get('opponent'), location: fd.get('location'), dateTime: Timestamp.fromDate(dt), type: fd.get('type') };
-        if (upd.type === 'regular') upd.round = Number(fd.get('round')) || null;
-        else if (upd.type === 'playoff') {
-            upd.playoffStage = fd.get('playoffStage');
-            upd.playoffMatchNumber = Number(fd.get('playoffMatchNumber')) || null;
-        }
-        await updateDoc(doc(firestore, 'matches', selectedMatch.id), upd); 
-        setIsEditDialogOpen(false); setIsSaving(false); toast({ title: "Změny uloženy" }); 
-      }}><div className="grid gap-6 py-4 p-1"><div className="grid gap-2"><Label>Soupeř</Label><Input name="opponent" defaultValue={selectedMatch.team2} required /></div><div className="grid grid-cols-2 gap-4"><div className="grid gap-2"><Label>Datum</Label><Input name="date" type="date" defaultValue={format(selectedMatch.dateTime.toDate(), 'yyyy-MM-dd')} required /></div><div className="grid gap-2"><Label>Čas</Label><Input name="time" type="time" defaultValue={format(selectedMatch.dateTime.toDate(), 'HH:mm')} required /></div></div><div className="grid gap-2"><Label>Místo</Label><Input name="location" defaultValue={selectedMatch.location} required /></div><div className="grid gap-2"><Label>Typ</Label><Select name="type" required defaultValue={selectedMatch.type} onValueChange={(v) => {
-      }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="regular">Základní část</SelectItem><SelectItem value="playoff">Play-off</SelectItem></SelectContent></Select></div>
-      <div className="grid gap-2">
-        <Label>Detaily kola / fáze</Label>
-        <div className="text-xs text-muted-foreground italic">Při změně typu nezapomeňte upravit detaily v polích níže.</div>
-      </div>
-      <div className="grid gap-4 border p-3 rounded-lg bg-muted/20">
-        <div className="grid gap-2"><Label>Kolo (Zákl. část)</Label><Input name="round" type="number" defaultValue={selectedMatch.round || ''} placeholder="Číslo kola" /></div>
-        <div className="grid grid-cols-2 gap-4">
-            <div className="grid gap-2">
-                <Label>Fáze (Play-off)</Label>
-                <Select name="playoffStage" defaultValue={selectedMatch.playoffStage || 'čtvrtfinále'}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="čtvrtfinále">Čtvrtfinále</SelectItem>
-                        <SelectItem value="semifinále">Semifinále</SelectItem>
-                        <SelectItem value="finále">Finále</SelectItem>
-                    </SelectContent>
-                </Select>
-            </div>
-            <div className="grid gap-2"><Label>Zápas č. (Play-off)</Label><Input name="playoffMatchNumber" type="number" defaultValue={selectedMatch.playoffMatchNumber || ''} placeholder="Pořadí v sérii" /></div>
-        </div>
-      </div>
-      </div><DialogFooter><Button type="submit">Uložit</Button></DialogFooter></form>}</DialogContent></Dialog>
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <AlertDialogContent>
+              <AlertDialogHeader><AlertDialogTitle>Smazat zápas?</AlertDialogTitle></AlertDialogHeader>
+              <AlertDialogFooter>
+                  <AlertDialogCancel>Zrušit</AlertDialogCancel>
+                  <AlertDialogAction className="bg-destructive" onClick={async () => { if(!selectedMatch || !firestore) return; setIsSaving(true); try { await deleteDoc(doc(firestore, 'matches', selectedMatch.id)); toast({ title: "Zápas smazán" }); } catch (e: any) { toast({ variant: "destructive", title: "Chyba" }); } finally { setIsSaving(false); setIsDeleteDialogOpen(false); setSelectedMatch(null); } }}>Smazat</AlertDialogAction>
+              </AlertDialogFooter>
+          </AlertDialogContent>
+      </AlertDialog>
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent>
+              <DialogHeader><DialogTitle>Upravit zápas</DialogTitle></DialogHeader>
+              {selectedMatch && <form onSubmit={async e => { e.preventDefault(); if(!firestore || !selectedMatch) return; setIsSaving(true); const fd = new FormData(e.currentTarget); const dt = parse(`${fd.get('date')} ${fd.get('time')}`, 'yyyy-MM-dd HH:mm', new Date()); 
+                const upd: any = { team2: fd.get('opponent'), location: fd.get('location'), dateTime: Timestamp.fromDate(dt), type: fd.get('type') };
+                if (upd.type === 'regular') upd.round = Number(fd.get('round')) || null;
+                else if (upd.type === 'playoff') {
+                    upd.playoffStage = fd.get('playoffStage');
+                    upd.playoffMatchNumber = Number(fd.get('playoffMatchNumber')) || null;
+                }
+                await updateDoc(doc(firestore, 'matches', selectedMatch.id), upd); 
+                setIsEditDialogOpen(false); setIsSaving(false); toast({ title: "Změny uloženy" }); 
+              }}>
+                  <div className="grid gap-6 py-4 p-1">
+                      <div className="grid gap-2"><Label>Soupeř</Label><Input name="opponent" defaultValue={selectedMatch.team2} required /></div>
+                      <div className="grid grid-cols-2 gap-4">
+                          <div className="grid gap-2"><Label>Datum</Label><Input name="date" type="date" defaultValue={format(selectedMatch.dateTime.toDate(), 'yyyy-MM-dd')} required /></div>
+                          <div className="grid gap-2"><Label>Čas</Label><Input name="time" type="time" defaultValue={format(selectedMatch.dateTime.toDate(), 'HH:mm')} required /></div>
+                      </div>
+                      <div className="grid gap-2"><Label>Místo</Label><Input name="location" defaultValue={selectedMatch.location} required /></div>
+                      <div className="grid gap-2">
+                          <Label>Typ</Label>
+                          <Select name="type" required defaultValue={selectedMatch.type}>
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent><SelectItem value="regular">Základní část</SelectItem><SelectItem value="playoff">Play-off</SelectItem></SelectContent>
+                          </Select>
+                      </div>
+                      <div className="grid gap-4 border p-3 rounded-lg bg-muted/20">
+                        <div className="grid gap-2"><Label>Kolo (Zákl. část)</Label><Input name="round" type="number" defaultValue={selectedMatch.round || ''} placeholder="Číslo kola" /></div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="grid gap-2">
+                                <Label>Fáze (Play-off)</Label>
+                                <Select name="playoffStage" defaultValue={selectedMatch.playoffStage || 'čtvrtfinále'}>
+                                    <SelectTrigger><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="čtvrtfinále">Čtvrtfinále</SelectItem>
+                                        <SelectItem value="semifinále">Semifinále</SelectItem>
+                                        <SelectItem value="finále">Finále</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="grid gap-2"><Label>Zápas č. (Play-off)</Label><Input name="playoffMatchNumber" type="number" defaultValue={selectedMatch.playoffMatchNumber || ''} placeholder="Pořadí v sérii" /></div>
+                        </div>
+                      </div>
+                  </div>
+                  <DialogFooter><Button type="submit">Uložit</Button></DialogFooter>
+              </form>}
+          </DialogContent>
+      </Dialog>
     </div>
   )
 }
