@@ -598,34 +598,93 @@ function DashboardPageContent() {
                     <CardTitle className="flex items-center gap-2"><Flame className="text-primary"/>Bodování</CardTitle>
                     {userProfile?.role === 'admin' && (isStatEditMode ? <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => setIsStatEditMode(false)}>Zrušit</Button><Button size="sm" onClick={handleSaveStatsManual}>Uložit</Button></div> : <Button size="sm" variant="outline" onClick={() => { setEditableSkaterStats(teamScoring.map(p => ({ ...p[scoringView], id: p.id, name: p.name }))); setIsStatEditMode(true); }}><Pencil className="h-3 mr-2" />Upravit</Button>)}
                 </CardHeader>
-                <CardContent><Tabs value={scoringView} onValueChange={(v) => setScoringView(v as any)}>
-                    <TabsList className="grid w-full grid-cols-3 mb-4"><TabsTrigger value="season">Sezóna</TabsTrigger><TabsTrigger value="playoff" disabled={!isScoringInPlayoffMode}>Play-off</TabsTrigger><TabsTrigger value="history">Historie</TabsTrigger></TabsList>
-                    <Table><TableHeader><TableRow><TableHead className="w-8">#</TableHead><TableHead>Hráč</TableHead><TableHead className="text-center">Z</TableHead><TableHead className="text-center">G</TableHead><TableHead className="text-center">A</TableHead><TableHead className="text-right">B</TableHead></TableRow></TableHeader>
-                        <TableBody>{sortedTeamScoring.map(p => (
-                            <TableRow key={p.id} className={p.id === user?.uid ? 'bg-primary/10' : ''}><TableCell>{p.rank}</TableCell><TableCell className="font-medium">{p.name}</TableCell>
-                                {isStatEditMode ? (<><TableCell><Input className="h-7 w-12 text-center" type="number" value={p.gamesPlayed} onChange={e => setEditableSkaterStats(cur => cur.map(it => it.id === p.id ? {...it, gamesPlayed: parseInt(e.target.value)||0} : it))} /></TableCell><TableCell><Input className="h-7 w-12 text-center" type="number" value={p.goals} onChange={e => setEditableSkaterStats(cur => cur.map(it => it.id === p.id ? {...it, goals: parseInt(e.target.value)||0} : it))} /></TableCell><TableCell><Input className="h-7 w-12 text-center" type="number" value={p.assists} onChange={e => setEditableSkaterStats(cur => cur.map(it => it.id === p.id ? {...it, assists: parseInt(e.target.value)||0} : it))} /></TableCell></>) : (<><TableCell className="text-center">{p.gamesPlayed}</TableCell><TableCell className="text-center">{p.goals}</TableCell><TableCell className="text-center">{p.assists}</TableCell></>)}
-                                <TableCell className="text-right font-bold">{p.points}</TableCell>
-                            </TableRow>
-                        ))}</TableBody>
-                    </Table>
-                </Tabs></CardContent>
+                <CardContent>
+                    <Tabs value={scoringView} onValueChange={(v) => { if (!isStatEditMode) setScoringView(v as any); }}>
+                        <TabsList className="grid w-full grid-cols-3 mb-4">
+                            <TabsTrigger value="season">Sezóna</TabsTrigger>
+                            <TabsTrigger value="playoff" disabled={!isScoringInPlayoffMode}>Play-off</TabsTrigger>
+                            <TabsTrigger value="history">Historie</TabsTrigger>
+                        </TabsList>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className="w-8">#</TableHead>
+                                    <TableHead>Hráč</TableHead>
+                                    <TableHead className="text-center">Z</TableHead>
+                                    <TableHead className="text-center">G</TableHead>
+                                    <TableHead className="text-center">A</TableHead>
+                                    <TableHead className="text-right">B</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {sortedTeamScoring.map(p => (
+                                    <TableRow key={p.id} className={p.id === user?.uid ? 'bg-primary/10' : ''}>
+                                        <TableCell>{p.rank}</TableCell>
+                                        <TableCell className="font-medium">{p.name}</TableCell>
+                                        {isStatEditMode ? (
+                                            <>
+                                                <TableCell><Input className="h-7 w-12 text-center" type="number" value={p.gamesPlayed} onChange={e => setEditableSkaterStats(cur => cur.map(it => it.id === p.id ? {...it, gamesPlayed: parseInt(e.target.value)||0} : it))} /></TableCell>
+                                                <TableCell><Input className="h-7 w-12 text-center" type="number" value={p.goals} onChange={e => setEditableSkaterStats(cur => cur.map(it => it.id === p.id ? {...it, goals: parseInt(e.target.value)||0} : it))} /></TableCell>
+                                                <TableCell><Input className="h-7 w-12 text-center" type="number" value={p.assists} onChange={e => setEditableSkaterStats(cur => cur.map(it => it.id === p.id ? {...it, assists: parseInt(e.target.value)||0} : it))} /></TableCell>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <TableCell className="text-center">{p.gamesPlayed}</TableCell>
+                                                <TableCell className="text-center">{p.goals}</TableCell>
+                                                <TableCell className="text-center">{p.assists}</TableCell>
+                                            </>
+                                        )}
+                                        <TableCell className="text-right font-bold">{p.points}</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </Tabs>
+                </CardContent>
             </Card>
             <Card>
                 <CardHeader className="flex-row items-center justify-between">
                     <CardTitle className="flex items-center gap-2"><Shield className="text-primary"/>Brankáři</CardTitle>
                     {userProfile?.role === 'admin' && (isStatEditMode ? null : <Button size="sm" variant="outline" onClick={() => { setEditableGoalieStats(goalieLeaderboard.map(g => ({ ...g[scoringView], id: g.id, name: g.name }))); setIsStatEditMode(true); }}><Pencil className="h-3 mr-2" />Upravit</Button>)}
                 </CardHeader>
-                <CardContent><Tabs value={scoringView} onValueChange={(v) => setScoringView(v as any)}>
-                    <TabsList className="grid w-full grid-cols-3 mb-4"><TabsTrigger value="season">Sezóna</TabsTrigger><TabsTrigger value="playoff" disabled={!isScoringInPlayoffMode}>Play-off</TabsTrigger><TabsTrigger value="history">Historie</TabsTrigger></TabsList>
-                    <Table><TableHeader><TableRow><TableHead>Jméno</TableHead><TableHead className="text-center">Z</TableHead><TableHead className="text-center">V</TableHead><TableHead className="text-right">Úspěšnost</TableHead></TableRow></TableHeader>
-                        <TableBody>{sortedGoalieLeaderboard.map(g => (
-                            <TableRow key={g.id} className={g.id === user?.uid ? 'bg-primary/10' : ''}><TableCell className="font-medium">{g.name}</TableCell>
-                                {isStatEditMode ? (<><TableCell><Input className="h-7 w-12 text-center" type="number" value={g.gamesPlayed} onChange={e => setEditableGoalieStats(cur => cur.map(it => it.id === g.id ? {...it, gamesPlayed: parseInt(e.target.value)||0} : it))} /></TableCell><TableCell><Input className="h-7 w-12 text-center" type="number" value={g.wins} onChange={e => setEditableGoalieStats(cur => cur.map(it => it.id === g.id ? {...it, wins: parseInt(e.target.value)||0} : it))} /></TableCell></>) : (<><TableCell className="text-center">{g.gamesPlayed}</TableCell><TableCell className="text-center">{g.wins}</TableCell></>)}
-                                <TableCell className="text-right font-bold">{g.savePercentage.toFixed(2)}%</TableCell>
-                            </TableRow>
-                        ))}</TableBody>
-                    </Table>
-                </Tabs></CardContent>
+                <CardContent>
+                    <Tabs value={scoringView} onValueChange={(v) => { if (!isStatEditMode) setScoringView(v as any); }}>
+                        <TabsList className="grid w-full grid-cols-3 mb-4">
+                            <TabsTrigger value="season">Sezóna</TabsTrigger>
+                            <TabsTrigger value="playoff" disabled={!isScoringInPlayoffMode}>Play-off</TabsTrigger>
+                            <TabsTrigger value="history">Historie</TabsTrigger>
+                        </TabsList>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Jméno</TableHead>
+                                    <TableHead className="text-center">Z</TableHead>
+                                    <TableHead className="text-center">V</TableHead>
+                                    <TableHead className="text-right">Úspěšnost</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {sortedGoalieLeaderboard.map(g => (
+                                    <TableRow key={g.id} className={g.id === user?.uid ? 'bg-primary/10' : ''}>
+                                        <TableCell className="font-medium">{g.name}</TableCell>
+                                        {isStatEditMode ? (
+                                            <>
+                                                <TableCell><Input className="h-7 w-12 text-center" type="number" value={g.gamesPlayed} onChange={e => setEditableGoalieStats(cur => cur.map(it => it.id === g.id ? {...it, gamesPlayed: parseInt(e.target.value)||0} : it))} /></TableCell>
+                                                <TableCell><Input className="h-7 w-12 text-center" type="number" value={g.wins} onChange={e => setEditableGoalieStats(cur => cur.map(it => it.id === g.id ? {...it, wins: parseInt(e.target.value)||0} : it))} /></TableCell>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <TableCell className="text-center">{g.gamesPlayed}</TableCell>
+                                                <TableCell className="text-center">{g.wins}</TableCell>
+                                            </>
+                                        )}
+                                        <TableCell className="text-right font-bold">{g.savePercentage.toFixed(2)}%</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </Tabs>
+                </CardContent>
             </Card>
         </div>
       </div>

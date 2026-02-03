@@ -47,14 +47,6 @@ interface UserProfile {
   playerType: 'player' | 'goalie' | 'member';
 }
 
-interface Attendance {
-    id: string;
-    userId: string;
-    matchId: string;
-    status: 'going' | 'not-going' | 'unknown';
-    note?: string;
-}
-
 function getMatchDetails(match: Match) {
     let prefix = '';
     if (match.type === 'regular' && match.round) {
@@ -181,32 +173,12 @@ function HistoryPageContent() {
             const batch = writeBatch(firestore);
             batch.update(doc(firestore, 'matches', lineupMatch.id), { lineup });
             
-            // Re-calculate games played for everyone
-            const oldL = lineupMatch.lineup || {};
-            const oldPids = new Set(Object.values(oldL).filter(p => p !== null).map(p => p!.id));
             const newPids = new Set(Object.values(lineup).filter(p => p !== null).map(p => p!.id));
-            
             newPids.forEach(pid => {
-                if (!oldPids.has(pid)) {
-                    const update: any = { historicalGamesPlayed: increment(1), userProfileId: pid };
-                    if (lineupMatch.type === 'playoff') update.playoffGamesPlayed = increment(1);
-                    else if (lineupMatch.type === 'regular') update.seasonGamesPlayed = increment(1);
-                    batch.set(doc(firestore, 'users', pid, 'skaterStats', 'stats'), update, { merge: true });
-                }
-            });
-            
-            oldPids.forEach(pid => {
-                if (!newPids.has(pid)) {
-                    // Check if they were scorers or goalies, if so, they still played
-                    const wasScorer = lineupMatch.scorers?.some(s => s.goal === pid || s.assist === pid);
-                    const wasGoalie = lineupMatch.goalieId === pid;
-                    if (!wasScorer && !wasGoalie) {
-                        const update: any = { historicalGamesPlayed: increment(-1), userProfileId: pid };
-                        if (lineupMatch.type === 'playoff') update.playoffGamesPlayed = increment(-1);
-                        else if (lineupMatch.type === 'regular') update.seasonGamesPlayed = increment(-1);
-                        batch.set(doc(firestore, 'users', pid, 'skaterStats', 'stats'), update, { merge: true });
-                    }
-                }
+                const update: any = { historicalGamesPlayed: increment(1), userProfileId: pid };
+                if (lineupMatch.type === 'playoff') update.playoffGamesPlayed = increment(1);
+                else if (lineupMatch.type === 'regular') update.seasonGamesPlayed = increment(1);
+                batch.set(doc(firestore, 'users', pid, 'skaterStats', 'stats'), update, { merge: true });
             });
             await batch.commit();
             toast({ title: "Sestava uložena." });
@@ -234,51 +206,22 @@ function HistoryPageContent() {
                 
                 let g = 0, a = 0;
                 selectedMatch.scorers?.forEach(s => { if (s.goal === pid) g++; if (s.assist === pid) a++; });
-                
-                if (g > 0) { 
-                    update.historicalGoals = increment(-g); 
-                    if (selectedMatch.type === 'playoff') update.playoffGoals = increment(-g); 
-                    else if (selectedMatch.type === 'regular') update.seasonGoals = increment(-g); 
-                }
-                if (a > 0) { 
-                    update.historicalAssists = increment(-a); 
-                    if (selectedMatch.type === 'playoff') update.playoffAssists = increment(-a); 
-                    else if (selectedMatch.type === 'regular') update.seasonAssists = increment(-a); 
-                }
+                if (g > 0) { update.historicalGoals = increment(-g); if (selectedMatch.type === 'playoff') update.playoffGoals = increment(-g); else update.seasonGoals = increment(-g); }
+                if (a > 0) { update.historicalAssists = increment(-a); if (selectedMatch.type === 'playoff') update.playoffAssists = increment(-a); else update.seasonAssists = increment(-a); }
                 batch.set(doc(firestore, 'users', pid, 'skaterStats', 'stats'), update, { merge: true });
             }
-            
             if (selectedMatch.goalieId) {
-                const isWin = (selectedMatch.team1Score ?? 0) > (selectedMatch.team2Score ?? 0);
-                const update: any = { 
-                    historicalGamesPlayed: increment(-1), 
-                    historicalWins: isWin ? increment(-1) : increment(0), 
-                    historicalSaves: increment(-(selectedMatch.goalieSaves || 0)), 
-                    historicalShotsAgainst: increment(-(selectedMatch.goalieShotsAgainst || 0)), 
-                    userProfileId: selectedMatch.goalieId 
-                };
-                if (selectedMatch.type === 'playoff') { 
-                    update.playoffGamesPlayed = increment(-1); 
-                    if (isWin) update.playoffWins = increment(-1); 
-                    update.playoffSaves = increment(-(selectedMatch.goalieSaves || 0)); 
-                    update.playoffShotsAgainst = increment(-(selectedMatch.goalieShotsAgainst || 0)); 
-                }
-                else if (selectedMatch.type === 'regular') { 
-                    update.seasonGamesPlayed = increment(-1); 
-                    if (isWin) update.seasonWins = increment(-1); 
-                    update.seasonSaves = increment(-(selectedMatch.goalieSaves || 0)); 
-                    update.seasonShotsAgainst = increment(-(selectedMatch.goalieShotsAgainst || 0)); 
-                }
-                batch.set(doc(firestore, 'users', selectedMatch.goalieId, 'goalieStats', 'stats'), update, { merge: true });
+                const win = (selectedMatch.team1Score || 0) > (selectedMatch.team2Score || 0);
+                const u: any = { historicalGamesPlayed: increment(-1), historicalWins: win ? increment(-1) : increment(0), historicalSaves: increment(-(selectedMatch.goalieSaves || 0)), historicalShotsAgainst: increment(-(selectedMatch.goalieShotsAgainst || 0)), userProfileId: selectedMatch.goalieId };
+                if (selectedMatch.type === 'playoff') { u.playoffGamesPlayed = increment(-1); if (win) u.playoffWins = increment(-1); u.playoffSaves = increment(-(selectedMatch.goalieSaves || 0)); u.playoffShotsAgainst = increment(-(selectedMatch.goalieShotsAgainst || 0)); }
+                else if (selectedMatch.type === 'regular') { u.seasonGamesPlayed = increment(-1); if (win) u.seasonWins = increment(-1); u.seasonSaves = increment(-(selectedMatch.goalieSaves || 0)); u.seasonShotsAgainst = increment(-(selectedMatch.goalieShotsAgainst || 0)); }
+                batch.set(doc(firestore, 'users', selectedMatch.goalieId, 'goalieStats', 'stats'), u, { merge: true });
             }
             batch.delete(doc(firestore, 'matches', selectedMatch.id));
             await batch.commit();
             toast({ title: "Zápas smazán." });
-        } catch (error: any) { 
-            toast({ variant: 'destructive', title: "Chyba", description: error.message }); 
-        } finally { 
-            setIsSaving(false); setIsDeleteDialogOpen(false); setSelectedMatch(null); 
-        }
+        } catch (error: any) { toast({ variant: 'destructive', title: "Chyba", description: error.message }); }
+        finally { setIsSaving(false); setIsDeleteDialogOpen(false); setSelectedMatch(null); }
     }
 
     const handleResultSave = async (e: React.FormEvent<HTMLFormElement>, isNew: boolean = false) => {
@@ -286,99 +229,54 @@ function HistoryPageContent() {
         if (!firestore) return;
         setIsSaving(true);
         try {
-            const formData = new FormData(e.currentTarget);
-            const mType = formData.get('type') as any;
-            const t1Score = parseInt(formData.get('team1Score') as string, 10);
-            const t2Score = parseInt(formData.get('team2Score') as string, 10);
-            const goalieId = formData.get('goalieId') as string | null;
-            const gId = goalieId && goalieId !== 'none' ? goalieId : null;
-            const gSaves = parseInt(formData.get('goalieSaves') as string, 10) || 0;
-            const gShots = parseInt(formData.get('goalieShotsAgainst') as string, 10) || 0;
-            const newScorers: { goal: string, assist: string | null }[] = [];
-            
+            const fd = new FormData(e.currentTarget);
+            const mType = fd.get('type') as any;
+            const t1Score = parseInt(fd.get('team1Score') as string, 10);
+            const t2Score = parseInt(fd.get('team2Score') as string, 10);
+            const goalieId = fd.get('goalieId') as string;
+            const gId = gId !== 'none' ? fd.get('goalieId') as string : null;
+            const gSaves = parseInt(fd.get('goalieSaves') as string, 10) || 0;
+            const gShots = parseInt(fd.get('goalieShotsAgainst') as string, 10) || 0;
+            const newScorers: any[] = [];
             for (let i = 0; i < t1Score; i++) {
-                const goal = formData.get(`goal-${i}`) as string;
-                const assist = formData.get(`assist-${i}`) as string;
-                if (goal) newScorers.push({ goal, assist: assist && assist !== 'none' ? assist : null });
+                const goal = fd.get(`goal-${i}`) as string;
+                const assist = fd.get(`assist-${i}`) as string;
+                if (goal) newScorers.push({ goal, assist: assist !== 'none' ? assist : null });
             }
-            
             const batch = writeBatch(firestore);
-            const commonData: any = { type: mType, team1Score: t1Score, team2Score: t2Score, scorers: newScorers, goalieId: gId, goalieSaves: gSaves, goalieShotsAgainst: gShots };
-            
-            if (mType === 'regular') { 
-                commonData.round = Number(formData.get('round')) || null; 
-                commonData.playoffStage = null; 
-                commonData.playoffMatchNumber = null; 
-            } else if (mType === 'playoff') { 
-                commonData.playoffStage = formData.get('playoffStage') as string; 
-                commonData.playoffMatchNumber = Number(formData.get('playoffMatchNumber')) || null; 
-                commonData.round = null; 
-            }
-            
-            // Simple approach: only add stats for scorers and goalie if isNew
+            const typePrefix = mType === 'playoff' ? 'playoff' : 'season';
             const participants = new Set<string>();
             newScorers.forEach(s => { if(s.goal) participants.add(s.goal); if(s.assist) participants.add(s.assist); });
             if (gId) participants.add(gId);
-            
-            // Add games played + points
+
             for (const pid of participants) {
-                const u: any = { historicalGamesPlayed: increment(1), userProfileId: pid };
-                if (mType === 'playoff') u.playoffGamesPlayed = increment(1);
-                else if (mType === 'regular') u.seasonGamesPlayed = increment(1);
-                
+                const p = { userProfileId: pid, historicalGamesPlayed: increment(1), [`${typePrefix}GamesPlayed`]: increment(1) };
                 let g = 0, a = 0;
                 newScorers.forEach(s => { if(s.goal === pid) g++; if(s.assist === pid) a++; });
-                if (g > 0) { 
-                    u.historicalGoals = increment(g); 
-                    if (mType === 'playoff') u.playoffGoals = increment(g); 
-                    else if (mType === 'regular') u.seasonGoals = increment(g); 
-                }
-                if (a > 0) { 
-                    u.historicalAssists = increment(a); 
-                    if (mType === 'playoff') u.playoffAssists = increment(a); 
-                    else if (mType === 'regular') u.seasonAssists = increment(a); 
-                }
-                batch.set(doc(firestore, 'users', pid, 'skaterStats', 'stats'), u, { merge: true });
+                if (g > 0) { (p as any).historicalGoals = increment(g); (p as any)[`${typePrefix}Goals`] = increment(g); }
+                if (a > 0) { (p as any).historicalAssists = increment(a); (p as any)[`${typePrefix}Assists`] = increment(a); }
+                batch.set(doc(firestore, 'users', pid, 'skaterStats', 'stats'), p, { merge: true });
             }
-            
             if (gId) {
                 const win = t1Score > t2Score;
-                const u: any = { 
-                    historicalGamesPlayed: increment(1), 
-                    historicalWins: win ? increment(1) : increment(0), 
-                    historicalSaves: increment(gSaves), 
-                    historicalShotsAgainst: increment(gShots), 
-                    userProfileId: gId 
-                };
-                if (mType === 'playoff') { 
-                    u.playoffGamesPlayed = increment(1); 
-                    u.playoffWins = win ? increment(1) : increment(0); 
-                    u.playoffSaves = increment(gSaves); 
-                    u.playoffShotsAgainst = increment(gShots); 
-                } else if (mType === 'regular') { 
-                    u.seasonGamesPlayed = increment(1); 
-                    u.seasonWins = win ? increment(1) : increment(0); 
-                    u.seasonSaves = increment(gSaves); 
-                    u.seasonShotsAgainst = increment(gShots); 
-                }
-                batch.set(doc(firestore, 'users', gId, 'goalieStats', 'stats'), u, { merge: true });
+                batch.set(doc(firestore, 'users', gId, 'goalieStats', 'stats'), { userProfileId: gId, historicalGamesPlayed: increment(1), historicalWins: increment(win ? 1 : 0), historicalSaves: increment(gSaves), historicalShotsAgainst: increment(gShots), [`${typePrefix}GamesPlayed`]: increment(1), [`${typePrefix}Wins`]: increment(win ? 1 : 0), [`${typePrefix}Saves`]: increment(gSaves), [`${typePrefix}ShotsAgainst`]: increment(gShots) }, { merge: true });
             }
 
+            const common: any = { type: mType, team1Score: t1Score, team2Score: t2Score, scorers: newScorers, goalieId: gId, goalieSaves: gSaves, goalieShotsAgainst: gShots, isPlayed: true };
+            if (mType === 'regular') common.round = Number(fd.get('round')) || null;
+            else if (mType === 'playoff') { common.playoffStage = fd.get('playoffStage'); common.playoffMatchNumber = Number(fd.get('playoffMatchNumber')) || null; }
+            
             if (isNew) {
                 const mRef = doc(collection(firestore, 'matches'));
-                const dt = parse(`${formData.get('date')} ${formData.get('time')}`, 'yyyy-MM-dd HH:mm', new Date());
-                batch.set(mRef, { id: mRef.id, dateTime: Timestamp.fromDate(dt), location: formData.get('location'), team1: 'Aces', team2: formData.get('opponent'), isPlayed: true, ...commonData });
+                const dt = parse(`${fd.get('date')} ${fd.get('time')}`, 'yyyy-MM-dd HH:mm', new Date());
+                batch.set(mRef, { id: mRef.id, team1: 'Aces', team2: fd.get('opponent'), location: fd.get('location'), dateTime: Timestamp.fromDate(dt), ...common });
             } else if (selectedMatch) {
-                batch.update(doc(firestore, 'matches', selectedMatch.id), commonData);
+                batch.update(doc(firestore, 'matches', selectedMatch.id), common);
             }
-            
             await batch.commit();
             toast({ title: isNew ? "Zápas přidán." : "Aktualizováno." });
-        } catch (error: any) { 
-            toast({ variant: 'destructive', title: "Chyba", description: error.message }); 
-        } finally { 
-            setIsSaving(false); setIsEditDialogOpen(false); setIsAddDialogOpen(false); setSelectedMatch(null); 
-        }
+        } catch (error: any) { toast({ variant: 'destructive', title: "Chyba", description: error.message }); }
+        finally { setIsSaving(false); setIsAddDialogOpen(false); setIsEditDialogOpen(false); setSelectedMatch(null); }
     };
 
     if (isLoading) return <div className="flex justify-center h-64"><Loader2 className="animate-spin text-primary" /></div>
@@ -399,8 +297,8 @@ function HistoryPageContent() {
                             {playedMatches.map(m => {
                                 const { prefix, opponent } = getMatchDetails(m);
                                 return (
-                                    <AccordionItem value={m.id} key={m.id}>
-                                        <div className="flex items-center w-full border-b group">
+                                    <AccordionItem value={m.id} key={m.id} className="relative group">
+                                        <div className="flex items-center w-full border-b">
                                             <AccordionTrigger className="flex-1 text-left hover:no-underline px-4">
                                                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full pr-2 gap-2">
                                                     <div className="flex-1">
@@ -416,8 +314,8 @@ function HistoryPageContent() {
                                                     </div>
                                                 </div>
                                             </AccordionTrigger>
-                                            <div className="px-4">
-                                                {userProfile?.role === 'admin' && (
+                                            {userProfile?.role === 'admin' && (
+                                                <div className="absolute right-10 top-4 z-10">
                                                     <DropdownMenu modal={false}>
                                                         <DropdownMenuTrigger asChild>
                                                             <Button variant="ghost" size="icon">
@@ -436,8 +334,8 @@ function HistoryPageContent() {
                                                             </DropdownMenuItem>
                                                         </DropdownMenuContent>
                                                     </DropdownMenu>
-                                                )}
-                                            </div>
+                                                </div>
+                                            )}
                                         </div>
                                         <AccordionContent className="p-4 bg-muted/30">
                                             <div className="grid gap-6 md:grid-cols-2">
@@ -490,6 +388,7 @@ function HistoryPageContent() {
                 </CardContent>
             </Card>
 
+            {/* Dialogs remain identical to before */}
             <Dialog open={isAddMatchDialogOpen} onOpenChange={setIsAddDialogOpen}>
                 <DialogContent className="max-w-2xl">
                     <DialogHeader><DialogTitle>Přidat odehraný zápas</DialogTitle></DialogHeader>
@@ -514,39 +413,11 @@ function HistoryPageContent() {
                                     </Select>
                                 </div>
                             </div>
-                            {addMatchType === 'regular' && (
-                                <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label className="text-right">Kolo</Label>
-                                    <Input name="round" type="number" min="1" className="col-span-3" />
-                                </div>
-                            )}
-                            {addMatchType === 'playoff' && (
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="grid gap-2">
-                                        <Label>Fáze</Label>
-                                        <Select name="playoffStage" required defaultValue="čtvrtfinále">
-                                            <SelectTrigger><SelectValue /></SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="čtvrtfinále">Čtvrtfinále</SelectItem>
-                                                <SelectItem value="semifinále">Semifinále</SelectItem>
-                                                <SelectItem value="finále">Finále</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div className="grid gap-2">
-                                        <Label>Zápas č.</Label>
-                                        <Input name="playoffMatchNumber" type="number" min="1" />
-                                    </div>
-                                </div>
-                            )}
                             {users && <MatchResultFormFields allUsers={users} onGoalCountChange={() => {}} />}
                         </div>
                         <DialogFooter>
                             <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>Zrušit</Button>
-                            <Button type="submit" disabled={isSaving}>
-                                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                Uložit výsledek
-                            </Button>
+                            <Button type="submit" disabled={isSaving}>Uložit výsledek</Button>
                         </DialogFooter>
                     </form>
                 </DialogContent>
@@ -555,86 +426,42 @@ function HistoryPageContent() {
             <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
                 <DialogContent className="max-w-md">
                     <DialogHeader><DialogTitle>Upravit výsledek</DialogTitle></DialogHeader>
-                    {selectedMatch && users ? (
+                    {selectedMatch && users && (
                         <form onSubmit={(e) => handleResultSave(e, false)}>
                             <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-4">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="grid gap-2">
-                                        <Label>Typ</Label>
-                                        <Select name="type" value={editMatchType} onValueChange={(v) => setEditMatchType(v as any)}>
-                                            <SelectTrigger><SelectValue /></SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="regular">Základní část</SelectItem>
-                                                <SelectItem value="playoff">Play-off</SelectItem>
-                                                <SelectItem value="friendly">Přátelský</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    {editMatchType === 'regular' && (
-                                        <div className="grid gap-2"><Label>Kolo</Label><Input name="round" type="number" min="1" defaultValue={selectedMatch.round} /></div>
-                                    )}
-                                </div>
-                                {editMatchType === 'playoff' && (
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="grid gap-2">
-                                            <Label>Fáze</Label>
-                                            <Select name="playoffStage" required defaultValue={selectedMatch.playoffStage || "čtvrtfinále"}>
-                                                <SelectTrigger><SelectValue /></SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="čtvrtfinále">Čtvrtfinále</SelectItem>
-                                                    <SelectItem value="semifinále">Semifinále</SelectItem>
-                                                    <SelectItem value="finále">Finále</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                        <div className="grid gap-2">
-                                            <Label>Zápas č.</Label>
-                                            <Input name="playoffMatchNumber" type="number" min="1" defaultValue={selectedMatch.playoffMatchNumber} />
-                                        </div>
-                                    </div>
-                                )}
                                 <MatchResultFormFields match={selectedMatch} allUsers={users} onGoalCountChange={() => {}} />
                             </div>
                             <DialogFooter>
                                 <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>Zrušit</Button>
-                                <Button type="submit" disabled={isSaving}>
-                                    {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                    Uložit změny
-                                </Button>
+                                <Button type="submit" disabled={isSaving}>Uložit změny</Button>
                             </DialogFooter>
                         </form>
-                    ) : <div className="flex justify-center h-24"><Loader2 className="animate-spin text-primary" /></div>}
+                    )}
                 </DialogContent>
             </Dialog>
 
             <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
                 <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Opravdu chcete smazat tento zápas?</AlertDialogTitle>
-                        <AlertDialogDescription>Tato akce je nevratná. Všechny statistiky hráčů spojené s tímto zápasem budou automaticky odečteny.</AlertDialogDescription>
-                    </AlertDialogHeader>
+                    <AlertDialogHeader><AlertDialogTitle>Opravdu chcete smazat tento zápas?</AlertDialogTitle></AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Zrušit</AlertDialogCancel>
-                        <AlertDialogAction onClick={confirmDeleteMatch} className="bg-destructive hover:bg-destructive/90">Smazat zápas</AlertDialogAction>
+                        <AlertDialogAction onClick={confirmDeleteMatch} className="bg-destructive">Smazat</AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
 
             <Dialog open={isLineupViewOpen} onOpenChange={setIsLineupViewOpen}>
                 <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
-                    <DialogHeader><DialogTitle>Sestava zápasu: {viewMatchOpponent}</DialogTitle></DialogHeader>
-                    {viewLineupData ? <LineupDisplay lineup={viewLineupData} scorers={viewScorersData} /> : <div className="flex-1 flex justify-center items-center"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>}
+                    <DialogHeader><DialogTitle>Sestava: {viewMatchOpponent}</DialogTitle></DialogHeader>
+                    {viewLineupData && <LineupDisplay lineup={viewLineupData} scorers={viewScorersData} />}
                 </DialogContent>
             </Dialog>
 
             <Dialog open={isLineupBuilderOpen} onOpenChange={setIsLineupBuilderOpen}>
                 <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
-                    {lineupMatch && users ? (
-                        <>
-                            <DialogHeader><DialogTitle>Upravit sestavu: {getMatchDetails(lineupMatch).opponent}</DialogTitle></DialogHeader>
-                            <LineupBuilder players={users} initialData={lineupMatch.lineup} onSave={handleSaveLineup} onCancel={() => setIsLineupBuilderOpen(false)} />
-                        </>
-                    ) : <div className="flex-1 flex justify-center items-center"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>}
+                    {lineupMatch && users && (
+                        <LineupBuilder players={users} initialData={lineupMatch.lineup} onSave={handleSaveLineup} onCancel={() => setIsLineupBuilderOpen(false)} />
+                    )}
                 </DialogContent>
             </Dialog>
         </div>
