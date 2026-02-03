@@ -156,7 +156,7 @@ function RecordResultForm({ match, allUsers, onSave, onCancel, isSaving }: { mat
              <DialogHeader>
                   <DialogTitle>Zapsat výsledek zápasu</DialogTitle>
                   <DialogDescription>
-                    Zadejte konečné skóre a statistiky hráčů. Hráčům bude automaticky přičten odehraný zápas.
+                    Zadejte konečné skóre a statistiky hráčů. Účastníkům bude automaticky přičten odehraný zápas.
                   </DialogDescription>
               </DialogHeader>
             <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-4">
@@ -695,14 +695,14 @@ function DashboardPageContent() {
     const formData = new FormData(e.currentTarget);
     const t1Score = parseInt(formData.get('team1Score') as string, 10);
     const t2Score = parseInt(formData.get('team2Score') as string, 10);
-    const gId = formData.get('goalieId') as string;
+    const goalieId = formData.get('goalieId') as string;
+    const gId = (goalieId && goalieId !== 'none') ? goalieId : null;
     const gSaves = parseInt(formData.get('goalieSaves') as string, 10) || 0;
     const gShots = parseInt(formData.get('goalieShotsAgainst') as string, 10) || 0;
     const scorersData: { goal: string, assist: string | null }[] = [];
     const pStatsMap = new Map<string, { goals: number, assists: number }>();
     const participants = new Set<string>();
     
-    // Získání účastníků ze sestavy nebo přihlášek
     if (selectedMatch.lineup) {
         Object.values(selectedMatch.lineup).forEach(p => { if(p) participants.add(p.id); });
     } else {
@@ -713,17 +713,17 @@ function DashboardPageContent() {
         const goal = formData.get(`goal-${i}`) as string;
         const assist = formData.get(`assist-${i}`) as string;
         if (goal) {
-            scorersData.push({ goal, assist: assist && assist !== 'none' ? assist : null });
+            scorersData.push({ goal, assist: (assist && assist !== 'none') ? assist : null });
             const g = pStatsMap.get(goal) || { goals: 0, assists: 0 }; pStatsMap.set(goal, { ...g, goals: g.goals + 1 });
-            participants.add(goal); // Jistota, že střelec má zápas
+            participants.add(goal);
             if (assist && assist !== 'none') {
                 const a = pStatsMap.get(assist) || { goals: 0, assists: 0 }; pStatsMap.set(assist, { ...a, assists: a.assists + 1 });
-                participants.add(assist); // Jistota, že asistent má zápas
+                participants.add(assist);
             }
         }
     }
     
-    if (gId && gId !== 'none') participants.add(gId);
+    if (gId) participants.add(gId);
 
     const batch = writeBatch(firestore);
     try {
@@ -732,7 +732,7 @@ function DashboardPageContent() {
           team1Score: t1Score, 
           team2Score: t2Score, 
           scorers: scorersData, 
-          goalieId: gId && gId !== 'none' ? gId : null, 
+          goalieId: gId, 
           goalieSaves: gSaves, 
           goalieShotsAgainst: gShots 
       });
@@ -758,7 +758,7 @@ function DashboardPageContent() {
           batch.set(statRef, update, { merge: true });
       }
 
-      if (gId && gId !== 'none') {
+      if (gId) {
           const goalieRef = doc(firestore, 'users', gId, 'goalieStats', 'stats');
           const isWin = t1Score > t2Score;
           const update: any = { 
@@ -871,8 +871,8 @@ function DashboardPageContent() {
                 <CardFooter className="flex-col items-start gap-4 p-4 sm:p-6">
                     <div className="flex w-full flex-wrap items-center justify-between gap-3">
                         <div className="flex gap-2 w-full sm:w-auto">
-                            <Button variant={attendance === 'going' ? 'default' : 'outline'} size="sm" onClick={() => { setAttendanceData({ matchId: match.id, status: 'going' }); setAttendanceNote(userAttendances.get(match.id)?.note || ''); setIsAttendanceDialogOpen(true); }} className={cn('flex-1 sm:flex-initial text-xs sm:text-sm', attendance === 'going' && "bg-green-500/10 border-green-500 text-green-600")}><Check className="h-4 w-4 mr-1 sm:mr-2" /> Jdu</Button>
-                            <Button variant={attendance === 'not-going' ? 'destructive' : 'outline'} size="sm" onClick={() => { setAttendanceData({ matchId: match.id, status: 'not-going' }); setAttendanceNote(userAttendances.get(match.id)?.note || ''); setIsAttendanceDialogOpen(true); }} className={cn('flex-1 sm:flex-initial text-xs sm:text-sm', attendance === 'not-going' && "bg-destructive/10 border-destructive text-destructive")}><X className="h-4 w-4 mr-1 sm:mr-2" /> Nejdu</Button>
+                            <Button variant={attendance === 'going' ? 'default' : 'outline'} size="sm" onClick={() => { setAttendanceData({ matchId: match.id, status: 'going' }); setAttendanceNote(userAttendances.get(matchId)?.note || ''); setIsAttendanceDialogOpen(true); }} className={cn('flex-1 sm:flex-initial text-xs sm:text-sm', attendance === 'going' && "bg-green-500/10 border-green-500 text-green-600")}><Check className="h-4 w-4 mr-1 sm:mr-2" /> Jdu</Button>
+                            <Button variant={attendance === 'not-going' ? 'destructive' : 'outline'} size="sm" onClick={() => { setAttendanceData({ matchId: match.id, status: 'not-going' }); setAttendanceNote(userAttendances.get(matchId)?.note || ''); setIsAttendanceDialogOpen(true); }} className={cn('flex-1 sm:flex-initial text-xs sm:text-sm', attendance === 'not-going' && "bg-destructive/10 border-destructive text-destructive")}><X className="h-4 w-4 mr-1 sm:mr-2" /> Nejdu</Button>
                         </div>
                         <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
                             {match.lineup && <Button variant="outline" size="sm" className="text-xs sm:text-sm" onClick={() => handleViewLineup(match)}><View className="mr-1 sm:mr-2" /> Sestava</Button>}
@@ -952,8 +952,8 @@ function DashboardPageContent() {
         <Card className="lg:col-span-3"><CardHeader><CardTitle className="flex items-center gap-2 font-headline"><History className="text-primary"/>Poslední zápasy</CardTitle></CardHeader>
             <CardContent>{recentPlayedMatches.length > 0 ? (<div className="space-y-4">{recentPlayedMatches.map(m => {
                             const { prefix, opponent } = getMatchDetails(m);
-                            const sum = (<><div className="flex-1 text-left min-w-0"><p className="text-[10px] text-muted-foreground uppercase mb-0.5">{format(m.dateTime.toDate(), "d. M. yyyy")}</p>{prefix && <p className="text-[9px] font-bold text-primary uppercase mb-0.5">{prefix}</p>}<p className="font-semibold truncate text-base">{opponent}</p></div><div className="flex items-center gap-2 self-end sm:self-center"><span className="text-lg font-bold font-mono">{m.team1Score} : {m.team2Score}</span><Badge variant={getResultBadgeVariant(m.team1Score, m.team2Score)}>{getResultText(m.team1Score, m.team2Score)}</Badge></div></>)
-                            if (m.scorers?.length) return ( <Accordion type="single" collapsible key={m.id}><AccordionItem value={m.id} className="border rounded-lg"><AccordionTrigger className="p-3 hover:no-underline">{sum}</AccordionTrigger><AccordionContent className="px-4 pb-3"><h4 className="font-semibold mb-2 text-sm text-primary">Góly</h4><ul className="space-y-1.5 text-sm">{m.scorers.map((s, i) => (<li key={i} className="flex items-center gap-2"><Disc className="h-4 w-4 text-primary" /><span className="font-medium">{usersMap.get(s.goal)?.name || 'Hráč'}</span>{s.assist && <span className="ml-2 text-muted-foreground"><span className="font-bold text-accent">A</span> {usersMap.get(s.assist)?.name || 'Hráč'}</span>}</li>))}</ul></AccordionContent></AccordionItem></Accordion> )
+                            const sum = (<div className="flex flex-1 flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-left w-full"><div className="flex-1 min-w-0"><p className="text-[10px] text-muted-foreground uppercase mb-0.5">{format(m.dateTime.toDate(), "d. M. yyyy")}</p>{prefix && <p className="text-[9px] font-bold text-primary uppercase mb-0.5">{prefix}</p>}<p className="font-semibold truncate text-base">{opponent}</p></div><div className="flex items-center gap-2 self-end sm:self-center"><span className="text-lg font-bold font-mono">{m.team1Score} : {m.team2Score}</span><Badge variant={getResultBadgeVariant(m.team1Score, m.team2Score)}>{getResultText(m.team1Score, m.team2Score)}</Badge></div></div>)
+                            if (m.scorers?.length) return ( <Accordion type="single" collapsible key={m.id} className="w-full"><AccordionItem value={m.id} className="border rounded-lg"><AccordionTrigger className="p-3 hover:no-underline">{sum}</AccordionTrigger><AccordionContent className="px-4 pb-3"><h4 className="font-semibold mb-2 text-sm text-primary">Góly</h4><ul className="space-y-1.5 text-sm">{m.scorers.map((s, i) => (<li key={i} className="flex items-center gap-2"><Disc className="h-4 w-4 text-primary" /><span className="font-medium">{usersMap.get(s.goal)?.name || 'Hráč'}</span>{s.assist && <span className="ml-2 text-muted-foreground"><span className="font-bold text-accent">A</span> {usersMap.get(s.assist)?.name || 'Hráč'}</span>}</li>))}</ul></AccordionContent></AccordionItem></Accordion> )
                             return <div key={m.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between rounded-lg border p-3 gap-2">{sum}</div>
                         })}</div>) : <p className="text-muted-foreground">Žádné.</p>}</CardContent>
             <CardFooter><Button asChild><Link href="/dashboard/history">Všechny zápasy</Link></Button></CardFooter>

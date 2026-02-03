@@ -253,9 +253,16 @@ function HistoryPageContent() {
                 selectedMatch.scorers?.forEach(s => { if(s.goal) oldPids.add(s.goal); if(s.assist) oldPids.add(s.assist); });
                 if (selectedMatch.goalieId) oldPids.add(selectedMatch.goalieId);
             }
-            if (selectedMatch?.lineup) Object.values(selectedMatch.lineup).forEach(p => { if(p) newPids.add(p.id); });
-            newScorers.forEach(s => { if(s.goal) newPids.add(s.goal); if(s.assist) newPids.add(s.assist); });
-            if (gId) newPids.add(gId);
+            
+            // Pro nový zápas nebo pro účastníky bez sestavy použijeme alespoň střelce a brankáře
+            if (isNew) {
+                newScorers.forEach(s => { if(s.goal) newPids.add(s.goal); if(s.assist) newPids.add(s.assist); });
+                if (gId) newPids.add(gId);
+            } else if (selectedMatch) {
+                if (selectedMatch.lineup) Object.values(selectedMatch.lineup).forEach(p => { if(p) newPids.add(p.id); });
+                newScorers.forEach(s => { if(s.goal) newPids.add(s.goal); if(s.assist) newPids.add(s.assist); });
+                if (gId) newPids.add(gId);
+            }
 
             const allPids = new Set([...oldPids, ...newPids]);
             for (const pid of allPids) {
