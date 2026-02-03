@@ -162,24 +162,27 @@ function HistoryPageContent() {
             const oldL = lineupMatch.lineup || {};
             const oldPids = new Set(Object.values(oldL).filter(p => p !== null).map(p => p!.id));
             const newPids = new Set(Object.values(lineup).filter(p => p !== null).map(p => p!.id));
-            const participantsWithPoints = new Set<string>();
-            lineupMatch.scorers?.forEach(s => { if (s.goal) participantsWithPoints.add(s.goal); if (s.assist) participantsWithPoints.add(s.assist); });
-            if (lineupMatch.goalieId) participantsWithPoints.add(lineupMatch.goalieId);
-
+            
+            // Každému kdo přibyl v sestavě přidáme zápas
             newPids.forEach(pid => {
-                if (!oldPids.has(pid) && !participantsWithPoints.has(pid)) {
+                if (!oldPids.has(pid)) {
                     const update: any = { historicalGamesPlayed: increment(1), userProfileId: pid };
                     if (lineupMatch.type === 'playoff') update.playoffGamesPlayed = increment(1);
                     else if (lineupMatch.type === 'regular') update.seasonGamesPlayed = increment(1);
                     batch.set(doc(firestore, 'users', pid, 'skaterStats', 'stats'), update, { merge: true });
                 }
             });
+            // Každému kdo vypadl a nebodoval zápas odebereme
             oldPids.forEach(pid => {
-                if (!newPids.has(pid) && !participantsWithPoints.has(pid)) {
-                    const update: any = { historicalGamesPlayed: increment(-1), userProfileId: pid };
-                    if (lineupMatch.type === 'playoff') update.playoffGamesPlayed = increment(-1);
-                    else if (lineupMatch.type === 'regular') update.seasonGamesPlayed = increment(-1);
-                    batch.set(doc(firestore, 'users', pid, 'skaterStats', 'stats'), update, { merge: true });
+                if (!newPids.has(pid)) {
+                    const wasScorer = lineupMatch.scorers?.some(s => s.goal === pid || s.assist === pid);
+                    const wasGoalie = lineupMatch.goalieId === pid;
+                    if (!wasScorer && !wasGoalie) {
+                        const update: any = { historicalGamesPlayed: increment(-1), userProfileId: pid };
+                        if (lineupMatch.type === 'playoff') update.playoffGamesPlayed = increment(-1);
+                        else if (lineupMatch.type === 'regular') update.seasonGamesPlayed = increment(-1);
+                        batch.set(doc(firestore, 'users', pid, 'skaterStats', 'stats'), update, { merge: true });
+                    }
                 }
             });
             await batch.commit();
@@ -254,7 +257,6 @@ function HistoryPageContent() {
                 if (selectedMatch.goalieId) oldPids.add(selectedMatch.goalieId);
             }
             
-            // Pro nový zápas nebo pro účastníky bez sestavy použijeme alespoň střelce a brankáře
             if (isNew) {
                 newScorers.forEach(s => { if(s.goal) newPids.add(s.goal); if(s.assist) newPids.add(s.assist); });
                 if (gId) newPids.add(gId);

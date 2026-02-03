@@ -1,6 +1,6 @@
 'use client'
 
-import React, { Suspense, useState, useMemo, useEffect, useRef, useCallback } from 'react'
+import React, { Suspense, useState, useMemo, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -255,7 +255,6 @@ function DashboardPageContent() {
   const [attendanceData, setAttendanceData] = useState<{ matchId: string; status: 'going' | 'not-going' } | null>(null);
   const [attendanceNote, setAttendanceNote] = useState('');
   
-  const upcomingMatchesRef = useRef<HTMLDivElement>(null);
   const [highlightedMatchId, setHighlightedMatchId] = useState<string | null>(null);
   const [openAccordionValue, setOpenAccordionValue] = useState('');
 
@@ -550,15 +549,16 @@ function DashboardPageContent() {
       const batch = writeBatch(firestore);
       const matchRef = doc(firestore, 'matches', lineupMatch.id);
       batch.update(matchRef, { lineup: lineupToSave });
+      
+      // Pokud je zapas uz odehran, musime prepocitat odehrane zapasy pro zmenu v sestave
       if (lineupMatch.isPlayed) {
           const oldLineup = lineupMatch.lineup || {};
           const oldPlayerIds = new Set(Object.values(oldLineup).filter(p => p !== null).map(p => p!.id));
           const newPlayerIds = new Set(Object.values(lineupToSave).filter(p => p !== null).map(p => p!.id));
-          const alreadyCountedIds = new Set<string>();
-          lineupMatch.scorers?.forEach(s => { if (s.goal) alreadyCountedIds.add(s.goal); if (s.assist) alreadyCountedIds.add(s.assist); });
-          if (lineupMatch.goalieId) alreadyCountedIds.add(lineupMatch.goalieId);
+          
+          // Hráči, kteří jsou nově v sestavě a nebyli v ní předtím
           newPlayerIds.forEach(pid => {
-              if (!oldPlayerIds.has(pid) && !alreadyCountedIds.has(pid)) {
+              if (!oldPlayerIds.has(pid)) {
                   const statRef = doc(firestore, 'users', pid, 'skaterStats', 'stats');
                   const update: any = { historicalGamesPlayed: increment(1), userProfileId: pid };
                   if (lineupMatch.type === 'playoff') update.playoffGamesPlayed = increment(1);
@@ -566,16 +566,24 @@ function DashboardPageContent() {
                   batch.set(statRef, update, { merge: true });
               }
           });
+          
+          // Hráči, kteří ze sestavy vypadli
           oldPlayerIds.forEach(pid => {
-              if (!newPlayerIds.has(pid) && !alreadyCountedIds.has(pid)) {
-                  const statRef = doc(firestore, 'users', pid, 'skaterStats', 'stats');
-                  const update: any = { historicalGamesPlayed: increment(-1), userProfileId: pid };
-                  if (lineupMatch.type === 'playoff') update.playoffGamesPlayed = increment(-1);
-                  else if (lineupMatch.type === 'regular') update.seasonGamesPlayed = increment(-1);
-                  batch.set(statRef, update, { merge: true });
+              if (!newPlayerIds.has(pid)) {
+                  // Musíme ověřit, zda hráč nebyl střelec nebo asistent (v tom případě mu zápas zůstává)
+                  const wasScorer = lineupMatch.scorers?.some(s => s.goal === pid || s.assist === pid);
+                  const wasGoalie = lineupMatch.goalieId === pid;
+                  if (!wasScorer && !wasGoalie) {
+                      const statRef = doc(firestore, 'users', pid, 'skaterStats', 'stats');
+                      const update: any = { historicalGamesPlayed: increment(-1), userProfileId: pid };
+                      if (lineupMatch.type === 'playoff') update.playoffGamesPlayed = increment(-1);
+                      else if (lineupMatch.type === 'regular') update.seasonGamesPlayed = increment(-1);
+                      batch.set(statRef, update, { merge: true });
+                  }
               }
           });
       }
+      
       await batch.commit();
       toast({ title: "Sestava uložena." });
     } catch (error: any) {
@@ -593,11 +601,13 @@ function DashboardPageContent() {
             if (selectedMatch.lineup) Object.values(selectedMatch.lineup).forEach(p => { if(p) participants.add(p.id); });
             selectedMatch.scorers?.forEach(s => { if (s.goal) participants.add(s.goal); if (s.assist) participants.add(s.assist); });
             if (selectedMatch.goalieId) participants.add(selectedMatch.goalieId);
+            
             for (const pid of participants) {
                 const statRef = doc(firestore, 'users', pid, 'skaterStats', 'stats');
                 const update: any = { historicalGamesPlayed: increment(-1), userProfileId: pid };
                 if (selectedMatch.type === 'playoff') update.playoffGamesPlayed = increment(-1);
                 else if (selectedMatch.type === 'regular') update.seasonGamesPlayed = increment(-1);
+                
                 let g = 0, a = 0;
                 selectedMatch.scorers?.forEach(s => { if (s.goal === pid) g++; if (s.assist === pid) a++; });
                 if (g > 0) {
@@ -649,7 +659,7 @@ function DashboardPageContent() {
     if (!attendanceData) return;
     setIsSaving(true);
     try { await handleAttendanceChange(attendanceData.matchId, attendanceData.status, attendanceNote); setIsAttendanceDialogOpen(false); }
-    catch (error) {} finally { setIsSaving(false); setAttendanceData(null); setAttendanceNote(''); }
+    catch (error) {} finally { setIsSaving(false) }
   };
 
   const handleMatchUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -679,10 +689,11 @@ function DashboardPageContent() {
     try {
       const newDateTime = parse(`${formData.get('date')} ${formData.get('time')}`, 'yyyy-MM-dd HH:mm', new Date());
       if (isNaN(newDateTime.getTime())) { toast({ variant: 'destructive', title: 'Neplatné datum' }); setIsSaving(false); return; }
-      const newMatchData: any = { team1: 'Aces', team2: formData.get('opponent') as string, location: formData.get('location') as string, dateTime: Timestamp.fromDate(newDateTime), isPlayed: false, type: type };
+      const newMatchId = Math.random().toString(36).substring(7);
+      const newMatchData: any = { id: newMatchId, team1: 'Aces', team2: formData.get('opponent') as string, location: formData.get('location') as string, dateTime: Timestamp.fromDate(newDateTime), isPlayed: false, type: type };
       if (type === 'regular') newMatchData.round = Number(formData.get('round')) || null;
       else if (type === 'playoff') { newMatchData.playoffStage = formData.get('playoffStage') as string; newMatchData.playoffMatchNumber = Number(formData.get('playoffMatchNumber')) || null; }
-      await addDoc(collection(firestore, 'matches'), newMatchData);
+      await setDoc(doc(firestore, 'matches', newMatchId), newMatchData);
       toast({ title: 'Zápas přidán.' });
     } catch (error: any) { toast({ variant: 'destructive', title: 'Chyba' }); }
     finally { setIsSaving(false); setIsAddDialogOpen(false); }
@@ -703,12 +714,15 @@ function DashboardPageContent() {
     const pStatsMap = new Map<string, { goals: number, assists: number }>();
     const participants = new Set<string>();
     
+    // Účastníci ze sestavy (pokud existuje)
     if (selectedMatch.lineup) {
         Object.values(selectedMatch.lineup).forEach(p => { if(p) participants.add(p.id); });
     } else {
+        // Fallback: účastníci, kteří potvrdili účast "Jdu"
         (attendancesByMatch.get(selectedMatch.id) || []).forEach(att => { if (att.status === 'going') participants.add(att.userId); });
     }
 
+    // Účastníci z bodování (střelci a asistenti musí být v participants i když nejsou v sestavě)
     for (let i = 0; i < t1Score; i++) {
         const goal = formData.get(`goal-${i}`) as string;
         const assist = formData.get(`assist-${i}`) as string;
@@ -845,7 +859,7 @@ function DashboardPageContent() {
     const attendeeCount = attendeesForMatch.filter(a => a.status === 'going').length;
     const sortedAttendees = [...attendeesForMatch.filter(att => att.status === 'going'), ...attendeesForMatch.filter(att => att.status === 'not-going')];
     return (
-        <Card id={`match-${match.id}`} className={cn("w-full transition-all", highlightedMatchId === match.id && 'animate-highlight-card')}>
+        <Card id={`match-${match.id}`} key={match.id} className={cn("w-full transition-all", highlightedMatchId === match.id && 'animate-highlight-card')}>
                 <CardHeader className="flex-row items-start justify-between pb-2">
                     <div className="space-y-0.5">
                         {prefix && <p className="text-[10px] sm:text-xs font-bold text-primary uppercase tracking-wider leading-none mb-1">{prefix}</p>}
@@ -871,8 +885,8 @@ function DashboardPageContent() {
                 <CardFooter className="flex-col items-start gap-4 p-4 sm:p-6">
                     <div className="flex w-full flex-wrap items-center justify-between gap-3">
                         <div className="flex gap-2 w-full sm:w-auto">
-                            <Button variant={attendance === 'going' ? 'default' : 'outline'} size="sm" onClick={() => { setAttendanceData({ matchId: match.id, status: 'going' }); setAttendanceNote(userAttendances.get(matchId)?.note || ''); setIsAttendanceDialogOpen(true); }} className={cn('flex-1 sm:flex-initial text-xs sm:text-sm', attendance === 'going' && "bg-green-500/10 border-green-500 text-green-600")}><Check className="h-4 w-4 mr-1 sm:mr-2" /> Jdu</Button>
-                            <Button variant={attendance === 'not-going' ? 'destructive' : 'outline'} size="sm" onClick={() => { setAttendanceData({ matchId: match.id, status: 'not-going' }); setAttendanceNote(userAttendances.get(matchId)?.note || ''); setIsAttendanceDialogOpen(true); }} className={cn('flex-1 sm:flex-initial text-xs sm:text-sm', attendance === 'not-going' && "bg-destructive/10 border-destructive text-destructive")}><X className="h-4 w-4 mr-1 sm:mr-2" /> Nejdu</Button>
+                            <Button variant={attendance === 'going' ? 'default' : 'outline'} size="sm" onClick={() => { setAttendanceData({ matchId: match.id, status: 'going' }); setAttendanceNote(userAttendances.get(match.id)?.note || ''); setIsAttendanceDialogOpen(true); }} className={cn('flex-1 sm:flex-initial text-xs sm:text-sm', attendance === 'going' && "bg-green-500/10 border-green-500 text-green-600")}><Check className="h-4 w-4 mr-1 sm:mr-2" /> Jdu</Button>
+                            <Button variant={attendance === 'not-going' ? 'destructive' : 'outline'} size="sm" onClick={() => { setAttendanceData({ matchId: match.id, status: 'not-going' }); setAttendanceNote(userAttendances.get(match.id)?.note || ''); setIsAttendanceDialogOpen(true); }} className={cn('flex-1 sm:flex-initial text-xs sm:text-sm', attendance === 'not-going' && "bg-destructive/10 border-destructive text-destructive")}><X className="h-4 w-4 mr-1 sm:mr-2" /> Nejdu</Button>
                         </div>
                         <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
                             {match.lineup && <Button variant="outline" size="sm" className="text-xs sm:text-sm" onClick={() => handleViewLineup(match)}><View className="mr-1 sm:mr-2" /> Sestava</Button>}
@@ -921,7 +935,7 @@ function DashboardPageContent() {
                     <div className="mt-4">{stats.length > 0 ? ( <Table><TableBody>{stats.map(s => (<TableRow key={s.metric}><TableCell className="font-medium text-base py-3">{s.metric}</TableCell><TableCell className="text-right font-mono text-lg font-bold py-3">{s.value}</TableCell></TableRow>))}</TableBody></Table> ) : <p className="text-muted-foreground text-center py-4">Nenalezeny.</p>}</div>
                 </Tabs></CardContent>
         </Card>
-        <div className="lg:col-span-3" ref={upcomingMatchesRef}>
+        <div className="lg:col-span-3">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
             <h2 className="flex items-center gap-2 font-headline text-xl font-semibold"><Trophy className="text-primary"/>Příští zápasy (14 dní)</h2>
             {userProfile?.role === 'admin' && (
@@ -944,7 +958,7 @@ function DashboardPageContent() {
           {otherUpcomingMatches.length > 0 && (
                 <Accordion type="single" collapsible className="w-full mt-4" value={openAccordionValue} onValueChange={setOpenAccordionValue}>
                     <AccordionItem value="item-1" className="border-none"><AccordionTrigger className="rounded-lg border bg-card px-4 py-3 font-medium">Další zápasy</AccordionTrigger>
-                        <AccordionContent className="pt-4"><div className="space-y-4">{otherUpcomingMatches.map(m => (<React.Fragment key={m.id}>{renderMatchCard(m)}</React.Fragment>))}</div></AccordionContent>
+                        <AccordionContent className="pt-4"><div className="space-y-4">{otherUpcomingMatches.map(m => renderMatchCard(m))}</div></AccordionContent>
                     </AccordionItem>
                 </Accordion>
             )}
@@ -993,7 +1007,7 @@ function DashboardPageContent() {
                       {editMatchType === 'playoff' && <><div className="grid grid-cols-4 items-center gap-4"><Label className="text-right">Fáze</Label><Select name="playoffStage" required defaultValue={selectedMatch.playoffStage || "čtvrtfinále"}><SelectTrigger className="col-span-3"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="čtvrtfinále">Čtvrtfinále</SelectItem><SelectItem value="semifinále">Semifinále</SelectItem><SelectItem value="finále">Finále</SelectItem></SelectContent></Select></div><div className="grid grid-cols-4 items-center gap-4"><Label className="text-right">Zápas č.</Label><Input name="playoffMatchNumber" type="number" min="1" defaultValue={selectedMatch.playoffMatchNumber} className="col-span-3" /></div></>}
                   </div><DialogFooter><Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>Zrušit</Button><Button type="submit">Uložit</Button></DialogFooter></form>}</DialogContent></Dialog>
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Smazat zápas?</AlertDialogTitle><AlertDialogDescription>Tato akce je nevratná a statistiky hráčů budou odečteny.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Zrušit</AlertDialogCancel><AlertDialogAction onClick={confirmDeleteMatch} className="bg-destructive">Smazat</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
-      <Dialog open={isResultDialogOpen} onOpenChange={setIsResultDialogOpen}><DialogContent className="max-w-md">{selectedMatch && playersForMatch ? ( playersForMatch.length > 0 ? <RecordResultForm match={selectedMatch} allUsers={playersForMatch} onSave={handleResultSave} onCancel={() => { setIsResultDialogOpen(false); setSelectedMatch(null); setPlayersForMatch(null); }} isSaving={isSaving} /> : <div className="p-4 text-center">Nejsou přihlášeni žádní hráči.</div> ) : <div className="flex justify-center h-24"><Loader2 className="animate-spin text-primary" /></div>}</DialogContent></Dialog>
+      <Dialog open={isResultDialogOpen} onOpenChange={setIsResultDialogOpen}><DialogContent className="max-w-md">{selectedMatch && (playersForMatch ? ( playersForMatch.length > 0 ? <RecordResultForm match={selectedMatch} allUsers={playersForMatch} onSave={handleResultSave} onCancel={() => { setIsResultDialogOpen(false); setSelectedMatch(null); setPlayersForMatch(null); }} isSaving={isSaving} /> : <div className="p-4 text-center">Nejsou přihlášeni žádní hráči.</div> ) : <div className="flex justify-center h-24"><Loader2 className="animate-spin text-primary" /></div>)}</DialogContent></Dialog>
       <Dialog open={isAttendanceDialogOpen} onOpenChange={setIsAttendanceDialogOpen}><DialogContent><DialogHeader><DialogTitle>Potvrdit účast</DialogTitle></DialogHeader><div className="grid gap-4 py-4"><Label>Poznámka</Label><Textarea value={attendanceNote} onChange={(e) => setAttendanceNote(e.target.value)} placeholder="Např. přijdu později..." /></div><DialogFooter><Button variant="outline" onClick={() => setIsAttendanceDialogOpen(false)}>Zrušit</Button><Button onClick={confirmAttendance}>Potvrdit</Button></DialogFooter></DialogContent></Dialog>
       <Dialog open={isLineupBuilderOpen} onOpenChange={setIsLineupBuilderOpen}><DialogContent className="max-w-4xl h-[90vh] flex flex-col">{lineupMatch && allUsers ? <><DialogHeader><DialogTitle>Sestava: {getMatchDetails(lineupMatch).fullTitle}</DialogTitle></DialogHeader><LineupBuilder players={allUsers.filter(u => (attendancesByMatch.get(lineupMatch.id) || []).some(a => a.userId === u.id && a.status === 'going'))} initialData={lineupMatch.lineup} onSave={handleSaveLineup} onCancel={() => setIsLineupBuilderOpen(false)} /></> : <div className="flex-1 flex items-center justify-center"><Loader2 className="animate-spin text-primary" /></div>}</DialogContent></Dialog>
       <Dialog open={isLineupViewOpen} onOpenChange={setIsLineupViewOpen}><DialogContent className="max-w-4xl h-[90vh] flex flex-col"><DialogHeader><DialogTitle>Sestava: {lineupMatch ? getMatchDetails(lineupMatch).opponent : '...'}</DialogTitle></DialogHeader>{viewLineupData ? <LineupDisplay lineup={viewLineupData} /> : <div className="flex-1 flex items-center justify-center"><Loader2 className="animate-spin text-primary" /></div>}</DialogContent></Dialog>
