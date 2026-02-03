@@ -11,11 +11,11 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar as CalendarIcon, MapPin, Users, Trophy, BarChart, Sword, Pencil, Check, X, Flame, Shield, Plus, Minus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal, FileText, View, Disc } from "lucide-react"
+import { Calendar as CalendarIcon, MapPin, Users, Trophy, BarChart, Sword, Pencil, Check, X, Flame, Shield, Plus, Minus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal, FileText, View, Disc, Cake } from "lucide-react"
 import { cn } from '@/lib/utils'
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase'
 import { doc, collection, collectionGroup, updateDoc, query, Timestamp, addDoc, deleteDoc, writeBatch, orderBy, where, limit, setDoc } from 'firebase/firestore'
-import { format, parse, startOfDay, addDays } from 'date-fns'
+import { format, parse, startOfDay, addDays, parseISO, isValid, differenceInDays } from 'date-fns'
 import { cs } from 'date-fns/locale'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import Link from 'next/link'
@@ -38,6 +38,7 @@ interface UserProfile {
   role: 'admin' | 'classic';
   playerType: 'player' | 'goalie' | 'member';
   photoURL?: string | null;
+  dob?: string;
 }
 
 interface SkaterStats {
@@ -300,6 +301,32 @@ function DashboardPageContent() {
             return matchDate >= now && matchDate <= twoWeeksFromNow;
         });
     }, [allMatches]);
+
+    const upcomingBirthdays = useMemo(() => {
+        if (!allUsers) return [];
+        const now = startOfDay(new Date());
+        const sevenDaysFromNow = addDays(now, 7);
+
+        return allUsers.filter(u => {
+            if (!u.dob) return false;
+            const dob = parseISO(u.dob);
+            if (!isValid(dob)) return false;
+
+            // Normalize birthday to current year for check
+            const currentYearBday = new Date(now.getFullYear(), dob.getMonth(), dob.getDate());
+            
+            // If the birthday already passed this year, check next year (important for Dec -> Jan transition)
+            if (currentYearBday < now && differenceInDays(now, currentYearBday) > 300) {
+                currentYearBday.setFullYear(now.getFullYear() + 1);
+            }
+
+            return currentYearBday >= now && currentYearBday <= sevenDaysFromNow;
+        }).sort((a, b) => {
+            const dobA = parseISO(a.dob!);
+            const dobB = parseISO(b.dob!);
+            return dobA.getMonth() - dobB.getMonth() || dobA.getDate() - dobB.getDate();
+        });
+    }, [allUsers]);
 
     const playedMatches = useMemo(() => {
         if (!allMatches) return [];
@@ -1299,6 +1326,32 @@ function DashboardPageContent() {
     <div className="py-8">
       <div className="grid gap-8 lg:grid-cols-3">
         
+        {/* Birthday Alert - Conditional */}
+        {upcomingBirthdays.length > 0 && (
+            <Card className="lg:col-span-3 border-l-4 border-l-accent bg-accent/5 animate-in fade-in slide-in-from-top-4 duration-500">
+                <CardContent className="flex flex-col sm:flex-row items-center gap-4 py-4">
+                    <div className="h-12 w-12 rounded-full bg-accent/20 flex items-center justify-center shrink-0">
+                        <Cake className="h-6 w-6 text-accent" />
+                    </div>
+                    <div className="flex-1 text-center sm:text-left">
+                        <h3 className="font-bold text-lg">Blížící se narozeniny</h3>
+                        <p className="text-muted-foreground text-sm">
+                            {upcomingBirthdays.map((u, i) => (
+                                <span key={u.id}>
+                                    <span className="font-semibold text-foreground">{u.name}</span>
+                                    ({format(parseISO(u.dob!), "d. M.")})
+                                    {i < upcomingBirthdays.length - 1 ? ', ' : ''}
+                                </span>
+                            ))}
+                        </p>
+                    </div>
+                    <Button variant="outline" size="sm" asChild className="shrink-0">
+                        <Link href="/dashboard/calendar">Zobrazit v kalendáři</Link>
+                    </Button>
+                </CardContent>
+            </Card>
+        )}
+
         <Card className="lg:col-span-1 flex flex-col items-center justify-center p-6 text-center">
             <Avatar className="h-24 w-24 md:h-32 md:w-32 mb-4 border-4 border-primary shadow-lg">
               <AvatarImage src={userProfile?.photoURL ?? `https://picsum.photos/seed/${userProfile?.email}/400/400`} alt={userProfile?.name ?? ''} data-ai-hint="player portrait" />

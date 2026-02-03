@@ -5,9 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Calendar } from "@/components/ui/calendar"
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase'
 import { doc, collection, query, orderBy, Timestamp, addDoc } from 'firebase/firestore'
-import { format, isSameDay, startOfDay } from 'date-fns'
+import { format, isSameDay, startOfDay, setYear, parseISO, isValid } from 'date-fns'
 import { cs } from 'date-fns/locale'
-import { Loader2, Plus, Trophy, MapPin, Clock, Users } from 'lucide-react'
+import { Loader2, Plus, Trophy, MapPin, Clock, Users, Cake } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from '@/components/ui/input'
@@ -21,6 +21,7 @@ interface UserProfile {
   id: string;
   name: string;
   role: 'admin' | 'classic';
+  dob?: string;
 }
 
 interface Match {
@@ -51,12 +52,28 @@ function CalendarPageContent() {
     }, [firestore, user]);
     const { data: allMatches, isLoading: areMatchesLoading } = useCollection<Match>(matchesQuery);
 
-    const isLoading = isUserProfileLoading || areMatchesLoading;
+    const usersQuery = useMemoFirebase(() => {
+        if (!firestore || !user) return null;
+        return collection(firestore, 'users');
+    }, [firestore, user]);
+    const { data: allUsers, isLoading: areUsersLoading } = useCollection<UserProfile>(usersQuery);
+
+    const isLoading = isUserProfileLoading || areMatchesLoading || areUsersLoading;
 
     const matchesOnSelectedDate = useMemo(() => {
         if (!allMatches || !selectedDate) return [];
         return allMatches.filter(match => isSameDay(match.dateTime.toDate(), selectedDate));
     }, [allMatches, selectedDate]);
+
+    const birthdaysOnSelectedDate = useMemo(() => {
+        if (!allUsers || !selectedDate) return [];
+        return allUsers.filter(u => {
+            if (!u.dob) return false;
+            const dob = parseISO(u.dob);
+            if (!isValid(dob)) return false;
+            return dob.getMonth() === selectedDate.getMonth() && dob.getDate() === selectedDate.getDate();
+        });
+    }, [allUsers, selectedDate]);
 
     const handleDateSelect = (date: Date | undefined) => {
         setSelectedDate(date);
@@ -103,6 +120,12 @@ function CalendarPageContent() {
     }
 
     const matchDates = allMatches?.map(m => startOfDay(m.dateTime.toDate())) || [];
+    const birthdayDates = allUsers?.filter(u => u.dob).map(u => {
+        const dob = parseISO(u.dob!);
+        if (!isValid(dob)) return null;
+        // Map birthday to current year for display in calendar
+        return setYear(dob, new Date().getFullYear());
+    }).filter(Boolean) as Date[];
 
     return (
         <div className="py-8 space-y-8">
@@ -121,9 +144,11 @@ function CalendarPageContent() {
                             locale={cs}
                             modifiers={{
                                 hasMatch: matchDates,
+                                hasBirthday: birthdayDates,
                             }}
                             modifiersStyles={{
-                                hasMatch: { fontWeight: 'bold', color: 'hsl(var(--primary))', textDecoration: 'underline' }
+                                hasMatch: { fontWeight: 'bold', color: 'hsl(var(--primary))', textDecoration: 'underline' },
+                                hasBirthday: { fontWeight: 'bold', color: 'hsl(var(--accent))', textDecoration: 'underline' }
                             }}
                         />
                     </CardContent>
@@ -142,9 +167,27 @@ function CalendarPageContent() {
                         {selectedDate ? format(selectedDate, 'EEEE, d. MMMM yyyy', { locale: cs }) : 'Vyberte datum'}
                     </h3>
                     
-                    {matchesOnSelectedDate.length > 0 ? (
-                        <div className="grid gap-4">
-                            {matchesOnSelectedDate.map(match => (
+                    <div className="grid gap-4">
+                        {birthdaysOnSelectedDate.length > 0 && (
+                            <Card className="border-l-4 border-l-accent bg-accent/5">
+                                <CardHeader className="py-3">
+                                    <div className="flex items-center gap-2 text-accent">
+                                        <Cake className="h-5 w-5" />
+                                        <CardTitle className="text-lg">Dnes má narozeniny</CardTitle>
+                                    </div>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="space-y-1">
+                                        {birthdaysOnSelectedDate.map(u => (
+                                            <p key={u.id} className="font-semibold text-lg">{u.name}</p>
+                                        ))}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
+
+                        {matchesOnSelectedDate.length > 0 ? (
+                            matchesOnSelectedDate.map(match => (
                                 <Card key={match.id} className="overflow-hidden border-l-4 border-l-primary">
                                     <CardHeader className="pb-2">
                                         <div className="flex justify-between items-start">
@@ -173,16 +216,18 @@ function CalendarPageContent() {
                                         )}
                                     </CardContent>
                                 </Card>
-                            ))}
-                        </div>
-                    ) : (
-                        <Card>
-                            <CardContent className="py-12 text-center text-muted-foreground">
-                                <Users className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                                <p>Na tento den nejsou naplánovány žádné události.</p>
-                            </CardContent>
-                        </Card>
-                    )}
+                            ))
+                        ) : (
+                            !birthdaysOnSelectedDate.length && (
+                                <Card>
+                                    <CardContent className="py-12 text-center text-muted-foreground">
+                                        <Users className="h-12 w-12 mx-auto mb-4 opacity-20" />
+                                        <p>Na tento den nejsou naplánovány žádné události.</p>
+                                    </CardContent>
+                                </Card>
+                            )
+                        )}
+                    </div>
                 </div>
             </div>
 
