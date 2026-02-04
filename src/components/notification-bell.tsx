@@ -35,7 +35,7 @@ export function NotificationBell() {
     return query(
       collection(firestore, 'users', user.uid, 'notifications'),
       orderBy('createdAt', 'desc'),
-      limit(20)
+      limit(50)
     )
   }, [firestore, user])
 
@@ -44,6 +44,29 @@ export function NotificationBell() {
   const unreadCount = useMemo(() => {
     return notifications?.filter(n => !n.read).length || 0
   }, [notifications])
+
+  // Cleanup effect - deletes notifications older than 48 hours
+  useEffect(() => {
+    const cleanupOldNotifications = async () => {
+      if (!user || !firestore || !notifications || notifications.length === 0) return
+
+      const fortyEightHoursAgo = Date.now() - 48 * 60 * 60 * 1000
+      const toDelete = notifications.filter(n => n.createdAt.toMillis() < fortyEightHoursAgo)
+
+      if (toDelete.length > 0) {
+        const batch = writeBatch(firestore)
+        toDelete.forEach(n => {
+          const notifRef = doc(firestore, 'users', user.uid, 'notifications', n.id)
+          batch.delete(notifRef)
+        })
+        await batch.commit()
+      }
+    }
+
+    if (notifications) {
+      cleanupOldNotifications()
+    }
+  }, [notifications, user, firestore])
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
@@ -84,7 +107,6 @@ export function NotificationBell() {
 
     if (n.matchId) {
       const reasonParam = n.type === 'lineup_added' ? '&reason=lineup' : ''
-      // Přidání časového razítka zajistí, že Next.js vždy detekuje změnu URL a spustí useEffect v page.tsx
       router.push(`/dashboard?matchId=${n.matchId}${reasonParam}&t=${Date.now()}`)
     }
   }
@@ -131,11 +153,13 @@ export function NotificationBell() {
       <PopoverContent className="w-80 p-0" align="end">
         <div className="flex items-center justify-between p-4 border-b">
           <h4 className="font-bold text-sm">Oznámení</h4>
-          {unreadCount > 0 && (
-            <Button variant="ghost" size="sm" className="h-8 text-xs px-2" onClick={markAllAsRead}>
-              Přečteno vše
-            </Button>
-          )}
+          <div className="flex gap-2">
+            {unreadCount > 0 && (
+                <Button variant="ghost" size="sm" className="h-8 text-xs px-2" onClick={markAllAsRead}>
+                Přečteno vše
+                </Button>
+            )}
+          </div>
         </div>
         <ScrollArea className="h-80">
           {isLoading ? (
@@ -165,14 +189,14 @@ export function NotificationBell() {
                       {formatDistanceToNow(n.createdAt.toDate(), { addSuffix: true, locale: cs })}
                     </p>
                   </div>
-                  <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex flex-col gap-1 sm:opacity-0 group-hover:opacity-100 transition-opacity">
                     <Button 
                       variant="ghost" 
                       size="icon" 
-                      className="h-6 w-6" 
+                      className="h-8 w-8 hover:bg-destructive/10" 
                       onClick={(e) => { e.stopPropagation(); deleteNotification(n.id); }}
                     >
-                      <Trash2 className="h-3 w-3 text-destructive" />
+                      <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
                   </div>
                 </div>
