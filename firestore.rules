@@ -48,6 +48,12 @@ service cloud.firestore {
       allow create: if isOwner(userId);
       allow update: if isOwner(userId) || isAdmin();
       allow delete: if isAdmin();
+
+      // Pravidla pro oznámení
+      match /notifications/{notificationId} {
+        allow read, update, delete: if isOwner(userId);
+        allow create: if isAdmin() || isOwner(userId);
+      }
     }
 
     match /matches/{matchId} {
