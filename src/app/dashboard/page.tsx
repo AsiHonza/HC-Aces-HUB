@@ -277,6 +277,7 @@ function DashboardPageContent() {
   const [attendanceData, setAttendanceData] = useState<{ matchId: string; status: 'going' | 'not-going' } | null>(null);
   const [attendanceNote, setAttendanceNote] = useState('');
   const [highlightedMatchId, setHighlightedMatchId] = useState<string | null>(null);
+  const [highlightReason, setHighlightReason] = useState<string | null>(null);
   const [openAccordionValue, setOpenAccordionValue] = useState('');
   const [myStatsView, setMyStatsView] = useState<'regular' | 'playoff' | 'season' | 'history'>('regular');
   const [scoringView, setScoringView] = useState<'regular' | 'playoff' | 'season' | 'history'>('regular');
@@ -291,7 +292,6 @@ function DashboardPageContent() {
   const [editableSkaterStats, setEditableSkaterStats] = useState<any[]>([]);
   const [editableGoalieStats, setEditableGoalieStats] = useState<any[]>([]);
 
-  // League Management States
   const [isLeagueDialogOpen, setIsLeagueDialogOpen] = useState(false);
   const [isPlayoffDialogOpen, setIsPlayoffDialogOpen] = useState(false);
 
@@ -368,7 +368,7 @@ function DashboardPageContent() {
               season: { 
                   goals: (stats?.seasonGoals ?? 0) + (stats?.playoffGoals ?? 0), 
                   assists: (stats?.seasonAssists ?? 0) + (stats?.playoffAssists ?? 0), 
-                  gamesPlayed: (stats?.seasonGoals ?? 0) + (stats?.playoffGoals ?? 0) // Should be GP from both? Fixed here.
+                  gamesPlayed: (stats?.seasonGoals ?? 0) + (stats?.playoffGoals ?? 0) 
               },
               history: { goals: stats?.historicalGoals ?? 0, assists: stats?.historicalAssists ?? 0, gamesPlayed: stats?.historicalGamesPlayed ?? 0 },
           };
@@ -462,13 +462,18 @@ function DashboardPageContent() {
   useEffect(() => {
     if (isLoading) return;
     const mId = searchParams.get('matchId');
+    const reason = searchParams.get('reason');
     if (!mId) return;
     const timer = setTimeout(() => {
         const el = document.getElementById(`match-${mId}`);
         if (el) {
             el.scrollIntoView({ behavior: 'smooth', block: 'center' });
             setHighlightedMatchId(mId);
-            setTimeout(() => { setHighlightedMatchId(null); }, 3000);
+            setHighlightReason(reason);
+            setTimeout(() => { 
+              setHighlightedMatchId(null); 
+              setHighlightReason(null);
+            }, 4000);
         }
     }, 200);
     return () => clearTimeout(timer);
@@ -679,6 +684,8 @@ function DashboardPageContent() {
     const { prefix, opponent } = getMatchDetails(m);
     const attStatus = userAttendancesWithOptimistic.get(m.id)?.status;
     const goesCount = (attendancesByMatch.get(m.id) || []).filter(a => a.status === 'going').length;
+    const isLineupHighlighted = highlightedMatchId === m.id && highlightReason === 'lineup';
+
     return (
         <Card id={`match-${m.id}`} key={m.id} className={cn("w-full transition-all", highlightedMatchId === m.id && 'animate-highlight-card')}>
             <CardHeader className="flex-row items-start justify-between pb-2">
@@ -710,14 +717,23 @@ function DashboardPageContent() {
                         <Button variant={attStatus === 'not-going' ? 'destructive' : 'outline'} size="sm" onClick={() => { setAttendanceData({ matchId: m.id, status: 'not-going' }); setAttendanceNote(userAttendancesWithOptimistic.get(m.id)?.note || ''); setIsAttendanceDialogOpen(true); }} className={cn('flex-1', attStatus === 'not-going' && "bg-destructive/10 border-destructive text-destructive")}><X className="h-4 mr-2" /> Nejdu</Button>
                     </div>
                     <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                        {m.lineup && <Button variant="outline" size="sm" onClick={() => { setViewLineupData(m.lineup!); setIsLineupViewOpen(true); }}><View className="mr-2 h-4" /> Sestava</Button>}
+                        {m.lineup && (
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => { setViewLineupData(m.lineup!); setIsLineupViewOpen(true); }}
+                            className={cn(isLineupHighlighted && "animate-highlight-button border-primary border-2")}
+                          >
+                            <View className="mr-2 h-4" /> Sestava
+                          </Button>
+                        )}
                         <Dialog>
                             <DialogTrigger asChild><Button variant="outline" size="sm"><Users className="mr-2 h-4" /> Účast: {goesCount}</Button></DialogTrigger>
                             <DialogContent className="p-0">
                                 <DialogHeader className="p-6 pb-0">
                                     <DialogTitle>Účastníci</DialogTitle>
                                 </DialogHeader>
-                                <div className="max-h-[40vh] overflow-y-auto space-y-2 p-6 pt-2">
+                                <div className="max-h-[40vh] overflow-y-auto space-y-2 p-6 pt-2 text-left">
                                     {(attendancesByMatch.get(m.id) || []).map(att => {
                                         const p = usersMap.get(att.userId); if (!p) return null;
                                         return (
@@ -793,7 +809,7 @@ function DashboardPageContent() {
             </CardContent>
         </Card>
         <div className="lg:col-span-3 space-y-4">
-          <div className="flex items-center justify-between px-2 sm:px-0"><h2 className="text-xl font-bold flex items-center gap-2"><Trophy className="text-primary"/>Příští zápasy</h2>{userProfile?.role === 'admin' && <Button size="sm" onClick={() => setIsAddDialogOpen(true)}><Plus className="h-4 mr-1" />Přidat</Button>}</div>
+          <div className="flex items-center justify-between px-2 sm:px-0"><h2 className="text-xl font-bold flex items-center gap-2"><Trophy className="text-primary"/>Příští zápasy</h2>{userProfile?.role === 'admin' && <Button size="sm" onClick={() => setIsAddDialogOpen(true)}><Plus className="h-4 mr-2" />Přidat</Button>}</div>
           {nextMatch ? renderMatchCard(nextMatch) : <p className="text-center py-8 text-muted-foreground">Žádné blížící se zápasy.</p>}
           {(allMatches?.filter(match => !match.isPlayed && match.dateTime.toDate() >= startOfDay(new Date())).slice(1) || []).length > 0 && (
                 <Accordion type="single" collapsible className="w-full px-2 sm:px-0" value={openAccordionValue} onValueChange={setOpenAccordionValue}>
@@ -856,7 +872,7 @@ function DashboardPageContent() {
                                 <Card key={idx} className="bg-muted/30">
                                     <CardHeader className="pb-2 p-4">
                                         <p className="text-[10px] font-bold text-primary uppercase">{series.round}</p>
-                                        <CardTitle className="text-base">{series.opponent}</CardTitle>
+                                        <CardTitle className="text-base text-left">{series.opponent}</CardTitle>
                                     </CardHeader>
                                     <CardContent className="p-4 pt-0">
                                         <div className="flex items-center justify-between">
@@ -1152,7 +1168,6 @@ function DashboardPageContent() {
                 }
                 const matchDoc = await addDoc(collection(firestore, 'matches'), mData); 
                 
-                // Notify users
                 const usersSnap = await getDocs(collection(firestore, 'users'));
                 const batch = writeBatch(firestore);
                 usersSnap.forEach(uDoc => {
@@ -1362,11 +1377,9 @@ function DashboardPageContent() {
                 try {
                     await updateDoc(doc(firestore, 'matches', lineupMatch.id), { lineup: l }); 
                     
-                    // Notify nominated players
                     const batch = writeBatch(firestore);
                     const opponent = getMatchDetails(lineupMatch).opponent;
                     
-                    // Extract player IDs from lineup
                     const playerIds = Object.values(l).filter(p => p !== null).map(p => p!.id);
                     
                     playerIds.forEach(pId => {
@@ -1399,7 +1412,7 @@ function DashboardPageContent() {
       </Dialog>
 
       <Dialog open={isLineupViewOpen} onOpenChange={setIsLineupViewOpen}>
-        <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 overflow-hidden">
+        <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 overflow-hidden text-left">
             <DialogHeader className="p-6 pb-0 flex-shrink-0">
                 <DialogTitle>Zobrazení sestavy</DialogTitle>
             </DialogHeader>
@@ -1463,7 +1476,7 @@ function DashboardPageContent() {
                     setIsSaving(false); 
                 }
               }}>
-                  <div className="grid gap-6 py-4 p-1">
+                  <div className="grid gap-6 py-4 p-1 text-left">
                       <div className="grid gap-2"><Label>Soupeř</Label><Input name="opponent" defaultValue={selectedMatch.team2} required /></div>
                       <div className="grid grid-cols-2 gap-4">
                           <div className="grid gap-2"><Label>Datum</Label><Input name="date" type="date" defaultValue={format(selectedMatch.dateTime.toDate(), 'yyyy-MM-dd')} required /></div>
@@ -1503,4 +1516,4 @@ function DashboardPageContent() {
   )
 }
 
-export default function DashboardPage() { return <Suspense fallback={<div className="container py-8">Načítání...</div>}><DashboardPageContent /></Suspense> }
+export default function DashboardPage() { return <Suspense fallback={<div className="container py-8 text-center">Načítání...</div>}><DashboardPageContent /></Suspense> }

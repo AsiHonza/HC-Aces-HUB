@@ -112,12 +112,24 @@ const config: Config = {
             boxShadow: '0 0 0 8px hsl(var(--primary) / 0.3)',
           },
         },
+        'highlight-button': {
+          '0%, 100%': {
+            boxShadow: '0 0 0 0 hsl(var(--primary) / 0)',
+            transform: 'scale(1)',
+          },
+          '50%': {
+            boxShadow: '0 0 0 10px hsl(var(--primary) / 0.4)',
+            transform: 'scale(1.05)',
+            borderColor: 'hsl(var(--primary))',
+          },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
         'logo-in': 'logo-in 1s ease-out forwards',
         'highlight-card': 'highlight-card 2.5s ease-out',
+        'highlight-button': 'highlight-button 1.5s ease-in-out infinite',
       },
     },
   },

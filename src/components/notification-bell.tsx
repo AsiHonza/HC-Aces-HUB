@@ -45,7 +45,6 @@ export function NotificationBell() {
     return notifications?.filter(n => !n.read).length || 0
   }, [notifications])
 
-  // Request browser notification permission on mount
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
       if (Notification.permission === 'default') {
@@ -54,22 +53,19 @@ export function NotificationBell() {
     }
   }, [])
 
-  // Show browser notification for the latest unread message if it's new
   useEffect(() => {
     if (notifications && notifications.length > 0) {
       const latest = notifications[0]
-      // Only notify if it's unread, created very recently, and we haven't notified for this ID yet
       const isVeryRecent = latest.createdAt.toMillis() > Date.now() - 10000
       
       if (!latest.read && isVeryRecent && latest.id !== lastNotifiedId) {
         setLastNotifiedId(latest.id)
         
         if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-          // Only show if the user isn't already looking at the app
           if (document.visibilityState !== 'visible') {
             new Notification(latest.title, { 
               body: latest.message,
-              icon: '/favicon.ico' // Assuming there's a favicon or icon
+              icon: '/favicon.ico'
             })
           }
         }
@@ -80,18 +76,16 @@ export function NotificationBell() {
   const handleNotificationClick = async (n: Notification) => {
     if (!user || !firestore) return
 
-    // Mark as read if not already
     if (!n.read) {
       const notifRef = doc(firestore, 'users', user.uid, 'notifications', n.id)
-      await updateDoc(notifRef, { read: true })
+      updateDoc(notifRef, { read: true })
     }
 
-    // Close the popover
     setIsOpen(false)
 
-    // Navigate to match if matchId exists
     if (n.matchId) {
-      router.push(`/dashboard?matchId=${n.matchId}`)
+      const reasonParam = n.type === 'lineup_added' ? '&reason=lineup' : ''
+      router.push(`/dashboard?matchId=${n.matchId}${reasonParam}`)
     }
   }
 
@@ -108,7 +102,7 @@ export function NotificationBell() {
   const deleteNotification = async (id: string) => {
     if (!user || !firestore) return
     const notifRef = doc(firestore, 'users', user.uid, 'notifications', id)
-    await deleteDoc(notifRef)
+    deleteDoc(notifRef)
   }
 
   const getIcon = (type: string) => {
@@ -154,7 +148,7 @@ export function NotificationBell() {
                 <div 
                   key={n.id} 
                   className={cn(
-                    "flex gap-3 p-4 border-b last:border-0 transition-colors relative group cursor-pointer hover:bg-muted/50",
+                    "flex gap-3 p-4 border-b last:border-0 transition-colors relative group cursor-pointer hover:bg-muted/50 text-left",
                     !n.read && "bg-primary/5"
                   )}
                   onClick={() => handleNotificationClick(n)}
