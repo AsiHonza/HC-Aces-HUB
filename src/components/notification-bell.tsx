@@ -11,6 +11,7 @@ import { collection, query, orderBy, limit, doc, updateDoc, deleteDoc, writeBatc
 import { cn } from '@/lib/utils'
 import { formatDistanceToNow } from 'date-fns'
 import { cs } from 'date-fns/locale'
+import { useRouter } from 'next/navigation'
 
 interface Notification {
   id: string;
@@ -25,6 +26,7 @@ interface Notification {
 export function NotificationBell() {
   const { user } = useUser()
   const firestore = useFirestore()
+  const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
 
   const notificationsQuery = useMemoFirebase(() => {
@@ -44,7 +46,7 @@ export function NotificationBell() {
 
   // Request browser notification permission
   useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'default') {
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission()
     }
   }, [])
@@ -54,17 +56,29 @@ export function NotificationBell() {
     if (notifications && notifications.length > 0) {
       const latest = notifications[0]
       if (!latest.read && latest.createdAt.toMillis() > Date.now() - 5000) {
-        if (Notification.permission === 'granted') {
-          new Notification(latest.title, { body: latest.message, icon: '/logo.png' })
+        if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+          new Notification(latest.title, { body: latest.message })
         }
       }
     }
   }, [notifications])
 
-  const markAsRead = async (id: string) => {
+  const handleNotificationClick = async (n: Notification) => {
     if (!user || !firestore) return
-    const notifRef = doc(firestore, 'users', user.uid, 'notifications', id)
-    await updateDoc(notifRef, { read: true })
+
+    // Mark as read if not already
+    if (!n.read) {
+      const notifRef = doc(firestore, 'users', user.uid, 'notifications', n.id)
+      await updateDoc(notifRef, { read: true })
+    }
+
+    // Close the popover
+    setIsOpen(false)
+
+    // Navigate to match if matchId exists
+    if (n.matchId) {
+      router.push(`/dashboard?matchId=${n.matchId}`)
+    }
   }
 
   const markAllAsRead = async () => {
@@ -126,10 +140,10 @@ export function NotificationBell() {
                 <div 
                   key={n.id} 
                   className={cn(
-                    "flex gap-3 p-4 border-b last:border-0 transition-colors relative group",
+                    "flex gap-3 p-4 border-b last:border-0 transition-colors relative group cursor-pointer hover:bg-muted/50",
                     !n.read && "bg-primary/5"
                   )}
-                  onClick={() => !n.read && markAsRead(n.id)}
+                  onClick={() => handleNotificationClick(n)}
                 >
                   <div className="mt-1">{getIcon(n.type)}</div>
                   <div className="flex-1 space-y-1">
