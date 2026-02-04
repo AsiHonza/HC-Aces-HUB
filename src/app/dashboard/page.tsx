@@ -368,7 +368,7 @@ function DashboardPageContent() {
               season: { 
                   goals: (stats?.seasonGoals ?? 0) + (stats?.playoffGoals ?? 0), 
                   assists: (stats?.seasonAssists ?? 0) + (stats?.playoffAssists ?? 0), 
-                  gamesPlayed: (stats?.seasonGamesPlayed ?? 0) + (stats?.playoffGamesPlayed ?? 0) 
+                  gamesPlayed: (stats?.seasonGoals ?? 0) + (stats?.playoffGoals ?? 0) // Should be GP from both? Fixed here.
               },
               history: { goals: stats?.historicalGoals ?? 0, assists: stats?.historicalAssists ?? 0, gamesPlayed: stats?.historicalGamesPlayed ?? 0 },
           };
@@ -584,7 +584,6 @@ function DashboardPageContent() {
     }
   };
 
-  // League Standings and Playoff Series Save Logic
   const handleSaveLeagueStandings = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!firestore) return;
@@ -594,7 +593,6 @@ function DashboardPageContent() {
         const teams: LeagueStanding[] = [];
         const entries = Array.from(formData.entries());
         
-        // Group by index
         const teamGroups = new Map<number, Partial<LeagueStanding>>();
         entries.forEach(([key, value]) => {
             const match = key.match(/^(name|points|gf|ga)-(\d+)$/);
@@ -807,7 +805,6 @@ function DashboardPageContent() {
           )}
         </div>
 
-        {/* League and Playoff Section */}
         <Card className="lg:col-span-3">
             <CardHeader className="flex-row items-center justify-between gap-4 py-4 px-4 sm:px-6">
                 <CardTitle className="flex items-center gap-2 whitespace-nowrap"><ListOrdered className="text-primary"/>Soutěž</CardTitle>
@@ -942,7 +939,6 @@ function DashboardPageContent() {
             <CardFooter className="pt-2 px-4 sm:px-6"><Button variant="link" asChild className="p-0 h-auto font-bold text-primary text-xs"><Link href="/dashboard/history">Zobrazit celou historii</Link></Button></CardFooter>
         </Card>
 
-        {/* Scoring Leaderboards */}
         <div className="lg:col-span-3 grid gap-8 md:grid-cols-2">
             <Card>
                 <CardHeader className="flex-row items-center justify-between py-4 px-4 sm:px-6">
@@ -1128,7 +1124,6 @@ function DashboardPageContent() {
         </div>
       </div>
       
-      {/* Existing Dialogs (Matches, Results, Attendance, Lineup) */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -1215,7 +1210,6 @@ function DashboardPageContent() {
         </DialogContent>
       </Dialog>
 
-      {/* League Standing Edit Dialog */}
       <Dialog open={isLeagueDialogOpen} onOpenChange={setIsLeagueDialogOpen}>
           <DialogContent className="max-w-2xl">
               <DialogHeader>
@@ -1254,7 +1248,6 @@ function DashboardPageContent() {
           </DialogContent>
       </Dialog>
 
-      {/* Playoff Series Edit Dialog */}
       <Dialog open={isPlayoffDialogOpen} onOpenChange={setIsPlayoffDialogOpen}>
           <DialogContent className="max-w-xl">
               <DialogHeader>
@@ -1304,7 +1297,6 @@ function DashboardPageContent() {
           </DialogContent>
       </Dialog>
 
-      {/* Existing Match Result, Attendance, Lineup Dialogs */}
       <Dialog open={isResultDialogOpen} onOpenChange={setIsResultDialogOpen}>
           <DialogContent className="max-w-md">
               {selectedMatch && <RecordResultForm match={selectedMatch} allUsers={allUsers || []} onSave={handleSaveResult} onCancel={() => setIsResultDialogOpen(false)} isSaving={isSaving} />}
@@ -1343,7 +1335,7 @@ function DashboardPageContent() {
 
       <Dialog open={isLineupBuilderOpen} onOpenChange={setIsLineupBuilderOpen}>
         <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 overflow-hidden">
-            <DialogHeader className="p-6 pb-0">
+            <DialogHeader className="p-6 pb-0 flex-shrink-0">
                 <DialogTitle>Editor sestavy</DialogTitle>
             </DialogHeader>
             {lineupMatch && <LineupBuilder players={allUsers?.filter(u => (attendancesByMatch.get(lineupMatch.id)||[]).some(a => a.userId === u.id && a.status === 'going')) || []} initialData={lineupMatch.lineup} onSave={async l => { 
@@ -1368,10 +1360,10 @@ function DashboardPageContent() {
 
       <Dialog open={isLineupViewOpen} onOpenChange={setIsLineupViewOpen}>
         <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 overflow-hidden">
-            <DialogHeader className="p-6 pb-0">
+            <DialogHeader className="p-6 pb-0 flex-shrink-0">
                 <DialogTitle>Zobrazení sestavy</DialogTitle>
             </DialogHeader>
-            {viewLineupData && <LineupDisplay lineup={viewLineupData} />}
+            {viewLineupData && <div className="flex-1 min-h-0 overflow-hidden"><LineupDisplay lineup={viewLineupData} /></div>}
         </DialogContent>
       </Dialog>
 

@@ -203,7 +203,7 @@ export function LineupBuilder({ players, initialData, onSave, onCancel }: { play
                                      <AvatarImage src={player.photoURL ?? `https://picsum.photos/seed/${player.email}/100/100`} data-ai-hint="player portrait" alt={player.name || ''} />
                                      <AvatarFallback>{(player.name || '').split(' ').map(n=>n[0]).join('')}</AvatarFallback>
                                  </Avatar>
-                                 <span>{player.name || ''}</span>
+                                 <span className="truncate">{player.name || ''}</span>
                              </div>
                         ) : 'Nepřiřazeno'}
                     </SelectValue>
@@ -283,14 +283,14 @@ export function LineupBuilder({ players, initialData, onSave, onCancel }: { play
         <Tabs defaultValue="sestava" className="flex flex-col h-full w-full">
             <TabsList className="grid w-full grid-cols-2 rounded-none flex-shrink-0">
                 <TabsTrigger value="sestava">Sestava</TabsTrigger>
-                <TabsTrigger value="hraci">Dostupní hráči ({availablePlayers.length})</TabsTrigger>
+                <TabsTrigger value="hraci">Hráči ({availablePlayers.length})</TabsTrigger>
             </TabsList>
             <TabsContent value="sestava" className="flex-1 overflow-y-auto mt-0">
-                 <div className="p-2 space-y-4">
+                 <div className="p-2 space-y-4 pb-12">
                     {formations.map(f => (
                         <Card key={f.title}>
-                            <CardHeader className="p-4">
-                                <CardTitle className="text-base">{f.title}</CardTitle>
+                            <CardHeader className="p-4 pb-2">
+                                <CardTitle className="text-sm font-bold">{f.title}</CardTitle>
                             </CardHeader>
                             <CardContent className="p-4 pt-0 space-y-3">
                                 {f.positions.map(pKey => <MobilePositionSelector key={pKey} positionKey={pKey} />)}
@@ -308,13 +308,13 @@ export function LineupBuilder({ players, initialData, onSave, onCancel }: { play
                                     <AvatarImage src={p.photoURL ?? `https://picsum.photos/seed/${p.email}/100/100`} data-ai-hint="player portrait" alt={p.name || ''} />
                                     <AvatarFallback>{(p.name || '').split(' ').map(n=>n[0]).join('')}</AvatarFallback>
                                 </Avatar>
-                                <div>
-                                    <p className="font-medium text-sm leading-tight">{p.name || ''}</p>
+                                <div className="flex-1 min-w-0">
+                                    <p className="font-medium text-sm leading-tight truncate">{p.name || ''}</p>
                                     {p.jerseyNumber != null && <p className="text-xs text-muted-foreground">#{p.jerseyNumber}</p>}
                                 </div>
                             </div>
                         </Card>
-                    )) : <p className="text-sm text-muted-foreground text-center pt-4">Všichni hráči jsou v sestavě.</p>}
+                    )) : <p className="text-sm text-muted-foreground text-center pt-8">Všichni dostupní hráči jsou v sestavě.</p>}
                 </div>
             </TabsContent>
         </Tabs>
@@ -351,7 +351,7 @@ export function LineupBuilder({ players, initialData, onSave, onCancel }: { play
                         </Droppable>
                     </CardContent>
                 </Card>
-                <div className="flex-1 relative rounded-lg overflow-hidden">
+                <div className="flex-1 relative rounded-lg overflow-hidden border">
                     <RinkBackground />
                     <div className={cn("relative z-10 h-full flex flex-col justify-around p-4", isSmall && "p-2 justify-evenly")}>
                         <div className={cn("space-y-4", isSmall && "space-y-2")}>
@@ -394,8 +394,8 @@ export function LineupBuilder({ players, initialData, onSave, onCancel }: { play
   }
 
   return (
-    <div className="flex h-full flex-col">
-        <div className="p-4 border-b">
+    <div className="flex flex-1 flex-col min-h-0 bg-background">
+        <div className="p-4 border-b flex-shrink-0">
              <Tabs value={formationCount} onValueChange={handleFormationChange} className="w-full max-w-sm mx-auto">
                 <TabsList className="grid w-full grid-cols-2">
                     <TabsTrigger value="2">2 útočné formace</TabsTrigger>
@@ -403,12 +403,12 @@ export function LineupBuilder({ players, initialData, onSave, onCancel }: { play
                 </TabsList>
             </Tabs>
         </div>
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden min-h-0">
             {isMobile ? <MobileBuilder /> : <DesktopBuilder />}
         </div>
-        <div className="flex-shrink-0 flex justify-end gap-2 p-4 border-t">
-            <Button variant="outline" onClick={onCancel}>Zrušit</Button>
-            <Button onClick={() => onSave(lineup)}>Uložit sestavu</Button>
+        <div className="flex-shrink-0 flex justify-end gap-2 p-4 border-t bg-background shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+            <Button variant="outline" onClick={onCancel} className="flex-1 sm:flex-none">Zrušit</Button>
+            <Button onClick={() => onSave(lineup)} className="flex-1 sm:flex-none">Uložit sestavu</Button>
         </div>
     </div>
   );
