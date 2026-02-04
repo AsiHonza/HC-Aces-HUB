@@ -1,11 +1,10 @@
-
 'use client'
 
 import React, { Suspense, useState, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Calendar } from "@/components/ui/calendar"
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase'
-import { doc, collection, query, orderBy, Timestamp, addDoc } from 'firebase/firestore'
+import { doc, collection, query, orderBy, Timestamp, addDoc, writeBatch, getDocs } from 'firebase/firestore'
 import { format, isSameDay, startOfDay, setYear, parseISO, isValid } from 'date-fns'
 import { cs } from 'date-fns/locale'
 import { Loader2, Plus, Trophy, MapPin, Clock, Users, Cake } from 'lucide-react'
@@ -116,6 +115,7 @@ function CalendarPageContent() {
         setIsSaving(true);
         const formData = new FormData(e.currentTarget);
         const timeStr = formData.get('time') as string;
+        const opponent = formData.get('opponent') as string;
         
         try {
             const [hours, minutes] = timeStr.split(':').map(Number);
@@ -124,7 +124,7 @@ function CalendarPageContent() {
 
             const newMatchData: any = {
                 team1: 'Aces',
-                team2: formData.get('opponent') as string,
+                team2: opponent,
                 location: formData.get('location') as string,
                 dateTime: Timestamp.fromDate(matchDateTime),
                 isPlayed: false,
@@ -138,8 +138,25 @@ function CalendarPageContent() {
                 newMatchData.playoffMatchNumber = Number(formData.get('playoffMatchNumber')) || null;
             }
             
-            await addDoc(collection(firestore, 'matches'), newMatchData);
-            toast({ title: 'Zápas přidán do kalendáře.' });
+            const matchDoc = await addDoc(collection(firestore, 'matches'), newMatchData);
+            
+            // Notify all users about new match
+            const usersSnap = await getDocs(collection(firestore, 'users'));
+            const batch = writeBatch(firestore);
+            usersSnap.forEach(uDoc => {
+                const notifRef = doc(collection(firestore, 'users', uDoc.id, 'notifications'));
+                batch.set(notifRef, {
+                    title: 'Nový zápas v kalendáři!',
+                    message: `Byl naplánován zápas proti ${opponent} (${format(matchDateTime, 'd. M. HH:mm')}). Nahlaš svou účast!`,
+                    type: 'match_new',
+                    createdAt: Timestamp.now(),
+                    read: false,
+                    matchId: matchDoc.id
+                });
+            });
+            await batch.commit();
+
+            toast({ title: 'Zápas přidán a tým byl upozorněn.' });
             setIsAddMatchDialogOpen(false);
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se přidat zápas.' });

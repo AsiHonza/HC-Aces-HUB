@@ -15,7 +15,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { MapPin, Users, Trophy, BarChart, Pencil, Check, X, Flame, Shield, Plus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal, FileText, View, Disc, Cake, Minus, ChevronDown, ListOrdered } from "lucide-react"
 import { cn } from '@/lib/utils'
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase'
-import { doc, collection, collectionGroup, updateDoc, query, Timestamp, addDoc, orderBy, setDoc, deleteDoc } from 'firebase/firestore'
+import { doc, collection, collectionGroup, updateDoc, query, Timestamp, addDoc, orderBy, setDoc, deleteDoc, writeBatch, getDocs } from 'firebase/firestore'
 import { format, startOfDay, addDays, parseISO, isValid, differenceInDays, parse } from 'date-fns'
 import { cs } from 'date-fns/locale'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
@@ -1136,9 +1136,10 @@ function DashboardPageContent() {
             try {
                 const fd = new FormData(e.currentTarget); 
                 const dt = parse(`${fd.get('date')} ${fd.get('time')}`, 'yyyy-MM-dd HH:mm', new Date()); 
+                const opponent = fd.get('opponent') as string;
                 const mData: any = { 
                     team1: 'Aces', 
-                    team2: fd.get('opponent'), 
+                    team2: opponent, 
                     location: fd.get('location'), 
                     dateTime: Timestamp.fromDate(dt), 
                     isPlayed: false, 
@@ -1149,9 +1150,26 @@ function DashboardPageContent() {
                     mData.playoffStage = fd.get('playoffStage');
                     mData.playoffMatchNumber = Number(fd.get('playoffMatchNumber')) || null;
                 }
-                await addDoc(collection(firestore, 'matches'), mData); 
+                const matchDoc = await addDoc(collection(firestore, 'matches'), mData); 
+                
+                // Notify users
+                const usersSnap = await getDocs(collection(firestore, 'users'));
+                const batch = writeBatch(firestore);
+                usersSnap.forEach(uDoc => {
+                    const notifRef = doc(collection(firestore, 'users', uDoc.id, 'notifications'));
+                    batch.set(notifRef, {
+                        title: 'Nový zápas naplánován!',
+                        message: `Příští zápas: Aces vs ${opponent} (${format(dt, 'd. M. HH:mm')}). Přihlaš se!`,
+                        type: 'match_new',
+                        createdAt: Timestamp.now(),
+                        read: false,
+                        matchId: matchDoc.id
+                    });
+                });
+                await batch.commit();
+
                 setIsAddDialogOpen(false); 
-                toast({ title: "Zápas přidán" }); 
+                toast({ title: "Zápas přidán a tým upozorněn." }); 
             } catch (err: any) {
                 const permissionError = new FirestorePermissionError({
                     path: 'matches',
@@ -1343,8 +1361,30 @@ function DashboardPageContent() {
                 setIsSaving(true); 
                 try {
                     await updateDoc(doc(firestore, 'matches', lineupMatch.id), { lineup: l }); 
+                    
+                    // Notify nominated players
+                    const batch = writeBatch(firestore);
+                    const opponent = getMatchDetails(lineupMatch).opponent;
+                    
+                    // Extract player IDs from lineup
+                    const playerIds = Object.values(l).filter(p => p !== null).map(p => p!.id);
+                    
+                    playerIds.forEach(pId => {
+                        const notifRef = doc(collection(firestore, 'users', pId, 'notifications'));
+                        batch.set(notifRef, {
+                            title: 'Byl jsi nominován do sestavy!',
+                            message: `Máš místo v sestavě na zápas proti ${opponent}. Koukni na detaily!`,
+                            type: 'lineup_added',
+                            createdAt: Timestamp.now(),
+                            read: false,
+                            matchId: lineupMatch.id
+                        });
+                    });
+                    
+                    await batch.commit();
+                    
                     setIsLineupBuilderOpen(false); 
-                    toast({ title: "Sestava uložena" }); 
+                    toast({ title: "Sestava uložena a hráči informováni." }); 
                 } catch (err: any) {
                     const permissionError = new FirestorePermissionError({
                         path: `matches/${lineupMatch.id}`,

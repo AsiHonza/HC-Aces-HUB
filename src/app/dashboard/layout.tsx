@@ -12,6 +12,7 @@ import { signOut } from 'firebase/auth'
 import { useRouter, usePathname } from 'next/navigation'
 import { doc } from 'firebase/firestore'
 import { cn } from '@/lib/utils'
+import { NotificationBell } from '@/components/notification-bell'
 
 interface UserProfile {
     id: string;
@@ -117,7 +118,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <header className="sticky top-0 z-10 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="max-w-7xl mx-auto flex h-16 items-center justify-between px-4 sm:px-6">
           <div className="flex items-center gap-8">
             <Link href="/dashboard" className="flex items-center gap-2 font-bold text-lg text-foreground">
@@ -140,8 +141,8 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
                 ))}
             </nav>
           </div>
-          <div className="flex items-center gap-4">
-            <nav className="flex md:hidden items-center space-x-2 text-sm font-medium">
+          <div className="flex items-center gap-2 sm:gap-4">
+            <nav className="flex md:hidden items-center space-x-1 text-sm font-medium">
                  {navLinks.map(link => (
                     <Link 
                         key={link.href}
@@ -156,7 +157,10 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
                     </Link>
                 ))}
             </nav>
-            <UserNav />
+            <div className="flex items-center gap-1 sm:gap-2">
+                <NotificationBell />
+                <UserNav />
+            </div>
           </div>
         </div>
       </header>
