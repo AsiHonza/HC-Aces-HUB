@@ -28,6 +28,7 @@ export function NotificationBell() {
   const firestore = useFirestore()
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
+  const [lastNotifiedId, setLastNotifiedId] = useState<string | null>(null)
 
   const notificationsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null
@@ -44,10 +45,12 @@ export function NotificationBell() {
     return notifications?.filter(n => !n.read).length || 0
   }, [notifications])
 
-  // Request browser notification permission
+  // Request browser notification permission on mount
   useEffect(() => {
-    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission()
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission()
+      }
     }
   }, [])
 
@@ -55,13 +58,24 @@ export function NotificationBell() {
   useEffect(() => {
     if (notifications && notifications.length > 0) {
       const latest = notifications[0]
-      if (!latest.read && latest.createdAt.toMillis() > Date.now() - 5000) {
+      // Only notify if it's unread, created very recently, and we haven't notified for this ID yet
+      const isVeryRecent = latest.createdAt.toMillis() > Date.now() - 10000
+      
+      if (!latest.read && isVeryRecent && latest.id !== lastNotifiedId) {
+        setLastNotifiedId(latest.id)
+        
         if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-          new Notification(latest.title, { body: latest.message })
+          // Only show if the user isn't already looking at the app
+          if (document.visibilityState !== 'visible') {
+            new Notification(latest.title, { 
+              body: latest.message,
+              icon: '/favicon.ico' // Assuming there's a favicon or icon
+            })
+          }
         }
       }
     }
-  }, [notifications])
+  }, [notifications, lastNotifiedId])
 
   const handleNotificationClick = async (n: Notification) => {
     if (!user || !firestore) return
