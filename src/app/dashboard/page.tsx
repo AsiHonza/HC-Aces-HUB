@@ -464,6 +464,13 @@ function DashboardPageContent() {
     const mId = searchParams.get('matchId');
     const reason = searchParams.get('reason');
     if (!mId) return;
+
+    // Check if we need to open the accordion
+    const isUpcomingButNotNext = upcomingMatches.slice(1).some(m => m.id === mId);
+    if (isUpcomingButNotNext) {
+        setOpenAccordionValue('item-1');
+    }
+
     const timer = setTimeout(() => {
         const el = document.getElementById(`match-${mId}`);
         if (el) {
@@ -475,9 +482,9 @@ function DashboardPageContent() {
               setHighlightReason(null);
             }, 4000);
         }
-    }, 200);
+    }, 400); // Slightly longer delay to allow for renders
     return () => clearTimeout(timer);
-  }, [isLoading, searchParams]);
+  }, [isLoading, searchParams, upcomingMatches]);
 
   const handleShareMatch = (mId: string) => {
     const url = new URL(window.location.origin + window.location.pathname);
@@ -722,7 +729,7 @@ function DashboardPageContent() {
                             variant="outline" 
                             size="sm" 
                             onClick={() => { setViewLineupData(m.lineup!); setIsLineupViewOpen(true); }}
-                            className={cn(isLineupHighlighted && "animate-highlight-button border-primary border-2")}
+                            className={cn(isLineupHighlighted && "animate-highlight-button border-primary border-2 shadow-primary/50")}
                           >
                             <View className="mr-2 h-4" /> Sestava
                           </Button>
@@ -809,7 +816,7 @@ function DashboardPageContent() {
             </CardContent>
         </Card>
         <div className="lg:col-span-3 space-y-4">
-          <div className="flex items-center justify-between px-2 sm:px-0"><h2 className="text-xl font-bold flex items-center gap-2"><Trophy className="text-primary"/>Příští zápasy</h2>{userProfile?.role === 'admin' && <Button size="sm" onClick={() => setIsAddDialogOpen(true)}><Plus className="h-4 mr-2" />Přidat</Button>}</div>
+          <div className="flex items-center justify-between px-2 sm:px-0"><h2 className="text-xl font-bold flex items-center gap-2"><Trophy className="text-primary"/>Příští zápasy</h2>{userProfile?.role === 'admin' && <Button size="sm" onClick={() => setIsAddDialogOpen(true)}><Plus className="h-4 mr-2" />Přidat zápas</Button>}</div>
           {nextMatch ? renderMatchCard(nextMatch) : <p className="text-center py-8 text-muted-foreground">Žádné blížící se zápasy.</p>}
           {(allMatches?.filter(match => !match.isPlayed && match.dateTime.toDate() >= startOfDay(new Date())).slice(1) || []).length > 0 && (
                 <Accordion type="single" collapsible className="w-full px-2 sm:px-0" value={openAccordionValue} onValueChange={setOpenAccordionValue}>

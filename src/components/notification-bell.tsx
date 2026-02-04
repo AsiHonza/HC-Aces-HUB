@@ -65,7 +65,6 @@ export function NotificationBell() {
           if (document.visibilityState !== 'visible') {
             new Notification(latest.title, { 
               body: latest.message,
-              icon: '/favicon.ico'
             })
           }
         }
@@ -85,7 +84,8 @@ export function NotificationBell() {
 
     if (n.matchId) {
       const reasonParam = n.type === 'lineup_added' ? '&reason=lineup' : ''
-      router.push(`/dashboard?matchId=${n.matchId}${reasonParam}`)
+      // Přidání časového razítka zajistí, že Next.js vždy detekuje změnu URL a spustí useEffect v page.tsx
+      router.push(`/dashboard?matchId=${n.matchId}${reasonParam}&t=${Date.now()}`)
     }
   }
 
