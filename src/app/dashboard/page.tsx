@@ -1,3 +1,4 @@
+
 'use client'
 
 import React, { Suspense, useState, useMemo, useEffect } from 'react'
@@ -61,14 +62,17 @@ interface GoalieStats {
   seasonWins: number;
   seasonShotsAgainst: number;
   seasonSaves: number;
+  seasonSO: number;
   playoffGamesPlayed: number;
   playoffWins: number;
   playoffSaves: number;
   playoffShotsAgainst: number;
+  playoffSO: number;
   historicalGamesPlayed: number;
   historicalWins: number;
   historicalShotsAgainst: number;
   historicalSaves: number;
+  historicalSO: number;
 }
 
 interface Match {
@@ -368,7 +372,7 @@ function DashboardPageContent() {
               season: { 
                   goals: (stats?.seasonGoals ?? 0) + (stats?.playoffGoals ?? 0), 
                   assists: (stats?.seasonAssists ?? 0) + (stats?.playoffAssists ?? 0), 
-                  gamesPlayed: (stats?.seasonGoals ?? 0) + (stats?.playoffGoals ?? 0) 
+                  gamesPlayed: (stats?.seasonGamesPlayed ?? 0) + (stats?.playoffGamesPlayed ?? 0) 
               },
               history: { goals: stats?.historicalGoals ?? 0, assists: stats?.historicalAssists ?? 0, gamesPlayed: stats?.historicalGamesPlayed ?? 0 },
           };
@@ -383,15 +387,16 @@ function DashboardPageContent() {
           const stats = statsMap.get(u.id);
           return {
               id: u.id, name: formatName(u.name),
-              regular: { gamesPlayed: stats?.seasonGamesPlayed ?? 0, wins: stats?.seasonWins ?? 0, shotsAgainst: stats?.seasonShotsAgainst ?? 0, saves: stats?.seasonSaves ?? 0 },
-              playoff: { gamesPlayed: stats?.playoffGamesPlayed ?? 0, wins: stats?.playoffWins ?? 0, shotsAgainst: stats?.playoffShotsAgainst ?? 0, saves: stats?.playoffSaves ?? 0 },
+              regular: { gamesPlayed: stats?.seasonGamesPlayed ?? 0, wins: stats?.seasonWins ?? 0, shotsAgainst: stats?.seasonShotsAgainst ?? 0, saves: stats?.seasonSaves ?? 0, so: stats?.seasonSO ?? 0 },
+              playoff: { gamesPlayed: stats?.playoffGamesPlayed ?? 0, wins: stats?.playoffWins ?? 0, shotsAgainst: stats?.playoffShotsAgainst ?? 0, saves: stats?.playoffSaves ?? 0, so: stats?.playoffSO ?? 0 },
               season: { 
                   gamesPlayed: (stats?.seasonGamesPlayed ?? 0) + (stats?.playoffGamesPlayed ?? 0), 
                   wins: (stats?.seasonWins ?? 0) + (stats?.playoffWins ?? 0), 
                   shotsAgainst: (stats?.seasonShotsAgainst ?? 0) + (stats?.playoffShotsAgainst ?? 0), 
-                  saves: (stats?.seasonSaves ?? 0) + (stats?.playoffSaves ?? 0) 
+                  saves: (stats?.seasonSaves ?? 0) + (stats?.playoffSaves ?? 0),
+                  so: (stats?.seasonSO ?? 0) + (stats?.playoffSO ?? 0)
               },
-              history: { gamesPlayed: stats?.historicalGamesPlayed ?? 0, wins: stats?.historicalWins ?? 0, shotsAgainst: stats?.historicalShotsAgainst ?? 0, saves: stats?.historicalSaves ?? 0 },
+              history: { gamesPlayed: stats?.historicalGamesPlayed ?? 0, wins: stats?.historicalWins ?? 0, shotsAgainst: stats?.historicalShotsAgainst ?? 0, saves: stats?.historicalSaves ?? 0, so: stats?.historicalSO ?? 0 },
           };
       });
   }, [allUsers, allGoalieStats]);
@@ -482,7 +487,7 @@ function DashboardPageContent() {
               setHighlightReason(null);
             }, 4000);
         }
-    }, 400); // Slightly longer delay to allow for renders
+    }, 400); 
     return () => clearTimeout(timer);
   }, [isLoading, searchParams, upcomingMatches]);
 
@@ -557,6 +562,7 @@ function DashboardPageContent() {
         const goalieSavesKey = `${prefix}Saves`;
         const goalieShotsAgainstKey = `${prefix}ShotsAgainst`;
         const goalieGamesPlayedKey = `${prefix}GamesPlayed`;
+        const goalieSOKey = `${prefix}SO`;
 
         const updatePromises: Promise<any>[] = [];
 
@@ -577,7 +583,8 @@ function DashboardPageContent() {
                 [goalieGamesPlayedKey]: Number(g.gamesPlayed) || 0, 
                 [goalieWinsKey]: Number(g.wins) || 0, 
                 [goalieSavesKey]: Number(g.saves) || 0, 
-                [goalieShotsAgainstKey]: Number(g.shotsAgainst) || 0 
+                [goalieShotsAgainstKey]: Number(g.shotsAgainst) || 0,
+                [goalieSOKey]: Number(g.so) || 0
             }, { merge: true }));
         }
 
@@ -799,6 +806,7 @@ function DashboardPageContent() {
                                     <>
                                         <TableRow><TableCell className="font-medium">Zápasy</TableCell><TableCell className="text-right font-bold tabular-nums">{String(goalieLeaderboard.find(g=>g.id===user.uid)?.[myStatsView]?.gamesPlayed || 0)}</TableCell></TableRow>
                                         <TableRow><TableCell className="font-medium">Výhry</TableCell><TableCell className="text-right font-bold tabular-nums">{String(goalieLeaderboard.find(g=>g.id===user.uid)?.[myStatsView]?.wins || 0)}</TableCell></TableRow>
+                                        <TableRow><TableCell className="font-medium">Čistá konta (SO)</TableCell><TableCell className="text-right font-bold tabular-nums">{String(goalieLeaderboard.find(g=>g.id===user.uid)?.[myStatsView]?.so || 0)}</TableCell></TableRow>
                                         <TableRow><TableCell className="font-medium">Úspěšnost</TableCell><TableCell className="text-right font-bold tabular-nums">
                                             {(() => {
                                                 const stats = goalieLeaderboard.find(g=>g.id===user.uid)?.[myStatsView];
@@ -1066,7 +1074,8 @@ function DashboardPageContent() {
                                 gamesPlayed: String(g.gamesPlayed || 0),
                                 wins: String(g.wins || 0),
                                 saves: String(g.saves || 0),
-                                shotsAgainst: String(g.shotsAgainst || 0)
+                                shotsAgainst: String(g.shotsAgainst || 0),
+                                so: String(g.so || 0)
                             }));
                             setEditableGoalieStats(initialEditData); 
                             setIsStatEditMode(true); 
@@ -1088,6 +1097,7 @@ function DashboardPageContent() {
                                     <TableHead className="px-2">Jméno</TableHead>
                                     <TableHead className="text-center px-1">Z</TableHead>
                                     <TableHead className="text-center px-1">V</TableHead>
+                                    <TableHead className="text-center px-1">SO</TableHead>
                                     <TableHead className="text-right px-2">Úspěšnost</TableHead>
                                     {isStatEditMode && <TableHead className="w-8 px-1"></TableHead>}
                                 </TableRow>
@@ -1099,6 +1109,7 @@ function DashboardPageContent() {
                                             <TableCell className="font-medium whitespace-nowrap px-2">{formatName(g.name)}</TableCell>
                                             <TableCell className="text-center px-1 tabular-nums">{String(g.gamesPlayed || 0)}</TableCell>
                                             <TableCell className="text-center px-1 tabular-nums">{String(g.wins || 0)}</TableCell>
+                                            <TableCell className="text-center px-1 tabular-nums">{String(g.so || 0)}</TableCell>
                                             <TableCell className="text-right font-bold px-2 tabular-nums">{String((g.savePercentage || 0).toFixed(2))}%</TableCell>
                                             {isStatEditMode && (
                                                 <TableCell className="p-0 text-center">
@@ -1115,7 +1126,7 @@ function DashboardPageContent() {
                                         </TableRow>
                                         {isStatEditMode && expandedStatId === g.id && (
                                             <TableRow className="bg-muted/30 border-b-2 border-primary/20">
-                                                <TableCell colSpan={5} className="p-2 sm:p-4">
+                                                <TableCell colSpan={6} className="p-2 sm:p-4">
                                                     <div className="flex flex-wrap items-center justify-around gap-2 bg-background/50 rounded-lg p-2 border">
                                                         <div className="flex flex-col items-center gap-1">
                                                             <Label className="text-[9px] uppercase font-bold text-muted-foreground">Zápasy</Label>
@@ -1124,6 +1135,10 @@ function DashboardPageContent() {
                                                         <div className="flex flex-col items-center gap-1">
                                                             <Label className="text-[9px] uppercase font-bold text-muted-foreground">Výhry</Label>
                                                             <StatAdjuster value={String(g.wins || 0)} onChange={val => setEditableGoalieStats(cur => cur.map(it => it.id === g.id ? {...it, wins: val} : it))} />
+                                                        </div>
+                                                        <div className="flex flex-col items-center gap-1">
+                                                            <Label className="text-[9px] uppercase font-bold text-muted-foreground">SO</Label>
+                                                            <StatAdjuster value={String(g.so || 0)} onChange={val => setEditableGoalieStats(cur => cur.map(it => it.id === g.id ? {...it, so: val} : it))} />
                                                         </div>
                                                         <div className="flex flex-col items-center gap-1">
                                                             <Label className="text-[9px] uppercase font-bold text-muted-foreground">Zásahy</Label>

@@ -1,3 +1,4 @@
+
 'use client'
 
 import { Suspense, useEffect, useState, useRef } from 'react'
@@ -49,20 +50,23 @@ interface GoalieStats {
   seasonWins: number;
   seasonShotsAgainst: number;
   seasonSaves: number;
+  seasonSO: number;
   playoffGamesPlayed: number;
   playoffWins: number;
   playoffShotsAgainst: number;
   playoffSaves: number;
+  playoffSO: number;
   historicalGamesPlayed: number;
   historicalWins: number;
   historicalShotsAgainst: number;
   historicalSaves: number;
+  historicalSO: number;
 }
 
 interface AppSettings {
   isPlayoffEnabled: boolean;
   isScoringInPlayoffMode: boolean;
-  playoffSeries: any[]; // simplified for settings page
+  playoffSeries: any[]; 
 }
 
 interface SettingsFormProps {
@@ -253,6 +257,7 @@ function AdminSettings() {
                             playoffWins: 0,
                             playoffSaves: 0,
                             playoffShotsAgainst: 0,
+                            playoffSO: 0,
                         });
                     });
                 }
@@ -297,14 +302,17 @@ function AdminSettings() {
                 historicalWins: (stat.historicalWins || 0) + (stat.seasonWins || 0) + (stat.playoffWins || 0),
                 historicalSaves: (stat.historicalSaves || 0) + (stat.seasonSaves || 0) + (stat.playoffSaves || 0),
                 historicalShotsAgainst: (stat.historicalShotsAgainst || 0) + (stat.seasonShotsAgainst || 0) + (stat.playoffShotsAgainst || 0),
+                historicalSO: (stat.historicalSO || 0) + (stat.seasonSO || 0) + (stat.playoffSO || 0),
                 seasonGamesPlayed: 0,
                 seasonWins: 0,
                 seasonSaves: 0,
                 seasonShotsAgainst: 0,
+                seasonSO: 0,
                 playoffGamesPlayed: 0,
                 playoffWins: 0,
                 playoffSaves: 0,
                 playoffShotsAgainst: 0,
+                playoffSO: 0,
             });
         });
 
@@ -426,5 +434,3 @@ export default function SettingsPage() {
         </Suspense>
     )
 }
-
-    

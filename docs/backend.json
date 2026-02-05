@@ -250,14 +250,17 @@
         "seasonWins": { "type": "number" },
         "seasonShotsAgainst": { "type": "number" },
         "seasonSaves": { "type": "number" },
+        "seasonSO": { "type": "number", "description": "Number of shutouts in the current regular season." },
         "playoffGamesPlayed": { "type": "number" },
         "playoffWins": { "type": "number" },
         "playoffShotsAgainst": { "type": "number" },
         "playoffSaves": { "type": "number" },
+        "playoffSO": { "type": "number", "description": "Number of shutouts in the current playoffs." },
         "historicalGamesPlayed": { "type": "number" },
         "historicalWins": { "type": "number" },
         "historicalShotsAgainst": { "type": "number" },
-        "historicalSaves": { "type": "number" }
+        "historicalSaves": { "type": "number" },
+        "historicalSO": { "type": "number", "description": "Total number of shutouts in career." }
       },
       "required": [
         "id",
@@ -266,14 +269,17 @@
         "seasonWins",
         "seasonShotsAgainst",
         "seasonSaves",
+        "seasonSO",
         "playoffGamesPlayed",
         "playoffWins",
         "playoffShotsAgainst",
         "playoffSaves",
+        "playoffSO",
         "historicalGamesPlayed",
         "historicalWins",
         "historicalShotsAgainst",
-        "historicalSaves"
+        "historicalSaves",
+        "historicalSO"
       ]
     },
     "Attendance": {
