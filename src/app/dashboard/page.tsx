@@ -1,4 +1,3 @@
-
 'use client'
 
 import React, { Suspense, useState, useMemo, useEffect } from 'react'
@@ -365,16 +364,29 @@ function DashboardPageContent() {
       allSkaterStats.forEach(stat => { if (stat.userProfileId) statsMap.set(stat.userProfileId, stat); });
       return allUsers.filter(u => u.playerType === 'player').map(u => {
           const stats = statsMap.get(u.id);
+          const reg = { goals: stats?.seasonGoals ?? 0, assists: stats?.seasonAssists ?? 0, gamesPlayed: stats?.seasonGamesPlayed ?? 0 };
+          const po = { goals: stats?.playoffGoals ?? 0, assists: stats?.playoffAssists ?? 0, gamesPlayed: stats?.playoffGamesPlayed ?? 0 };
+          
           return {
               id: u.id, name: formatName(u.name),
-              regular: { goals: stats?.seasonGoals ?? 0, assists: stats?.seasonAssists ?? 0, gamesPlayed: stats?.seasonGamesPlayed ?? 0 },
-              playoff: { goals: stats?.playoffGoals ?? 0, assists: stats?.playoffAssists ?? 0, gamesPlayed: stats?.playoffGamesPlayed ?? 0 },
+              regular: reg,
+              playoff: po,
               season: { 
-                  goals: (stats?.seasonGoals ?? 0) + (stats?.playoffGoals ?? 0), 
-                  assists: (stats?.seasonAssists ?? 0) + (stats?.playoffAssists ?? 0), 
-                  gamesPlayed: (stats?.seasonGamesPlayed ?? 0) + (stats?.playoffGamesPlayed ?? 0) 
+                  goals: reg.goals + po.goals, 
+                  assists: reg.assists + po.assists, 
+                  gamesPlayed: reg.gamesPlayed + po.gamesPlayed 
               },
-              history: { goals: stats?.historicalGoals ?? 0, assists: stats?.historicalAssists ?? 0, gamesPlayed: stats?.historicalGamesPlayed ?? 0 },
+              history: { 
+                  goals: (stats?.historicalGoals ?? 0) + reg.goals + po.goals, 
+                  assists: (stats?.historicalAssists ?? 0) + reg.assists + po.assists, 
+                  gamesPlayed: (stats?.historicalGamesPlayed ?? 0) + reg.gamesPlayed + po.gamesPlayed 
+              },
+              // Přidáme i raw historická data pro editaci
+              rawHistory: {
+                  goals: stats?.historicalGoals ?? 0,
+                  assists: stats?.historicalAssists ?? 0,
+                  gamesPlayed: stats?.historicalGamesPlayed ?? 0
+              }
           };
       });
   }, [allUsers, allSkaterStats]);
@@ -385,18 +397,34 @@ function DashboardPageContent() {
       allGoalieStats.forEach(stat => { if (stat.userProfileId) statsMap.set(stat.userProfileId, stat); });
       return allUsers.filter(u => u.playerType === 'goalie').map(u => {
           const stats = statsMap.get(u.id);
+          const reg = { gamesPlayed: stats?.seasonGamesPlayed ?? 0, wins: stats?.seasonWins ?? 0, shotsAgainst: stats?.seasonShotsAgainst ?? 0, saves: stats?.seasonSaves ?? 0, so: stats?.seasonSO ?? 0 };
+          const po = { gamesPlayed: stats?.playoffGamesPlayed ?? 0, wins: stats?.playoffWins ?? 0, shotsAgainst: stats?.playoffShotsAgainst ?? 0, saves: stats?.playoffSaves ?? 0, so: stats?.playoffSO ?? 0 };
+          
           return {
               id: u.id, name: formatName(u.name),
-              regular: { gamesPlayed: stats?.seasonGamesPlayed ?? 0, wins: stats?.seasonWins ?? 0, shotsAgainst: stats?.seasonShotsAgainst ?? 0, saves: stats?.seasonSaves ?? 0, so: stats?.seasonSO ?? 0 },
-              playoff: { gamesPlayed: stats?.playoffGamesPlayed ?? 0, wins: stats?.playoffWins ?? 0, shotsAgainst: stats?.playoffShotsAgainst ?? 0, saves: stats?.playoffSaves ?? 0, so: stats?.playoffSO ?? 0 },
+              regular: reg,
+              playoff: po,
               season: { 
-                  gamesPlayed: (stats?.seasonGamesPlayed ?? 0) + (stats?.playoffGamesPlayed ?? 0), 
-                  wins: (stats?.seasonWins ?? 0) + (stats?.playoffWins ?? 0), 
-                  shotsAgainst: (stats?.seasonShotsAgainst ?? 0) + (stats?.playoffShotsAgainst ?? 0), 
-                  saves: (stats?.seasonSaves ?? 0) + (stats?.playoffSaves ?? 0),
-                  so: (stats?.seasonSO ?? 0) + (stats?.playoffSO ?? 0)
+                  gamesPlayed: reg.gamesPlayed + po.gamesPlayed, 
+                  wins: reg.wins + po.wins, 
+                  shotsAgainst: reg.shotsAgainst + po.shotsAgainst, 
+                  saves: reg.saves + po.saves,
+                  so: reg.so + po.so
               },
-              history: { gamesPlayed: stats?.historicalGamesPlayed ?? 0, wins: stats?.historicalWins ?? 0, shotsAgainst: stats?.historicalShotsAgainst ?? 0, saves: stats?.historicalSaves ?? 0, so: stats?.historicalSO ?? 0 },
+              history: { 
+                  gamesPlayed: (stats?.historicalGamesPlayed ?? 0) + reg.gamesPlayed + po.gamesPlayed, 
+                  wins: (stats?.historicalWins ?? 0) + reg.wins + po.wins, 
+                  shotsAgainst: (stats?.historicalShotsAgainst ?? 0) + reg.shotsAgainst + po.shotsAgainst, 
+                  saves: (stats?.historicalSaves ?? 0) + reg.saves + po.saves, 
+                  so: (stats?.historicalSO ?? 0) + reg.so + po.so 
+              },
+              rawHistory: {
+                  gamesPlayed: stats?.historicalGamesPlayed ?? 0,
+                  wins: stats?.historicalWins ?? 0,
+                  shotsAgainst: stats?.historicalShotsAgainst ?? 0,
+                  saves: stats?.historicalSaves ?? 0,
+                  so: stats?.historicalSO ?? 0
+              }
           };
       });
   }, [allUsers, allGoalieStats]);
@@ -470,7 +498,6 @@ function DashboardPageContent() {
     const reason = searchParams.get('reason');
     if (!mId) return;
 
-    // Check if we need to open the accordion
     const isUpcomingButNotNext = upcomingMatches.slice(1).some(m => m.id === mId);
     if (isUpcomingButNotNext) {
         setOpenAccordionValue('item-1');
@@ -976,12 +1003,18 @@ function DashboardPageContent() {
                     <CardTitle className="flex items-center gap-2"><Flame className="text-primary"/>Bodování</CardTitle>
                     {userProfile?.role === 'admin' && !isStatEditMode && scoringView !== 'season' && (
                         <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => { 
-                            const initialEditData = sortedTeamScoring.map(p => ({ 
-                                ...p,
-                                goals: String(p.goals || 0),
-                                assists: String(p.assists || 0),
-                                gamesPlayed: String(p.gamesPlayed || 0)
-                            }));
+                            // Při editaci "Historie" upravujeme rawHistory data (minulé sezóny), ne dynamický součet.
+                            const viewKey = scoringView === 'history' ? 'rawHistory' : (scoringView === 'regular' ? 'regular' : 'playoff');
+                            const initialEditData = teamScoring.map(p => {
+                                const data = p[viewKey as keyof typeof p] as any;
+                                return {
+                                    id: p.id,
+                                    name: p.name,
+                                    goals: String(data.goals || 0),
+                                    assists: String(data.assists || 0),
+                                    gamesPlayed: String(data.gamesPlayed || 0)
+                                };
+                            });
                             setEditableSkaterStats(initialEditData); 
                             setIsStatEditMode(true); 
                             setExpandedStatId(null);
@@ -1002,6 +1035,11 @@ function DashboardPageContent() {
                             <TabsTrigger value="season" className="text-[10px] px-1">Sezona</TabsTrigger>
                             <TabsTrigger value="history" className="text-[10px] px-1">Historie</TabsTrigger>
                         </TabsList>
+                        {isStatEditMode && (
+                            <div className="mb-4 p-2 bg-primary/5 border rounded-lg text-[10px] text-primary text-center font-bold uppercase">
+                                {scoringView === 'history' ? 'Upravujete historii (minulé sezóny)' : (scoringView === 'regular' ? 'Upravujete základní část' : 'Upravujete play-off')}
+                            </div>
+                        )}
                         <Table>
                             <TableHeader>
                                 <TableRow>
@@ -1069,14 +1107,19 @@ function DashboardPageContent() {
                     <CardTitle className="flex items-center gap-2"><Shield className="text-primary"/>Brankáři</CardTitle>
                     {userProfile?.role === 'admin' && !isStatEditMode && scoringView !== 'season' && (
                         <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => { 
-                            const initialEditData = sortedGoalieLeaderboard.map(g => ({ 
-                                ...g,
-                                gamesPlayed: String(g.gamesPlayed || 0),
-                                wins: String(g.wins || 0),
-                                saves: String(g.saves || 0),
-                                shotsAgainst: String(g.shotsAgainst || 0),
-                                so: String(g.so || 0)
-                            }));
+                            const viewKey = scoringView === 'history' ? 'rawHistory' : (scoringView === 'regular' ? 'regular' : 'playoff');
+                            const initialEditData = goalieLeaderboard.map(g => {
+                                const data = g[viewKey as keyof typeof g] as any;
+                                return {
+                                    id: g.id,
+                                    name: g.name,
+                                    gamesPlayed: String(data.gamesPlayed || 0),
+                                    wins: String(data.wins || 0),
+                                    saves: String(data.saves || 0),
+                                    shotsAgainst: String(data.shotsAgainst || 0),
+                                    so: String(data.so || 0)
+                                };
+                            });
                             setEditableGoalieStats(initialEditData); 
                             setIsStatEditMode(true); 
                             setExpandedStatId(null);
@@ -1091,6 +1134,11 @@ function DashboardPageContent() {
                             <TabsTrigger value="season" className="text-[10px] px-1">Sezona</TabsTrigger>
                             <TabsTrigger value="history" className="text-[10px] px-1">Historie</TabsTrigger>
                         </TabsList>
+                        {isStatEditMode && (
+                            <div className="mb-4 p-2 bg-primary/5 border rounded-lg text-[10px] text-primary text-center font-bold uppercase">
+                                {scoringView === 'history' ? 'Upravujete historii (minulé sezóny)' : (scoringView === 'regular' ? 'Upravujete základní část' : 'Upravujete play-off')}
+                            </div>
+                        )}
                         <Table>
                             <TableHeader>
                                 <TableRow>

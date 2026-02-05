@@ -1,4 +1,3 @@
-
 'use client'
 
 import { Suspense, useEffect, useState, useRef } from 'react'
@@ -282,6 +281,7 @@ function AdminSettings() {
 
         allSkaterStats.forEach(stat => {
             const statRef = doc(firestore, 'users', stat.userProfileId, 'skaterStats', stat.id);
+            // Archivace: K historii přičteme vše odehrané v této sezóně a poté resetujeme aktuální sezónu i playoff.
             batch.update(statRef, {
                 historicalGoals: (stat.historicalGoals || 0) + (stat.seasonGoals || 0) + (stat.playoffGoals || 0),
                 historicalAssists: (stat.historicalAssists || 0) + (stat.seasonAssists || 0) + (stat.playoffAssists || 0),
