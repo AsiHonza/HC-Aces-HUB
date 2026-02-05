@@ -1,4 +1,3 @@
-
 'use client'
 
 import { useState, Suspense, useEffect, useMemo } from 'react'
@@ -16,18 +15,9 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { MoreHorizontal, Trash2, UserCog, Edit, ShieldCheck, User as UserIcon, Loader2, Plus } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import { useToast } from "@/toast-hook-placeholder"
+import { useToast } from "@/hooks/use-toast"
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-
-// Use local hook instead of missing path during generation
-const useToast = () => {
-    return {
-        toast: ({ title, variant, description }: any) => {
-            console.log(title, variant, description);
-        }
-    }
-}
 
 interface UserProfile {
   id: string;
@@ -68,7 +58,7 @@ function TeamManagementContent() {
       toast({ variant: 'destructive', title: 'Přístup odepřen' });
       router.replace('/dashboard');
     }
-  }, [role, router])
+  }, [role, router, toast])
 
   const confirmDelete = async () => {
     if (!selectedUser || !firestore) return;
@@ -76,7 +66,9 @@ function TeamManagementContent() {
     try {
       await deleteDoc(doc(firestore, 'users', selectedUser.id));
       toast({ title: 'Smazán' });
-    } catch (error: any) { toast({ variant: 'destructive', title: 'Chyba' }); }
+    } catch (error: any) { 
+        toast({ variant: 'destructive', title: 'Chyba', description: error.message }); 
+    }
     finally { setIsSaving(false); setIsDeleteDialogOpen(false); setSelectedUser(null); }
   }
 
@@ -86,10 +78,18 @@ function TeamManagementContent() {
     setIsSaving(true);
     try {
       const fd = new FormData(e.currentTarget);
-      const update: any = { name: fd.get('name'), phoneNumber: fd.get('phoneNumber'), jerseyNumber: Number(fd.get('jerseyNumber')) || null, dob: fd.get('dob') || null, playerType: fd.get('playerType') };
+      const update: any = { 
+          name: fd.get('name'), 
+          phoneNumber: fd.get('phoneNumber'), 
+          jerseyNumber: Number(fd.get('jerseyNumber')) || null, 
+          dob: fd.get('dob') || null, 
+          playerType: fd.get('playerType') 
+      };
       await updateDoc(doc(firestore, 'users', selectedUser.id), update);
       toast({ title: 'Aktualizován' });
-    } catch (error: any) { toast({ variant: 'destructive', title: 'Chyba' }); }
+    } catch (error: any) { 
+        toast({ variant: 'destructive', title: 'Chyba', description: error.message }); 
+    }
     finally { setIsSaving(false); setIsEditDialogOpen(false); setSelectedUser(null); }
   }
 
@@ -106,15 +106,46 @@ function TeamManagementContent() {
         const uc = await createUserWithEmailAndPassword(auth, email, 'Aces123456!');
         await updateProfile(uc.user, { displayName: name });
         await setDoc(doc(firestore, 'users', uc.user.uid), { id: uc.user.uid, name, email, role: 'classic', playerType: type, jerseyNumber: jersey ? Number(jersey) : null });
+        
         if (type === 'player') {
-            await setDoc(doc(firestore, `users/${uc.user.uid}/skaterStats`, 'stats'), { userProfileId: uc.user.uid, seasonGoals: 0, seasonAssists: 0, seasonGamesPlayed: 0, playoffGoals: 0, playoffAssists: 0, playoffGamesPlayed: 0, historicalGoals: 0, historicalAssists: 0, historicalGamesPlayed: 0 });
+            await setDoc(doc(firestore, `users/${uc.user.uid}/skaterStats`, 'stats'), { 
+                userProfileId: uc.user.uid, 
+                seasonGoals: 0, 
+                seasonAssists: 0, 
+                seasonGamesPlayed: 0, 
+                playoffGoals: 0, 
+                playoffAssists: 0, 
+                playoffGamesPlayed: 0, 
+                historicalGoals: 0, 
+                historicalAssists: 0, 
+                historicalGamesPlayed: 0 
+            });
         } else if (type === 'goalie') {
-            await setDoc(doc(firestore, `users/${uc.user.uid}/goalieStats`, 'stats'), { userProfileId: uc.user.uid, seasonGamesPlayed: 0, seasonWins: 0, seasonSaves: 0, seasonShotsAgainst: 0, seasonSO: 0, playoffGamesPlayed: 0, playoffWins: 0, playoffSaves: 0, playoffShotsAgainst: 0, playoffSO: 0, historicalGamesPlayed: 0, historicalWins: 0, historicalSaves: 0, historicalShotsAgainst: 0, historicalSO: 0 });
+            await setDoc(doc(firestore, `users/${uc.user.uid}/goalieStats`, 'stats'), { 
+                userProfileId: uc.user.uid, 
+                seasonGamesPlayed: 0, 
+                seasonWins: 0, 
+                seasonSaves: 0, 
+                seasonShotsAgainst: 0, 
+                seasonSO: 0, 
+                playoffGamesPlayed: 0, 
+                playoffWins: 0, 
+                playoffSaves: 0, 
+                playoffShotsAgainst: 0, 
+                playoffSO: 0, 
+                historicalGamesPlayed: 0, 
+                historicalWins: 0, 
+                historicalSaves: 0, 
+                historicalShotsAgainst: 0, 
+                historicalSO: 0 
+            });
         }
         toast({ title: 'Účet vytvořen' });
-        router.push('/');
-    } catch (error: any) { toast({ variant: 'destructive', title: 'Chyba' }); }
-    finally { setIsSaving(false); setIsAddDialogOpen(false); }
+        setIsAddDialogOpen(false);
+    } catch (error: any) { 
+        toast({ variant: 'destructive', title: 'Chyba', description: error.message }); 
+    }
+    finally { setIsSaving(false); }
   };
   
   if (usersLoading) return <div className="py-8 flex justify-center"><Loader2 className="animate-spin text-primary" /></div>
