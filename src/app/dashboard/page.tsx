@@ -249,7 +249,12 @@ function StatAdjuster({ value, onChange }: { value: string, onChange: (val: stri
             >
                 <Minus className="h-3 w-3" />
             </Button>
-            <div className="w-8 text-center font-bold text-sm">{value || '0'}</div>
+            <Input 
+                type="number"
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                className="w-14 h-7 text-center font-bold text-sm px-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            />
             <Button 
                 type="button" 
                 variant="outline" 
@@ -381,7 +386,6 @@ function DashboardPageContent() {
                   assists: (stats?.historicalAssists ?? 0) + reg.assists + po.assists, 
                   gamesPlayed: (stats?.historicalGamesPlayed ?? 0) + reg.gamesPlayed + po.gamesPlayed 
               },
-              // Přidáme i raw historická data pro editaci
               rawHistory: {
                   goals: stats?.historicalGoals ?? 0,
                   assists: stats?.historicalAssists ?? 0,
