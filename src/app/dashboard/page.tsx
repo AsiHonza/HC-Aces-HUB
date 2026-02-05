@@ -253,6 +253,7 @@ function StatAdjuster({ value, onChange }: { value: string, onChange: (val: stri
                 type="number"
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
+                onFocus={(e) => e.target.select()}
                 className="w-14 h-7 text-center font-bold text-sm px-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             />
             <Button 
@@ -1441,7 +1442,7 @@ function DashboardPageContent() {
       </Dialog>
 
       <Dialog open={isLineupBuilderOpen} onOpenChange={setIsLineupBuilderOpen}>
-        <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 overflow-hidden">
+        <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 overflow-hidden text-left">
             <DialogHeader className="p-6 pb-0 flex-shrink-0">
                 <DialogTitle>Editor sestavy</DialogTitle>
             </DialogHeader>
