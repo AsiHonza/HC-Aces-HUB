@@ -1,3 +1,4 @@
+
 'use client'
 
 import { Suspense, useEffect, useState, useRef } from 'react'
@@ -7,11 +8,11 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Loader2 } from "lucide-react"
+import { Loader2, Camera } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { useFirebase, useFirestore, useDoc, useMemoFirebase, useCollection, FirebaseServicesAndUser, UserHookResult, useStorage } from '@/firebase'
+import { useFirebase, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase'
 import { User, Auth } from 'firebase/auth'
-import { Firestore, doc, updateDoc, writeBatch, collectionGroup, setDoc } from 'firebase/firestore'
+import { Firestore, doc, updateDoc, writeBatch, collectionGroup } from 'firebase/firestore'
 import { FirebaseStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { Switch } from '@/components/ui/switch'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
@@ -76,7 +77,6 @@ interface SettingsFormProps {
     userProfile: UserProfile | null;
 }
 
-
 function SettingsForm({ user, auth, firestore, storage, userProfile }: SettingsFormProps) {
   const { toast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -86,19 +86,28 @@ function SettingsForm({ user, auth, firestore, storage, userProfile }: SettingsF
   const fallback = userProfile?.name?.split(' ').map(n => n[0]).join('').toUpperCase() || ''
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || e.target.files.length === 0 || !user || !storage) {
+    const file = e.target.files?.[0];
+    if (!file || !user || !storage) return;
+
+    // Základní validace souboru
+    if (!file.type.startsWith('image/')) {
+        toast({ variant: 'destructive', title: 'Chyba', description: 'Prosím, vyberte platný obrázek.' });
         return;
     }
 
-    const file = e.target.files[0];
-    const metadata = {
-        contentType: file.type,
-    };
-    setIsUploading(true);
+    if (file.size > 2 * 1024 * 1024) { // Limit 2MB
+        toast({ variant: 'destructive', title: 'Chyba', description: 'Obrázek je příliš velký (maximálně 2MB).' });
+        return;
+    }
 
+    setIsUploading(true);
     try {
-        const avatarRef = storageRef(storage, `avatars/${user.uid}/${file.name}`);
-        const uploadResult = await uploadBytes(avatarRef, file, metadata);
+        // Cesta: avatars/uid/profile.[pripona]
+        const fileExt = file.name.split('.').pop();
+        const path = `avatars/${user.uid}/profile_${Date.now()}.${fileExt}`;
+        const avatarRef = storageRef(storage, path);
+        
+        const uploadResult = await uploadBytes(avatarRef, file);
         const downloadURL = await getDownloadURL(uploadResult.ref);
         
         const userDocRef = doc(firestore, 'users', user.uid);
@@ -106,20 +115,21 @@ function SettingsForm({ user, auth, firestore, storage, userProfile }: SettingsF
 
         toast({
             title: "Profilový obrázek aktualizován",
-            description: "Váš nový obrázek byl úspěšně nahrán.",
+            description: "Vaše nová fotka byla úspěšně nahrána.",
         });
         
     } catch (error: any) {
+        console.error("Storage error:", error);
         toast({
             variant: 'destructive',
             title: 'Chyba nahrávání',
-            description: `Nepodařilo se nahrát obrázek: ${error.message}`,
+            description: 'Ujistěte se, že máte ve Firebase aktivován Storage a nastavená pravidla.',
         });
     } finally {
         setIsUploading(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
-
 
   const handleUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -145,8 +155,8 @@ function SettingsForm({ user, auth, firestore, storage, userProfile }: SettingsF
       })
       
       toast({
-        title: "Úspěch!",
-        description: "Profil byl úspěšně aktualizován.",
+        title: "Profil aktualizován",
+        description: "Vaše údaje byly úspěšně uloženy.",
       });
 
     } catch (error: any) {
@@ -163,49 +173,59 @@ function SettingsForm({ user, auth, firestore, storage, userProfile }: SettingsF
   return (
     <form onSubmit={handleUpdate}>
       <CardContent className="grid gap-6">
-        <div className="flex items-center gap-6">
-          <Avatar className="h-24 w-24 border-4 border-primary shadow-lg relative">
-            <AvatarImage src={userProfile?.photoURL ?? `https://picsum.photos/seed/${userProfile?.email}/400/400`} alt={userProfile?.name || ''} data-ai-hint="player portrait" />
-            <AvatarFallback className="text-3xl">{fallback}</AvatarFallback>
-             {isUploading && (
-                <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-full">
-                    <Loader2 className="h-8 w-8 animate-spin text-white" />
+        <div className="flex flex-col sm:flex-row items-center gap-6">
+          <div className="relative">
+              <Avatar className="h-32 w-32 border-4 border-primary shadow-xl">
+                <AvatarImage src={userProfile?.photoURL ?? `https://picsum.photos/seed/${userProfile?.email}/400/400`} alt={userProfile?.name || ''} data-ai-hint="player portrait" />
+                <AvatarFallback className="text-4xl font-bold">{fallback}</AvatarFallback>
+              </Avatar>
+              {isUploading && (
+                <div className="absolute inset-0 bg-background/60 flex items-center justify-center rounded-full backdrop-blur-sm">
+                    <Loader2 className="h-10 w-10 animate-spin text-primary" />
                 </div>
-            )}
-          </Avatar>
-          <input type="file" ref={fileInputRef} onChange={handleAvatarChange} accept="image/*" className="hidden" />
-          <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
-            {isUploading ? 'Nahrávání...' : 'Změnit obrázek'}
-          </Button>
+              )}
+          </div>
+          <div className="space-y-3 text-center sm:text-left">
+              <input type="file" ref={fileInputRef} onChange={handleAvatarChange} accept="image/*" className="hidden" />
+              <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
+                <Camera className="mr-2 h-4 w-4" />
+                {isUploading ? 'Nahrávání...' : 'Změnit fotku'}
+              </Button>
+              <p className="text-xs text-muted-foreground max-w-[200px]">
+                  Doporučujeme čtvercový formát, maximálně 2MB.
+              </p>
+          </div>
         </div>
         
-        <div className="grid gap-2">
-          <Label htmlFor="name">Jméno a příjmení</Label>
-          <Input id="name" name="name" defaultValue={userProfile?.name} />
-        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-2">
+              <Label htmlFor="name">Jméno a příjmení</Label>
+              <Input id="name" name="name" defaultValue={userProfile?.name} required />
+            </div>
 
-        <div className="grid gap-2">
-          <Label htmlFor="email">Email</Label>
-          <Input id="email" type="email" defaultValue={userProfile?.email} disabled />
-        </div>
+            <div className="grid gap-2">
+              <Label htmlFor="email">Email</Label>
+              <Input id="email" type="email" defaultValue={userProfile?.email} disabled className="bg-muted/50" />
+            </div>
 
-        <div className="grid gap-2">
-          <Label htmlFor="phoneNumber">Telefonní číslo</Label>
-          <Input id="phoneNumber" name="phoneNumber" type="tel" defaultValue={userProfile?.phoneNumber || ''} />
-        </div>
+            <div className="grid gap-2">
+              <Label htmlFor="phoneNumber">Telefonní číslo</Label>
+              <Input id="phoneNumber" name="phoneNumber" type="tel" defaultValue={userProfile?.phoneNumber || ''} placeholder="+420..." />
+            </div>
 
-        <div className="grid gap-2">
-          <Label htmlFor="jerseyNumber">Číslo dresu</Label>
-          <Input id="jerseyNumber" name="jerseyNumber" type="number" defaultValue={userProfile?.jerseyNumber || ''} />
-        </div>
-        
-        <div className="grid gap-2">
-            <Label htmlFor="dob">Datum narození</Label>
-            <Input id="dob" name="dob" type="date" defaultValue={userProfile?.dob || ''} className="w-[280px]" />
+            <div className="grid gap-2">
+              <Label htmlFor="jerseyNumber">Číslo dresu</Label>
+              <Input id="jerseyNumber" name="jerseyNumber" type="number" defaultValue={userProfile?.jerseyNumber || ''} />
+            </div>
+            
+            <div className="grid gap-2">
+                <Label htmlFor="dob">Datum narození</Label>
+                <Input id="dob" name="dob" type="date" defaultValue={userProfile?.dob || ''} />
+            </div>
         </div>
       </CardContent>
       <CardFooter className="border-t px-6 py-4">
-        <Button type="submit" disabled={isUploading || isSaving}>
+        <Button type="submit" disabled={isUploading || isSaving} className="w-full sm:w-auto">
           {(isUploading || isSaving) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Uložit změny
         </Button>
@@ -281,7 +301,6 @@ function AdminSettings() {
 
         allSkaterStats.forEach(stat => {
             const statRef = doc(firestore, 'users', stat.userProfileId, 'skaterStats', stat.id);
-            // Archivace: K historii přičteme vše odehrané v této sezóně a poté resetujeme aktuální sezónu i playoff.
             batch.update(statRef, {
                 historicalGoals: (stat.historicalGoals || 0) + (stat.seasonGoals || 0) + (stat.playoffGoals || 0),
                 historicalAssists: (stat.historicalAssists || 0) + (stat.seasonAssists || 0) + (stat.playoffAssists || 0),
@@ -410,7 +429,7 @@ function SettingsPageContent() {
         <CardHeader>
           <CardTitle>Nastavení profilu</CardTitle>
           <CardDescription>
-            Zde můžete upravit své osobní údaje.
+            Zde můžete upravit své osobní údaje a profilovou fotku.
           </CardDescription>
         </CardHeader>
         <SettingsForm 
