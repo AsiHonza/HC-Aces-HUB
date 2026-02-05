@@ -11,7 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Loader2, Camera } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useFirebase, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase'
-import { User, Auth } from 'firebase/auth'
+import { User, Auth, updateProfile } from 'firebase/auth'
 import { Firestore, doc, updateDoc, writeBatch, collectionGroup } from 'firebase/firestore'
 import { FirebaseStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { Switch } from '@/components/ui/switch'
@@ -89,20 +89,18 @@ function SettingsForm({ user, auth, firestore, storage, userProfile }: SettingsF
     const file = e.target.files?.[0];
     if (!file || !user || !storage) return;
 
-    // Základní validace souboru
     if (!file.type.startsWith('image/')) {
         toast({ variant: 'destructive', title: 'Chyba', description: 'Prosím, vyberte platný obrázek.' });
         return;
     }
 
-    if (file.size > 2 * 1024 * 1024) { // Limit 2MB
+    if (file.size > 2 * 1024 * 1024) { 
         toast({ variant: 'destructive', title: 'Chyba', description: 'Obrázek je příliš velký (maximálně 2MB).' });
         return;
     }
 
     setIsUploading(true);
     try {
-        // Cesta: avatars/uid/profile.[pripona]
         const fileExt = file.name.split('.').pop();
         const path = `avatars/${user.uid}/profile_${Date.now()}.${fileExt}`;
         const avatarRef = storageRef(storage, path);
@@ -112,6 +110,9 @@ function SettingsForm({ user, auth, firestore, storage, userProfile }: SettingsF
         
         const userDocRef = doc(firestore, 'users', user.uid);
         await updateDoc(userDocRef, { photoURL: downloadURL });
+        
+        // Sync with Firebase Auth profile
+        await updateProfile(user, { photoURL: downloadURL });
 
         toast({
             title: "Profilový obrázek aktualizován",
