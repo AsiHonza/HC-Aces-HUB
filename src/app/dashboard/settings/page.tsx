@@ -1,3 +1,4 @@
+
 'use client'
 
 import { Suspense, useEffect, useState, useRef } from 'react'
@@ -120,11 +121,20 @@ function SettingsForm({ user, auth, firestore, storage, userProfile }: SettingsF
         
     } catch (error: any) {
         console.error("Storage error:", error);
-        toast({
-            variant: 'destructive',
-            title: 'Chyba nahrávání',
-            description: 'Nepodařilo se nahrát obrázek. Zkontrolujte připojení k internetu nebo nastavení úložiště.',
-        });
+        
+        if (error.code === 'storage/unauthorized') {
+            toast({
+                variant: 'destructive',
+                title: 'Chyba oprávnění',
+                description: 'Firebase Storage zamítl přístup. Prosím, nastavte správně Security Rules v konzoli Firebase podle návodu.',
+            });
+        } else {
+            toast({
+                variant: 'destructive',
+                title: 'Chyba nahrávání',
+                description: 'Nepodařilo se nahrát obrázek. Zkontrolujte připojení nebo nastavení úložiště.',
+            });
+        }
     } finally {
         setIsUploading(false);
         if (fileInputRef.current) fileInputRef.current.value = '';
