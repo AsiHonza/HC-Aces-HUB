@@ -1,4 +1,3 @@
-
 'use client'
 
 import { Suspense, useEffect, useState, useRef } from 'react'
@@ -11,7 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Loader2, Camera } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useFirebase, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase'
-import { User, Auth, updateProfile } from 'firebase/auth'
+import { User, Auth, updateProfile as updateAuthProfile } from 'firebase/auth'
 import { Firestore, doc, updateDoc, writeBatch, collectionGroup } from 'firebase/firestore'
 import { FirebaseStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { Switch } from '@/components/ui/switch'
@@ -112,7 +111,7 @@ function SettingsForm({ user, auth, firestore, storage, userProfile }: SettingsF
         await updateDoc(userDocRef, { photoURL: downloadURL });
         
         // Sync with Firebase Auth profile
-        await updateProfile(user, { photoURL: downloadURL });
+        await updateAuthProfile(user, { photoURL: downloadURL });
 
         toast({
             title: "Profilový obrázek aktualizován",
@@ -124,7 +123,7 @@ function SettingsForm({ user, auth, firestore, storage, userProfile }: SettingsF
         toast({
             variant: 'destructive',
             title: 'Chyba nahrávání',
-            description: 'Ujistěte se, že máte ve Firebase aktivován Storage a nastavená pravidla.',
+            description: 'Nepodařilo se nahrát obrázek. Zkontrolujte připojení k internetu nebo nastavení úložiště.',
         });
     } finally {
         setIsUploading(false);
@@ -155,6 +154,9 @@ function SettingsForm({ user, auth, firestore, storage, userProfile }: SettingsF
         dob: dob || null,
       })
       
+      // Update Auth profile name too
+      await updateAuthProfile(auth.currentUser, { displayName: name });
+
       toast({
         title: "Profil aktualizován",
         description: "Vaše údaje byly úspěšně uloženy.",
