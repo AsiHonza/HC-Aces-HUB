@@ -6,15 +6,17 @@ import { FirebaseClientProvider } from '@/firebase';
 export const metadata: Metadata = {
   title: 'Aces Hockey Hub',
   description: 'Web pro hokejový tým Aces.',
-  manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'default',
+    statusBarStyle: 'black-translucent',
     title: 'HC Aces',
   },
   formatDetection: {
     telephone: false,
   },
+  icons: {
+    apple: '/icon-512.png',
+  }
 };
 
 export const viewport: Viewport = {
@@ -36,7 +38,6 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&display=swap" rel="stylesheet" />
-        <link rel="apple-touch-icon" href="/icon-512.png" />
       </head>
       <body className="font-body antialiased" suppressHydrationWarning>
         <FirebaseClientProvider>
