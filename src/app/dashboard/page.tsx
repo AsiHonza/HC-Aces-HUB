@@ -810,7 +810,7 @@ function DashboardPageContent() {
       <div className="grid gap-8 lg:grid-cols-3">
         <Card className="p-6 text-center flex flex-col items-center">
             <Avatar className="h-24 w-24 mb-4 border-2 border-primary"><AvatarImage src={userProfile?.photoURL || `https://picsum.photos/seed/${userProfile?.email}/200/200`} /><AvatarFallback>{userProfile?.name[0]}</AvatarFallback></Avatar>
-            <CardTitle>{formatName(userProfile?.name || '')}</CardTitle>
+            <CardTitle>{userProfile?.name || ''}</CardTitle>
             {userProfile?.jerseyNumber && <p className="text-3xl font-bold text-primary mt-1">#{userProfile.jerseyNumber}</p>}
         </Card>
         <Card className="lg:col-span-2">
