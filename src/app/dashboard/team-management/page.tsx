@@ -3,17 +3,17 @@
 import { useState, Suspense, useEffect, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useFirestore, useCollection, useMemoFirebase, useAuth } from '@/firebase'
-import { collection, doc, updateDoc, deleteDoc, setDoc } from 'firebase/firestore'
+import { collection, doc, updateDoc, deleteDoc, setDoc, query, where, getDocs, writeBatch } from 'firebase/firestore'
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuRadioGroup, DropdownMenuRadioItem } from "@/components/ui/dropdown-menu"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
-import { MoreHorizontal, Trash2, UserCog, Edit, ShieldCheck, User as UserIcon, Loader2, Plus } from 'lucide-react'
+import { MoreHorizontal, Trash2, UserCog, Edit, ShieldCheck, User as UserIcon, Loader2, Plus, Search, AlertTriangle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from "@/hooks/use-toast"
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -37,20 +37,26 @@ const playerTypeLabels: Record<UserProfile['playerType'], string> = {
     member: 'Člen',
 };
 
-
 function TeamManagementContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { toast } = useToast()
   const firestore = useFirestore()
   const auth = useAuth();
+  
   const usersCollectionRef = useMemoFirebase(() => firestore ? collection(firestore, 'users') : null, [firestore]);
   const { data: users, isLoading: usersLoading } = useCollection<UserProfile>(usersCollectionRef);
+  
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  
+  // Diagnostika
+  const [purgeEmail, setPurgeEmail] = useState('')
+  const [isPurging, setIsPurging] = useState(false)
+
   const role = searchParams.get('role')
 
   useEffect(() => {
@@ -64,12 +70,48 @@ function TeamManagementContent() {
     if (!selectedUser || !firestore) return;
     setIsSaving(true);
     try {
-      await deleteDoc(doc(firestore, 'users', selectedUser.id));
-      toast({ title: 'Smazán' });
+      // Smazat subkolekce (skaterStats, goalieStats, notifications)
+      const batch = writeBatch(firestore);
+      batch.delete(doc(firestore, 'users', selectedUser.id, 'skaterStats', 'stats'));
+      batch.delete(doc(firestore, 'users', selectedUser.id, 'goalieStats', 'stats'));
+      batch.delete(doc(firestore, 'users', selectedUser.id));
+      await batch.commit();
+      
+      toast({ title: 'Uživatel smazán z databáze' });
     } catch (error: any) { 
         toast({ variant: 'destructive', title: 'Chyba', description: error.message }); 
     }
     finally { setIsSaving(false); setIsDeleteDialogOpen(false); setSelectedUser(null); }
+  }
+
+  const handlePurgeByEmail = async () => {
+    if (!firestore || !purgeEmail) return;
+    setIsPurging(true);
+    try {
+        const q = query(collection(firestore, 'users'), where('email', '==', purgeEmail.trim().toLowerCase()));
+        const snapshot = await getDocs(q);
+        
+        if (snapshot.empty) {
+            toast({ variant: 'destructive', title: 'Nenalezeno', description: 'Ve Firestore nebyl nalezen žádný profil s tímto emailem.' });
+            setIsPurging(false);
+            return;
+        }
+
+        const batch = writeBatch(firestore);
+        snapshot.docs.forEach(uDoc => {
+            batch.delete(doc(firestore, 'users', uDoc.id, 'skaterStats', 'stats'));
+            batch.delete(doc(firestore, 'users', uDoc.id, 'goalieStats', 'stats'));
+            batch.delete(doc(firestore, 'users', uDoc.id));
+        });
+
+        await batch.commit();
+        toast({ title: 'Vyčištěno', description: 'Záznamy byly úspěšně odstraněny z Firestore.' });
+        setPurgeEmail('');
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: 'Chyba', description: error.message });
+    } finally {
+        setIsPurging(false);
+    }
   }
 
   const handleUpdateUser = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -81,12 +123,12 @@ function TeamManagementContent() {
       const update: any = { 
           name: fd.get('name'), 
           phoneNumber: fd.get('phoneNumber'), 
-          jerseyNumber: Number(fd.get('jerseyNumber')) || null, 
+          jerseyNumber: fd.get('jerseyNumber') ? Number(fd.get('jerseyNumber')) : null, 
           dob: fd.get('dob') || null, 
           playerType: fd.get('playerType') 
       };
       await updateDoc(doc(firestore, 'users', selectedUser.id), update);
-      toast({ title: 'Aktualizován' });
+      toast({ title: 'Profil aktualizován' });
     } catch (error: any) { 
         toast({ variant: 'destructive', title: 'Chyba', description: error.message }); 
     }
@@ -101,11 +143,20 @@ function TeamManagementContent() {
         const fd = new FormData(e.currentTarget);
         const name = fd.get('name') as string;
         const jersey = fd.get('jerseyNumber') as string;
-        const type = fd.get('playerType') as any;
+        const type = fd.get('playerType') as UserProfile['playerType'];
         const email = `${name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, '.')}.${Math.random().toString(36).substring(2,7)}@aces.test`;
+        
         const uc = await createUserWithEmailAndPassword(auth, email, 'Aces123456!');
         await updateProfile(uc.user, { displayName: name });
-        await setDoc(doc(firestore, 'users', uc.user.uid), { id: uc.user.uid, name, email, role: 'classic', playerType: type, jerseyNumber: jersey ? Number(jersey) : null });
+        
+        await setDoc(doc(firestore, 'users', uc.user.uid), { 
+            id: uc.user.uid, 
+            name, 
+            email, 
+            role: 'classic', 
+            playerType: type, 
+            jerseyNumber: jersey ? Number(jersey) : null 
+        });
         
         if (type === 'player') {
             await setDoc(doc(firestore, `users/${uc.user.uid}/skaterStats`, 'stats'), { 
@@ -148,30 +199,220 @@ function TeamManagementContent() {
     finally { setIsSaving(false); }
   };
   
-  if (usersLoading) return <div className="py-8 flex justify-center"><Loader2 className="animate-spin text-primary" /></div>
+  if (usersLoading) return <div className="py-8 flex justify-center"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>
+
   return (
-    <div className="py-8">
-      <Card><CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"><div><CardTitle>Správa týmu</CardTitle></div><Button onClick={() => setIsAddDialogOpen(true)}><Plus className="mr-2 h-4" />Přidat účet</Button></CardHeader>
-        <CardContent><Table><TableHeader><TableRow><TableHead>Hráč</TableHead><TableHead>Kontakt</TableHead><TableHead>Pozice</TableHead><TableHead>Role</TableHead><TableHead></TableHead></TableRow></TableHeader>
-            <TableBody>{users?.map((u) => (
-                <TableRow key={u.id}><TableCell><div className="flex items-center gap-2"><Avatar className="h-10 w-10"><AvatarImage src={u.photoURL ?? `https://picsum.photos/seed/${u.email}/100/100`} /><AvatarFallback>{u.name[0]}</AvatarFallback></Avatar><div><div className="font-medium">{u.name}</div><div className="text-sm text-muted-foreground">{u.jerseyNumber ? `#${u.jerseyNumber}` : ''}</div></div></div></TableCell><TableCell>{u.email}</TableCell><TableCell><Badge variant="outline">{playerTypeLabels[u.playerType]}</Badge></TableCell><TableCell><Badge variant={u.role==='admin'?'default':'secondary'}>{u.role==='admin'?'Admin':'Hráč'}</Badge></TableCell>
-                  <TableCell className="text-right"><DropdownMenu modal={false}><DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="h-4" /></Button></DropdownMenuTrigger><DropdownMenuContent><DropdownMenuItem onClick={() => { setSelectedUser(u); setIsEditDialogOpen(true); }}>Upravit</DropdownMenuItem><DropdownMenuItem className="text-destructive" onClick={() => { setSelectedUser(u); setIsDeleteDialogOpen(true); }}>Smazat</DropdownMenuItem></DropdownMenuContent></DropdownMenu></TableCell></TableRow>
-              ))}</TableBody></Table></CardContent>
+    <div className="py-8 space-y-8">
+      <Card>
+        <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+                <CardTitle>Správa týmu</CardTitle>
+                <CardDescription>Seznam všech registrovaných uživatelů.</CardDescription>
+            </div>
+            <Button onClick={() => setIsAddDialogOpen(true)}><Plus className="mr-2 h-4" />Přidat účet</Button>
+        </CardHeader>
+        <CardContent>
+            <div className="rounded-md border overflow-hidden">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Hráč</TableHead>
+                            <TableHead className="hidden md:table-cell">Kontakt</TableHead>
+                            <TableHead>Pozice</TableHead>
+                            <TableHead>Role</TableHead>
+                            <TableHead className="w-10"></TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {users?.map((u) => (
+                            <TableRow key={u.id}>
+                                <TableCell>
+                                    <div className="flex items-center gap-3">
+                                        <Avatar className="h-9 w-9">
+                                            <AvatarImage src={u.photoURL ?? `https://picsum.photos/seed/${u.email}/100/100`} />
+                                            <AvatarFallback>{u.name[0]}</AvatarFallback>
+                                        </Avatar>
+                                        <div>
+                                            <div className="font-bold leading-none">{u.name}</div>
+                                            <div className="text-[10px] text-muted-foreground mt-1">{u.jerseyNumber ? `#${u.jerseyNumber}` : 'bez čísla'}</div>
+                                        </div>
+                                    </div>
+                                </TableCell>
+                                <TableCell className="hidden md:table-cell text-xs text-muted-foreground">{u.email}</TableCell>
+                                <TableCell>
+                                    <Badge variant="outline" className="text-[10px] uppercase font-bold">
+                                        {playerTypeLabels[u.playerType]}
+                                    </Badge>
+                                </TableCell>
+                                <TableCell>
+                                    <Badge variant={u.role === 'admin' ? 'default' : 'secondary'} className="text-[10px] uppercase font-bold">
+                                        {u.role === 'admin' ? 'Admin' : 'Hráč'}
+                                    </Badge>
+                                </TableCell>
+                                <TableCell>
+                                    <DropdownMenu modal={false}>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4" /></Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuItem onClick={() => { setSelectedUser(u); setIsEditDialogOpen(true); }}>
+                                                <Edit className="mr-2 h-4" /> Upravit
+                                            </DropdownMenuItem>
+                                            <DropdownMenuSeparator />
+                                            <DropdownMenuItem className="text-destructive" onClick={() => { setSelectedUser(u); setIsDeleteDialogOpen(true); }}>
+                                                <Trash2 className="mr-2 h-4" /> Smazat z DB
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </div>
+        </CardContent>
       </Card>
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}><DialogContent><DialogHeader><DialogTitle>Upravit</DialogTitle></DialogHeader>{selectedUser && (<form onSubmit={handleUpdateUser}><div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-4 items-center gap-4"><Label className="text-right">Jméno</Label><Input name="name" defaultValue={selectedUser.name} className="col-span-3" /></div>
-                  <div className="grid grid-cols-4 items-center gap-4"><Label className="text-right">Telefon</Label><Input name="phoneNumber" defaultValue={selectedUser.phoneNumber ?? ''} className="col-span-3" /></div>
-                  <div className="grid grid-cols-4 items-center gap-4"><Label className="text-right">Dres</Label><Input name="jerseyNumber" type="number" defaultValue={selectedUser.jerseyNumber ?? ''} className="col-span-3" /></div>
-                  <div className="grid grid-cols-4 items-center gap-4"><Label className="text-right">Pozice</Label><Select name="playerType" defaultValue={selectedUser.playerType}><SelectTrigger className="col-span-3"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="player">Hráč</SelectItem><SelectItem value="goalie">Brankář</SelectItem><SelectItem value="member">Člen</SelectItem></SelectContent></Select></div>
-                </div><DialogFooter><Button type="submit">Uložit</Button></DialogFooter></form>)}</DialogContent></Dialog>
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Smazat?</AlertDialogTitle></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Ne</AlertDialogCancel><AlertDialogAction onClick={confirmDelete}>Ano</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
-      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}><DialogContent><DialogHeader><DialogTitle>Nový účet</DialogTitle></DialogHeader><form onSubmit={handleCreateUser}><div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4"><Label className="text-right">Jméno</Label><Input name="name" className="col-span-3" required /></div>
-              <div className="grid grid-cols-4 items-center gap-4"><Label className="text-right">Pozice</Label><Select name="playerType" required><SelectTrigger className="col-span-3"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="player">Hráč</SelectItem><SelectItem value="goalie">Brankář</SelectItem><SelectItem value="member">Člen</SelectItem></SelectContent></Select></div>
-              <div className="grid grid-cols-4 items-center gap-4"><Label className="text-right">Dres</Label><Input name="jerseyNumber" type="number" className="col-span-3" /></div>
-            </div><DialogFooter><Button type="submit">Vytvořit</Button></DialogFooter></form></DialogContent></Dialog>
+
+      <Card className="border-destructive/20 bg-destructive/5">
+          <CardHeader>
+              <CardTitle className="text-destructive flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5" />
+                  Diagnostika a opravy
+              </CardTitle>
+              <CardDescription>
+                  Použijte pro vyčištění "zaseknutých" uživatelů, kteří nejsou vidět v seznamu výše.
+              </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+              <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="flex-1">
+                      <Label htmlFor="purgeEmail" className="sr-only">Email uživatele</Label>
+                      <Input 
+                        id="purgeEmail" 
+                        placeholder="Zadejte email (např. t.macek1@email.cz)" 
+                        value={purgeEmail} 
+                        onChange={(e) => setPurgeEmail(e.target.value)}
+                      />
+                  </div>
+                  <Button variant="destructive" onClick={handlePurgeByEmail} disabled={isPurging || !purgeEmail}>
+                      {isPurging ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
+                      Vyčistit Firestore
+                  </Button>
+              </div>
+              <p className="text-xs text-muted-foreground italic">
+                  * Poznámka: Tento nástroj smaže pouze data z databáze Firestore. Pokud se chce uživatel znovu zaregistrovat, musíte ho nejdříve smazat i v sekci <strong>Authentication</strong> ve Firebase Console.
+              </p>
+          </CardContent>
+      </Card>
+
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+            <DialogHeader><DialogTitle>Upravit profil</DialogTitle></DialogHeader>
+            {selectedUser && (
+                <form onSubmit={handleUpdateUser}>
+                    <div className="grid gap-4 py-4">
+                        <div className="grid gap-2">
+                            <Label>Jméno a příjmení</Label>
+                            <Input name="name" defaultValue={selectedUser.name} required />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="grid gap-2">
+                                <Label>Telefon</Label>
+                                <Input name="phoneNumber" defaultValue={selectedUser.phoneNumber ?? ''} placeholder="+420..." />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label>Číslo dresu</Label>
+                                <Input name="jerseyNumber" type="number" defaultValue={selectedUser.jerseyNumber ?? ''} />
+                            </div>
+                        </div>
+                        <div className="grid gap-2">
+                            <Label>Pozice</Label>
+                            <Select name="playerType" defaultValue={selectedUser.playerType}>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="player">Hráč</SelectItem>
+                                    <SelectItem value="goalie">Brankář</SelectItem>
+                                    <SelectItem value="member">Člen</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="grid gap-2">
+                            <Label>Datum narození</Label>
+                            <Input name="dob" type="date" defaultValue={selectedUser.dob ?? ''} />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>Zrušit</Button>
+                        <Button type="submit" disabled={isSaving}>
+                            {isSaving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                            Uložit změny
+                        </Button>
+                    </DialogFooter>
+                </form>
+            )}
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <AlertDialogContent>
+              <AlertDialogHeader>
+                  <AlertDialogTitle>Smazat uživatele z Firestore?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                      Tato akce smaže profil hráče a jeho statistiky z databáze. Účet pro přihlášení zůstane zachován (musíte jej smazat v konzoli).
+                  </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                  <AlertDialogCancel>Zrušit</AlertDialogCancel>
+                  <AlertDialogAction onClick={confirmDelete} className="bg-destructive">Smazat data</AlertDialogAction>
+              </AlertDialogFooter>
+          </AlertDialogContent>
+      </AlertDialog>
+
+      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <DialogContent>
+            <DialogHeader><DialogTitle>Nový účet</DialogTitle></DialogHeader>
+            <form onSubmit={handleCreateUser}>
+                <div className="grid gap-4 py-4">
+                    <div className="grid gap-2">
+                        <Label>Celé jméno</Label>
+                        <Input name="name" required />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="grid gap-2">
+                            <Label>Pozice</Label>
+                            <Select name="playerType" required>
+                                <SelectTrigger><SelectValue placeholder="Vyberte" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="player">Hráč</SelectItem>
+                                    <SelectItem value="goalie">Brankář</SelectItem>
+                                    <SelectItem value="member">Člen</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="grid gap-2">
+                            <Label>Dres</Label>
+                            <Input name="jerseyNumber" type="number" />
+                        </div>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground bg-muted p-2 rounded">
+                        * Systém vygeneruje testovací email a dočasné heslo <strong>Aces123456!</strong>. Hráč si jej může změnit v nastavení.
+                    </p>
+                </div>
+                <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>Zrušit</Button>
+                    <Button type="submit" disabled={isSaving}>Vytvořit</Button>
+                </DialogFooter>
+            </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
 
-export default function TeamManagementPage() { return <Suspense fallback={<div>Načítání...</div>}><TeamManagementContent /></Suspense> }
+export default function TeamManagementPage() { 
+    return (
+        <Suspense fallback={<div className="py-8 flex justify-center"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>}>
+            <TeamManagementContent />
+        </Suspense> 
+    ) 
+}
