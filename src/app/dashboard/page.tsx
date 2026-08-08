@@ -1,3 +1,4 @@
+
 'use client'
 
 import React, { Suspense, useState, useMemo, useEffect } from 'react'
@@ -12,7 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { MapPin, Users, Trophy, BarChart, Pencil, Check, X, Flame, Shield, Plus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal, FileText, View, Disc, Cake, Minus, ChevronDown, ListOrdered } from "lucide-react"
+import { MapPin, Users, Trophy, BarChart, Pencil, Check, X, Flame, Shield, Plus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal, FileText, View, Disc, Cake, Minus, ChevronDown, ListOrdered, CalendarDays } from "lucide-react"
 import { cn } from '@/lib/utils'
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase'
 import { doc, collection, collectionGroup, updateDoc, query, Timestamp, addDoc, orderBy, setDoc, deleteDoc, writeBatch, getDocs } from 'firebase/firestore'
@@ -76,6 +77,7 @@ interface GoalieStats {
 
 interface Match {
   id: string;
+  seasonId?: string;
   dateTime: Timestamp;
   location: string;
   team1: string;
@@ -117,7 +119,19 @@ interface PlayoffSeries {
     losses: number;
 }
 
+interface SeasonArchive {
+  id: string;
+  name: string;
+  year: string;
+  teamCount: number;
+  archivedAt: Timestamp;
+  standings: LeagueStanding[];
+  playoffSeries: PlayoffSeries[];
+}
+
 interface AppSettings {
+  currentSeasonId?: string;
+  currentSeasonName?: string;
   isPlayoffEnabled: boolean;
   isScoringInPlayoffMode: boolean;
   playoffSeries?: PlayoffSeries[];
@@ -303,6 +317,8 @@ function DashboardPageContent() {
 
   const [isLeagueDialogOpen, setIsLeagueDialogOpen] = useState(false);
   const [isPlayoffDialogOpen, setIsPlayoffDialogOpen] = useState(false);
+  const [isArchiveSeasonDialogOpen, setIsArchiveSeasonDialogOpen] = useState(false);
+  const [selectedSeasonId, setSelectedSeasonId] = useState<string>('current');
 
   const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
   const { data: userProfile, isLoading: isUserProfileLoading } = useDoc<UserProfile>(userDocRef);
@@ -330,6 +346,9 @@ function DashboardPageContent() {
 
   const leagueSettingsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'league') : null, [firestore]);
   const { data: leagueSettings, isLoading: leagueSettingsLoading } = useDoc<AppSettings>(leagueSettingsRef);
+
+  const seasonsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'seasons'), orderBy('archivedAt', 'desc')) : null, [firestore]);
+  const { data: archivedSeasons, isLoading: seasonsLoading } = useCollection<SeasonArchive>(seasonsQuery);
     
   const upcomingMatches = useMemo(() => {
       if (!allMatches) return [];
@@ -362,7 +381,12 @@ function DashboardPageContent() {
       return allMatches.filter(match => match.isPlayed).sort((a, b) => b.dateTime.toDate().getTime() - a.dateTime.toDate().getTime());
   }, [allMatches]);
   
-  const recentPlayedMatches = useMemo(() => playedMatches.slice(0, 5), [playedMatches]);
+  const recentPlayedMatches = useMemo(() => {
+      // Filtrujeme pouze zápasy z aktuální sezóny
+      const currentSeasonId = leagueSettings?.currentSeasonId;
+      if (!currentSeasonId) return playedMatches.slice(0, 5);
+      return playedMatches.filter(m => m.seasonId === currentSeasonId).slice(0, 5);
+  }, [playedMatches, leagueSettings]);
     
   const teamScoring = useMemo(() => {
       if (!allUsers || !allSkaterStats) return [];
@@ -494,8 +518,24 @@ function DashboardPageContent() {
   }, [allAttendances, user, optimisticAttendances]);
 
   const usersMap = useMemo(() => new Map(allUsers?.map(u => [u.id, u])), [allUsers]);
+
+  const activeSeasonData = useMemo(() => {
+      if (selectedSeasonId === 'current') {
+          return {
+              standings: leagueSettings?.leagueStandings || [],
+              playoffSeries: leagueSettings?.playoffSeries || [],
+              name: leagueSettings?.currentSeasonName || 'Aktuální sezóna'
+          };
+      }
+      const archived = archivedSeasons?.find(s => s.id === selectedSeasonId);
+      return {
+          standings: archived?.standings || [],
+          playoffSeries: archived?.playoffSeries || [],
+          name: archived?.name || 'Archiv'
+      };
+  }, [selectedSeasonId, leagueSettings, archivedSeasons]);
   
-  const isLoading = isUserProfileLoading || isSkaterStatsLoading || isGoalieStatsLoading || areMatchesLoading || areUsersLoading || areSkaterStatsLoading || areGoalieStatsLoading || attendancesLoading || leagueSettingsLoading;
+  const isLoading = isUserProfileLoading || isSkaterStatsLoading || isGoalieStatsLoading || areMatchesLoading || areUsersLoading || areSkaterStatsLoading || areGoalieStatsLoading || attendancesLoading || leagueSettingsLoading || seasonsLoading;
 
   useEffect(() => {
     if (isLoading) return;
@@ -726,6 +766,93 @@ function DashboardPageContent() {
     }
   };
 
+  const handleArchiveSeason = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!firestore || !leagueSettings) return;
+
+    setIsSaving(true);
+    const formData = new FormData(e.currentTarget);
+    const newSeasonName = formData.get('seasonName') as string;
+    const year = formData.get('year') as string;
+    const teamCount = Number(formData.get('teamCount'));
+
+    try {
+        // 1. Uložit aktuální sezónu do archivu
+        const archivedSeasonId = leagueSettings.currentSeasonId || `season-${Date.now()}`;
+        await setDoc(doc(firestore, 'seasons', archivedSeasonId), {
+            id: archivedSeasonId,
+            name: leagueSettings.currentSeasonName || 'Sezóna bez názvu',
+            year: year,
+            teamCount: teamCount,
+            archivedAt: Timestamp.now(),
+            standings: leagueSettings.leagueStandings || [],
+            playoffSeries: leagueSettings.playoffSeries || []
+        });
+
+        // 2. Archivovat statistiky hráčů (resetovat sezónní, přičíst k historickým)
+        const batch = writeBatch(firestore);
+        
+        if (allSkaterStats) {
+            allSkaterStats.forEach(stat => {
+                const statRef = doc(firestore, 'users', stat.userProfileId, 'skaterStats', stat.id);
+                batch.update(statRef, {
+                    historicalGoals: (stat.historicalGoals || 0) + (stat.seasonGoals || 0) + (stat.playoffGoals || 0),
+                    historicalAssists: (stat.historicalAssists || 0) + (stat.seasonAssists || 0) + (stat.playoffAssists || 0),
+                    historicalGamesPlayed: (stat.historicalGamesPlayed || 0) + (stat.seasonGamesPlayed || 0) + (stat.playoffGamesPlayed || 0),
+                    seasonGoals: 0,
+                    seasonAssists: 0,
+                    seasonGamesPlayed: 0,
+                    playoffGoals: 0,
+                    playoffAssists: 0,
+                    playoffGamesPlayed: 0,
+                });
+            });
+        }
+
+        if (allGoalieStats) {
+            allGoalieStats.forEach(stat => {
+                const statRef = doc(firestore, 'users', stat.userProfileId, 'goalieStats', stat.id);
+                batch.update(statRef, {
+                    historicalGamesPlayed: (stat.historicalGamesPlayed || 0) + (stat.seasonGamesPlayed || 0) + (stat.playoffGamesPlayed || 0),
+                    historicalWins: (stat.historicalWins || 0) + (stat.seasonWins || 0) + (stat.playoffWins || 0),
+                    historicalSaves: (stat.historicalSaves || 0) + (stat.seasonSaves || 0) + (stat.playoffSaves || 0),
+                    historicalShotsAgainst: (stat.historicalShotsAgainst || 0) + (stat.seasonShotsAgainst || 0) + (stat.playoffShotsAgainst || 0),
+                    historicalSO: (stat.historicalSO || 0) + (stat.seasonSO || 0) + (stat.playoffSO || 0),
+                    seasonGamesPlayed: 0,
+                    seasonWins: 0,
+                    seasonSaves: 0,
+                    seasonShotsAgainst: 0,
+                    seasonSO: 0,
+                    playoffGamesPlayed: 0,
+                    playoffWins: 0,
+                    playoffSaves: 0,
+                    playoffShotsAgainst: 0,
+                    playoffSO: 0,
+                });
+            });
+        }
+
+        // 3. Nastavit novou sezónu v nastavení
+        const newSeasonId = `season-${Date.now()}`;
+        batch.update(doc(firestore, 'settings', 'league'), {
+            currentSeasonId: newSeasonId,
+            currentSeasonName: newSeasonName,
+            isScoringInPlayoffMode: false,
+            isPlayoffEnabled: false,
+            playoffSeries: [],
+            leagueStandings: []
+        });
+
+        await batch.commit();
+        toast({ title: 'Sezóna byla úspěšně archivována', description: `Nová sezóna ${newSeasonName} byla zahájena.` });
+        setIsArchiveSeasonDialogOpen(false);
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: 'Chyba archivace', description: error.message });
+    } finally {
+        setIsSaving(false);
+    }
+  };
+
   const renderMatchCard = (m: Match) => {
     const { prefix, opponent } = getMatchDetails(m);
     const attStatus = userAttendancesWithOptimistic.get(m.id)?.status;
@@ -869,12 +996,29 @@ function DashboardPageContent() {
         </div>
 
         <Card className="lg:col-span-3">
-            <CardHeader className="flex-row items-center justify-between gap-4 py-4 px-4 sm:px-6">
-                <CardTitle className="flex items-center gap-2 whitespace-nowrap"><ListOrdered className="text-primary"/>Soutěž</CardTitle>
-                {userProfile?.role === 'admin' && (
-                    <div className="flex items-center gap-2">
+            <CardHeader className="flex-col sm:flex-row items-start sm:items-center justify-between gap-4 py-4 px-4 sm:px-6">
+                <div className="flex flex-col gap-1">
+                    <CardTitle className="flex items-center gap-2 whitespace-nowrap"><ListOrdered className="text-primary"/>Soutěž</CardTitle>
+                    <div className="flex items-center gap-2 mt-2">
+                        <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                        <Select value={selectedSeasonId} onValueChange={setSelectedSeasonId}>
+                            <SelectTrigger className="h-8 w-[180px] text-xs">
+                                <SelectValue placeholder="Vyberte sezónu" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="current">{leagueSettings?.currentSeasonName || 'Aktuální sezóna'}</SelectItem>
+                                {archivedSeasons?.map(s => (
+                                    <SelectItem key={s.id} value={s.id}>{s.name} ({s.year})</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
+                {userProfile?.role === 'admin' && selectedSeasonId === 'current' && (
+                    <div className="flex flex-wrap items-center gap-2">
                          <Button size="sm" variant="outline" onClick={() => setIsLeagueDialogOpen(true)} className="h-8 text-[10px] sm:text-xs"><Pencil className="h-3 w-3 mr-1" />Tabulka</Button>
                          <Button size="sm" variant="outline" onClick={() => setIsPlayoffDialogOpen(true)} className="h-8 text-[10px] sm:text-xs"><Pencil className="h-3 w-3 mr-1" />Play-off</Button>
+                         <Button size="sm" variant="destructive" onClick={() => setIsArchiveSeasonDialogOpen(true)} className="h-8 text-[10px] sm:text-xs"><History className="h-3 w-3 mr-1" />Ukončit sezónu</Button>
                     </div>
                 )}
             </CardHeader>
@@ -896,7 +1040,7 @@ function DashboardPageContent() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {(leagueSettings?.leagueStandings || [])
+                                {(activeSeasonData.standings || [])
                                     .sort((a,b) => b.points - a.points || (b.gf - b.ga) - (a.gf - a.ga))
                                     .map((team, idx) => (
                                     <TableRow key={team.id} className={cn(team.name.toLowerCase().includes('aces') && 'bg-primary/10 font-bold')}>
@@ -907,7 +1051,7 @@ function DashboardPageContent() {
                                         <TableCell className="text-right px-2 font-bold tabular-nums">{team.points}</TableCell>
                                     </TableRow>
                                 ))}
-                                {(!leagueSettings?.leagueStandings || leagueSettings.leagueStandings.length === 0) && (
+                                {(!activeSeasonData.standings || activeSeasonData.standings.length === 0) && (
                                     <TableRow><TableCell colSpan={5} className="text-center py-4 text-muted-foreground italic">Tabulka zatím není vyplněna.</TableCell></TableRow>
                                 )}
                             </TableBody>
@@ -915,7 +1059,7 @@ function DashboardPageContent() {
                     </TabsContent>
                     <TabsContent value="playoff">
                         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                            {(leagueSettings?.playoffSeries || []).map((series, idx) => (
+                            {(activeSeasonData.playoffSeries || []).map((series, idx) => (
                                 <Card key={idx} className="bg-muted/30">
                                     <CardHeader className="pb-2 p-4">
                                         <p className="text-[10px] font-bold text-primary uppercase">{series.round}</p>
@@ -929,7 +1073,7 @@ function DashboardPageContent() {
                                     </CardContent>
                                 </Card>
                             ))}
-                            {(!leagueSettings?.playoffSeries || leagueSettings.playoffSeries.length === 0) && (
+                            {(!activeSeasonData.playoffSeries || activeSeasonData.playoffSeries.length === 0) && (
                                 <div className="col-span-full py-8 text-center text-muted-foreground italic">Play-off série zatím nebyly definovány.</div>
                             )}
                         </div>
@@ -941,63 +1085,67 @@ function DashboardPageContent() {
         <Card className="lg:col-span-3">
             <CardHeader className="py-4 px-4 sm:px-6"><CardTitle className="flex items-center gap-2"><History className="text-primary" />Nedávné výsledky</CardTitle></CardHeader>
             <CardContent className="px-2 sm:px-6">
-                <Accordion type="single" collapsible className="w-full space-y-2">
-                    {recentPlayedMatches.map(m => {
-                        const { prefix, opponent } = getMatchDetails(m);
-                        const hasGoals = m.scorers && m.scorers.length > 0;
-                        return (
-                            <AccordionItem value={m.id} key={m.id} className="border rounded-lg bg-card overflow-hidden shadow-sm hover:border-primary/50 transition-colors">
-                                <AccordionTrigger className="hover:no-underline py-4 px-3 sm:px-6 [&>svg]:ml-2">
-                                    <div className="flex items-center justify-between w-full text-left gap-2 sm:gap-4">
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">{format(m.dateTime.toDate(), "d. M. yyyy")}</p>
-                                            {prefix && <p className="text-[9px] font-bold text-primary uppercase truncate">{prefix}</p>}
-                                            <p className="font-bold text-sm sm:text-lg truncate">{opponent}</p>
-                                        </div>
-                                        <div className="flex items-center gap-2 sm:gap-4 shrink-0">
-                                            <span className="font-bold text-lg sm:text-xl tabular-nums tracking-tighter">{m.team1Score} : {m.team2Score}</span>
-                                            <Badge variant={(m.team1Score || 0) > (m.team2Score || 0) ? 'default' : 'destructive'} className="h-7 w-7 sm:h-8 sm:w-8 p-0 flex items-center justify-center shrink-0 rounded-full font-bold">
-                                                {(m.team1Score || 0) > (m.team2Score || 0) ? 'V' : 'P'}
-                                            </Badge>
-                                        </div>
-                                    </div>
-                                </AccordionTrigger>
-                                <AccordionContent className="bg-muted/30 px-3 sm:px-6 py-4 sm:py-6 border-t">
-                                    <div className="space-y-6">
-                                        {hasGoals ? (
-                                            <div className="space-y-4">
-                                                <div className="flex items-center gap-2 text-primary border-b border-primary/20 pb-2">
-                                                    <Trophy className="h-4 w-4" />
-                                                    <span className="text-[10px] font-bold uppercase tracking-widest">Detaily zápasu: Aces</span>
-                                                </div>
-                                                <div className="grid gap-3">
-                                                    {m.scorers!.map((s, i) => (
-                                                        <div key={i} className="flex items-center gap-3 text-xs sm:text-sm group">
-                                                            <div className="flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-primary/10 text-primary shrink-0">
-                                                                <Disc className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                                                            </div>
-                                                            <div className="flex flex-wrap items-baseline gap-x-2">
-                                                                <span className="font-bold text-foreground">{formatName(usersMap.get(s.goal)?.name || 'Neznámý')}</span>
-                                                                {s.assist && (
-                                                                    <span className="text-muted-foreground text-[10px] sm:text-xs italic">(A: {formatName(usersMap.get(s.assist)?.name || '?')})</span>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
+                {recentPlayedMatches.length > 0 ? (
+                    <Accordion type="single" collapsible className="w-full space-y-2">
+                        {recentPlayedMatches.map(m => {
+                            const { prefix, opponent } = getMatchDetails(m);
+                            const hasGoals = m.scorers && m.scorers.length > 0;
+                            return (
+                                <AccordionItem value={m.id} key={m.id} className="border rounded-lg bg-card overflow-hidden shadow-sm hover:border-primary/50 transition-colors">
+                                    <AccordionTrigger className="hover:no-underline py-4 px-3 sm:px-6 [&>svg]:ml-2">
+                                        <div className="flex items-center justify-between w-full text-left gap-2 sm:gap-4">
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">{format(m.dateTime.toDate(), "d. M. yyyy")}</p>
+                                                {prefix && <p className="text-[9px] font-bold text-primary uppercase truncate">{prefix}</p>}
+                                                <p className="font-bold text-sm sm:text-lg truncate">{opponent}</p>
                                             </div>
-                                        ) : (
-                                            <div className="flex flex-col items-center justify-center py-4 text-muted-foreground text-center">
-                                                 <Disc className="h-6 w-6 sm:h-8 sm:w-8 opacity-20 mb-2" />
-                                                 <p className="text-xs italic">Žádné góly Aces nebyly k tomuto zápasu zaznamenány.</p>
+                                            <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+                                                <span className="font-bold text-lg sm:text-xl tabular-nums tracking-tighter">{m.team1Score} : {m.team2Score}</span>
+                                                <Badge variant={(m.team1Score || 0) > (m.team2Score || 0) ? 'default' : 'destructive'} className="h-7 w-7 sm:h-8 sm:w-8 p-0 flex items-center justify-center shrink-0 rounded-full font-bold">
+                                                    {(m.team1Score || 0) > (m.team2Score || 0) ? 'V' : 'P'}
+                                                </Badge>
                                             </div>
-                                        )}
-                                    </div>
-                                </AccordionContent>
-                            </AccordionItem>
-                        )
-                    })}
-                </Accordion>
+                                        </div>
+                                    </AccordionTrigger>
+                                    <AccordionContent className="bg-muted/30 px-3 sm:px-6 py-4 sm:py-6 border-t">
+                                        <div className="space-y-6">
+                                            {hasGoals ? (
+                                                <div className="space-y-4">
+                                                    <div className="flex items-center gap-2 text-primary border-b border-primary/20 pb-2">
+                                                        <Trophy className="h-4 w-4" />
+                                                        <span className="text-[10px] font-bold uppercase tracking-widest">Detaily zápasu: Aces</span>
+                                                    </div>
+                                                    <div className="grid gap-3">
+                                                        {m.scorers!.map((s, i) => (
+                                                            <div key={i} className="flex items-center gap-3 text-xs sm:text-sm group">
+                                                                <div className="flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-primary/10 text-primary shrink-0">
+                                                                    <Disc className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                                                                </div>
+                                                                <div className="flex flex-wrap items-baseline gap-x-2">
+                                                                    <span className="font-bold text-foreground">{formatName(usersMap.get(s.goal)?.name || 'Neznámý')}</span>
+                                                                    {s.assist && (
+                                                                        <span className="text-muted-foreground text-[10px] sm:text-xs italic">(A: {formatName(usersMap.get(s.assist)?.name || '?')})</span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="flex flex-col items-center justify-center py-4 text-muted-foreground text-center">
+                                                     <Disc className="h-6 w-6 sm:h-8 sm:w-8 opacity-20 mb-2" />
+                                                     <p className="text-xs italic">Žádné góly Aces nebyly k tomuto zápasu zaznamenány.</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+                            )
+                        })}
+                    </Accordion>
+                ) : (
+                    <p className="text-center py-8 text-muted-foreground italic">V této sezóně zatím nebyly odehrány žádné zápasy.</p>
+                )}
             </CardContent>
             <CardFooter className="pt-2 px-4 sm:px-6"><Button variant="link" asChild className="p-0 h-auto font-bold text-primary text-xs"><Link href="/dashboard/history">Zobrazit celou historii</Link></Button></CardFooter>
         </Card>
@@ -1234,7 +1382,8 @@ function DashboardPageContent() {
                     location: fd.get('location'), 
                     dateTime: Timestamp.fromDate(dt), 
                     isPlayed: false, 
-                    type: addMatchType 
+                    type: addMatchType,
+                    seasonId: leagueSettings?.currentSeasonId || 'current'
                 };
                 if (addMatchType === 'regular') mData.round = Number(fd.get('round')) || null;
                 else if (addMatchType === 'playoff') {
@@ -1400,6 +1549,40 @@ function DashboardPageContent() {
                   <DialogFooter className="pt-4">
                       <Button type="button" variant="outline" onClick={() => setIsPlayoffDialogOpen(false)}>Zrušit</Button>
                       <Button type="submit" disabled={isSaving}>Uložit série</Button>
+                  </DialogFooter>
+              </form>
+          </DialogContent>
+      </Dialog>
+
+      <Dialog open={isArchiveSeasonDialogOpen} onOpenChange={setIsArchiveSeasonDialogOpen}>
+          <DialogContent>
+              <DialogHeader>
+                  <DialogTitle>Ukončit a archivovat sezónu</DialogTitle>
+                  <DialogDescription>Aktuální stav ligy a play-off bude uložen do archivu a statistiky hráčů budou resetovány pro novou sezónu.</DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleArchiveSeason}>
+                  <div className="grid gap-4 py-4 p-1">
+                      <div className="grid gap-2">
+                          <Label>Název nové sezóny</Label>
+                          <Input name="seasonName" placeholder="Např. Aces Cup 2025" required />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="grid gap-2">
+                            <Label>Ročník</Label>
+                            <Input name="year" placeholder="2024/25" required />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label>Počet týmů</Label>
+                            <Input name="teamCount" type="number" min="2" defaultValue="8" required />
+                        </div>
+                      </div>
+                  </div>
+                  <DialogFooter>
+                      <Button type="button" variant="outline" onClick={() => setIsArchiveSeasonDialogOpen(false)} disabled={isSaving}>Zrušit</Button>
+                      <Button type="submit" variant="destructive" disabled={isSaving}>
+                          {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                          Archivovat a začít novou
+                      </Button>
                   </DialogFooter>
               </form>
           </DialogContent>
