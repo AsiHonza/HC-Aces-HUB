@@ -16,6 +16,12 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    // Pravidla pro sezóny (archiv)
+    match /seasons/{seasonId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
     // Explicitní pravidla pro statistiky (aby se předešlo limitům vnořených cest při hromadných operacích)
     match /users/{userId}/skaterStats/{statsId} {
       allow read: if isSignedIn();
