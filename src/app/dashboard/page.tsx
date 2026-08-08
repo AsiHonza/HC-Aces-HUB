@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { MapPin, Users, Trophy, BarChart, Pencil, Check, X, Flame, Shield, Plus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal, FileText, View, Disc, Cake, Minus, ChevronDown, ListOrdered, CalendarDays } from "lucide-react"
+import { MapPin, Users, Trophy, BarChart, Pencil, Check, X, Flame, Shield, Plus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal, FileText, View, Disc, Cake, Minus, ChevronDown, ListOrdered, CalendarDays, ChevronUp } from "lucide-react"
 import { cn } from '@/lib/utils'
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase'
 import { doc, collection, collectionGroup, updateDoc, query, Timestamp, addDoc, orderBy, setDoc, deleteDoc, writeBatch, getDocs } from 'firebase/firestore'
@@ -28,6 +28,7 @@ import { LineupBuilder, LineupDisplay, type Lineup } from '@/components/lineup-b
 import { Badge } from '@/components/ui/badge'
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 interface UserProfile {
   id: string;
@@ -312,6 +313,9 @@ function DashboardPageContent() {
   const [expandedStatId, setExpandedStatId] = useState<string | null>(null);
   const [addMatchType, setAddMatchType] = useState<Match['type']>('regular');
   
+  const [showAllScoring, setShowAllScoring] = useState(false);
+  const [showAllGoalies, setShowAllGoalies] = useState(false);
+
   const [editableSkaterStats, setEditableSkaterStats] = useState<any[]>([]);
   const [editableGoalieStats, setEditableGoalieStats] = useState<any[]>([]);
 
@@ -382,7 +386,6 @@ function DashboardPageContent() {
   }, [allMatches]);
   
   const recentPlayedMatches = useMemo(() => {
-      // Filtrujeme pouze zápasy z aktuální sezóny
       const currentSeasonId = leagueSettings?.currentSeasonId;
       if (!currentSeasonId) return playedMatches.slice(0, 5);
       return playedMatches.filter(m => m.seasonId === currentSeasonId).slice(0, 5);
@@ -777,7 +780,6 @@ function DashboardPageContent() {
     const teamCount = Number(formData.get('teamCount'));
 
     try {
-        // 1. Uložit aktuální sezónu do archivu
         const archivedSeasonId = leagueSettings.currentSeasonId || `season-${Date.now()}`;
         await setDoc(doc(firestore, 'seasons', archivedSeasonId), {
             id: archivedSeasonId,
@@ -789,7 +791,6 @@ function DashboardPageContent() {
             playoffSeries: leagueSettings.playoffSeries || []
         });
 
-        // 2. Archivovat statistiky hráčů (resetovat sezónní, přičíst k historickým)
         const batch = writeBatch(firestore);
         
         if (allSkaterStats) {
@@ -832,7 +833,6 @@ function DashboardPageContent() {
             });
         }
 
-        // 3. Nastavit novou sezónu v nastavení
         const newSeasonId = `season-${Date.now()}`;
         batch.update(doc(firestore, 'settings', 'league'), {
             currentSeasonId: newSeasonId,
@@ -1151,12 +1151,11 @@ function DashboardPageContent() {
         </Card>
 
         <div className="lg:col-span-3 grid gap-8 md:grid-cols-2">
-            <Card>
+            <Card className="h-fit">
                 <CardHeader className="flex-row items-center justify-between py-4 px-4 sm:px-6">
                     <CardTitle className="flex items-center gap-2"><Flame className="text-primary"/>Bodování</CardTitle>
                     {userProfile?.role === 'admin' && !isStatEditMode && scoringView !== 'season' && (
                         <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => { 
-                            // Při editaci "Historie" upravujeme rawHistory data (minulé sezóny), ne dynamický součet.
                             const viewKey = scoringView === 'history' ? 'rawHistory' : (scoringView === 'regular' ? 'regular' : 'playoff');
                             const initialEditData = teamScoring.map(p => {
                                 const data = p[viewKey as keyof typeof p] as any;
@@ -1193,69 +1192,87 @@ function DashboardPageContent() {
                                 {scoringView === 'history' ? 'Upravujete historii (minulé sezóny)' : (scoringView === 'regular' ? 'Upravujete základní část' : 'Upravujete play-off')}
                             </div>
                         )}
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead className="w-6 px-1 text-center">#</TableHead>
-                                    <TableHead className="px-2">Hráč</TableHead>
-                                    <TableHead className="text-center px-1">Z</TableHead>
-                                    <TableHead className="text-center px-1">G</TableHead>
-                                    <TableHead className="text-center px-1">A</TableHead>
-                                    <TableHead className="text-right px-2">B</TableHead>
-                                    {isStatEditMode && <TableHead className="w-8 px-1"></TableHead>}
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {sortedTeamScoring.map(p => (
-                                    <React.Fragment key={p.id}>
-                                        <TableRow className={cn(p.id === user?.uid && 'bg-primary/5', expandedStatId === p.id && 'bg-muted/50')}>
-                                            <TableCell className="px-1 text-center tabular-nums">{String(p.rank || 0)}</TableCell>
-                                            <TableCell className="font-medium whitespace-nowrap px-2">{formatName(p.name)}</TableCell>
-                                            <TableCell className="text-center px-1 tabular-nums">{String(p.gamesPlayed || 0)}</TableCell>
-                                            <TableCell className="text-center px-1 tabular-nums">{String(p.goals || 0)}</TableCell>
-                                            <TableCell className="text-center px-1 tabular-nums">{String(p.assists || 0)}</TableCell>
-                                            <TableCell className="text-right font-bold px-2 tabular-nums">{String(p.points || 0)}</TableCell>
-                                            {isStatEditMode && (
-                                                <TableCell className="p-0 text-center">
-                                                    <Button 
-                                                        variant="ghost" 
-                                                        size="icon" 
-                                                        className="h-7 w-7"
-                                                        onClick={() => setExpandedStatId(expandedStatId === p.id ? null : p.id)}
-                                                    >
-                                                        <ChevronDown className={cn("h-3 w-3 transition-transform", expandedStatId === p.id && "rotate-180")} />
-                                                    </Button>
-                                                </TableCell>
-                                            )}
-                                        </TableRow>
-                                        {isStatEditMode && expandedStatId === p.id && (
-                                            <TableRow className="bg-muted/30 border-b-2 border-primary/20">
-                                                <TableCell colSpan={7} className="p-2 sm:p-4">
-                                                    <div className="flex flex-wrap items-center justify-around gap-2 bg-background/50 rounded-lg p-2 border">
-                                                        <div className="flex flex-col items-center gap-1">
-                                                            <Label className="text-[9px] uppercase font-bold text-muted-foreground">Zápasy</Label>
-                                                            <StatAdjuster value={String(p.gamesPlayed || 0)} onChange={val => setEditableSkaterStats(cur => cur.map(it => it.id === p.id ? {...it, gamesPlayed: val} : it))} />
-                                                        </div>
-                                                        <div className="flex flex-col items-center gap-1">
-                                                            <Label className="text-[9px] uppercase font-bold text-muted-foreground">Góly</Label>
-                                                            <StatAdjuster value={String(p.goals || 0)} onChange={val => setEditableSkaterStats(cur => cur.map(it => it.id === p.id ? {...it, goals: val} : it))} />
-                                                        </div>
-                                                        <div className="flex flex-col items-center gap-1">
-                                                            <Label className="text-[9px] uppercase font-bold text-muted-foreground">Asistence</Label>
-                                                            <StatAdjuster value={String(p.assists || 0)} onChange={val => setEditableSkaterStats(cur => cur.map(it => it.id === p.id ? {...it, assists: val} : it))} />
-                                                        </div>
-                                                    </div>
-                                                </TableCell>
+                        <div className="rounded-md border overflow-hidden">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead className="w-6 px-1 text-center">#</TableHead>
+                                        <TableHead className="px-2">Hráč</TableHead>
+                                        <TableHead className="text-center px-1">Z</TableHead>
+                                        <TableHead className="text-center px-1">G</TableHead>
+                                        <TableHead className="text-center px-1">A</TableHead>
+                                        <TableHead className="text-right px-2">B</TableHead>
+                                        {isStatEditMode && <TableHead className="w-8 px-1"></TableHead>}
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {sortedTeamScoring.slice(0, (showAllScoring || isStatEditMode) ? sortedTeamScoring.length : 10).map(p => (
+                                        <React.Fragment key={p.id}>
+                                            <TableRow className={cn(p.id === user?.uid && 'bg-primary/5', expandedStatId === p.id && 'bg-muted/50')}>
+                                                <TableCell className="px-1 text-center tabular-nums">{String(p.rank || 0)}</TableCell>
+                                                <TableCell className="font-medium whitespace-nowrap px-2">{formatName(p.name)}</TableCell>
+                                                <TableCell className="text-center px-1 tabular-nums">{String(p.gamesPlayed || 0)}</TableCell>
+                                                <TableCell className="text-center px-1 tabular-nums">{String(p.goals || 0)}</TableCell>
+                                                <TableCell className="text-center px-1 tabular-nums">{String(p.assists || 0)}</TableCell>
+                                                <TableCell className="text-right font-bold px-2 tabular-nums">{String(p.points || 0)}</TableCell>
+                                                {isStatEditMode && (
+                                                    <TableCell className="p-0 text-center">
+                                                        <Button 
+                                                            variant="ghost" 
+                                                            size="icon" 
+                                                            className="h-7 w-7"
+                                                            onClick={() => setExpandedStatId(expandedStatId === p.id ? null : p.id)}
+                                                        >
+                                                            <ChevronDown className={cn("h-3 w-3 transition-transform", expandedStatId === p.id && "rotate-180")} />
+                                                        </Button>
+                                                    </TableCell>
+                                                )}
                                             </TableRow>
-                                        )}
-                                    </React.Fragment>
-                                ))}
-                            </TableBody>
-                        </Table>
+                                            {isStatEditMode && expandedStatId === p.id && (
+                                                <TableRow className="bg-muted/30 border-b-2 border-primary/20">
+                                                    <TableCell colSpan={7} className="p-2 sm:p-4">
+                                                        <div className="flex flex-wrap items-center justify-around gap-2 bg-background/50 rounded-lg p-2 border">
+                                                            <div className="flex flex-col items-center gap-1">
+                                                                <Label className="text-[9px] uppercase font-bold text-muted-foreground">Zápasy</Label>
+                                                                <StatAdjuster value={String(p.gamesPlayed || 0)} onChange={val => setEditableSkaterStats(cur => cur.map(it => it.id === p.id ? {...it, gamesPlayed: val} : it))} />
+                                                            </div>
+                                                            <div className="flex flex-col items-center gap-1">
+                                                                <Label className="text-[9px] uppercase font-bold text-muted-foreground">Góly</Label>
+                                                                <StatAdjuster value={String(p.goals || 0)} onChange={val => setEditableSkaterStats(cur => cur.map(it => it.id === p.id ? {...it, goals: val} : it))} />
+                                                            </div>
+                                                            <div className="flex flex-col items-center gap-1">
+                                                                <Label className="text-[9px] uppercase font-bold text-muted-foreground">Asistence</Label>
+                                                                <StatAdjuster value={String(p.assists || 0)} onChange={val => setEditableSkaterStats(cur => cur.map(it => it.id === p.id ? {...it, assists: val} : it))} />
+                                                            </div>
+                                                        </div>
+                                                    </TableCell>
+                                                </TableRow>
+                                            )}
+                                        </React.Fragment>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                        {!isStatEditMode && sortedTeamScoring.length > 10 && (
+                            <div className="mt-4 text-center">
+                                <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    onClick={() => setShowAllScoring(!showAllScoring)}
+                                    className="w-full sm:w-auto font-bold text-xs"
+                                >
+                                    {showAllScoring ? (
+                                        <><ChevronUp className="mr-2 h-4 w-4" /> Zobrazit jen top 10</>
+                                    ) : (
+                                        <><ChevronDown className="mr-2 h-4 w-4" /> Zobrazit všechny hráče ({sortedTeamScoring.length})</>
+                                    )}
+                                </Button>
+                            </div>
+                        )}
                     </Tabs>
                 </CardContent>
             </Card>
-            <Card>
+            <Card className="h-fit">
                 <CardHeader className="flex-row items-center justify-between py-4 px-4 sm:px-6">
                     <CardTitle className="flex items-center gap-2"><Shield className="text-primary"/>Brankáři</CardTitle>
                     {userProfile?.role === 'admin' && !isStatEditMode && scoringView !== 'season' && (
@@ -1292,71 +1309,89 @@ function DashboardPageContent() {
                                 {scoringView === 'history' ? 'Upravujete historii (minulé sezóny)' : (scoringView === 'regular' ? 'Upravujete základní část' : 'Upravujete play-off')}
                             </div>
                         )}
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead className="px-2">Jméno</TableHead>
-                                    <TableHead className="text-center px-1">Z</TableHead>
-                                    <TableHead className="text-center px-1">V</TableHead>
-                                    <TableHead className="text-center px-1">SO</TableHead>
-                                    <TableHead className="text-right px-2">Úspěšnost</TableHead>
-                                    {isStatEditMode && <TableHead className="w-8 px-1"></TableHead>}
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {sortedGoalieLeaderboard.map(g => (
-                                    <React.Fragment key={g.id}>
-                                        <TableRow className={cn(g.id === user?.uid && 'bg-primary/5', expandedStatId === g.id && 'bg-muted/50')}>
-                                            <TableCell className="font-medium whitespace-nowrap px-2">{formatName(g.name)}</TableCell>
-                                            <TableCell className="text-center px-1 tabular-nums">{String(g.gamesPlayed || 0)}</TableCell>
-                                            <TableCell className="text-center px-1 tabular-nums">{String(g.wins || 0)}</TableCell>
-                                            <TableCell className="text-center px-1 tabular-nums">{String(g.so || 0)}</TableCell>
-                                            <TableCell className="text-right font-bold px-2 tabular-nums">{String((g.savePercentage || 0).toFixed(2))}%</TableCell>
-                                            {isStatEditMode && (
-                                                <TableCell className="p-0 text-center">
-                                                    <Button 
-                                                        variant="ghost" 
-                                                        size="icon" 
-                                                        className="h-7 w-7"
-                                                        onClick={() => setExpandedStatId(expandedStatId === g.id ? null : g.id)}
-                                                    >
-                                                        <ChevronDown className={cn("h-3 w-3 transition-transform", expandedStatId === g.id && "rotate-180")} />
-                                                    </Button>
-                                                </TableCell>
-                                            )}
-                                        </TableRow>
-                                        {isStatEditMode && expandedStatId === g.id && (
-                                            <TableRow className="bg-muted/30 border-b-2 border-primary/20">
-                                                <TableCell colSpan={6} className="p-2 sm:p-4">
-                                                    <div className="flex flex-wrap items-center justify-around gap-2 bg-background/50 rounded-lg p-2 border">
-                                                        <div className="flex flex-col items-center gap-1">
-                                                            <Label className="text-[9px] uppercase font-bold text-muted-foreground">Zápasy</Label>
-                                                            <StatAdjuster value={String(g.gamesPlayed || 0)} onChange={val => setEditableGoalieStats(cur => cur.map(it => it.id === g.id ? {...it, gamesPlayed: val} : it))} />
-                                                        </div>
-                                                        <div className="flex flex-col items-center gap-1">
-                                                            <Label className="text-[9px] uppercase font-bold text-muted-foreground">Výhry</Label>
-                                                            <StatAdjuster value={String(g.wins || 0)} onChange={val => setEditableGoalieStats(cur => cur.map(it => it.id === g.id ? {...it, wins: val} : it))} />
-                                                        </div>
-                                                        <div className="flex flex-col items-center gap-1">
-                                                            <Label className="text-[9px] uppercase font-bold text-muted-foreground">SO</Label>
-                                                            <StatAdjuster value={String(g.so || 0)} onChange={val => setEditableGoalieStats(cur => cur.map(it => it.id === g.id ? {...it, so: val} : it))} />
-                                                        </div>
-                                                        <div className="flex flex-col items-center gap-1">
-                                                            <Label className="text-[9px] uppercase font-bold text-muted-foreground">Zásahy</Label>
-                                                            <StatAdjuster value={String(g.saves || 0)} onChange={val => setEditableGoalieStats(cur => cur.map(it => it.id === g.id ? {...it, saves: val} : it))} />
-                                                        </div>
-                                                        <div className="flex flex-col items-center gap-1">
-                                                            <Label className="text-[9px] uppercase font-bold text-muted-foreground">Střely</Label>
-                                                            <StatAdjuster value={String(g.shotsAgainst || 0)} onChange={val => setEditableGoalieStats(cur => cur.map(it => it.id === g.id ? {...it, shotsAgainst: val} : it))} />
-                                                        </div>
-                                                    </div>
-                                                </TableCell>
+                        <div className="rounded-md border overflow-hidden">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead className="px-2">Jméno</TableHead>
+                                        <TableHead className="text-center px-1">Z</TableHead>
+                                        <TableHead className="text-center px-1">V</TableHead>
+                                        <TableHead className="text-center px-1">SO</TableHead>
+                                        <TableHead className="text-right px-2">Úspěšnost</TableHead>
+                                        {isStatEditMode && <TableHead className="w-8 px-1"></TableHead>}
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {sortedGoalieLeaderboard.slice(0, (showAllGoalies || isStatEditMode) ? sortedGoalieLeaderboard.length : 10).map(g => (
+                                        <React.Fragment key={g.id}>
+                                            <TableRow className={cn(g.id === user?.uid && 'bg-primary/5', expandedStatId === g.id && 'bg-muted/50')}>
+                                                <TableCell className="font-medium whitespace-nowrap px-2">{formatName(g.name)}</TableCell>
+                                                <TableCell className="text-center px-1 tabular-nums">{String(g.gamesPlayed || 0)}</TableCell>
+                                                <TableCell className="text-center px-1 tabular-nums">{String(g.wins || 0)}</TableCell>
+                                                <TableCell className="text-center px-1 tabular-nums">{String(g.so || 0)}</TableCell>
+                                                <TableCell className="text-right font-bold px-2 tabular-nums">{String((g.savePercentage || 0).toFixed(2))}%</TableCell>
+                                                {isStatEditMode && (
+                                                    <TableCell className="p-0 text-center">
+                                                        <Button 
+                                                            variant="ghost" 
+                                                            size="icon" 
+                                                            className="h-7 w-7"
+                                                            onClick={() => setExpandedStatId(expandedStatId === g.id ? null : g.id)}
+                                                        >
+                                                            <ChevronDown className={cn("h-3 w-3 transition-transform", expandedStatId === g.id && "rotate-180")} />
+                                                        </Button>
+                                                    </TableCell>
+                                                )}
                                             </TableRow>
-                                        )}
-                                    </React.Fragment>
-                                ))}
-                            </TableBody>
-                        </Table>
+                                            {isStatEditMode && expandedStatId === g.id && (
+                                                <TableRow className="bg-muted/30 border-b-2 border-primary/20">
+                                                    <TableCell colSpan={6} className="p-2 sm:p-4">
+                                                        <div className="flex flex-wrap items-center justify-around gap-2 bg-background/50 rounded-lg p-2 border">
+                                                            <div className="flex flex-col items-center gap-1">
+                                                                <Label className="text-[9px] uppercase font-bold text-muted-foreground">Zápasy</Label>
+                                                                <StatAdjuster value={String(g.gamesPlayed || 0)} onChange={val => setEditableGoalieStats(cur => cur.map(it => it.id === g.id ? {...it, gamesPlayed: val} : it))} />
+                                                            </div>
+                                                            <div className="flex flex-col items-center gap-1">
+                                                                <Label className="text-[9px] uppercase font-bold text-muted-foreground">Výhry</Label>
+                                                                <StatAdjuster value={String(g.wins || 0)} onChange={val => setEditableGoalieStats(cur => cur.map(it => it.id === g.id ? {...it, wins: val} : it))} />
+                                                            </div>
+                                                            <div className="flex flex-col items-center gap-1">
+                                                                <Label className="text-[9px] uppercase font-bold text-muted-foreground">SO</Label>
+                                                                <StatAdjuster value={String(g.so || 0)} onChange={val => setEditableGoalieStats(cur => cur.map(it => it.id === g.id ? {...it, so: val} : it))} />
+                                                            </div>
+                                                            <div className="flex flex-col items-center gap-1">
+                                                                <Label className="text-[9px] uppercase font-bold text-muted-foreground">Zásahy</Label>
+                                                                <StatAdjuster value={String(g.saves || 0)} onChange={val => setEditableGoalieStats(cur => cur.map(it => it.id === g.id ? {...it, saves: val} : it))} />
+                                                            </div>
+                                                            <div className="flex flex-col items-center gap-1">
+                                                                <Label className="text-[9px] uppercase font-bold text-muted-foreground">Střely</Label>
+                                                                <StatAdjuster value={String(g.shotsAgainst || 0)} onChange={val => setEditableGoalieStats(cur => cur.map(it => it.id === g.id ? {...it, shotsAgainst: val} : it))} />
+                                                            </div>
+                                                        </div>
+                                                    </TableCell>
+                                                </TableRow>
+                                            )}
+                                        </React.Fragment>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                        {!isStatEditMode && sortedGoalieLeaderboard.length > 10 && (
+                            <div className="mt-4 text-center">
+                                <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    onClick={() => setShowAllGoalies(!showAllGoalies)}
+                                    className="w-full sm:w-auto font-bold text-xs"
+                                >
+                                    {showAllGoalies ? (
+                                        <><ChevronUp className="mr-2 h-4 w-4" /> Zobrazit jen top 10</>
+                                    ) : (
+                                        <><ChevronDown className="mr-2 h-4 w-4" /> Zobrazit všechny brankáře ({sortedGoalieLeaderboard.length})</>
+                                    )}
+                                </Button>
+                            </div>
+                        )}
                     </Tabs>
                 </CardContent>
             </Card>
