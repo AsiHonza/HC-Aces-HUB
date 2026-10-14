@@ -4,7 +4,7 @@ import { useState, Suspense, useEffect, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useFirestore, useCollection, useMemoFirebase, useAuth } from '@/firebase'
 import { collection, doc, updateDoc, deleteDoc, setDoc, query, where, getDocs, writeBatch } from 'firebase/firestore'
-import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth'
+import { createUserWithEmailAndPassword, updateProfile, sendPasswordResetEmail } from 'firebase/auth'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
@@ -13,7 +13,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
-import { MoreHorizontal, Trash2, UserCog, Edit, ShieldCheck, User as UserIcon, Loader2, Plus, Search, AlertTriangle, ExternalLink } from 'lucide-react'
+import { MoreHorizontal, Trash2, UserCog, Edit, ShieldCheck, User as UserIcon, Loader2, Plus, Search, AlertTriangle, ExternalLink, MailQuestion } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from "@/hooks/use-toast"
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -66,6 +66,19 @@ function TeamManagementContent() {
     }
   }, [role, router, toast])
 
+  const handleResetPassword = async (email: string) => {
+      if (!auth) return;
+      try {
+          await sendPasswordResetEmail(auth, email);
+          toast({ 
+              title: 'Resetovací e-mail odeslán', 
+              description: `Odkaz pro změnu hesla byl zaslán na adresu ${email}.` 
+          });
+      } catch (error: any) {
+          toast({ variant: 'destructive', title: 'Chyba', description: error.message });
+      }
+  };
+
   const confirmDelete = async () => {
     if (!selectedUser || !firestore) return;
     setIsSaving(true);
@@ -78,7 +91,7 @@ function TeamManagementContent() {
       
       toast({ 
         title: 'Profil smazán z Firestore',
-        description: 'Nezapomeňte smazat uživatele i v Firebase Console -> Authentication, aby se mohl znovu registrovat.'
+        description: 'Nyní musíte uživatele smazat i v Firebase Console -> Authentication.'
       });
     } catch (error: any) { 
         toast({ variant: 'destructive', title: 'Chyba', description: error.message }); 
@@ -108,8 +121,8 @@ function TeamManagementContent() {
         toast({ 
             title: count > 0 ? 'Data vyčištěna' : 'Záznamy nenalezeny', 
             description: count > 0 
-                ? 'Firestore záznamy byly smazány. Nyní musíte smazat účet v Authentication v konzoli.' 
-                : 'V databázi Firestore nebyl pro tento e-mail nalezen žádný profil. Pokud registrace nefunguje, problém je v Authentication v konzoli.'
+                ? 'Firestore záznamy byly smazány. Nezapomeňte smazat účet v sekci Authentication v konzoli!' 
+                : 'V databázi Firestore nebyl pro tento e-mail nalezen žádný profil. Problém bude v sekci Authentication v konzoli.'
         });
         
         if (count > 0) setPurgeEmail('');
@@ -270,7 +283,10 @@ function TeamManagementContent() {
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end">
                                             <DropdownMenuItem onClick={() => { setSelectedUser(u); setIsEditDialogOpen(true); }}>
-                                                <Edit className="mr-2 h-4" /> Upravit
+                                                <Edit className="mr-2 h-4" /> Upravit profil
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => handleResetPassword(u.email)}>
+                                                <MailQuestion className="mr-2 h-4" /> Resetovat heslo
                                             </DropdownMenuItem>
                                             <DropdownMenuSeparator />
                                             <DropdownMenuItem className="text-destructive" onClick={() => { setSelectedUser(u); setIsDeleteDialogOpen(true); }}>
@@ -294,19 +310,19 @@ function TeamManagementContent() {
                   Diagnostika a opravy zaseknutých uživatelů
               </CardTitle>
               <CardDescription>
-                  Pokud se hráč <strong>nemůže registrovat</strong> nebo ho nevidíte v seznamu, použijte tento postup.
+                  Pokud má hráč <strong>problém s přihlášením</strong> nebo se <strong>nemůže registrovat</strong>, použijte tento postup.
               </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
               <div className="grid gap-4 bg-background/50 p-4 rounded-lg border border-destructive/10">
                   <h4 className="font-bold text-sm flex items-center gap-2"><span className="bg-destructive text-white h-5 w-5 rounded-full flex items-center justify-center text-[10px]">1</span> KROK: Vyčištění databáze Firestore</h4>
-                  <p className="text-xs text-muted-foreground">Tento nástroj najde a smaže "neviditelný" profil v databázi.</p>
+                  <p className="text-xs text-muted-foreground">Tento nástroj najde a smaže profil a statistiky v databázi pro daný e-mail.</p>
                   <div className="flex flex-col sm:flex-row gap-3">
                       <div className="flex-1">
                           <Label htmlFor="purgeEmail" className="sr-only">Email uživatele</Label>
                           <Input 
                             id="purgeEmail" 
-                            placeholder="Zadejte email (např. t.macek1@email.cz)" 
+                            placeholder="Zadejte email (např. sicurosro@seznam.cz)" 
                             value={purgeEmail} 
                             onChange={(e) => setPurgeEmail(e.target.value)}
                           />
@@ -322,13 +338,16 @@ function TeamManagementContent() {
                   <h4 className="font-bold text-sm flex items-center gap-2"><span className="bg-destructive text-white h-5 w-5 rounded-full flex items-center justify-center text-[10px]">2</span> KROK: Smazání z Authentication (Povinné)</h4>
                   <div className="text-xs space-y-2 text-muted-foreground">
                       <p>Firebase odděluje přihlašovací údaje (Auth) a data profilu (Firestore). Pokud smažete pouze Firestore data, uživatel se stále nemůže znovu registrovat se stejným e-mailem.</p>
-                      <p className="font-bold text-foreground">Musíte provést smazání v administraci Firebase:</p>
-                      <ol className="list-decimal ml-4 space-y-1">
-                          <li>Otevřete <a href="https://console.firebase.google.com/" target="_blank" rel="noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">Firebase Console <ExternalLink className="h-3 w-3" /></a></li>
+                      <p className="font-bold text-foreground underline">Musíte provést smazání v administraci Firebase:</p>
+                      <ol className="list-decimal ml-4 space-y-2">
+                          <li>Otevřete <a href="https://console.firebase.google.com/" target="_blank" rel="noreferrer" className="text-primary font-bold hover:underline inline-flex items-center gap-1">Firebase Console <ExternalLink className="h-3 w-3" /></a></li>
                           <li>Přejděte do sekce <strong>Build -&gt; Authentication</strong></li>
-                          <li>V seznamu uživatelů vyhledejte daný e-mail</li>
-                          <li>Smažte uživatelský účet pomocí ikonky koše (Delete account)</li>
+                          <li>V seznamu uživatelů (tabulka Users) vyhledejte daný e-mail</li>
+                          <li>Klikněte na tři tečky na konci řádku a zvolte <strong>Delete account</strong></li>
                       </ol>
+                      <p className="mt-2 bg-yellow-500/10 p-2 border border-yellow-500/20 rounded">
+                          <strong>Tip:</strong> Pokud si hráč jen nepamatuje heslo, použijte tlačítko <strong>Resetovat heslo</strong> v tabulce výše místo mazání účtu.
+                      </p>
                   </div>
               </div>
           </CardContent>
@@ -373,7 +392,7 @@ function TeamManagementContent() {
                     <DialogFooter>
                         <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>Zrušit</Button>
                         <Button type="submit" disabled={isSaving}>
-                            {isSaving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin mr-2" />}
                             Uložit změny
                         </Button>
                     </DialogFooter>
