@@ -1104,23 +1104,28 @@ function DashboardPageContent() {
         title: 'Synchronizuji s webem ligy...',
         description: 'Stahuji aktuální výsledky, statistiky a oficiální zápisy.',
       });
-      const res = await fetch('/api/sync/league?action=scrape');
-      const json = await res.json();
-      if (!json.success || !json.data) {
-        throw new Error(json.error || 'Nepodařilo se stáhnout data z hobbyhokejbrno.cz.');
-      }
-      const syncResult = await syncLeagueToFirestore(firestore, json.data);
+      const res = await fetch('/api/sync/league', { method: 'POST' });
+      const syncResult = await res.json();
       if (syncResult.success) {
         toast({
           title: 'Statistiky ligy úspěšně synchronizovány!',
           description: `Aktualizováno ${syncResult.standingsCount} týmů, ${syncResult.matchesUpdated} zápasů a ${syncResult.skatersUpdated} hráčů.`,
         });
       } else {
-        toast({
-          variant: 'destructive',
-          title: 'Synchronizace proběhla s chybami',
-          description: syncResult.errors?.join(', ') || 'Některá data se nepodařilo zapsat.',
-        });
+        // Pokud server narazil na chybu, zkusíme klientský fallback
+        const scrapeRes = await fetch('/api/sync/league?action=scrape');
+        const scrapeJson = await scrapeRes.json();
+        if (scrapeJson.success && scrapeJson.data) {
+          const clientSync = await syncLeagueToFirestore(firestore, scrapeJson.data);
+          if (clientSync.success) {
+            toast({
+              title: 'Statistiky ligy úspěšně synchronizovány!',
+              description: `Aktualizováno ${clientSync.standingsCount} týmů, ${clientSync.matchesUpdated} zápasů a ${clientSync.skatersUpdated} hráčů.`,
+            });
+            return;
+          }
+        }
+        throw new Error(syncResult.errors?.join(', ') || syncResult.error || 'Některá data se nepodařilo zapsat.');
       }
     } catch (err: any) {
       toast({

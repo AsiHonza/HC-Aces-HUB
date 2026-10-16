@@ -1,46 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
-import { getAuth, connectAuthEmulator, signInWithEmailAndPassword } from 'firebase/auth';
+import * as admin from 'firebase-admin';
 import { fetchLeagueData } from '@/lib/sync/league-scraper';
-import { syncLeagueToFirestore } from '@/lib/sync/league-sync';
+import { syncLeagueToAdminFirestore } from '@/lib/sync/league-admin-sync';
 import { firebaseConfig } from '@/firebase/config';
 
-let serverFirestoreInitialized = false;
-
-function getServerFirestore() {
-  const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-  const firestore = getFirestore(app);
-  const auth = getAuth(app);
-
-  const useEmulators = process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === 'true' || process.env.USE_EMULATORS === 'true';
-
-  if (useEmulators && !serverFirestoreInitialized) {
-    try {
-      connectFirestoreEmulator(firestore, '127.0.0.1', 8080);
-      connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
-      serverFirestoreInitialized = true;
-    } catch (e) {
-      // Ignorovat chybu pokud už je připojen
+function getAdminFirestore(): admin.firestore.Firestore {
+  if (!admin.apps.length) {
+    const isEmulator = process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === 'true' || Boolean(process.env.FIRESTORE_EMULATOR_HOST);
+    if (isEmulator && !process.env.FIRESTORE_EMULATOR_HOST) {
+      process.env.FIRESTORE_EMULATOR_HOST = '127.0.0.1:8080';
     }
+    admin.initializeApp({
+      projectId: firebaseConfig.projectId || 'studio-5302559568-aa7d4',
+    });
   }
-
-  return { firestore, auth, useEmulators };
+  return admin.firestore();
 }
 
 async function performSync() {
-  const { firestore, auth, useEmulators } = getServerFirestore();
-
-  if (useEmulators) {
-    try {
-      await signInWithEmailAndPassword(auth, 'janmlcak6@gmail.com', 'heslo123');
-    } catch (e) {
-      // Pokud uživatel už je přihlášen
-    }
-  }
-
+  const adminDb = getAdminFirestore();
   const scrapedData = await fetchLeagueData();
-  const result = await syncLeagueToFirestore(firestore, scrapedData);
+  const result = await syncLeagueToAdminFirestore(adminDb, scrapedData);
   return result;
 }
 
@@ -51,7 +31,7 @@ export async function GET(req: NextRequest) {
     const action = url.searchParams.get('action');
     const secret = process.env.SYNC_SECRET || 'aces-sync-secret-2026';
 
-    // Rychlé stažení parsovaných dat z webu ligy pro klientskou synchronizaci pod přihlášeným adminem
+    // Rychlé stažení parsovaných dat z webu ligy
     if (action === 'scrape') {
       const scrapedData = await fetchLeagueData();
       return NextResponse.json({ success: true, data: scrapedData });
