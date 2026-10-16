@@ -13,11 +13,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { MapPin, Users, Trophy, BarChart, Pencil, Check, X, Flame, Shield, Plus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal, FileText, View, Disc, Cake, Minus, ChevronDown, ListOrdered, CalendarDays, ChevronUp, MessageSquarePlus, Goal, Calendar, Star, Clock, Archive, ShieldAlert } from "lucide-react"
+import { MapPin, Users, Trophy, BarChart, Pencil, Check, X, Flame, Shield, Plus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal, FileText, View, Disc, Cake, Minus, ChevronDown, ListOrdered, CalendarDays, ChevronUp, MessageSquarePlus, Goal, Calendar, Star, Clock, Archive, ShieldAlert, RefreshCw } from "lucide-react"
 import { cn, formatName } from '@/lib/utils'
 import { toJsDate } from '@/lib/dates'
 import { BirthdaysCard } from '@/features/roster'
 import { LeagueStandingsTable, PlayerScoringTable, GoalieStatsTable, LeagueStandingsDialog, PlayoffSeriesDialog, ArchiveSeasonDialog, statsService } from '@/features/stats'
+import { syncLeagueToFirestore } from '@/lib/sync/league-sync'
 import type { PlayoffSeries, LeagueStanding, Match } from '@/types'
 import { QuickRsvpButtons, attendanceService } from '@/features/attendance'
 import {
@@ -295,11 +296,26 @@ function DashboardPageContent() {
       const nowMs = Date.now();
       const seasonStartMs = new Date('2026-09-16T00:00:00').getTime();
       const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+
+      // Bezpečnostní pojistka proti kolizi: zjistíme čísla kol zápasů, které již JSOU odehrané (isPlayed: true)
+      const playedRoundNumbers = new Set(
+        allMatches
+          .filter(m => m.isPlayed && m.round !== undefined && m.round !== null)
+          .map(m => Number(m.round))
+      );
+
       return allMatches
         .filter(match => {
           const mTime = toJsDate(match.dateTime).getTime();
           // Striktně pouze zápasy z aktuální sezóny (od 16. 9. 2026)
           if (mTime < seasonStartMs) return false;
+
+          // Pokud už dané kolo bylo odehráno a zapsáno (např. ručně či v minulé verzi),
+          // nebudeme duplicitní neodehraný záznam zobrazovat jako "čeká na oficiální zápis"
+          if (match.round !== undefined && match.round !== null && playedRoundNumbers.has(Number(match.round))) {
+            return false;
+          }
+
           const matchEndTime = mTime + 75 * 60 * 1000;
           // Zápas musí být dohraný a skončit v posledních 7 dnech (aktuálně čekající na oficiální zápis)
           const isRecentlyEnded = matchEndTime <= nowMs && (nowMs - matchEndTime <= sevenDaysMs);
@@ -1078,6 +1094,45 @@ function DashboardPageContent() {
     }
   };
 
+  const [isSyncingLeague, setIsSyncingLeague] = useState(false);
+
+  const handleSyncLeagueFromWeb = async () => {
+    if (!firestore || userProfile?.role !== 'admin') return;
+    setIsSyncingLeague(true);
+    try {
+      toast({
+        title: 'Synchronizuji s webem ligy...',
+        description: 'Stahuji aktuální výsledky, statistiky a oficiální zápisy.',
+      });
+      const res = await fetch('/api/sync/league?action=scrape');
+      const json = await res.json();
+      if (!json.success || !json.data) {
+        throw new Error(json.error || 'Nepodařilo se stáhnout data z hobbyhokejbrno.cz.');
+      }
+      const syncResult = await syncLeagueToFirestore(firestore, json.data);
+      if (syncResult.success) {
+        toast({
+          title: 'Statistiky ligy úspěšně synchronizovány!',
+          description: `Aktualizováno ${syncResult.standingsCount} týmů, ${syncResult.matchesUpdated} zápasů a ${syncResult.skatersUpdated} hráčů.`,
+        });
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Synchronizace proběhla s chybami',
+          description: syncResult.errors?.join(', ') || 'Některá data se nepodařilo zapsat.',
+        });
+      }
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Chyba synchronizace',
+        description: err.message || 'Nepodařilo se synchronizovat data z webu ligy.',
+      });
+    } finally {
+      setIsSyncingLeague(false);
+    }
+  };
+
   const activeMvpMatch = useMemo(() => {
     if (!allMatches || allMatches.length === 0) return null;
     const seasonStartMs = new Date('2026-09-16T00:00:00').getTime();
@@ -1401,6 +1456,17 @@ function DashboardPageContent() {
                 </div>
                 {userProfile?.role === 'admin' && selectedSeasonId === 'current' && (
                     <div className="flex flex-wrap items-center gap-2">
+                         <Button
+                           size="sm"
+                           variant="outline"
+                           onClick={handleSyncLeagueFromWeb}
+                           disabled={isSyncingLeague}
+                           className="h-8 text-[10px] sm:text-xs font-semibold border-primary/50 text-primary hover:bg-primary/10"
+                           title="Stáhnout a propsat aktuální ligovou tabulku, odehrané zápasy a statistiky hráčů z hobbyhokejbrno.cz"
+                         >
+                           <RefreshCw className={cn("h-3 w-3 mr-1", isSyncingLeague && "animate-spin")} />
+                           {isSyncingLeague ? 'Stahuji z ligy...' : 'Synchronizovat ligová data'}
+                         </Button>
                          <Button size="sm" variant="outline" onClick={() => setIsLeagueDialogOpen(true)} className="h-8 text-[10px] sm:text-xs"><Pencil className="h-3 w-3 mr-1" />Tabulka</Button>
                          <Button size="sm" variant="outline" onClick={() => setIsPlayoffDialogOpen(true)} className="h-8 text-[10px] sm:text-xs"><Pencil className="h-3 w-3 mr-1" />Play-off</Button>
                          <Button size="sm" variant="destructive" onClick={() => setIsArchiveSeasonDialogOpen(true)} className="h-8 text-[10px] sm:text-xs"><History className="h-3 w-3 mr-1" />Ukončit sezónu</Button>

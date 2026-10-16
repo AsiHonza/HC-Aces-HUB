@@ -1,4 +1,4 @@
-import { Firestore, doc, setDoc, getDoc, getDocs, collection, query, Timestamp } from 'firebase/firestore';
+import { Firestore, doc, setDoc, getDoc, getDocs, collection, query, Timestamp, deleteDoc } from 'firebase/firestore';
 import { ScrapedLeagueData, ScrapedMatch, ScrapedSkater, ScrapedGoalie } from './league-scraper';
 
 export interface SyncResult {
@@ -152,10 +152,52 @@ export async function syncLeagueToFirestore(
       const team1Formatted = scrapedMatch.team1 === 'Aces' ? 'HC Aces' : scrapedMatch.team1;
       const team2Formatted = scrapedMatch.team2 === 'Aces' ? 'HC Aces' : scrapedMatch.team2;
 
-      // Find match by round
-      const existing = existingMatches.find(
-        (m) => m.round === scrapedMatch.round && m.type === 'regular'
-      );
+      // Inteligentní vyhledání existujícího zápasu:
+      // 1. Shoda podle čísla kola (s tolerancí na string/number)
+      // 2. Shoda podle soupeře a přibližného data (+- 3 dny)
+      const scrapedOpponent = (scrapedMatch.team1 === 'Aces' || /aces/i.test(scrapedMatch.team1))
+        ? scrapedMatch.team2
+        : scrapedMatch.team1;
+      const scrapedMatchTime = matchDate ? matchDate.getTime() : 0;
+
+      const matchingCandidates = existingMatches.filter((m) => {
+        // Shoda čísla kola
+        if (m.round !== undefined && m.round !== null && Number(m.round) === Number(scrapedMatch.round)) {
+          return true;
+        }
+        // Shoda soupeře a data
+        const mTime = m.dateTime?.toDate ? m.dateTime.toDate().getTime() : (typeof m.dateTime === 'string' ? new Date(m.dateTime).getTime() : 0);
+        const mOpponent = /aces/i.test(m.team1 || '') ? (m.team2 || '') : (m.team1 || '');
+        const isSameOpponent = areNamesMatching(mOpponent, scrapedOpponent) ||
+          mOpponent.toLowerCase().includes(scrapedOpponent.toLowerCase()) ||
+          scrapedOpponent.toLowerCase().includes(mOpponent.toLowerCase());
+        const isNearDate = scrapedMatchTime > 0 && mTime > 0 && Math.abs(mTime - scrapedMatchTime) < 3 * 24 * 60 * 60 * 1000;
+        return isSameOpponent && isNearDate;
+      });
+
+      // Z kandidátů vybereme primární záznam:
+      // Přednost má zápas, který byl již ručně odehrán (isPlayed === true), případně má skóre či hlasování
+      const primaryExisting = matchingCandidates.sort((a, b) => {
+        if (a.isPlayed && !b.isPlayed) return -1;
+        if (!a.isPlayed && b.isPlayed) return 1;
+        const aScore = (a.team1Score !== undefined ? 1 : 0) + (a.mvpVotes ? 1 : 0);
+        const bScore = (b.team1Score !== undefined ? 1 : 0) + (b.mvpVotes ? 1 : 0);
+        return bScore - aScore;
+      })[0];
+      const existing = primaryExisting;
+
+      // BEZPEČNOSTNÍ OPATŘENÍ: Pokud existují jakékoliv další duplicitní záznamy pro tento zápas
+      // (např. starý neuzavřený plánovaný zápas z předchozí verze, zatímco výsledek už je zapsán jinde),
+      // odstraníme tyto duplikáty, aby v databázi nevznikaly kolize ani nevisel zápas v "čeká na oficiální zápis".
+      const redundantDuplicates = matchingCandidates.filter((m) => m.id !== primaryExisting?.id);
+      for (const dup of redundantDuplicates) {
+        console.log(`     🧹 Odstraňuji duplicitní zápas (ID: ${dup.id}) pro kolo ${scrapedMatch.round}`);
+        try {
+          await deleteDoc(doc(firestore, 'matches', dup.id));
+        } catch (delErr: any) {
+          console.warn(`       Varování při mazání duplikátu ${dup.id}:`, delErr.message);
+        }
+      }
 
       // Find detailed match report from page29.html if available
       const report = (data.acesMatchReports || []).find((r) => r.round === scrapedMatch.round);
@@ -165,7 +207,7 @@ export async function syncLeagueToFirestore(
         dateTime: matchTimestamp,
         team1: team1Formatted,
         team2: team2Formatted,
-        isPlayed: scrapedMatch.isPlayed,
+        isPlayed: scrapedMatch.isPlayed || Boolean(existing?.isPlayed),
         round: scrapedMatch.round,
         type: 'regular',
       };
@@ -173,6 +215,9 @@ export async function syncLeagueToFirestore(
       if (scrapedMatch.isPlayed && scrapedMatch.score1 !== undefined && scrapedMatch.score2 !== undefined) {
         basePayload.team1Score = scrapedMatch.score1;
         basePayload.team2Score = scrapedMatch.score2;
+      } else if (existing?.team1Score !== undefined && existing?.team2Score !== undefined) {
+        basePayload.team1Score = existing.team1Score;
+        basePayload.team2Score = existing.team2Score;
       }
 
       if (report) {
@@ -293,7 +338,8 @@ export async function syncLeagueToFirestore(
   }
 
   // 4. Sync Skater Stats
-  console.log(`   [4/5] Synchronizuji ${data.acesSkaters.length} hráčů Aces...`);
+  console.log(`   [4/5] Synchronizuji ${data.acesSkaters.length} hráčů Aces výhradně z webu ligy...`);
+  const syncedSkaterUserIds = new Set<string>();
   for (const skater of data.acesSkaters) {
     try {
       let matchedUser = existingUsers.find((u) => u.name && areNamesMatching(u.name, skater.name));
@@ -319,17 +365,19 @@ export async function syncLeagueToFirestore(
         existingUsers.push(newUserDoc);
       }
 
-      // Update skaterStats
+      syncedSkaterUserIds.add(matchedUser.id);
+
+      // Aktualizace statistik výhradně podle oficiálního ligového webu hobbyhokejbrno.cz
       await setDoc(
         doc(firestore, 'users', matchedUser.id, 'skaterStats', 'stats'),
         {
           userProfileId: matchedUser.id,
-          seasonGoals: skater.goals,
-          seasonAssists: skater.assists,
-          seasonGamesPlayed: skater.gamesPlayed,
-          historicalGoals: skater.goals,
-          historicalAssists: skater.assists,
-          historicalGamesPlayed: skater.gamesPlayed,
+          seasonGoals: Number(skater.goals) || 0,
+          seasonAssists: Number(skater.assists) || 0,
+          seasonGamesPlayed: Number(skater.gamesPlayed) || 0,
+          historicalGoals: Number(skater.goals) || 0,
+          historicalAssists: Number(skater.assists) || 0,
+          historicalGamesPlayed: Number(skater.gamesPlayed) || 0,
           lastSyncedAt: Timestamp.now(),
         },
         { merge: true }
@@ -337,6 +385,27 @@ export async function syncLeagueToFirestore(
       skatersUpdated++;
     } catch (err: any) {
       errors.push(`Chyba při ukládání statistiky hráče ${skater.name}: ${err.message}`);
+    }
+  }
+
+  // Bezpečnostní reset: hráči z kádru, kteří nejsou v oficiální ligové tabulce střelců (0 bodů), mají v aktuální sezóně 0
+  for (const u of existingUsers) {
+    if (u.playerType === 'player' && !syncedSkaterUserIds.has(u.id)) {
+      try {
+        await setDoc(
+          doc(firestore, 'users', u.id, 'skaterStats', 'stats'),
+          {
+            userProfileId: u.id,
+            seasonGoals: 0,
+            seasonAssists: 0,
+            seasonGamesPlayed: 0,
+            lastSyncedAt: Timestamp.now(),
+          },
+          { merge: true }
+        );
+      } catch (e) {
+        // ignore
+      }
     }
   }
 

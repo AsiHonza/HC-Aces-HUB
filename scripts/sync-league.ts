@@ -43,7 +43,12 @@ async function main() {
       await signInWithEmailAndPassword(auth, adminEmail, adminPassword);
       console.log(`🔑 Přihlášen jako admin (${adminEmail})`);
     } catch (e: any) {
-      console.warn('Upozornění: přihlášení admina se nezdařilo, pokračuji bez autentizace:', e.message);
+      if (!useEmulators) {
+        console.error(`❌ Chyba přihlášení administrátora (${adminEmail}): ${e.message}`);
+        console.error('👉 TIP: Pro běh v GitHub Actions je potřeba v repositáři (Settings > Secrets and variables > Actions) nastavit secret SYNC_ADMIN_PASSWORD odpovídající heslu administrátorského účtu.');
+      } else {
+        console.warn('Upozornění: přihlášení admina se nezdařilo, pokračuji bez autentizace:', e.message);
+      }
     }
   }
 

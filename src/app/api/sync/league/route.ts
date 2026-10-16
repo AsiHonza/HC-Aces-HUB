@@ -48,7 +48,14 @@ export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
     const token = url.searchParams.get('token');
+    const action = url.searchParams.get('action');
     const secret = process.env.SYNC_SECRET || 'aces-sync-secret-2026';
+
+    // Rychlé stažení parsovaných dat z webu ligy pro klientskou synchronizaci pod přihlášeným adminem
+    if (action === 'scrape') {
+      const scrapedData = await fetchLeagueData();
+      return NextResponse.json({ success: true, data: scrapedData });
+    }
 
     // Ověření tokenu pro externí automatické crony (pokud je nastaven v env)
     if (process.env.SYNC_SECRET && token !== secret) {
