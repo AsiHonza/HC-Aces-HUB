@@ -12,15 +12,8 @@ import { signOut } from 'firebase/auth'
 import { useRouter, usePathname } from 'next/navigation'
 import { doc } from 'firebase/firestore'
 import { cn } from '@/lib/utils'
-import { NotificationBell } from '@/components/notification-bell'
-
-interface UserProfile {
-    id: string;
-    name: string;
-    email: string;
-    photoURL?: string | null;
-    role?: 'admin' | 'classic';
-}
+import { NotificationBell } from '@/features/notifications'
+import type { UserProfile } from '@/types'
 
 function UserNav() {
   const { user, isUserLoading } = useUser()

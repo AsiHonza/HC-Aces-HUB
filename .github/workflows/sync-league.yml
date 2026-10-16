@@ -1,0 +1,41 @@
+name: Synchronizace statistik ligy (2x denně)
+
+on:
+  schedule:
+    # Běží 2x denně: v 8:00 a v 20:00 středoevropského času (v UTC cca 6:00 a 18:00)
+    - cron: '0 6,18 * * *'
+  workflow_dispatch:
+    # Umožňuje spustit synchronizaci manuálně jedním kliknutím v GitHub rozhraní
+
+jobs:
+  sync:
+    name: Synchronizovat data z hobbyhokejbrno.cz
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout kódu
+        uses: actions/checkout@v4
+
+      - name: Nastavení Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Instalace závislostí
+        run: npm ci
+
+      - name: Spuštění synchronizace ligy
+        run: npm run sync:league
+        env:
+          NODE_ENV: production
+          NEXT_PUBLIC_USE_FIREBASE_EMULATORS: 'false'
+          NEXT_PUBLIC_FIREBASE_API_KEY: ${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}
+          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+          NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ secrets.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+          NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+          NEXT_PUBLIC_FIREBASE_APP_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
+          SYNC_ADMIN_EMAIL: ${{ secrets.SYNC_ADMIN_EMAIL }}
+          SYNC_ADMIN_PASSWORD: ${{ secrets.SYNC_ADMIN_PASSWORD }}

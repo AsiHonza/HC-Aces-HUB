@@ -3,6 +3,8 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
 import { FirebaseClientProvider } from '@/firebase';
 
+import { PwaRegister } from '@/components/pwa-register';
+
 export const metadata: Metadata = {
   title: 'Aces Hockey Hub',
   description: 'Web pro hokejový tým Aces.',
@@ -15,6 +17,7 @@ export const metadata: Metadata = {
     telephone: false,
   },
   icons: {
+    icon: '/icon-192.png',
     apple: '/icon-512.png',
   }
 };
@@ -40,6 +43,7 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&display=swap" rel="stylesheet" />
       </head>
       <body className="font-body antialiased" suppressHydrationWarning>
+        <PwaRegister />
         <FirebaseClientProvider>
           {children}
           <Toaster />

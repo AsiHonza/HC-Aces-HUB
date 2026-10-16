@@ -8,7 +8,7 @@ import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@
 import { query, collection, Timestamp, doc, updateDoc, orderBy, setDoc, deleteDoc } from 'firebase/firestore'
 import { format, parse } from 'date-fns'
 import { cs } from 'date-fns/locale'
-import { Loader2, Trophy, Pencil, Trash2, MoreHorizontal, View, Plus, Disc, Users, Share2 } from 'lucide-react'
+import { Loader2, Trophy, Pencil, Trash2, MoreHorizontal, View, Plus, Disc, Users, Share2, Search, Filter, Shield, Goal, Calendar, MapPin, CheckCircle2, XCircle, Clock } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -21,6 +21,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { LineupBuilder, LineupDisplay, type Lineup } from '@/components/lineup-builder'
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
+import { cn, formatName } from '@/lib/utils'
+import { toJsDate } from '@/lib/dates'
+import { GoalTimeline, MatchResultFormFields, PlayedMatchAccordionItem } from '@/features/matches'
 
 interface Match {
   id: string;
@@ -37,8 +40,22 @@ interface Match {
   team2Score?: number;
   scorers?: { goal: string; assist: string | null }[];
   goalieId?: string;
+  goalieName?: string;
   goalieSaves?: number;
   goalieShotsAgainst?: number;
+  goalieSavePercentage?: number;
+  periodScores?: string;
+  shotsTeam1?: number;
+  shotsTeam2?: number;
+  shotsAces?: number;
+  shotsOpponent?: number;
+  penaltiesTeam1?: number;
+  penaltiesTeam2?: number;
+  penaltiesAces?: number;
+  penaltiesOpponent?: number;
+  detailedScorers?: { minute: number; team: string; scorer: string; assist: string | null; isPenaltyShot?: boolean }[];
+  gameRoster?: string[];
+  opponentRoster?: string[];
   lineup?: Lineup;
 }
 
@@ -58,95 +75,12 @@ function getMatchDetails(match: Match) {
         const stage = match.playoffStage.charAt(0).toUpperCase() + match.playoffStage.slice(1);
         prefix = `${stage}${match.playoffMatchNumber ? ` - ${match.playoffMatchNumber}. zápas` : ''}`;
     }
-    const opponent = match.team1 === 'Aces' ? match.team2 : match.team1;
+    const opponent = (match.team1 === 'Aces' || match.team1 === 'HC Aces') ? match.team2 : match.team1;
     return { 
         prefix, 
         opponent, 
         fullTitle: prefix ? `[${prefix}] ${opponent}` : opponent 
     };
-}
-
-const formatName = (name: string) => {
-    if (!name) return '';
-    const parts = name.trim().split(/\s+/);
-    if (parts.length < 2) return name;
-    return `${parts[0].charAt(0)}. ${parts.slice(1).join(' ')}`;
-};
-
-function MatchResultFormFields({ match, allUsers, onGoalCountChange }: { match?: Partial<Match>, allUsers: UserProfile[], onGoalCountChange: (count: number) => void }) {
-    const [goalCount, setGoalCount] = useState(match?.team1Score || 0);
-    const skaters = useMemo(() => allUsers.filter(u => u.playerType === 'player'), [allUsers]);
-    const goalies = useMemo(() => allUsers.filter(u => u.playerType === 'goalie'), [allUsers]);
-    
-    const handleGoalCountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const newCount = parseInt(e.target.value, 10) || 0;
-        setGoalCount(newCount);
-        onGoalCountChange(newCount);
-    };
-
-    return (
-        <div className="grid gap-4 p-1">
-            <div className="grid grid-cols-2 items-center gap-4">
-                <div className="grid gap-2 text-center">
-                    <Label htmlFor="team1Score">Aces</Label>
-                    <Input id="team1Score" name="team1Score" type="number" className="text-center text-2xl font-bold h-16" min="0" required defaultValue={match?.team1Score} onChange={handleGoalCountChange} />
-                </div>
-                <div className="grid gap-2 text-center">
-                    <Label htmlFor="team2Score">Soupeř</Label>
-                    <Input id="team2Score" name="team2Score" type="number" className="text-center text-2xl font-bold h-16" min="0" required defaultValue={match?.team2Score} />
-                </div>
-            </div>
-
-            <div className="grid gap-4 border p-4 rounded-lg bg-muted/20">
-                <p className="font-bold text-sm uppercase tracking-wider text-primary">Statistiky brankáře</p>
-                <div className="grid gap-2">
-                    <Label>Brankář</Label>
-                    <Select name="goalieId" defaultValue={match?.goalieId || 'none'}>
-                        <SelectTrigger><SelectValue placeholder="Vyberte brankáře" /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="none">Žádný</SelectItem>
-                            {goalies.map(u => <SelectItem key={u.id} value={u.id}>{formatName(u.name)}</SelectItem>)}
-                        </SelectContent>
-                    </Select>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="grid gap-2">
-                        <Label>Zásahy</Label>
-                        <Input name="goalieSaves" type="number" min="0" defaultValue={match?.goalieSaves || 0} />
-                    </div>
-                    <div className="grid gap-2">
-                        <Label>Střely proti</Label>
-                        <Input name="goalieShotsAgainst" type="number" min="0" defaultValue={match?.goalieShotsAgainst || 0} />
-                    </div>
-                </div>
-            </div>
-
-            {goalCount > 0 && <p className="font-medium mt-4">Střelci a asistence (Aces)</p>}
-            <div className="grid gap-3">
-                {Array.from({ length: goalCount }).map((_, index) => (
-                    <div key={index} className="grid grid-cols-2 gap-2 items-center">
-                        <div className="grid gap-1.5">
-                           <Label className="text-xs text-muted-foreground">Střelec</Label>
-                           <Select name={`goal-${index}`} defaultValue={match?.scorers?.[index]?.goal}>
-                                <SelectTrigger><SelectValue placeholder={`Vyberte hráče`} /></SelectTrigger>
-                                <SelectContent>{skaters.map(u => <SelectItem key={u.id} value={u.id}>{formatName(u.name)}</SelectItem>)}</SelectContent>
-                            </Select>
-                        </div>
-                        <div className="grid gap-1.5">
-                           <Label className="text-xs text-muted-foreground">Asistence</Label>
-                           <Select name={`assist-${index}`} defaultValue={match?.scorers?.[index]?.assist || 'none'}>
-                                <SelectTrigger><SelectValue placeholder="Asistence" /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="none">Žádná</SelectItem>
-                                    {skaters.map(u => <SelectItem key={u.id} value={u.id}>{formatName(u.name)}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
-                ))}
-            </div>
-        </div>
-    )
 }
 
 function HistoryPageContent() {
@@ -181,9 +115,44 @@ function HistoryPageContent() {
     }, [firestore, user]);
     const { data: users, isLoading: usersLoading } = useCollection<UserProfile>(usersQuery);
 
+    const [searchQuery, setSearchQuery] = useState('');
+    const [resultFilter, setResultFilter] = useState<'all' | 'wins' | 'losses'>('all');
+
     const playedMatches = useMemo(() => allMatches?.filter(m => m.isPlayed) || null, [allMatches]);
-    const usersMap = useMemo(() => new Map(users?.map(u => [u.id, u.name]) || []), [users]);
+    const usersMap = useMemo(() => new Map(users?.map(u => [u.id, u]) || []), [users]);
     const isLoading = userProfileLoading || matchesLoading || usersLoading;
+
+    const filteredMatches = useMemo(() => {
+        if (!playedMatches) return [];
+        return playedMatches.filter(m => {
+            const { opponent } = getMatchDetails(m);
+            if (searchQuery.trim() && !opponent.toLowerCase().includes(searchQuery.toLowerCase().trim())) {
+                return false;
+            }
+            const isAcesHome = /aces/i.test(m.team1);
+            const acesScore = isAcesHome ? m.team1Score : m.team2Score;
+            const oppScore = isAcesHome ? m.team2Score : m.team1Score;
+            const isWin = (acesScore || 0) > (oppScore || 0);
+
+            if (resultFilter === 'wins' && !isWin) return false;
+            if (resultFilter === 'losses' && isWin) return false;
+            return true;
+        });
+    }, [playedMatches, searchQuery, resultFilter]);
+
+    const statsCounts = useMemo(() => {
+        if (!playedMatches) return { all: 0, wins: 0, losses: 0 };
+        let wins = 0;
+        let losses = 0;
+        playedMatches.forEach(m => {
+            const isAcesHome = /aces/i.test(m.team1);
+            const acesScore = isAcesHome ? m.team1Score : m.team2Score;
+            const oppScore = isAcesHome ? m.team2Score : m.team1Score;
+            if ((acesScore || 0) > (oppScore || 0)) wins++;
+            else if ((acesScore || 0) < (oppScore || 0)) losses++;
+        });
+        return { all: playedMatches.length, wins, losses };
+    }, [playedMatches]);
 
     const handleSaveLineup = async (lineup: Lineup) => {
         if (!lineupMatch || !firestore) return;
@@ -281,107 +250,94 @@ function HistoryPageContent() {
     return (
         <div className="py-8 space-y-8">
             <Card>
-                <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b bg-muted/10 pb-4">
                     <div>
-                        <CardTitle>Historie</CardTitle>
-                        <CardDescription>Odehrané zápasy. Statistiky hráčů se upravují manuálně na nástěnce.</CardDescription>
+                        <CardTitle className="text-xl sm:text-2xl font-headline flex items-center gap-2">
+                            <Trophy className="text-primary h-6 w-6" />
+                            Historie odehraných zápasů
+                        </CardTitle>
+                        <CardDescription>
+                            Oficiální výsledky, protokoly utkání, statistiky brankářů a časové osy gólů.
+                        </CardDescription>
                     </div>
-                    {userProfile?.role === 'admin' && <Button onClick={() => setIsAddDialogOpen(true)}><Plus className="mr-2 h-4" />Přidat odehraný zápas</Button>}
+                    {userProfile?.role === 'admin' && (
+                        <Button onClick={() => setIsAddDialogOpen(true)} className="font-bold">
+                            <Plus className="mr-2 h-4 w-4" /> Přidat odehraný zápas
+                        </Button>
+                    )}
                 </CardHeader>
-                <CardContent>
-                    {playedMatches?.length ? (
-                        <Accordion type="single" collapsible className="w-full">
-                            {playedMatches.map(m => {
-                                const { prefix, opponent } = getMatchDetails(m);
-                                return (
-                                    <AccordionItem value={m.id} key={m.id} className="relative">
-                                        <div className="flex items-center w-full relative">
-                                            <AccordionTrigger className="flex-1 text-left hover:no-underline px-4 border-b">
-                                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full pr-12 gap-2">
-                                                    <div className="flex-1">
-                                                        <p className="text-[10px] text-muted-foreground uppercase">{format(m.dateTime.toDate(), "d. M. yyyy")}</p>
-                                                        {prefix && <p className="text-[9px] font-bold text-primary uppercase">{prefix}</p>}
-                                                        <p className="font-semibold">{opponent}</p>
-                                                    </div>
-                                                    <div className="flex items-center gap-3">
-                                                        <strong className="text-lg">{String(m.team1Score)} : {String(m.team2Score)}</strong>
-                                                        <Badge variant={(m.team1Score || 0) > (m.team2Score || 0) ? 'default' : 'destructive'}>
-                                                            {(m.team1Score || 0) > (m.team2Score || 0) ? 'Výhra' : 'Prohra'}
-                                                        </Badge>
-                                                    </div>
-                                                </div>
-                                            </AccordionTrigger>
-                                            {userProfile?.role === 'admin' && (
-                                                <div className="absolute right-1 top-1/2 -translate-y-1/2 z-10">
-                                                    <DropdownMenu modal={false}>
-                                                        <DropdownMenuTrigger asChild>
-                                                            <Button variant="ghost" size="icon">
-                                                                <MoreHorizontal className="h-4" />
-                                                            </Button>
-                                                        </DropdownMenuTrigger>
-                                                        <DropdownMenuContent align="end">
-                                                            <DropdownMenuItem onClick={() => { setSelectedMatch(m); setIsEditDialogOpen(true); }}>
-                                                                <Pencil className="mr-2 h-4" /> Upravit výsledek
-                                                            </DropdownMenuItem>
-                                                            <DropdownMenuItem onClick={() => { setLineupMatch(m); setIsLineupBuilderOpen(true); }}>
-                                                                <Users className="mr-2 h-4" /> Upravit sestavu
-                                                            </DropdownMenuItem>
-                                                            <DropdownMenuItem onClick={() => { setSelectedMatch(m); setIsDeleteDialogOpen(true); }} className="text-destructive">
-                                                                <Trash2 className="mr-2 h-4" /> Smazat zápas
-                                                            </DropdownMenuItem>
-                                                        </DropdownMenuContent>
-                                                    </DropdownMenu>
-                                                </div>
-                                            )}
-                                        </div>
-                                        <AccordionContent className="p-4 bg-muted/30">
-                                            <div className="grid gap-6 md:grid-cols-2">
-                                                <div>
-                                                    <h4 className="font-semibold flex items-center gap-2 mb-3"><Trophy className="h-4 text-primary" /> Bodování</h4>
-                                                    {m.scorers?.length ? (
-                                                        <ul className="space-y-2">
-                                                            {m.scorers.map((s, i) => (
-                                                                <li key={i} className="flex items-center gap-3 text-sm">
-                                                                    <Disc className="h-4 w-4 text-primary" />
-                                                                    <span className="font-medium">{formatName(usersMap.get(s.goal) || 'Neznámý hráč')}</span>
-                                                                    {s.assist && (
-                                                                        <span className="text-muted-foreground">(A: {formatName(usersMap.get(s.assist) || '?')})</span>
-                                                                    )}
-                                                                </li>
-                                                            ))}
-                                                        </ul>
-                                                    ) : (
-                                                        <p className="text-muted-foreground text-sm italic">Žádné góly nebyly zaznamenány.</p>
-                                                    )}
-                                                </div>
-                                                <div className="flex flex-col gap-3 items-end">
-                                                    <div className="flex gap-2">
-                                                        {m.lineup && (
-                                                            <Button 
-                                                                variant="outline" 
-                                                                size="sm" 
-                                                                onClick={() => { setViewLineupData(m.lineup!); setViewScorersData(m.scorers); setViewMatchOpponent(getMatchDetails(m).opponent); setIsLineupViewOpen(true); }}
-                                                            >
-                                                                <View className="mr-2 h-4" /> Zobrazit sestavu
-                                                            </Button>
-                                                        )}
-                                                        <Button variant="ghost" size="sm" onClick={() => {
-                                                            const url = new URL(window.location.origin + '/dashboard');
-                                                            url.searchParams.set('matchId', m.id);
-                                                            navigator.clipboard.writeText(url.toString()).then(() => toast({ title: "Odkaz zkopírován" }));
-                                                        }}>
-                                                            <Share2 className="mr-2 h-4" /> Sdílet
-                                                        </Button>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </AccordionContent>
-                                    </AccordionItem>
-                                )
-                            })}
+                <CardContent className="p-4 sm:p-6 space-y-6">
+                    {/* Search and Filters Bar */}
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                        <div className="relative flex-1 max-w-sm">
+                            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                placeholder="Filtrovat podle soupeře..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="pl-9 h-9 text-xs sm:text-sm"
+                            />
+                        </div>
+                        <div className="flex items-center gap-1.5 self-end sm:self-auto">
+                            <Button
+                                variant={resultFilter === 'all' ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={() => setResultFilter('all')}
+                                className="text-xs h-8 px-3 font-semibold"
+                            >
+                                Všechny ({statsCounts.all})
+                            </Button>
+                            <Button
+                                variant={resultFilter === 'wins' ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={() => setResultFilter('wins')}
+                                className={cn("text-xs h-8 px-3 font-semibold", resultFilter !== 'wins' && "text-emerald-500 border-emerald-500/30 hover:bg-emerald-500/10")}
+                            >
+                                Výhry ({statsCounts.wins})
+                            </Button>
+                            <Button
+                                variant={resultFilter === 'losses' ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={() => setResultFilter('losses')}
+                                className={cn("text-xs h-8 px-3 font-semibold", resultFilter !== 'losses' && "text-rose-500 border-rose-500/30 hover:bg-rose-500/10")}
+                            >
+                                Prohry ({statsCounts.losses})
+                            </Button>
+                        </div>
+                    </div>
+
+                    {filteredMatches.length ? (
+                        <Accordion type="single" collapsible className="w-full space-y-3">
+                            {filteredMatches.map(m => (
+                                <PlayedMatchAccordionItem
+                                    key={m.id}
+                                    match={m as any}
+                                    usersMap={usersMap}
+                                    isAdmin={userProfile?.role === 'admin'}
+                                    onViewLineup={() => {
+                                        setViewLineupData(m.lineup!);
+                                        setViewScorersData(m.scorers);
+                                        setViewMatchOpponent(getMatchDetails(m).opponent);
+                                        setIsLineupViewOpen(true);
+                                    }}
+                                    onShareMatch={() => {
+                                        const url = new URL(window.location.origin + '/dashboard');
+                                        url.searchParams.set('matchId', m.id);
+                                        navigator.clipboard.writeText(url.toString()).then(() => toast({ title: "Odkaz zkopírován" }));
+                                    }}
+                                    onEditResult={() => { setSelectedMatch(m); setIsEditDialogOpen(true); }}
+                                    onEditLineup={() => { setLineupMatch(m); setIsLineupBuilderOpen(true); }}
+                                    onDeleteMatch={() => { setSelectedMatch(m); setIsDeleteDialogOpen(true); }}
+                                />
+                            ))}
                         </Accordion>
                     ) : (
-                        <p className="text-center py-12 text-muted-foreground">Zatím nebyly odehrány žádné zápasy.</p>
+                        <div className="text-center py-12 text-muted-foreground space-y-2">
+                            <Trophy className="h-8 w-8 mx-auto opacity-30" />
+                            <p className="text-sm">
+                                {searchQuery ? `Žádný odehraný zápas neodpovídá výrazu „${searchQuery}“.` : 'Zatím nebyly odehrány žádné zápasy.'}
+                            </p>
+                        </div>
                     )}
                 </CardContent>
             </Card>
@@ -492,11 +448,15 @@ function HistoryPageContent() {
             </AlertDialog>
 
             <Dialog open={isLineupViewOpen} onOpenChange={setIsLineupViewOpen}>
-                <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
-                    <DialogHeader>
-                        <DialogTitle>Sestava: {viewMatchOpponent}</DialogTitle>
+                <DialogContent className="max-w-4xl max-h-[88vh] flex flex-col p-0 overflow-hidden text-left bg-card border border-border shadow-2xl">
+                    <DialogHeader className="px-4 py-2.5 sm:px-6 sm:py-3 flex-shrink-0 border-b">
+                        <DialogTitle className="text-lg sm:text-xl font-headline">Sestava na zápas: {viewMatchOpponent || 'HC Aces'}</DialogTitle>
                     </DialogHeader>
-                    {viewLineupData && <LineupDisplay lineup={viewLineupData} scorers={viewScorersData} />}
+                    {viewLineupData && (
+                        <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+                            <LineupDisplay lineup={viewLineupData} scorers={viewScorersData} />
+                        </div>
+                    )}
                 </DialogContent>
             </Dialog>
 

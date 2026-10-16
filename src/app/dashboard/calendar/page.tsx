@@ -4,19 +4,26 @@ import React, { Suspense, useState, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Calendar } from "@/components/ui/calendar"
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase'
-import { doc, collection, query, orderBy, Timestamp, addDoc, writeBatch, getDocs } from 'firebase/firestore'
+import { doc, collection, query, orderBy, Timestamp } from 'firebase/firestore'
 import { format, isSameDay, startOfDay, setYear, parseISO, isValid } from 'date-fns'
 import { cs } from 'date-fns/locale'
-import { Loader2, Plus, Trophy, MapPin, Clock, Users, Cake } from 'lucide-react'
+import { Loader2, Plus, Trophy, MapPin, Clock, Users, Cake, CalendarPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from '@/hooks/use-toast'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { formatName } from '@/lib/utils'
+import { toJsDate } from '@/lib/dates'
+import {
+    getMatchDetails,
+    MatchFormDialog,
+    CalendarSyncCard,
+    downloadMatchIcs,
+    matchesService,
+    type MatchFormData,
+} from '@/features/matches'
+import type { Match } from '@/types'
 
 interface UserProfile {
   id: string;
@@ -24,42 +31,6 @@ interface UserProfile {
   role: 'admin' | 'classic';
   dob?: string;
   email: string;
-}
-
-interface Match {
-  id: string;
-  dateTime: Timestamp;
-  location: string;
-  team1: string;
-  team2: string;
-  isPlayed: boolean;
-  type: 'regular' | 'playoff' | 'friendly';
-  round?: number;
-  playoffStage?: 'čtvrtfinále' | 'semifinále' | 'finále';
-  playoffMatchNumber?: number;
-}
-
-const formatName = (name: string) => {
-    if (!name) return '';
-    const parts = name.trim().split(/\s+/);
-    if (parts.length < 2) return name;
-    return `${parts[0].charAt(0)}. ${parts.slice(1).join(' ')}`;
-};
-
-function getMatchDetails(match: Match) {
-    let prefix = '';
-    if (match.type === 'regular' && match.round) {
-        prefix = `${match.round}. kolo`;
-    } else if (match.type === 'playoff' && match.playoffStage) {
-        const stage = match.playoffStage.charAt(0).toUpperCase() + match.playoffStage.slice(1);
-        prefix = `${stage}${match.playoffMatchNumber ? ` - ${match.playoffMatchNumber}. zápas` : ''}`;
-    }
-    const opponent = match.team1 === 'Aces' ? match.team2 : match.team1;
-    return { 
-        prefix, 
-        opponent, 
-        fullTitle: prefix ? `[${prefix}] ${opponent}` : opponent 
-    };
 }
 
 function CalendarPageContent() {
@@ -70,7 +41,6 @@ function CalendarPageContent() {
     const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
     const [isAddMatchDialogOpen, setIsAddMatchDialogOpen] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
-    const [matchType, setMatchType] = useState<Match['type']>('regular');
 
     const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
     const { data: userProfile, isLoading: isUserProfileLoading } = useDoc<UserProfile>(userDocRef);
@@ -91,7 +61,7 @@ function CalendarPageContent() {
 
     const matchesOnSelectedDate = useMemo(() => {
         if (!allMatches || !selectedDate) return [];
-        return allMatches.filter(match => isSameDay(match.dateTime.toDate(), selectedDate));
+        return allMatches.filter(match => isSameDay(toJsDate(match.dateTime), selectedDate));
     }, [allMatches, selectedDate]);
 
     const birthdaysOnSelectedDate = useMemo(() => {
@@ -108,54 +78,11 @@ function CalendarPageContent() {
         setSelectedDate(date);
     };
 
-    const handleAddMatch = async (e: React.FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
-        if (!firestore || !selectedDate) return;
-
+    const handleAddMatch = async (data: MatchFormData) => {
+        if (!firestore) return;
         setIsSaving(true);
-        const formData = new FormData(e.currentTarget);
-        const timeStr = formData.get('time') as string;
-        const opponent = formData.get('opponent') as string;
-        
         try {
-            const [hours, minutes] = timeStr.split(':').map(Number);
-            const matchDateTime = new Date(selectedDate);
-            matchDateTime.setHours(hours, minutes);
-
-            const newMatchData: any = {
-                team1: 'Aces',
-                team2: opponent,
-                location: formData.get('location') as string,
-                dateTime: Timestamp.fromDate(matchDateTime),
-                isPlayed: false,
-                type: matchType,
-            };
-
-            if (matchType === 'regular') {
-                newMatchData.round = Number(formData.get('round')) || null;
-            } else if (matchType === 'playoff') {
-                newMatchData.playoffStage = formData.get('playoffStage') as string;
-                newMatchData.playoffMatchNumber = Number(formData.get('playoffMatchNumber')) || null;
-            }
-            
-            const matchDoc = await addDoc(collection(firestore, 'matches'), newMatchData);
-            
-            // Notify all users about new match
-            const usersSnap = await getDocs(collection(firestore, 'users'));
-            const batch = writeBatch(firestore);
-            usersSnap.forEach(uDoc => {
-                const notifRef = doc(collection(firestore, 'users', uDoc.id, 'notifications'));
-                batch.set(notifRef, {
-                    title: 'Nový zápas v kalendáři!',
-                    message: `Byl naplánován zápas proti ${opponent} (${format(matchDateTime, 'd. M. HH:mm')}). Nahlaš svou účast!`,
-                    type: 'match_new',
-                    createdAt: Timestamp.now(),
-                    read: false,
-                    matchId: matchDoc.id
-                });
-            });
-            await batch.commit();
-
+            await matchesService.createMatch(firestore, data);
             toast({ title: 'Zápas přidán a tým byl upozorněn.' });
             setIsAddMatchDialogOpen(false);
         } catch (error: any) {
@@ -173,7 +100,7 @@ function CalendarPageContent() {
         )
     }
 
-    const matchDates = allMatches?.map(m => startOfDay(m.dateTime.toDate())) || [];
+    const matchDates = allMatches?.map(m => startOfDay(toJsDate(m.dateTime))) || [];
     const birthdayDates = allUsers?.filter(u => u.dob).map(u => {
         const dob = parseISO(u.dob!);
         if (!isValid(dob)) return null;
@@ -182,6 +109,8 @@ function CalendarPageContent() {
 
     return (
         <div className="py-8 space-y-8">
+            <CalendarSyncCard matches={allMatches || []} />
+
             <div className="grid gap-8 md:grid-cols-12">
                 <Card className="md:col-span-5 lg:col-span-4 h-fit">
                     <CardHeader>
@@ -201,7 +130,7 @@ function CalendarPageContent() {
                             }}
                             modifiersStyles={{
                                 hasMatch: { fontWeight: 'bold', color: 'hsl(var(--primary))', textDecoration: 'underline' },
-                                hasBirthday: { fontWeight: 'bold', color: 'hsl(var(--accent))', textDecoration: 'underline' }
+                                hasBirthday: { fontWeight: 'bold', color: '#f59e0b', textDecoration: 'underline' }
                             }}
                         />
                     </CardContent>
@@ -222,9 +151,9 @@ function CalendarPageContent() {
                     
                     <div className="grid gap-4">
                         {birthdaysOnSelectedDate.length > 0 && (
-                            <Card className="border-l-4 border-l-accent bg-accent/5">
+                            <Card className="border-l-4 border-l-amber-500 bg-amber-500/5">
                                 <CardHeader className="py-3">
-                                    <div className="flex items-center gap-2 text-accent">
+                                    <div className="flex items-center gap-2 text-amber-500">
                                         <Cake className="h-5 w-5" />
                                         <CardTitle className="text-lg">Dnes má narozeniny</CardTitle>
                                     </div>
@@ -248,10 +177,11 @@ function CalendarPageContent() {
                         {matchesOnSelectedDate.length > 0 ? (
                             matchesOnSelectedDate.map(match => {
                                 const { prefix, opponent } = getMatchDetails(match);
+                                const matchStart = toJsDate(match.dateTime);
                                 return (
                                     <Card key={match.id} className="overflow-hidden border-l-4 border-l-primary">
                                         <CardHeader className="pb-2">
-                                            <div className="flex justify-between items-start">
+                                            <div className="flex justify-between items-start gap-2">
                                                 <div className="flex-1 min-w-0">
                                                     <Badge variant="outline" className="mb-2">
                                                         {match.type === 'regular' ? 'Základní část' : match.type === 'playoff' ? 'Play-off' : 'Přátelský'}
@@ -259,13 +189,26 @@ function CalendarPageContent() {
                                                     {prefix && <p className="text-xs font-bold text-primary uppercase leading-tight mb-1">{prefix}</p>}
                                                     <CardTitle className="text-2xl break-words">{opponent}</CardTitle>
                                                 </div>
-                                                {match.isPlayed && <Badge>Odehráno</Badge>}
+                                                <div className="flex items-center gap-2">
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        className="text-xs h-8"
+                                                        onClick={() => downloadMatchIcs(match)}
+                                                    >
+                                                        <CalendarPlus className="mr-1.5 h-3.5 w-3.5 text-primary" />
+                                                        Do kalendáře
+                                                    </Button>
+                                                    {match.isPlayed && <Badge>Odehráno</Badge>}
+                                                </div>
                                             </div>
                                         </CardHeader>
                                         <CardContent className="grid gap-2 text-muted-foreground">
                                             <div className="flex items-center gap-2">
                                                 <Clock className="h-4 w-4 text-primary" />
-                                                <span>{format(match.dateTime.toDate(), 'HH:mm')}</span>
+                                                <span>
+                                                    {format(matchStart, 'HH:mm')}
+                                                </span>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <MapPin className="h-4 w-4 text-primary" />
@@ -294,79 +237,13 @@ function CalendarPageContent() {
                 </div>
             </div>
 
-            <Dialog open={isAddMatchDialogOpen} onOpenChange={setIsAddMatchDialogOpen}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Přidat zápas na {selectedDate && format(selectedDate, 'd. M. yyyy')}</DialogTitle>
-                        <DialogDescription>Zadejte detaily nového zápasu.</DialogDescription>
-                    </DialogHeader>
-                    <form onSubmit={handleAddMatch}>
-                        <div className="grid gap-6 py-4 p-1">
-                            <div className="grid gap-2">
-                                <Label htmlFor="opponent">Soupeř</Label>
-                                <Input id="opponent" name="opponent" required />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="grid gap-2">
-                                    <Label htmlFor="time">Čas</Label>
-                                    <Input id="time" name="time" type="time" defaultValue="18:00" required />
-                                </div>
-                                <div className="grid gap-2">
-                                    <Label htmlFor="location">Místo</Label>
-                                    <Input id="location" name="location" required />
-                                </div>
-                            </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="type">Typ zápasu</Label>
-                                <Select name="type" required value={matchType} onValueChange={(val) => setMatchType(val as Match['type'])}>
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="regular">Základní část</SelectItem>
-                                        <SelectItem value="playoff">Play-off</SelectItem>
-                                        <SelectItem value="friendly">Přátelský</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            {matchType === 'regular' && (
-                                <div className="grid gap-2">
-                                    <Label htmlFor="round">Kolo</Label>
-                                    <Input id="round" name="round" type="number" min="1" placeholder="Číslo kola" />
-                                </div>
-                            )}
-                            {matchType === 'playoff' && (
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="grid gap-2">
-                                        <Label htmlFor="playoffStage">Fáze</Label>
-                                        <Select name="playoffStage" required defaultValue="čtvrtfinále">
-                                            <SelectTrigger>
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="čtvrtfinále">Čtvrtfinále</SelectItem>
-                                                <SelectItem value="semifinále">Semifinále</SelectItem>
-                                                <SelectItem value="finále">Finále</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div className="grid gap-2">
-                                        <Label htmlFor="playoffMatchNumber">Zápas č.</Label>
-                                        <Input id="playoffMatchNumber" name="playoffMatchNumber" type="number" min="1" placeholder="Pořadí v sérii" />
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                        <DialogFooter>
-                            <Button type="button" variant="outline" onClick={() => setIsAddMatchDialogOpen(false)} disabled={isSaving}>Zrušit</Button>
-                            <Button type="submit" disabled={isSaving}>
-                                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                Uložit zápas
-                            </Button>
-                        </DialogFooter>
-                    </form>
-                </DialogContent>
-            </Dialog>
+            <MatchFormDialog
+                open={isAddMatchDialogOpen}
+                onOpenChange={setIsAddMatchDialogOpen}
+                defaultDate={selectedDate}
+                onSave={handleAddMatch}
+                isSaving={isSaving}
+            />
         </div>
     )
 }
