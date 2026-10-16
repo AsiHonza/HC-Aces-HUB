@@ -35,13 +35,15 @@ async function main() {
   }
 
   // Sign in as admin to satisfy security rules (isAdmin())
-  const adminEmail = process.env.SYNC_ADMIN_EMAIL || process.env.ADMIN_EMAIL || 'janmlcak6@gmail.com';
-  const adminPassword = process.env.SYNC_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD || 'heslo123';
+  const rawEmail = process.env.SYNC_ADMIN_EMAIL || process.env.ADMIN_EMAIL || 'janmlcak6@gmail.com';
+  const rawPassword = process.env.SYNC_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD || 'heslo123';
+  const adminEmail = rawEmail.trim();
+  const adminPassword = rawPassword.trim();
 
   if (adminEmail && adminPassword) {
     try {
       await signInWithEmailAndPassword(auth, adminEmail, adminPassword);
-      console.log(`🔑 Přihlášen jako admin (${adminEmail})`);
+      console.log(`🔑 Úspěšně přihlášen jako admin (${adminEmail})`);
     } catch (e: any) {
       if (!useEmulators) {
         console.error(`❌ Chyba přihlášení administrátora (${adminEmail}): ${e.message}`);
