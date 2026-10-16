@@ -230,7 +230,7 @@ export function UpcomingMatchCard({
                     'animate-highlight-button border-primary border-2 shadow-primary/50'
                 )}
               >
-                <View className="mr-1.5 h-3.5 w-3.5" /> Sestava na ledě
+                <View className="mr-1.5 h-3.5 w-3.5" /> Sestava
               </Button>
             )}
 

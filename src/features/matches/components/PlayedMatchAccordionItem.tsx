@@ -313,7 +313,7 @@ export function PlayedMatchAccordionItem({
                 onClick={() => onViewLineup(match)}
               >
                 <Users className="h-3.5 w-3.5 mr-1.5" />
-                Zobrazit sestavu na ledě
+                Sestava
               </Button>
             )}
             {onShareMatch && (

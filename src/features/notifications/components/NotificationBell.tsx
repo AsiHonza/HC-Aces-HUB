@@ -287,7 +287,7 @@ export function NotificationBell() {
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-84 sm:w-96 p-0" align="end">
+      <PopoverContent className="w-[calc(100vw-1.5rem)] sm:w-96 max-w-sm p-0 overflow-hidden" align="end" collisionPadding={12}>
         <div className="p-3 border-b bg-card space-y-2">
           <div className="flex items-center justify-between">
             <h4 className="font-bold text-sm tracking-wide">Oznámení</h4>
@@ -302,26 +302,26 @@ export function NotificationBell() {
 
           {/* System Push Notification status & trigger bar */}
           {permissionStatus !== 'unsupported' && (
-            <div className="flex items-center justify-between text-xs pt-2 border-t border-border/50">
-              <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between gap-2 text-xs pt-2 border-t border-border/50">
+              <div className="flex items-center gap-1.5 min-w-0">
                 <span className={cn(
                   "h-2 w-2 rounded-full shrink-0",
                   permissionStatus === 'granted' ? "bg-emerald-500 animate-pulse" :
                   permissionStatus === 'denied' ? "bg-destructive" : "bg-amber-500"
                 )} />
-                <span className="text-[11px] text-muted-foreground">
+                <span className="text-[11px] text-muted-foreground truncate">
                   {permissionStatus === 'granted' ? 'Systémová oznámení aktivní' :
                    permissionStatus === 'denied' ? 'V prohlížeči blokováno' :
                    'Oznámení v telefonu'}
                 </span>
               </div>
-              <div>
+              <div className="shrink-0">
                 {permissionStatus === 'granted' ? (
                   <Button 
                     variant="outline" 
                     size="sm" 
                     disabled={isTestingNotification}
-                    className="h-6 text-[10px] px-2 border-border/60 hover:border-primary hover:text-primary"
+                    className="h-6 text-[10px] px-2 border-border/60 hover:border-primary hover:text-primary shrink-0"
                     onClick={handleTestNotification}
                   >
                     {isTestingNotification ? 'Odesílám...' : 'Otestovat'}
@@ -330,13 +330,13 @@ export function NotificationBell() {
                   <Button 
                     variant="default" 
                     size="sm" 
-                    className="h-6 text-[10px] px-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+                    className="h-6 text-[10px] px-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shrink-0"
                     onClick={handleEnableNotifications}
                   >
                     Povolit
                   </Button>
                 ) : (
-                  <span className="text-[10px] text-muted-foreground italic">Blokováno</span>
+                  <span className="text-[10px] text-muted-foreground italic shrink-0">Blokováno</span>
                 )}
               </div>
             </div>
@@ -366,16 +366,16 @@ export function NotificationBell() {
                   <div className="mt-0.5 shrink-0">
                     {getIcon(n.type)}
                   </div>
-                  <div className="flex-1 space-y-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className={cn("font-semibold text-foreground", !n.read && "text-primary")}>
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className={cn("font-semibold text-foreground truncate", !n.read && "text-primary")}>
                         {n.title}
                       </span>
-                      <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                      <span className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0">
                         {n.createdAt && formatDistanceToNow(n.createdAt.toDate(), { addSuffix: true, locale: cs })}
                       </span>
                     </div>
-                    <p className="text-muted-foreground line-clamp-2 leading-relaxed">
+                    <p className="text-muted-foreground line-clamp-2 leading-relaxed break-words">
                       {n.message}
                     </p>
                   </div>
