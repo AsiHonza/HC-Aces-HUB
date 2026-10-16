@@ -406,10 +406,12 @@ function DashboardPageContent() {
       if (!allUsers || !allGoalieStats) return [];
       const statsMap = new Map<string, GoalieStats>();
       allGoalieStats.forEach(stat => { if (stat.userProfileId) statsMap.set(stat.userProfileId, stat); });
+      const seasonStartMs = new Date('2026-09-16T00:00:00').getTime();
+
       return allUsers.filter(u => u.playerType === 'goalie').map(u => {
           const stats = statsMap.get(u.id);
 
-          // Spočteme výhry, zápasy a čistá konta přímo z odehraných zápasů v Firestore
+          // Spočteme výhry, zápasy a čistá konta přímo z odehraných zápasů v Firestore pro AKTUÁLNÍ SEZÓNU
           let matchWins = 0;
           let matchGames = 0;
           let matchSO = 0;
@@ -418,6 +420,11 @@ function DashboardPageContent() {
               const uSurname = uTokens[uTokens.length - 1] || '';
               for (const m of allMatches) {
                   if (!m.isPlayed) continue;
+                  // Striktně pouze zápasy z aktuální sezóny (od 16. 9. 2026) a základní části
+                  const mTime = toJsDate(m.dateTime).getTime();
+                  if (mTime < seasonStartMs) continue;
+                  if (m.type && m.type !== 'regular') continue;
+
                   const isT1 = /aces/i.test(m.team1 || '');
                   const isT2 = /aces/i.test(m.team2 || '');
                   if (!isT1 && !isT2) continue;
@@ -433,19 +440,51 @@ function DashboardPageContent() {
               }
           }
 
-          const regWins = Math.max(stats?.seasonWins ?? 0, matchWins);
-          const regGames = stats?.seasonGamesPlayed ? Math.max(stats.seasonGamesPlayed, matchGames) : matchGames;
+          // Prioritně použijeme oficiální počet zápasů z hobbyhokejbrno (stats.seasonGamesPlayed),
+          // fallback na spočtené zápasy z odehraných utkání aktuální sezóny.
+          const officialGames = stats?.seasonGamesPlayed ?? 0;
+          const regGames = officialGames > 0 ? officialGames : matchGames;
+
+          // Výhry v sezóně: nesmí přesáhnout počet odehraných zápasů v základní části
+          let regWins = Math.max(stats?.seasonWins ?? 0, matchWins);
+          if (regGames > 0 && regWins > regGames) {
+              regWins = Math.min(matchWins > 0 ? matchWins : regWins, regGames);
+          }
+
           const regSO = Math.max(stats?.seasonSO ?? 0, matchSO);
+
+          const shotsAgainst = stats?.seasonShotsAgainst ?? 0;
+          const saves = stats?.seasonSaves ?? 0;
+          const goalsAgainst = Math.max(0, shotsAgainst - saves);
 
           const reg = { 
               gamesPlayed: regGames, 
               wins: regWins, 
-              shotsAgainst: stats?.seasonShotsAgainst ?? 0, 
-              saves: stats?.seasonSaves ?? 0, 
+              shotsAgainst, 
+              saves,
+              goalsAgainst,
               so: regSO 
           };
-          const po = { gamesPlayed: stats?.playoffGamesPlayed ?? 0, wins: stats?.playoffWins ?? 0, shotsAgainst: stats?.playoffShotsAgainst ?? 0, saves: stats?.playoffSaves ?? 0, so: stats?.playoffSO ?? 0 };
+          const poShotsAgainst = stats?.playoffShotsAgainst ?? 0;
+          const poSaves = stats?.playoffSaves ?? 0;
+          const poGoalsAgainst = Math.max(0, poShotsAgainst - poSaves);
+          const po = { 
+              gamesPlayed: stats?.playoffGamesPlayed ?? 0, 
+              wins: stats?.playoffWins ?? 0, 
+              shotsAgainst: poShotsAgainst, 
+              saves: poSaves, 
+              goalsAgainst: poGoalsAgainst,
+              so: stats?.playoffSO ?? 0 
+          };
           
+          const seasonSaves = reg.saves + po.saves;
+          const seasonShots = reg.shotsAgainst + po.shotsAgainst;
+          const seasonGA = reg.goalsAgainst + po.goalsAgainst;
+
+          const histSaves = (stats?.historicalSaves ?? 0) + seasonSaves;
+          const histShots = (stats?.historicalShotsAgainst ?? 0) + seasonShots;
+          const histGA = Math.max(0, histShots - histSaves);
+
           return {
               id: u.id, name: formatName(u.name),
               regular: reg,
@@ -453,15 +492,17 @@ function DashboardPageContent() {
               season: { 
                   gamesPlayed: reg.gamesPlayed + po.gamesPlayed, 
                   wins: reg.wins + po.wins, 
-                  shotsAgainst: reg.shotsAgainst + po.shotsAgainst, 
-                  saves: reg.saves + po.saves,
+                  shotsAgainst: seasonShots, 
+                  saves: seasonSaves,
+                  goalsAgainst: seasonGA,
                   so: reg.so + po.so
               },
               history: { 
                   gamesPlayed: (stats?.historicalGamesPlayed ?? 0) + reg.gamesPlayed + po.gamesPlayed, 
                   wins: (stats?.historicalWins ?? 0) + reg.wins + po.wins, 
-                  shotsAgainst: (stats?.historicalShotsAgainst ?? 0) + reg.shotsAgainst + po.shotsAgainst, 
-                  saves: (stats?.historicalSaves ?? 0) + reg.saves + po.saves, 
+                  shotsAgainst: histShots, 
+                  saves: histSaves, 
+                  goalsAgainst: histGA,
                   so: (stats?.historicalSO ?? 0) + reg.so + po.so 
               },
               rawHistory: {
@@ -469,6 +510,7 @@ function DashboardPageContent() {
                   wins: stats?.historicalWins ?? 0,
                   shotsAgainst: stats?.historicalShotsAgainst ?? 0,
                   saves: stats?.historicalSaves ?? 0,
+                  goalsAgainst: Math.max(0, (stats?.historicalShotsAgainst ?? 0) - (stats?.historicalSaves ?? 0)),
                   so: stats?.historicalSO ?? 0
               }
           };
@@ -515,17 +557,23 @@ function DashboardPageContent() {
       if (selectedSeasonId !== 'current') {
           const archived = archivedSeasons?.find(s => s.id === selectedSeasonId);
           if (archived?.goalieStats && archived.goalieStats.length > 0) {
-              return archived.goalieStats.map((g, idx) => ({
-                  id: g.userProfileId || `archived-g-${idx}`,
-                  name: g.name,
-                  gamesPlayed: g.gamesPlayed,
-                  wins: g.wins,
-                  saves: g.saves,
-                  shotsAgainst: g.shotsAgainst,
-                  savePercentage: g.savePercentage,
-                  so: g.shutouts,
-                  rank: idx + 1
-              })).sort((a, b) => (b.savePercentage || 0) - (a.savePercentage || 0) || b.wins - a.wins)
+              return archived.goalieStats.map((g, idx) => {
+                  const sa = g.shotsAgainst || 0;
+                  const s = g.saves || 0;
+                  const ga = Math.max(0, sa - s);
+                  return {
+                      id: g.userProfileId || `archived-g-${idx}`,
+                      name: g.name,
+                      gamesPlayed: g.gamesPlayed,
+                      wins: g.wins,
+                      saves: s,
+                      shotsAgainst: sa,
+                      goalsAgainst: ga,
+                      savePercentage: g.savePercentage,
+                      so: g.shutouts,
+                      rank: idx + 1
+                  };
+              }).sort((a, b) => (b.savePercentage || 0) - (a.savePercentage || 0) || b.wins - a.wins)
                  .map((g, i) => ({ ...g, rank: i + 1 }));
           }
           return [];
@@ -535,8 +583,10 @@ function DashboardPageContent() {
           return editableGoalieStats.map((g, i) => {
               const sa = Number(g.shotsAgainst) || 0;
               const s = Number(g.saves) || 0;
+              const ga = Math.max(0, sa - s);
               return {
                   ...g,
+                  goalsAgainst: ga,
                   savePercentage: sa > 0 ? (s / sa) * 100 : 0,
                   rank: i + 1
               };
@@ -548,8 +598,10 @@ function DashboardPageContent() {
       return dataSet.map(g => {
           const sa = Number(g.shotsAgainst) || 0;
           const s = Number(g.saves) || 0;
+          const ga = g.goalsAgainst ?? Math.max(0, sa - s);
           return {
               ...g, 
+              goalsAgainst: ga,
               savePercentage: sa > 0 ? (s / sa) * 100 : 0
           }
       })

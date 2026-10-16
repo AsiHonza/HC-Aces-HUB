@@ -456,6 +456,8 @@ export async function syncLeagueToFirestore(
       // 2. Z existujících zápasů v databázi (např. ručně zapsaných)
       for (const em of existingMatches) {
         if (!em.isPlayed) continue;
+        const matchDate = em.date || (em.dateTime?.toDate ? em.dateTime.toDate().toISOString() : String(em.dateTime || ''));
+        if (matchDate < '2026-09-16') continue;
         const isT1 = /aces/i.test(em.team1 || '');
         const isT2 = /aces/i.test(em.team2 || '');
         if (!isT1 && !isT2) continue;
@@ -484,7 +486,9 @@ export async function syncLeagueToFirestore(
         // ignore
       }
 
-      const finalSeasonWins = Math.max(existingStat?.seasonWins || 0, goalieWins);
+      // Výhry v základní části nemohou překročit počet odehraných zápasů v základní části
+      const manualWins = existingStat?.seasonWins !== undefined && existingStat?.seasonWins <= goalie.gamesPlayed ? existingStat.seasonWins : goalieWins;
+      const finalSeasonWins = Math.min(Math.max(manualWins, goalieWins), goalie.gamesPlayed);
       const finalHistoricalWins = existingStat?.historicalWins !== undefined ? existingStat.historicalWins : finalSeasonWins;
 
       const shotsAgainst = goalie.saves + goalie.goalsAgainst;

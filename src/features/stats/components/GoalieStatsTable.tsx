@@ -22,6 +22,7 @@ export interface GoalieLeaderboardItem {
   so?: number;
   saves?: number;
   shotsAgainst?: number;
+  goalsAgainst?: number;
   savePercentage?: number;
 }
 
@@ -62,10 +63,18 @@ export function GoalieStatsTable({
           <TableHeader>
             <TableRow>
               <TableHead className="px-2">Jméno</TableHead>
-              <TableHead className="text-center px-1">Z</TableHead>
-              <TableHead className="text-center px-1">V</TableHead>
-              <TableHead className="text-center px-1">SO</TableHead>
-              <TableHead className="text-right px-2">Úspěšnost</TableHead>
+              <TableHead className="text-center px-1" title="Zápasy">Z</TableHead>
+              <TableHead className="text-center px-1" title="Výhry">V</TableHead>
+              <TableHead className="text-center px-1" title="Zásahy">
+                <span className="hidden sm:inline">Zásahy</span>
+                <span className="sm:hidden">Zás.</span>
+              </TableHead>
+              <TableHead className="text-center px-1" title="Obdržené góly">OG</TableHead>
+              <TableHead className="text-center px-1" title="Čistá konta (Shutouts)">SO</TableHead>
+              <TableHead className="text-right px-2" title="Úspěšnost zásahů">
+                <span className="hidden sm:inline">Úspěšnost</span>
+                <span className="sm:hidden">%</span>
+              </TableHead>
               {isStatEditMode && <TableHead className="w-8 px-1"></TableHead>}
             </TableRow>
           </TableHeader>
@@ -86,11 +95,17 @@ export function GoalieStatsTable({
                     <span>{formatName(g.name)}</span>
                     <View className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity text-primary" />
                   </TableCell>
-                  <TableCell className="text-center px-1 tabular-nums">
+                  <TableCell className="text-center px-1 tabular-nums font-semibold">
                     {String(g.gamesPlayed || 0)}
                   </TableCell>
-                  <TableCell className="text-center px-1 tabular-nums">
+                  <TableCell className="text-center px-1 tabular-nums text-emerald-500 font-semibold">
                     {String(g.wins || 0)}
+                  </TableCell>
+                  <TableCell className="text-center px-1 tabular-nums">
+                    {String(g.saves || 0)}
+                  </TableCell>
+                  <TableCell className="text-center px-1 tabular-nums text-muted-foreground">
+                    {String(g.goalsAgainst ?? Math.max(0, (g.shotsAgainst || 0) - (g.saves || 0)))}
                   </TableCell>
                   <TableCell className="text-center px-1 tabular-nums">
                     {String(g.so || 0)}
@@ -120,7 +135,7 @@ export function GoalieStatsTable({
                   expandedStatId === g.id &&
                   onUpdateEditableGoalieStat && (
                     <TableRow className="bg-muted/30 border-b-2 border-primary/20">
-                      <TableCell colSpan={6} className="p-2 sm:p-4">
+                      <TableCell colSpan={8} className="p-2 sm:p-4">
                         <div className="flex flex-wrap items-center justify-around gap-2 bg-background/50 rounded-lg p-2 border">
                           <div className="flex flex-col items-center gap-1">
                             <Label className="text-[9px] uppercase font-bold text-muted-foreground">
@@ -210,7 +225,7 @@ export function GoalieStatsTable({
             {goalies.length === 0 && (
               <TableRow>
                 <TableCell
-                  colSpan={isStatEditMode ? 6 : 5}
+                  colSpan={isStatEditMode ? 8 : 7}
                   className="text-center py-6 text-muted-foreground italic"
                 >
                   Žádné brankářské statistiky k zobrazení.
