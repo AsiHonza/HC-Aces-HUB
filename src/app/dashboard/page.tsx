@@ -408,7 +408,42 @@ function DashboardPageContent() {
       allGoalieStats.forEach(stat => { if (stat.userProfileId) statsMap.set(stat.userProfileId, stat); });
       return allUsers.filter(u => u.playerType === 'goalie').map(u => {
           const stats = statsMap.get(u.id);
-          const reg = { gamesPlayed: stats?.seasonGamesPlayed ?? 0, wins: stats?.seasonWins ?? 0, shotsAgainst: stats?.seasonShotsAgainst ?? 0, saves: stats?.seasonSaves ?? 0, so: stats?.seasonSO ?? 0 };
+
+          // Spočteme výhry, zápasy a čistá konta přímo z odehraných zápasů v Firestore
+          let matchWins = 0;
+          let matchGames = 0;
+          let matchSO = 0;
+          if (allMatches) {
+              const uTokens = (u.name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().split(/\s+/);
+              const uSurname = uTokens[uTokens.length - 1] || '';
+              for (const m of allMatches) {
+                  if (!m.isPlayed) continue;
+                  const isT1 = /aces/i.test(m.team1 || '');
+                  const isT2 = /aces/i.test(m.team2 || '');
+                  if (!isT1 && !isT2) continue;
+                  const gName = (m.goalieName || m.lineup?.B1?.name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                  const gId = m.goalieId || m.lineup?.B1?.id;
+                  if (gId === u.id || (uSurname && gName.includes(uSurname))) {
+                      matchGames++;
+                      const acesScore = isT1 ? (m.team1Score ?? 0) : (m.team2Score ?? 0);
+                      const oppScore = isT1 ? (m.team2Score ?? 0) : (m.team1Score ?? 0);
+                      if (acesScore > oppScore) matchWins++;
+                      if (oppScore === 0) matchSO++;
+                  }
+              }
+          }
+
+          const regWins = Math.max(stats?.seasonWins ?? 0, matchWins);
+          const regGames = stats?.seasonGamesPlayed ? Math.max(stats.seasonGamesPlayed, matchGames) : matchGames;
+          const regSO = Math.max(stats?.seasonSO ?? 0, matchSO);
+
+          const reg = { 
+              gamesPlayed: regGames, 
+              wins: regWins, 
+              shotsAgainst: stats?.seasonShotsAgainst ?? 0, 
+              saves: stats?.seasonSaves ?? 0, 
+              so: regSO 
+          };
           const po = { gamesPlayed: stats?.playoffGamesPlayed ?? 0, wins: stats?.playoffWins ?? 0, shotsAgainst: stats?.playoffShotsAgainst ?? 0, saves: stats?.playoffSaves ?? 0, so: stats?.playoffSO ?? 0 };
           
           return {
@@ -438,7 +473,7 @@ function DashboardPageContent() {
               }
           };
       });
-  }, [allUsers, allGoalieStats]);
+  }, [allUsers, allGoalieStats, allMatches]);
   
   const sortedTeamScoring = useMemo(() => {
       if (selectedSeasonId !== 'current') {

@@ -419,6 +419,52 @@ export async function syncLeagueToAdminFirestore(
         existingUsers.push(newGoalieDoc);
       }
 
+      // Spočítáme výhry brankáře ze všech zápasů Aces (z oficiálních reportů i odehraných zápasů)
+      let goalieWins = 0;
+      const goalieTokens = normalizeNameTokens(goalie.name);
+      const goalieSurname = goalieTokens.length > 0 ? goalieTokens[0] : '';
+
+      // 1. Z reportů z webu
+      for (const report of (data.acesMatchReports || [])) {
+        const isTeam1Aces = /aces/i.test(report.team1);
+        const acesScore = isTeam1Aces ? report.score1 : report.score2;
+        const oppScore = isTeam1Aces ? report.score2 : report.score1;
+        const reportGoalie = isTeam1Aces ? report.team1Lineup?.goalie : report.team2Lineup?.goalie;
+        if (acesScore > oppScore && reportGoalie) {
+          const normReportGoalie = normalizeNameTokens(reportGoalie);
+          if (normReportGoalie.some(t => goalieTokens.includes(t)) || reportGoalie.toLowerCase().includes(goalieSurname)) {
+            goalieWins++;
+          }
+        }
+      }
+
+      // 2. Z existujících zápasů v databázi (např. ručně zapsaných)
+      for (const em of existingMatches) {
+        if (!em.isPlayed) continue;
+        const isT1 = /aces/i.test(em.team1 || '');
+        const isT2 = /aces/i.test(em.team2 || '');
+        if (!isT1 && !isT2) continue;
+        const acesScore = isT1 ? (em.team1Score || 0) : (em.team2Score || 0);
+        const oppScore = isT1 ? (em.team2Score || 0) : (em.team1Score || 0);
+        if (acesScore > oppScore) {
+          const gName = (em.goalieName || em.lineup?.B1?.name || '').toLowerCase();
+          const gId = em.goalieId || em.lineup?.B1?.id;
+          if (gId === matchedUser.id || (goalieSurname && gName.includes(goalieSurname))) {
+            const alreadyFromReport = (data.acesMatchReports || []).some(r => r.round === em.round);
+            if (!alreadyFromReport) {
+              goalieWins++;
+            }
+          }
+        }
+      }
+
+      // Načteme stávající uloženou statistiku, abychom neztratili manuálně zadané výhry a historii
+      const existingStatDoc = await adminDb.doc(`users/${matchedUser.id}/goalieStats/stats`).get();
+      const existingStat = existingStatDoc.data();
+
+      const finalSeasonWins = Math.max(existingStat?.seasonWins || 0, goalieWins);
+      const finalHistoricalWins = existingStat?.historicalWins !== undefined ? existingStat.historicalWins : finalSeasonWins;
+
       const shotsAgainst = goalie.saves + goalie.goalsAgainst;
       await adminDb.doc(`users/${matchedUser.id}/goalieStats/stats`).set(
         {
@@ -427,12 +473,12 @@ export async function syncLeagueToAdminFirestore(
           seasonSaves: goalie.saves,
           seasonShotsAgainst: shotsAgainst,
           seasonSO: goalie.shutouts,
-          seasonWins: 0,
-          historicalGamesPlayed: goalie.gamesPlayed,
-          historicalSaves: goalie.saves,
-          historicalShotsAgainst: shotsAgainst,
-          historicalSO: goalie.shutouts,
-          historicalWins: 0,
+          seasonWins: finalSeasonWins,
+          historicalGamesPlayed: existingStat?.historicalGamesPlayed ? Math.max(existingStat.historicalGamesPlayed, goalie.gamesPlayed) : goalie.gamesPlayed,
+          historicalSaves: existingStat?.historicalSaves ? Math.max(existingStat.historicalSaves, goalie.saves) : goalie.saves,
+          historicalShotsAgainst: existingStat?.historicalShotsAgainst ? Math.max(existingStat.historicalShotsAgainst, shotsAgainst) : shotsAgainst,
+          historicalSO: existingStat?.historicalSO ? Math.max(existingStat.historicalSO, goalie.shutouts) : goalie.shutouts,
+          historicalWins: finalHistoricalWins,
           lastSyncedAt: admin.firestore.Timestamp.now(),
         },
         { merge: true }

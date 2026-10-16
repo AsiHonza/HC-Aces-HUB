@@ -102,7 +102,7 @@ export async function fetchLeagueData(
     Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
   };
 
-  const mainRes = await fetch(url, { headers, cache: 'no-store' });
+  const mainRes = await fetch(url, { headers, cache: 'no-store', signal: AbortSignal.timeout(10000) });
   if (!mainRes.ok) {
     throw new Error(`Chyba při stahování webu ligy: ${mainRes.status} ${mainRes.statusText}`);
   }
@@ -110,7 +110,7 @@ export async function fetchLeagueData(
 
   let matchReports: ScrapedMatchReport[] = [];
   try {
-    const detailsRes = await fetch(detailsUrl, { headers, cache: 'no-store' });
+    const detailsRes = await fetch(detailsUrl, { headers, cache: 'no-store', signal: AbortSignal.timeout(10000) });
     if (detailsRes.ok) {
       const detailsHtml = await detailsRes.text();
       matchReports = parseMatchReportsHtml(detailsHtml);
