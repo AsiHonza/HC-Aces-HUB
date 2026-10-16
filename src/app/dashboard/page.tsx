@@ -197,8 +197,6 @@ export interface MatchDisplayItem {
   opponentRoster?: string[];
 }
 
-export { toJsDate } from '@/lib/dates';
-export { getMatchDetails } from '@/features/matches';
 
 
 function DashboardPageContent() {

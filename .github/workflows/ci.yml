@@ -1,0 +1,36 @@
+name: Continuous Integration (CI)
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  validate:
+    name: Build & Typová validace
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout kódu
+        uses: actions/checkout@v4
+
+      - name: Nastavení Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Ověření konzistence závislostí (npm ci)
+        run: npm ci
+
+      - name: Ověření TypeScript typů
+        run: npm run typecheck
+
+      - name: Ověření produkčního buildu
+        run: npm run build
+        env:
+          NODE_ENV: production
+          NEXT_TELEMETRY_DISABLED: '1'
