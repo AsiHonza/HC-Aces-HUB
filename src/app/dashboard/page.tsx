@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { MapPin, Users, Trophy, BarChart, Pencil, Check, X, Flame, Shield, Plus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal, FileText, View, Disc, Cake, Minus, ChevronDown, ListOrdered, CalendarDays, ChevronUp, MessageSquarePlus, Goal, Calendar, Star, Clock } from "lucide-react"
+import { MapPin, Users, Trophy, BarChart, Pencil, Check, X, Flame, Shield, Plus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal, FileText, View, Disc, Cake, Minus, ChevronDown, ListOrdered, CalendarDays, ChevronUp, MessageSquarePlus, Goal, Calendar, Star, Clock, Archive, ShieldAlert } from "lucide-react"
 import { cn, formatName } from '@/lib/utils'
 import { toJsDate } from '@/lib/dates'
 import { BirthdaysCard } from '@/features/roster'
@@ -282,16 +282,37 @@ function DashboardPageContent() {
       if (!allMatches) return [];
       const nowMs = Date.now();
       return allMatches
-        .filter(match => !match.isPlayed && (toJsDate(match.dateTime).getTime() + 75 * 60 * 1000 > nowMs))
+        .filter(match => {
+          const mTime = toJsDate(match.dateTime).getTime();
+          if (mTime < new Date('2026-09-16T00:00:00').getTime()) return false;
+          return !match.isPlayed && (mTime + 75 * 60 * 1000 > nowMs);
+        })
         .sort((a, b) => toJsDate(a.dateTime).getTime() - toJsDate(b.dateTime).getTime());
   }, [allMatches]);
 
   const matchesAwaitingResult = useMemo(() => {
       if (!allMatches) return [];
       const nowMs = Date.now();
+      const seasonStartMs = new Date('2026-09-16T00:00:00').getTime();
+      const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
       return allMatches
-        .filter(match => !match.isPlayed && (toJsDate(match.dateTime).getTime() + 75 * 60 * 1000 <= nowMs))
+        .filter(match => {
+          const mTime = toJsDate(match.dateTime).getTime();
+          // Striktně pouze zápasy z aktuální sezóny (od 16. 9. 2026)
+          if (mTime < seasonStartMs) return false;
+          const matchEndTime = mTime + 75 * 60 * 1000;
+          // Zápas musí být dohraný a skončit v posledních 7 dnech (aktuálně čekající na oficiální zápis)
+          const isRecentlyEnded = matchEndTime <= nowMs && (nowMs - matchEndTime <= sevenDaysMs);
+          return !match.isPlayed && isRecentlyEnded;
+        })
         .sort((a, b) => toJsDate(b.dateTime).getTime() - toJsDate(a.dateTime).getTime());
+  }, [allMatches]);
+
+  // Staré neuzavřené zápasy před začátkem aktuální sezóny (< 16. 9. 2026)
+  const oldUnrecordedMatches = useMemo(() => {
+      if (!allMatches) return [];
+      const seasonStartMs = new Date('2026-09-16T00:00:00').getTime();
+      return allMatches.filter(m => !m.isPlayed && toJsDate(m.dateTime).getTime() < seasonStartMs);
   }, [allMatches]);
 
   const nextMatch = upcomingMatches[0];
@@ -320,17 +341,18 @@ function DashboardPageContent() {
   }, [allMatches]);
   
   const recentPlayedMatches = useMemo<MatchDisplayItem[]>(() => {
+      const seasonStartMs = new Date('2026-09-16T00:00:00').getTime();
       if (selectedSeasonId !== 'current') {
           const archived = archivedSeasons?.find(s => s.id === selectedSeasonId);
           if (archived?.matches && archived.matches.length > 0) {
               return archived.matches;
           }
-          return playedMatches.filter(m => m.seasonId === selectedSeasonId);
+          return playedMatches.filter(m => m.seasonId === selectedSeasonId || toJsDate(m.dateTime).getTime() < seasonStartMs);
       }
-      const currentSeasonId = leagueSettings?.currentSeasonId;
-      if (!currentSeasonId) return playedMatches.slice(0, 5);
-      return playedMatches.filter(m => !m.seasonId || m.seasonId === currentSeasonId).slice(0, 5);
-  }, [selectedSeasonId, archivedSeasons, playedMatches, leagueSettings]);
+      return playedMatches
+        .filter(m => toJsDate(m.dateTime).getTime() >= seasonStartMs)
+        .slice(0, 5);
+  }, [selectedSeasonId, archivedSeasons, playedMatches]);
     
   const teamScoring = useMemo(() => {
       if (!allUsers || !allSkaterStats) return [];
@@ -1021,14 +1043,52 @@ function DashboardPageContent() {
     }
   };
 
+  const [isProcessingOldMatches, setIsProcessingOldMatches] = useState(false);
+
+  const handleArchiveOldMatches = async () => {
+    if (!firestore || oldUnrecordedMatches.length === 0) return;
+    setIsProcessingOldMatches(true);
+    try {
+      const count = await matchesService.archiveOldUnrecordedMatches(firestore, oldUnrecordedMatches);
+      toast({
+        title: 'Staré zápasy zapsány a archivovány',
+        description: `Úspěšně uzavřeno a přesunuto do archivu ${count} zápasů z předchozího období.`,
+      });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se zapsat staré zápasy.' });
+    } finally {
+      setIsProcessingOldMatches(false);
+    }
+  };
+
+  const handleDeleteOldMatches = async () => {
+    if (!firestore || oldUnrecordedMatches.length === 0) return;
+    if (!window.confirm(`Opravdu chcete trvale smazat ${oldUnrecordedMatches.length} starých testovacích zápasů z předchozího období?`)) return;
+    setIsProcessingOldMatches(true);
+    try {
+      const count = await matchesService.deleteOldTestMatches(firestore, oldUnrecordedMatches.map(m => m.id));
+      toast({
+        title: 'Staré testovací zápasy smazány',
+        description: `Úspěšně odstraněno ${count} zápasů z databáze.`,
+      });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se smazat staré zápasy.' });
+    } finally {
+      setIsProcessingOldMatches(false);
+    }
+  };
+
   const activeMvpMatch = useMemo(() => {
     if (!allMatches || allMatches.length === 0) return null;
-    const openMatch = [...allMatches]
+    const seasonStartMs = new Date('2026-09-16T00:00:00').getTime();
+    const currentMatches = allMatches.filter((m) => toJsDate(m.dateTime).getTime() >= seasonStartMs);
+
+    const openMatch = [...currentMatches]
       .reverse()
       .find((m) => getMvpVotingStatus(m).status === 'open');
     if (openMatch) return openMatch;
 
-    const playedWithVotes = [...allMatches]
+    const playedWithVotes = [...currentMatches]
       .filter((m) => (m.isPlayed || toJsDate(m.dateTime).getTime() + 75 * 60 * 1000 <= Date.now()) && ((m.mvpVotes && Object.keys(m.mvpVotes).length > 0) || (m.starsVotes && Object.keys(m.starsVotes).length > 0)))
       .sort((a, b) => toJsDate(b.dateTime).getTime() - toJsDate(a.dateTime).getTime())[0];
     return playedWithVotes || null;
@@ -1256,6 +1316,43 @@ function DashboardPageContent() {
             <Button variant="outline" size="sm" onClick={() => setSelectedSeasonId('current')} className="text-xs h-8">
               Přejít na aktuální sezónu
             </Button>
+          </div>
+        )}
+
+        {/* ADMIN AKCE PRO STARÉ NEZAPSANÉ ZÁPASY Z PŘEDCHOZÍHO OBDOBÍ */}
+        {userProfile?.role === 'admin' && oldUnrecordedMatches.length > 0 && selectedSeasonId === 'current' && (
+          <div className="lg:col-span-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+            <div className="space-y-1">
+              <p className="text-sm font-bold text-amber-500 flex items-center gap-1.5">
+                <ShieldAlert className="h-4 w-4 shrink-0" />
+                Nalezeno {oldUnrecordedMatches.length} starých zápasů z předchozího období (před 16. 9. 2026)
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Tyto zápasy proběhly před zahájením aktuální sezóny. Chcete je zapsat a archivovat do minulého ročníku, nebo smazat testovací data?
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleArchiveOldMatches}
+                disabled={isProcessingOldMatches}
+                className="text-xs font-semibold border-amber-500/50 text-amber-500 hover:text-amber-400 hover:bg-amber-500/10"
+              >
+                {isProcessingOldMatches ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Archive className="mr-1.5 h-3.5 w-3.5" />}
+                Zapsat a archivovat
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleDeleteOldMatches}
+                disabled={isProcessingOldMatches}
+                className="text-xs text-destructive hover:bg-destructive/10"
+              >
+                <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                Smazat staré zápasy
+              </Button>
+            </div>
           </div>
         )}
 

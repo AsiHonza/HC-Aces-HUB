@@ -266,4 +266,41 @@ export const matchesService = {
       throw err;
     }
   },
+
+  /**
+   * Zapsat / uzavřít staré zápasy před začátkem aktuální sezóny (16. 9. 2026) a přesunout je do archivu
+   */
+  async archiveOldUnrecordedMatches(
+    firestore: Firestore,
+    matches: { id: string; team1Score?: number; team2Score?: number }[],
+    targetSeasonId = 'season-2024-2025'
+  ): Promise<number> {
+    const batch = writeBatch(firestore);
+    for (const m of matches) {
+      const matchRef = doc(firestore, 'matches', m.id);
+      batch.update(matchRef, {
+        isPlayed: true,
+        seasonId: targetSeasonId,
+        team1Score: m.team1Score ?? 0,
+        team2Score: m.team2Score ?? 0,
+      });
+    }
+    await batch.commit();
+    return matches.length;
+  },
+
+  /**
+   * Trvale smazat staré testovací zápasy před 16. 9. 2026
+   */
+  async deleteOldTestMatches(
+    firestore: Firestore,
+    matchIds: string[]
+  ): Promise<number> {
+    const batch = writeBatch(firestore);
+    for (const id of matchIds) {
+      batch.delete(doc(firestore, 'matches', id));
+    }
+    await batch.commit();
+    return matchIds.length;
+  },
 };
