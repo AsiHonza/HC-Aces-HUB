@@ -26,8 +26,21 @@ function areNamesMatching(nameA: string, nameB: string): boolean {
   const tokensA = normalizeNameTokens(nameA);
   const tokensB = normalizeNameTokens(nameB);
 
-  if (tokensA.length !== tokensB.length) return false;
-  return tokensA.every((t) => tokensB.includes(t));
+  if (tokensA.length === tokensB.length && tokensA.every((t) => tokensB.includes(t))) {
+    return true;
+  }
+
+  // Zpracování přezdívek a zkrácených jmen (např. "G. Tzimas" vs "Tzimas Jorgos", "Toncek" vs "Bednář Antonín")
+  const hasToken = (tokens: string[], target: string) => tokens.includes(target);
+  if (hasToken(tokensA, 'tzimas') && hasToken(tokensB, 'tzimas')) return true;
+  if (
+    (hasToken(tokensA, 'toncek') && (hasToken(tokensB, 'bednar') || hasToken(tokensB, 'antonin'))) ||
+    (hasToken(tokensB, 'toncek') && (hasToken(tokensA, 'bednar') || hasToken(tokensA, 'antonin')))
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 function parseCzechDate(dateStr: string, timeStr = '18:00'): Date | null {
@@ -342,7 +355,25 @@ export async function syncLeagueToFirestore(
   const syncedSkaterUserIds = new Set<string>();
   for (const skater of data.acesSkaters) {
     try {
-      let matchedUser = existingUsers.find((u) => u.name && areNamesMatching(u.name, skater.name));
+      // Preferovat skutečné uživatelské účty (nezačínající na 'player-') před auto-vygenerovanými duplikáty
+      let matchedUser =
+        existingUsers.find((u) => !String(u.id).startsWith('player-') && u.name && areNamesMatching(u.name, skater.name)) ||
+        existingUsers.find((u) => u.name && areNamesMatching(u.name, skater.name));
+
+      // Odstranit případné duplicitní auto-vytvořené účty (např. player-tzimas-jorgos vedle G. Tzimas)
+      if (matchedUser && !String(matchedUser.id).startsWith('player-')) {
+        const duplicateAutoUsers = existingUsers.filter(
+          (u) => String(u.id).startsWith('player-') && u.id !== matchedUser.id && u.name && areNamesMatching(u.name, skater.name)
+        );
+        for (const dup of duplicateAutoUsers) {
+          try {
+            await deleteDoc(doc(firestore, 'users', dup.id, 'skaterStats', 'stats'));
+            await deleteDoc(doc(firestore, 'users', dup.id));
+          } catch (e) {
+            // ignore
+          }
+        }
+      }
 
       // If user doesn't exist, create a player profile
       if (!matchedUser) {
@@ -367,21 +398,38 @@ export async function syncLeagueToFirestore(
 
       syncedSkaterUserIds.add(matchedUser.id);
 
-      // Aktualizace statistik výhradně podle oficiálního ligového webu hobbyhokejbrno.cz
-      await setDoc(
-        doc(firestore, 'users', matchedUser.id, 'skaterStats', 'stats'),
-        {
-          userProfileId: matchedUser.id,
-          seasonGoals: Number(skater.goals) || 0,
-          seasonAssists: Number(skater.assists) || 0,
-          seasonGamesPlayed: Number(skater.gamesPlayed) || 0,
-          historicalGoals: Number(skater.goals) || 0,
-          historicalAssists: Number(skater.assists) || 0,
-          historicalGamesPlayed: Number(skater.gamesPlayed) || 0,
-          lastSyncedAt: Timestamp.now(),
-        },
-        { merge: true }
-      );
+      const statRef = doc(firestore, 'users', matchedUser.id, 'skaterStats', 'stats');
+      const existingStatSnap = await getDoc(statRef);
+      const existingStat = existingStatSnap.data();
+
+      const sGoals = Number(skater.goals) || 0;
+      const sAssists = Number(skater.assists) || 0;
+      const sGames = Number(skater.gamesPlayed) || 0;
+
+      const updatePayload: Record<string, any> = {
+        userProfileId: matchedUser.id,
+        seasonGoals: sGoals,
+        seasonAssists: sAssists,
+        seasonGamesPlayed: sGames,
+        lastSyncedAt: Timestamp.now(),
+      };
+
+      // Oprava dřívější chyby, kdy se letošní sezónní čísla zapsala i do historical* (vznikl dvojnásobek v Historii)
+      if (
+        existingStat &&
+        existingStat.historicalGoals === existingStat.seasonGoals &&
+        existingStat.historicalAssists === existingStat.seasonAssists &&
+        existingStat.historicalGamesPlayed === existingStat.seasonGamesPlayed &&
+        (existingStat.seasonGamesPlayed || 0) > 0 &&
+        (existingStat.seasonGamesPlayed || 0) <= 6
+      ) {
+        updatePayload.historicalGoals = 0;
+        updatePayload.historicalAssists = 0;
+        updatePayload.historicalGamesPlayed = 0;
+      }
+
+      // Aktualizace statistik výhradně podle oficiálního ligového webu hobbyhokejbrno.cz (pouze aktuální sezóna, nikdy nepřepisovat historical*)
+      await setDoc(statRef, updatePayload, { merge: true });
       skatersUpdated++;
     } catch (err: any) {
       errors.push(`Chyba při ukládání statistiky hráče ${skater.name}: ${err.message}`);
@@ -489,7 +537,6 @@ export async function syncLeagueToFirestore(
       // Výhry v základní části nemohou překročit počet odehraných zápasů v základní části
       const manualWins = existingStat?.seasonWins !== undefined && existingStat?.seasonWins <= goalie.gamesPlayed ? existingStat.seasonWins : goalieWins;
       const finalSeasonWins = Math.min(Math.max(manualWins, goalieWins), goalie.gamesPlayed);
-      const finalHistoricalWins = existingStat?.historicalWins !== undefined ? existingStat.historicalWins : finalSeasonWins;
 
       const shotsAgainst = goalie.saves + goalie.goalsAgainst;
       await setDoc(
@@ -501,11 +548,6 @@ export async function syncLeagueToFirestore(
           seasonShotsAgainst: shotsAgainst,
           seasonSO: goalie.shutouts,
           seasonWins: finalSeasonWins,
-          historicalGamesPlayed: existingStat?.historicalGamesPlayed ? Math.max(existingStat.historicalGamesPlayed, goalie.gamesPlayed) : goalie.gamesPlayed,
-          historicalSaves: existingStat?.historicalSaves ? Math.max(existingStat.historicalSaves, goalie.saves) : goalie.saves,
-          historicalShotsAgainst: existingStat?.historicalShotsAgainst ? Math.max(existingStat.historicalShotsAgainst, shotsAgainst) : shotsAgainst,
-          historicalSO: existingStat?.historicalSO ? Math.max(existingStat.historicalSO, goalie.shutouts) : goalie.shutouts,
-          historicalWins: finalHistoricalWins,
           lastSyncedAt: Timestamp.now(),
         },
         { merge: true }
