@@ -48,11 +48,27 @@ function parseCzechDate(dateStr: string, timeStr = '18:00'): Date | null {
   if (!match) return null;
 
   const day = parseInt(match[1], 10);
-  const month = parseInt(match[2], 10) - 1;
+  const month = parseInt(match[2], 10);
   const year = parseInt(match[3], 10);
 
   const [hours, minutes] = (timeStr || '18:00').split(':').map((s) => parseInt(s, 10));
-  return new Date(year, month, day, isNaN(hours) ? 18 : hours, isNaN(minutes) ? 0 : minutes, 0);
+  const h = isNaN(hours) ? 18 : hours;
+  const m = isNaN(minutes) ? 0 : minutes;
+
+  const pad = (n: number) => String(n).padStart(2, '0');
+
+  // Určení offsetu časové zóny Europe/Prague pro dané datum (v zimě CET UTC+1, v létě CEST UTC+2)
+  const roughUtc = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+  const timeZoneString = roughUtc.toLocaleString('en-US', {
+    timeZone: 'Europe/Prague',
+    timeZoneName: 'shortOffset',
+  });
+  const offsetMatch = timeZoneString.match(/GMT([+-]\d+)/);
+  const offsetHours = offsetMatch ? parseInt(offsetMatch[1], 10) : 1;
+  const sign = offsetHours >= 0 ? '+' : '-';
+  const offsetFormatted = `${sign}${pad(Math.abs(offsetHours))}:00`;
+
+  return new Date(`${year}-${pad(month)}-${pad(day)}T${pad(h)}:${pad(m)}:00${offsetFormatted}`);
 }
 
 function sanitizeForFirestore<T>(obj: T): T {

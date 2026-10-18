@@ -33,3 +33,6 @@ jobs:
           NEXT_PUBLIC_USE_FIREBASE_EMULATORS: 'false'
           SYNC_ADMIN_EMAIL: ${{ secrets.SYNC_ADMIN_EMAIL }}
           SYNC_ADMIN_PASSWORD: ${{ secrets.SYNC_ADMIN_PASSWORD }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          SYNC_APP_URL: ${{ secrets.SYNC_APP_URL }}
+          SYNC_SECRET: ${{ secrets.SYNC_SECRET }}
