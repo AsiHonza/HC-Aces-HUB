@@ -11,6 +11,8 @@ import { doc } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { cs } from 'date-fns/locale';
 
+import { syncLeagueToFirestore } from '@/lib/sync/league-sync';
+
 interface LeagueSettings {
   lastSyncAt?: { toDate: () => Date } | { seconds: number; nanoseconds: number };
   lastSyncSummary?: {
@@ -36,11 +38,35 @@ export function LeagueSyncCard() {
   const handleManualSync = async () => {
     setIsSyncing(true);
     try {
-      const res = await fetch('/api/sync/league', { method: 'POST' });
-      const data = await res.json();
+      let syncDone = false;
+      let data: any = null;
 
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Synchronizace se nezdařila.');
+      // 1. Zkusíme server-side POST
+      try {
+        const res = await fetch('/api/sync/league', { method: 'POST' });
+        const postData = await res.json();
+        if (res.ok && postData.success) {
+          syncDone = true;
+          data = postData;
+        }
+      } catch (postErr) {
+        // Ignorujeme, přejdeme na spolehlivý klientský fallback
+      }
+
+      // 2. Klientský fallback přes oprávněného administrátora (funguje i lokálně bez serverového service accountu)
+      if (!syncDone) {
+        if (!firestore) throw new Error('Databáze Firestore není připojena.');
+        const scrapeRes = await fetch('/api/sync/league?action=scrape');
+        const scrapeJson = await scrapeRes.json();
+        if (!scrapeRes.ok || !scrapeJson.success || !scrapeJson.data) {
+          throw new Error(scrapeJson.error || 'Nepodařilo se stáhnout data ligy pro synchronizaci.');
+        }
+
+        const clientResult = await syncLeagueToFirestore(firestore, scrapeJson.data);
+        if (!clientResult.success && clientResult.errors?.length) {
+          throw new Error(clientResult.errors.join(', '));
+        }
+        data = clientResult;
       }
 
       toast({

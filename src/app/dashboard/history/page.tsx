@@ -249,7 +249,7 @@ function HistoryPageContent() {
 
     return (
         <div className="py-8 space-y-8">
-            <Card>
+            <Card className="border-border/60 bg-card/95 shadow-sm">
                 <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b bg-muted/10 pb-4">
                     <div>
                         <CardTitle className="text-xl sm:text-2xl font-headline flex items-center gap-2">

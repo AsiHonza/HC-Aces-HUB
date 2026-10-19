@@ -21,7 +21,7 @@ const config: Config = {
     },
     extend: {
       fontFamily: {
-        body: ['Space Grotesk', 'sans-serif'],
+        body: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
         headline: ['Space Grotesk', 'sans-serif'],
         code: ['monospace'],
       },

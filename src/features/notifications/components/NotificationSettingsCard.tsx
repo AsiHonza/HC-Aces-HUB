@@ -91,7 +91,7 @@ export function NotificationSettingsCard() {
       if (res.success) {
         setIsSubscribed(true);
         toast({
-          title: 'Push oznámení aktivována 🎉',
+          title: 'Push oznámení aktivována',
           description: 'Toto zařízení bylo úspěšně zaregistrováno pro příjem systémových notifikací.',
         });
       } else {
@@ -132,7 +132,7 @@ export function NotificationSettingsCard() {
     setTestCountdown(5);
 
     toast({
-      title: 'Spouštím 5sekundový test ⏱️',
+      title: 'Spouštím 5sekundový test',
       description: 'Nyní můžete telefon zamknout nebo přepnout do jiné aplikace. Za 5 sekund vám dorazí push zpráva ze serveru.',
     });
 

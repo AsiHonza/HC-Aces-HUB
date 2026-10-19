@@ -25,6 +25,7 @@ export interface UserProfile {
   dob?: string;
   photoURL?: string | null;
   isGuest?: boolean;
+  preferredTheme?: 'aces' | 'dark' | 'light';
 }
 
 export interface SkaterStats {
@@ -39,6 +40,7 @@ export interface SkaterStats {
   historicalGoals?: number;
   historicalAssists?: number;
   historicalGamesPlayed?: number;
+  historicalPenaltyMinutes?: number;
 }
 
 export interface GoalieStats {
@@ -59,4 +61,8 @@ export interface GoalieStats {
   historicalShotsAgainst?: number;
   historicalSaves?: number;
   historicalSO?: number;
+  historicalLosses?: number;
+  historicalDraws?: number;
+  historicalGoalsAgainst?: number;
+  historicalSavePercentage?: number;
 }

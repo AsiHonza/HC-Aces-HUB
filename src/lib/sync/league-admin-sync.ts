@@ -1,6 +1,7 @@
 import * as admin from 'firebase-admin';
 import { ScrapedLeagueData } from './league-scraper';
 import { sendPushToAll } from '../server/web-push';
+import { getCanonicalPlayerName } from '../utils';
 
 export interface AdminSyncResult {
   success: boolean;
@@ -24,8 +25,10 @@ function normalizeNameTokens(name: string): string[] {
 }
 
 function areNamesMatching(nameA: string, nameB: string): boolean {
-  const tokensA = normalizeNameTokens(nameA);
-  const tokensB = normalizeNameTokens(nameB);
+  const canA = getCanonicalPlayerName(nameA);
+  const canB = getCanonicalPlayerName(nameB);
+  const tokensA = normalizeNameTokens(canA);
+  const tokensB = normalizeNameTokens(canB);
 
   if (tokensA.length === tokensB.length && tokensA.every((t) => tokensB.includes(t))) {
     return true;
@@ -35,11 +38,20 @@ function areNamesMatching(nameA: string, nameB: string): boolean {
   const hasToken = (tokens: string[], target: string) => tokens.includes(target);
   if (hasToken(tokensA, 'tzimas') && hasToken(tokensB, 'tzimas')) return true;
   if (
+    (hasToken(tokensA, 'toncek') || (hasToken(tokensA, 'bednar') && hasToken(tokensA, 'antonin'))) &&
+    (hasToken(tokensB, 'toncek') || (hasToken(tokensB, 'bednar') && hasToken(tokensB, 'antonin')))
+  ) {
+    return true;
+  }
+  if (
     (hasToken(tokensA, 'toncek') && (hasToken(tokensB, 'bednar') || hasToken(tokensB, 'antonin'))) ||
     (hasToken(tokensB, 'toncek') && (hasToken(tokensA, 'bednar') || hasToken(tokensA, 'antonin')))
   ) {
     return true;
   }
+  if (hasToken(tokensA, 'bara') && hasToken(tokensB, 'bara')) return true;
+  if (hasToken(tokensA, 'lacko') && hasToken(tokensB, 'lacko')) return true;
+  if (hasToken(tokensA, 'dufek') && hasToken(tokensB, 'dufek')) return true;
 
   return false;
 }
@@ -380,49 +392,27 @@ export async function syncLeagueToAdminFirestore(
   for (const skater of data.acesSkaters) {
     try {
       let matchedUser =
-        existingUsers.find((u) => !String(u.id).startsWith('player-') && u.name && areNamesMatching(u.name, skater.name)) ||
-        existingUsers.find((u) => u.name && areNamesMatching(u.name, skater.name));
+        existingUsers.find((u) => !String(u.id).startsWith('player-') && !String(u.id).startsWith('goalie-') && u.name && areNamesMatching(u.name, skater.name));
 
-      // Odstranit pripadne duplicitni auto-vytvorene ucty (napr. player-tzimas-jorgos vedle G. Tzimas)
-      if (matchedUser && !String(matchedUser.id).startsWith('player-')) {
-        const duplicateAutoUsers = existingUsers.filter(
-          (u) => String(u.id).startsWith('player-') && u.id !== matchedUser.id && u.name && areNamesMatching(u.name, skater.name)
-        );
-        for (const dup of duplicateAutoUsers) {
-          try {
-            await adminDb.doc(`users/${dup.id}/skaterStats/stats`).delete();
-            await adminDb.doc(`users/${dup.id}`).delete();
-          } catch (e) {
-            // ignore
-          }
-        }
+      // Pokud hráč není registrován v aplikaci, bezpečně přeskočíme bez vytváření fiktivních účtů
+      if (!matchedUser) {
+        continue;
       }
 
-      if (!matchedUser) {
-        const parts = skater.name.trim().split(/\s+/);
-        const displayName = parts.length >= 2 ? `${parts.slice(1).join(' ')} ${parts[0]}` : skater.name;
-        const normalizedSlug = normalizeNameTokens(skater.name).join('-');
-        const autoUid = `player-${normalizedSlug}`;
-
-        const newUserDoc = {
-          id: autoUid,
-          name: displayName,
-          email: `${normalizedSlug}@aces.cz`,
-          role: 'classic',
-          playerType: 'player',
-          photoURL: `https://picsum.photos/seed/${autoUid}/200/200`,
-        };
-
-        await adminDb.doc(`users/${autoUid}`).set(newUserDoc, { merge: true });
-        matchedUser = newUserDoc;
-        existingUsers.push(newUserDoc);
+      // Pokud má uživatel v profilu starou přezdívku "Toncek", aktualizujeme jeho jméno na kanonické "Antonín Bednář"
+      const userNormName = (matchedUser.name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+      if (userNormName === 'toncek' || userNormName.includes('toncek')) {
+        try {
+          await adminDb.doc(`users/${matchedUser.id}`).set({ name: 'Antonín Bednář' }, { merge: true });
+          matchedUser.name = 'Antonín Bednář';
+        } catch (e) {
+          // ignore
+        }
       }
 
       syncedSkaterUserIds.add(matchedUser.id);
 
       const statRef = adminDb.doc(`users/${matchedUser.id}/skaterStats/stats`);
-      const existingStatSnap = await statRef.get();
-      const existingStat = existingStatSnap.data();
 
       const sGoals = Number(skater.goals) || 0;
       const sAssists = Number(skater.assists) || 0;
@@ -436,20 +426,7 @@ export async function syncLeagueToAdminFirestore(
         lastSyncedAt: admin.firestore.Timestamp.now(),
       };
 
-      // Oprava drivejsi chyby, kdy se letosni sezonni cisla zapsala i do historical* (vznikl dvojnasobek v Historii)
-      if (
-        existingStat &&
-        existingStat.historicalGoals === existingStat.seasonGoals &&
-        existingStat.historicalAssists === existingStat.seasonAssists &&
-        existingStat.historicalGamesPlayed === existingStat.seasonGamesPlayed &&
-        (existingStat.seasonGamesPlayed || 0) > 0 &&
-        (existingStat.seasonGamesPlayed || 0) <= 6
-      ) {
-        updatePayload.historicalGoals = 0;
-        updatePayload.historicalAssists = 0;
-        updatePayload.historicalGamesPlayed = 0;
-      }
-
+      // Aktualizace statistik výhradně podle oficiálního ligového webu hobbyhokejbrno.cz (pouze aktuální sezóna, NIKDY nepřepisovat ani nenulovat historical*)
       await statRef.set(updatePayload, { merge: true });
       skatersUpdated++;
     } catch (err: any) {
@@ -459,6 +436,7 @@ export async function syncLeagueToAdminFirestore(
 
   // Vynulovat sezónní statistiky u hráčů na soupisce, kteří nejsou v oficiální tabulce střelců (0 bodů v lize)
   for (const u of existingUsers) {
+    if (String(u.id).startsWith('player-') || String(u.id).startsWith('goalie-')) continue;
     if (u.playerType === 'player' && !syncedSkaterUserIds.has(u.id)) {
       try {
         await adminDb.doc(`users/${u.id}/skaterStats/stats`).set(
@@ -480,26 +458,21 @@ export async function syncLeagueToAdminFirestore(
   // 5. Sync Goalie Stats
   for (const goalie of data.acesGoalies) {
     try {
-      let matchedUser = existingUsers.find((u) => u.name && areNamesMatching(u.name, goalie.name));
+      let matchedUser = existingUsers.find((u) => !String(u.id).startsWith('player-') && !String(u.id).startsWith('goalie-') && u.name && areNamesMatching(u.name, goalie.name));
 
       if (!matchedUser) {
-        const parts = goalie.name.trim().split(/\s+/);
-        const displayName = parts.length >= 2 ? `${parts.slice(1).join(' ')} ${parts[0]}` : goalie.name;
-        const normalizedSlug = normalizeNameTokens(goalie.name).join('-');
-        const autoUid = `goalie-${normalizedSlug}`;
+        // Neregistrovaný brankář - přeskočit
+        continue;
+      }
 
-        const newGoalieDoc = {
-          id: autoUid,
-          name: displayName,
-          email: `${normalizedSlug}@aces.cz`,
-          role: 'classic',
-          playerType: 'goalie',
-          photoURL: `https://picsum.photos/seed/${autoUid}/200/200`,
-        };
-
-        await adminDb.doc(`users/${autoUid}`).set(newGoalieDoc, { merge: true });
-        matchedUser = newGoalieDoc;
-        existingUsers.push(newGoalieDoc);
+      // Pokud brankář nemá nastaveno playerType: 'goalie', nastavíme mu ho
+      if (matchedUser.playerType !== 'goalie') {
+        try {
+          await adminDb.doc(`users/${matchedUser.id}`).set({ playerType: 'goalie' }, { merge: true });
+          matchedUser.playerType = 'goalie';
+        } catch (e) {
+          // ignore
+        }
       }
 
       // Spočítáme výhry brankáře ze všech zápasů Aces (z oficiálních reportů i odehraných zápasů)

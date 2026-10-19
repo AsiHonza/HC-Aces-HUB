@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     }
 
     const result = await sendPushToUser(userId, {
-      title: 'HC Aces: Test push notifikace 🏒',
+      title: 'HC Aces: Test push notifikace',
       body: 'Paráda! Systémová oznámení do telefonu ti fungují i při zamknuté obrazovce.',
       url: '/dashboard/settings',
       tag: 'aces-test-push',

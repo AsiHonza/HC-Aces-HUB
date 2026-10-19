@@ -1,11 +1,36 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Trophy, Disc, Award, Shield, Flame, Activity, Star } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { 
+  Trophy, 
+  Disc, 
+  Award, 
+  Shield, 
+  Flame, 
+  Activity, 
+  Star, 
+  Crown, 
+  CheckCircle2, 
+  Sparkles, 
+  Zap, 
+  ShieldCheck,
+  TrendingUp,
+  Crosshair,
+  HeartHandshake,
+  Target,
+  Timer,
+  ChevronDown,
+  ChevronUp
+} from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import { cn } from '@/lib/utils';
+import type { PlayerMilestoneProgress } from '@/features/stats/utils/milestones';
+import { TIER_CONFIG, formatUnitWithCount, getMilestoneRarityScore } from '@/features/stats/utils/milestones';
 
 export interface PlayerSeasonRecord {
   seasonId: string;
@@ -48,15 +73,52 @@ export interface PlayerCareerData {
   };
   skaterSeasons?: PlayerSeasonRecord[];
   goalieSeasons?: GoalieSeasonRecord[];
+  milestones?: PlayerMilestoneProgress[];
 }
 
-interface PlayerCareerModalProps {
+function renderMilestoneIcon(iconName: string, iconColor: string) {
+  switch (iconName) {
+    case 'Crown':
+      return <Crown className={cn("h-4 w-4", iconColor)} />;
+    case 'Flame':
+      return <Flame className={cn("h-4 w-4", iconColor)} />;
+    case 'Disc':
+      return <Disc className={cn("h-4 w-4", iconColor)} />;
+    case 'Award':
+      return <Award className={cn("h-4 w-4", iconColor)} />;
+    case 'Star':
+      return <Star className={cn("h-4 w-4 fill-current", iconColor)} />;
+    case 'ShieldCheck':
+      return <ShieldCheck className={cn("h-4 w-4", iconColor)} />;
+    case 'Zap':
+      return <Zap className={cn("h-4 w-4", iconColor)} />;
+    case 'Sparkles':
+      return <Sparkles className={cn("h-4 w-4", iconColor)} />;
+    case 'Crosshair':
+      return <Crosshair className={cn("h-4 w-4", iconColor)} />;
+    case 'HeartHandshake':
+      return <HeartHandshake className={cn("h-4 w-4", iconColor)} />;
+    case 'Target':
+      return <Target className={cn("h-4 w-4", iconColor)} />;
+    case 'Timer':
+      return <Timer className={cn("h-4 w-4", iconColor)} />;
+    case 'TrendingUp':
+      return <TrendingUp className={cn("h-4 w-4", iconColor)} />;
+    default:
+      return <Shield className={cn("h-4 w-4", iconColor)} />;
+  }
+}
+
+export interface PlayerCareerModalProps {
   player: PlayerCareerData | null;
   isOpen: boolean;
   onClose: () => void;
+  onOpenMilestoneDetail?: (milestoneId: string) => void;
 }
 
-export function PlayerCareerModal({ player, isOpen, onClose }: PlayerCareerModalProps) {
+export function PlayerCareerModal({ player, isOpen, onClose, onOpenMilestoneDetail }: PlayerCareerModalProps) {
+  const [showAllMilestones, setShowAllMilestones] = useState(false);
+
   if (!player) return null;
 
   const isGoalie = player.playerType === 'goalie';
@@ -127,14 +189,17 @@ export function PlayerCareerModal({ player, isOpen, onClose }: PlayerCareerModal
                 <span className="text-sm font-semibold text-amber-500">bodů</span>
               </p>
               <div className="flex items-center gap-1.5 pt-0.5">
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold border border-amber-500/30">
-                  {player.starsStats?.star1Count || 0}x 1. ★
+                <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold border border-amber-500/30">
+                  <Star className="h-2.5 w-2.5 fill-current" />
+                  {player.starsStats?.star1Count || 0}x 1.
                 </span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-500/20 text-zinc-300 font-bold border border-zinc-500/30">
-                  {player.starsStats?.star2Count || 0}x 2. ★
+                <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-zinc-500/20 text-zinc-300 font-bold border border-zinc-500/30">
+                  <Star className="h-2.5 w-2.5 fill-current" />
+                  {player.starsStats?.star2Count || 0}x 2.
                 </span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-800/20 text-amber-600 dark:text-amber-500 font-bold border border-amber-800/30">
-                  {player.starsStats?.star3Count || 0}x 3. ★
+                <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-800/20 text-amber-600 dark:text-amber-500 font-bold border border-amber-800/30">
+                  <Star className="h-2.5 w-2.5 fill-current" />
+                  {player.starsStats?.star3Count || 0}x 3.
                 </span>
               </div>
             </div>
@@ -220,6 +285,140 @@ export function PlayerCareerModal({ player, isOpen, onClose }: PlayerCareerModal
             </div>
           )}
         </div>
+
+        {/* Klubové milníky a Síň slávy hráče */}
+        {player.milestones && player.milestones.length > 0 && (() => {
+          const unlocked = player.milestones.filter(m => m.isUnlocked);
+          const sortedUnlocked = [...unlocked].sort((a, b) => {
+            const scoreA = a.milestone.rarityScore ?? getMilestoneRarityScore(a.milestone);
+            const scoreB = b.milestone.rarityScore ?? getMilestoneRarityScore(b.milestone);
+            return scoreB - scoreA;
+          });
+          const hasMore = sortedUnlocked.length > 3;
+          const displayedUnlocked = showAllMilestones ? sortedUnlocked : sortedUnlocked.slice(0, 3);
+
+          const upcoming = player.milestones
+            .filter(m => !m.isUnlocked && m.current > 0)
+            .sort((a, b) => a.remaining - b.remaining || b.progressPct - a.progressPct)
+            .slice(0, 3);
+
+          return (
+            <div className="mb-4 space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <Trophy className="h-3.5 w-3.5 text-amber-500" />
+                  {unlocked.length > 3 && !showAllMilestones
+                    ? `TOP 3 nejcennější odznaky (${unlocked.length} celkem)`
+                    : `Klubové odznaky & milníky (${unlocked.length} odemčeno)`}
+                </h4>
+                {hasMore && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-[11px] text-primary hover:text-primary font-semibold"
+                    onClick={() => setShowAllMilestones(prev => !prev)}
+                  >
+                    {showAllMilestones ? (
+                      <>
+                        Zobrazit pouze TOP 3
+                        <ChevronUp className="h-3 w-3 ml-1" />
+                      </>
+                    ) : (
+                      <>
+                        Zobrazit všech {unlocked.length} odznaků
+                        <ChevronDown className="h-3 w-3 ml-1" />
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
+
+              {unlocked.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  {displayedUnlocked.map(p => {
+                    const cfg = TIER_CONFIG[p.milestone.tier];
+                    return (
+                      <div
+                        key={p.milestone.id}
+                        onClick={() => {
+                          if (onOpenMilestoneDetail) {
+                            onClose();
+                            onOpenMilestoneDetail(p.milestone.id);
+                          }
+                        }}
+                        className={cn(
+                          "p-2.5 rounded-lg border text-left flex items-start gap-2.5 bg-gradient-to-br transition-all relative overflow-hidden select-none",
+                          onOpenMilestoneDetail && "cursor-pointer hover:shadow-md hover:scale-[1.02] active:scale-[0.99]",
+                          cfg.cardBorderClass,
+                          cfg.glowClass
+                        )}
+                        title={onOpenMilestoneDetail ? "Kliknutím zobrazíte detail odznaku v Síni slávy" : undefined}
+                      >
+                        <div className="h-8 w-8 rounded-md bg-background/80 border border-border flex items-center justify-center shrink-0 mt-0.5">
+                          {renderMilestoneIcon(p.milestone.iconName, cfg.iconColor)}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                            <span className={cn("text-[9px] px-1.5 py-0 rounded border font-bold uppercase tracking-wider", cfg.badgeClass)}>
+                              {cfg.label}
+                            </span>
+                          </div>
+                          <p className="text-xs font-bold leading-snug text-foreground break-words">{p.milestone.title}</p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            {p.current} {formatUnitWithCount(p.current, p.milestone.unit, p.milestone.id)}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground italic bg-muted/20 border border-dashed rounded-lg p-2.5 text-center">
+                  Zatím žádný odemčený milník – pokračuj v bojích za Aces!
+                </p>
+              )}
+
+              {/* Nejbližší cíle s progress barem */}
+              {upcoming.length > 0 && (
+                <div className="pt-1.5 space-y-1.5">
+                  <p className="text-[11px] font-semibold text-muted-foreground">Nejbližší cíle k odemčení:</p>
+                  <div className="space-y-1.5">
+                    {upcoming.map(u => (
+                      <div 
+                        key={u.milestone.id} 
+                        onClick={() => {
+                          if (onOpenMilestoneDetail) {
+                            onClose();
+                            onOpenMilestoneDetail(u.milestone.id);
+                          }
+                        }}
+                        className={cn(
+                          "p-2 rounded-lg bg-muted/40 border border-border/60 text-xs space-y-1 select-none",
+                          onOpenMilestoneDetail && "cursor-pointer hover:border-amber-500/50 hover:bg-muted/70 transition-colors"
+                        )}
+                        title={onOpenMilestoneDetail ? "Kliknutím zobrazíte detail odznaku v Síni slávy" : undefined}
+                      >
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="font-semibold text-foreground flex items-center gap-1.5">
+                            <span className={cn("text-[9px] px-1 py-0 rounded border font-bold", TIER_CONFIG[u.milestone.tier].badgeClass)}>
+                              {TIER_CONFIG[u.milestone.tier].label}
+                            </span>
+                            {u.milestone.title}
+                          </span>
+                          <span className="text-amber-500 font-bold tabular-nums">
+                            {u.current} / {u.target} {formatUnitWithCount(u.target, u.milestone.unit, u.milestone.id)}
+                          </span>
+                        </div>
+                        <Progress value={u.progressPct} className="h-1.5 bg-muted" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Tabulka jednotlivých ročníků */}
         <div className="space-y-2">

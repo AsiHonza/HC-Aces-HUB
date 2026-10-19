@@ -64,7 +64,7 @@ export function NotificationBell() {
     return notifications?.filter(n => !n.read).length || 0;
   }, [notifications]);
 
-  // 75-minute post-match MVP Voting Notification Dispatcher
+  // 90 minut (1,5 hodiny) po začátku zápasu: Notifikační dispečer pro volbu 3 hvězd utkání
   useEffect(() => {
     if (!user || !firestore || !allMatches || allMatches.length === 0) return;
 
@@ -74,15 +74,16 @@ export function NotificationBell() {
         const { status } = getMvpVotingStatus(m, nowMs);
         if (status !== 'open') continue;
 
-        // If user already voted, no need to remind
-        if (m.mvpVotes && m.mvpVotes[user.uid]) continue;
+        // Pokud už uživatel hlasoval, notifikaci neposíláme
+        const hasVoted = Boolean((m.starsVotes && m.starsVotes[user.uid]) || (m.mvpVotes && m.mvpVotes[user.uid]));
+        if (hasVoted) continue;
 
-        const storageKey = `aces_mvp_notified_${m.id}_${user.uid}`;
+        const storageKey = `aces_stars_notified_${m.id}_${user.uid}`;
         if (typeof window !== 'undefined' && localStorage.getItem(storageKey)) {
           continue;
         }
 
-        const notifId = `mvp_${m.id}`;
+        const notifId = `stars_${m.id}`;
         const alreadyInFirestore = notifications?.some((n) => n.id === notifId);
         if (alreadyInFirestore) {
           if (typeof window !== 'undefined') {
@@ -95,8 +96,8 @@ export function NotificationBell() {
           localStorage.setItem(storageKey, 'true');
         }
 
-        const title = 'Hlasování o Hráče zápasu (MVP)';
-        const message = `Utkání ${m.team1} vs ${m.team2} skončilo. Zvol nejlepšího hráče dnešního zápasu v kabině!`;
+        const title = 'Vyhlášení 3 hvězd utkání';
+        const message = `Utkání ${m.team1} vs ${m.team2} skončilo. Uděl 3 hvězdy utkání a ohodnoť výkon svých spoluhráčů!`;
 
         try {
           await setDoc(
@@ -115,12 +116,26 @@ export function NotificationBell() {
 
           await sendSystemNotification(title, {
             body: message,
-            url: `/dashboard?matchId=${m.id}&reason=mvp&t=${Date.now()}`,
+            url: `/dashboard?matchId=${m.id}&reason=stars&t=${Date.now()}`,
             id: notifId,
-            tag: `aces-mvp-${m.id}`,
+            tag: `aces-stars-${m.id}`,
           });
+
+          // Dispečink Web Push na zařízení uživatele
+          fetch('/api/notifications/push', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: user.uid,
+              title,
+              body: message,
+              url: `/dashboard?matchId=${m.id}&reason=stars`,
+              tag: `aces-stars-${m.id}`,
+              id: notifId,
+            }),
+          }).catch(() => {});
         } catch (e) {
-          // Ignore transient errors
+          // Ignorovat případné dočasné chyby sítě
         }
       }
     };

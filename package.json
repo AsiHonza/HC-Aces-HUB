@@ -15,6 +15,7 @@
     "emulators": "firebase emulators:start --import=./emulator-data --export-on-exit",
     "seed:dev": "tsx scripts/seed-dev-data.ts",
     "sync:league": "tsx scripts/sync-league.ts",
+    "stats:restore-history": "tsx scripts/restore-historical-stats.ts",
     "test:e2e": "playwright test",
     "test:e2e:fast": "playwright test --project=\"Desktop Chrome\"",
     "test:e2e:ui": "playwright test --ui",

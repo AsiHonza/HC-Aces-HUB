@@ -15,6 +15,10 @@ export interface LeagueStanding {
   points: number;
   gf: number;
   ga: number;
+  gp?: number;
+  w?: number;
+  d?: number;
+  l?: number;
 }
 
 export interface PlayerScoringRow {

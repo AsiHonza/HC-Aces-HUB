@@ -102,7 +102,7 @@ export function HeadToHeadSection({
           {/* 2 ŘÁDKY BILANCE: Aktuální sezóna + Historicky */}
           <div className="space-y-1.5">
             {/* Řádek 1: Bilance v aktuální sezóně */}
-            <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-md bg-background/80 border border-border/60 text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-md bg-card/90 dark:bg-muted/40 border border-border/70 text-xs">
               <div className="flex items-center gap-2">
                 <span className="text-muted-foreground font-medium">Bilance v aktuální sezóně:</span>
                 {h2h.currentSeason.totalPlayed > 0 ? (
@@ -117,7 +117,7 @@ export function HeadToHeadSection({
                     </span>
                   </div>
                 ) : (
-                  <span className="text-muted-foreground italic text-[11px]">V této sezóně zatím neodehrán žádný zápas</span>
+                  <span className="text-muted-foreground font-medium italic text-[11px]">V této sezóně zatím neodehrán žádný zápas</span>
                 )}
               </div>
               {h2h.currentSeason.totalPlayed > 0 && (
@@ -131,7 +131,7 @@ export function HeadToHeadSection({
             </div>
 
             {/* Řádek 2: Bilance historicky */}
-            <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-md bg-background/80 border border-border/60 text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-md bg-card/90 dark:bg-muted/40 border border-border/70 text-xs">
               <div className="flex items-center gap-2">
                 <span className="text-muted-foreground font-medium">Bilance historicky:</span>
                 {h2h.historical.totalPlayed > 0 ? (
@@ -146,7 +146,7 @@ export function HeadToHeadSection({
                     </span>
                   </div>
                 ) : (
-                  <span className="text-muted-foreground italic text-[11px]">Žádné historické zápasy nebyly nalezeny</span>
+                  <span className="text-muted-foreground font-medium italic text-[11px]">Žádné historické zápasy nebyly nalezeny</span>
                 )}
               </div>
               {h2h.historical.totalPlayed > 0 && (
@@ -231,18 +231,25 @@ export function HeadToHeadSection({
                 {h2h.keyOpponentPlayers.map((sk) => (
                   <div
                     key={sk.name}
-                    className="flex items-center justify-between px-2.5 py-1 rounded bg-background/80 border border-border/60 text-xs"
+                    className="flex items-center justify-between px-2.5 py-1.5 rounded-md bg-card dark:bg-muted/40 border border-border/80 text-xs shadow-xs hover:border-primary/40 transition-colors"
                   >
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="text-[10px] font-bold text-muted-foreground w-3.5">{sk.rank}.</span>
+                    <div className="flex items-center gap-1.5 min-w-0 pr-1">
+                      <span className="text-[10px] font-bold text-muted-foreground w-3.5 shrink-0">{sk.rank}.</span>
                       <span className="font-semibold truncate">{sk.name}</span>
                     </div>
-                    <span className="font-bold text-primary shrink-0 ml-1.5 font-mono">
-                      {sk.points} B{' '}
-                      <span className="text-[10px] text-muted-foreground font-normal font-sans">
-                        ({sk.goals}+{sk.assists})
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {sk.gamesPlayed !== undefined && sk.gamesPlayed !== null && (
+                        <span className="text-[11px] font-bold text-foreground/80 bg-muted/80 dark:bg-background/60 px-1.5 py-0.5 rounded border border-border/60">
+                          {sk.gamesPlayed} Z
+                        </span>
+                      )}
+                      <span className="font-bold text-primary font-mono whitespace-nowrap">
+                        {sk.points} B{' '}
+                        <span className="text-[10px] text-muted-foreground font-normal font-sans">
+                          ({sk.goals}+{sk.assists})
+                        </span>
                       </span>
-                    </span>
+                    </div>
                   </div>
                 ))}
               </div>

@@ -8,6 +8,12 @@ export interface StandingsTeam {
   gf: number;
   ga: number;
   points: number;
+  gp?: number;
+  gamesPlayed?: number;
+  matches?: number;
+  w?: number;
+  d?: number;
+  l?: number;
 }
 
 interface LeagueStandingsTableProps {
@@ -25,6 +31,7 @@ export function LeagueStandingsTable({ standings, className }: LeagueStandingsTa
           <TableRow>
             <TableHead className="w-8 px-2 text-center">#</TableHead>
             <TableHead className="px-2">Tým</TableHead>
+            <TableHead className="text-center px-1 font-bold">Z</TableHead>
             <TableHead className="text-center px-1">GF</TableHead>
             <TableHead className="text-center px-1">GA</TableHead>
             <TableHead className="text-right px-2">B</TableHead>
@@ -33,6 +40,12 @@ export function LeagueStandingsTable({ standings, className }: LeagueStandingsTa
         <TableBody>
           {sorted.map((team, idx) => {
             const isAces = team.name.toLowerCase().includes('aces');
+            const gamesPlayed =
+              team.gp ??
+              team.gamesPlayed ??
+              team.matches ??
+              (team.w != null && team.l != null ? team.w + (team.d || 0) + team.l : null);
+
             return (
               <TableRow
                 key={team.id || team.name}
@@ -41,6 +54,9 @@ export function LeagueStandingsTable({ standings, className }: LeagueStandingsTa
                 <TableCell className="px-2 text-center tabular-nums">{idx + 1}.</TableCell>
                 <TableCell className="px-2">
                   <span className={cn(isAces && 'text-primary')}>{team.name}</span>
+                </TableCell>
+                <TableCell className="text-center px-1 tabular-nums font-semibold text-foreground/80">
+                  {gamesPlayed !== null ? gamesPlayed : '-'}
                 </TableCell>
                 <TableCell className="text-center px-1 tabular-nums">{team.gf}</TableCell>
                 <TableCell className="text-center px-1 tabular-nums">{team.ga}</TableCell>
@@ -52,7 +68,7 @@ export function LeagueStandingsTable({ standings, className }: LeagueStandingsTa
           })}
           {sorted.length === 0 && (
             <TableRow>
-              <TableCell colSpan={5} className="text-center py-6 text-muted-foreground italic">
+              <TableCell colSpan={6} className="text-center py-6 text-muted-foreground italic">
                 Tabulka zatím není vyplněna.
               </TableCell>
             </TableRow>

@@ -22,13 +22,13 @@ export function escapeIcsText(text: string): string {
 
 /**
  * Generates a single VEVENT block for a match.
- * - Match duration: 75 minutes
+ * - Match duration: 90 minutes (1.5 hours)
  * - Locker room gathering (Sraz v kabině): 45 minutes before faceoff (with VALARM)
  */
 export function generateMatchVEvent(match: Match): string {
   const startDate = toSafeDate(match.dateTime || match.date) ?? new Date();
-  // 75 minutes match duration
-  const endDate = new Date(startDate.getTime() + 75 * 60 * 1000);
+  // 90 minutes (1.5 hours) match duration
+  const endDate = new Date(startDate.getTime() + 90 * 60 * 1000);
   // 45 minutes before start = locker room gathering time
   const gatheringDate = new Date(startDate.getTime() - 45 * 60 * 1000);
   const gatheringTimeStr = format(gatheringDate, 'HH:mm');

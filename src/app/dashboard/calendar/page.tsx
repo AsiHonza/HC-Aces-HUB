@@ -112,7 +112,7 @@ function CalendarPageContent() {
             <CalendarSyncCard matches={allMatches || []} />
 
             <div className="grid gap-8 md:grid-cols-12">
-                <Card className="md:col-span-5 lg:col-span-4 h-fit">
+                <Card className="md:col-span-5 lg:col-span-4 h-fit border-border/60 shadow-sm card-hover-effect">
                     <CardHeader>
                         <CardTitle>Kalendář událostí</CardTitle>
                         <CardDescription>Vyberte den pro detaily nebo přidání zápasu.</CardDescription>
@@ -151,7 +151,7 @@ function CalendarPageContent() {
                     
                     <div className="grid gap-4">
                         {birthdaysOnSelectedDate.length > 0 && (
-                            <Card className="border-l-4 border-l-amber-500 bg-amber-500/5">
+                            <Card className="border-l-4 border-l-amber-500 bg-amber-500/5 card-hover-effect">
                                 <CardHeader className="py-3">
                                     <div className="flex items-center gap-2 text-amber-500">
                                         <Cake className="h-5 w-5" />
@@ -179,7 +179,7 @@ function CalendarPageContent() {
                                 const { prefix, opponent } = getMatchDetails(match);
                                 const matchStart = toJsDate(match.dateTime);
                                 return (
-                                    <Card key={match.id} className="overflow-hidden border-l-4 border-l-primary">
+                                    <Card key={match.id} className="overflow-hidden border-l-4 border-l-primary card-hover-effect border-border/60 shadow-sm">
                                         <CardHeader className="pb-2">
                                             <div className="flex justify-between items-start gap-2">
                                                 <div className="flex-1 min-w-0">

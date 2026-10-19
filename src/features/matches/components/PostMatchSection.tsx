@@ -50,90 +50,60 @@ interface StarCountsStackProps {
 
 function StarCountsStack({ star1Count, star2Count, star3Count }: StarCountsStackProps) {
   return (
-    <div className="mt-3 w-full space-y-1.5 text-left">
-      {/* Zlatá */}
-      <div
+    <div className="mt-2 flex items-center justify-center gap-1.5 w-full text-xs">
+      <span
+        title="1. hvězda (zlatá, 3b)"
         className={cn(
-          'flex items-center justify-between px-2.5 py-1 rounded-lg border text-xs transition-colors',
+          'inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold border tabular-nums',
           star1Count > 0
-            ? 'bg-amber-500/15 border-amber-500/35 text-amber-500 shadow-sm'
-            : 'bg-muted/15 border-border/25 text-muted-foreground/50'
+            ? 'bg-amber-500/20 border-amber-500/50 text-amber-600 dark:text-amber-400 shadow-xs'
+            : 'bg-muted/40 border-border/60 text-muted-foreground/60'
         )}
       >
-        <span className="flex items-center gap-1.5 text-[11px] font-semibold">
-          <Star
-            className={cn(
-              'h-3.5 w-3.5 shrink-0',
-              star1Count > 0 ? 'fill-amber-500 text-amber-500' : 'text-muted-foreground/35'
-            )}
-          />
-          <span>Zlatá hvězda</span>
-        </span>
-        <span
+        <Star
           className={cn(
-            'font-black tabular-nums text-xs',
-            star1Count > 0 ? 'text-foreground' : 'text-muted-foreground/50'
+            'h-3 w-3',
+            star1Count > 0 ? 'fill-amber-500 text-amber-500' : 'text-muted-foreground/40'
           )}
-        >
-          {star1Count}x
-        </span>
-      </div>
+        />
+        {star1Count}x
+      </span>
 
-      {/* Stříbrná */}
-      <div
+      <span
+        title="2. hvězda (stříbrná, 2b)"
         className={cn(
-          'flex items-center justify-between px-2.5 py-1 rounded-lg border text-xs transition-colors',
+          'inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold border tabular-nums',
           star2Count > 0
-            ? 'bg-zinc-400/15 border-zinc-400/35 text-zinc-300 shadow-sm'
-            : 'bg-muted/15 border-border/25 text-muted-foreground/50'
+            ? 'bg-slate-400/20 border-slate-400/50 text-slate-700 dark:text-slate-200 shadow-xs'
+            : 'bg-muted/40 border-border/60 text-muted-foreground/60'
         )}
       >
-        <span className="flex items-center gap-1.5 text-[11px] font-semibold">
-          <Star
-            className={cn(
-              'h-3.5 w-3.5 shrink-0',
-              star2Count > 0 ? 'fill-zinc-400 text-zinc-400' : 'text-muted-foreground/35'
-            )}
-          />
-          <span>Stříbrná hvězda</span>
-        </span>
-        <span
+        <Star
           className={cn(
-            'font-black tabular-nums text-xs',
-            star2Count > 0 ? 'text-foreground' : 'text-muted-foreground/50'
+            'h-3 w-3',
+            star2Count > 0 ? 'fill-slate-400 text-slate-400' : 'text-muted-foreground/40'
           )}
-        >
-          {star2Count}x
-        </span>
-      </div>
+        />
+        {star2Count}x
+      </span>
 
-      {/* Bronzová */}
-      <div
+      <span
+        title="3. hvězda (bronzová, 1b)"
         className={cn(
-          'flex items-center justify-between px-2.5 py-1 rounded-lg border text-xs transition-colors',
+          'inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold border tabular-nums',
           star3Count > 0
-            ? 'bg-amber-800/20 border-amber-800/40 text-amber-600 dark:text-amber-500 shadow-sm'
-            : 'bg-muted/15 border-border/25 text-muted-foreground/50'
+            ? 'bg-amber-700/20 border-amber-700/50 text-amber-700 dark:text-amber-300 shadow-xs'
+            : 'bg-muted/40 border-border/60 text-muted-foreground/60'
         )}
       >
-        <span className="flex items-center gap-1.5 text-[11px] font-semibold">
-          <Star
-            className={cn(
-              'h-3.5 w-3.5 shrink-0',
-              star3Count > 0 ? 'fill-amber-700 text-amber-700' : 'text-muted-foreground/35'
-            )}
-          />
-          <span>Bronzová hvězda</span>
-        </span>
-        <span
+        <Star
           className={cn(
-            'font-black tabular-nums text-xs',
-            star3Count > 0 ? 'text-foreground' : 'text-muted-foreground/50'
+            'h-3 w-3',
+            star3Count > 0 ? 'fill-amber-600 text-amber-600' : 'text-muted-foreground/40'
           )}
-        >
-          {star3Count}x
-        </span>
-      </div>
+        />
+        {star3Count}x
+      </span>
     </div>
   );
 }
@@ -495,22 +465,22 @@ export function PostMatchSection({
           {/* PÓDIUM 3 HVĚZD UTKÁNÍ */}
           {hasAnyVotes ? (
             <div className="space-y-4 w-full min-w-0 max-w-full">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5 w-full min-w-0 max-w-full">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4 w-full min-w-0 max-w-full">
                 {/* 1. Hvězda (Zlato) */}
                 {starsResults.firstStar && (
-                  <div className="relative rounded-2xl border-2 border-amber-500/60 bg-gradient-to-b from-amber-500/20 via-amber-500/10 to-card/90 p-4 sm:p-6 shadow-md shadow-amber-500/10 flex flex-col items-center justify-between text-center min-h-[280px] w-full min-w-0 max-w-full overflow-hidden">
-                    <Badge className="bg-amber-500 text-black font-black uppercase tracking-wider text-xs px-3 py-1 shadow shrink-0">
-                      <Star className="h-3.5 w-3.5 fill-black mr-1" /> 1. Hvězda
+                  <div className="relative rounded-xl border-2 border-amber-500/60 bg-gradient-to-b from-amber-500/15 via-amber-500/5 to-card/95 p-3.5 sm:p-4 shadow-sm flex flex-col items-center justify-between text-center w-full min-w-0 max-w-full overflow-hidden">
+                    <Badge className="bg-amber-500 text-black font-black uppercase tracking-wider text-[11px] px-2.5 py-0.5 shadow shrink-0">
+                      <Star className="h-3 w-3 fill-black mr-1" /> 1. Hvězda
                     </Badge>
 
-                    <div className="flex flex-col items-center my-3 w-full min-w-0 px-1">
-                      <div className="relative mb-2 shrink-0">
-                        <Avatar className="h-16 w-16 sm:h-20 sm:w-20 border-2 border-amber-500 shadow-md">
+                    <div className="flex flex-col items-center my-2.5 w-full min-w-0 px-1">
+                      <div className="relative mb-1.5 shrink-0">
+                        <Avatar className="h-14 w-14 sm:h-16 sm:w-16 border-2 border-amber-500 shadow-sm">
                           <AvatarImage
                             src={starsResults.firstStar.photoURL || undefined}
                             alt={starsResults.firstStar.name}
                           />
-                          <AvatarFallback className="font-bold text-base">
+                          <AvatarFallback className="font-bold text-sm">
                             {starsResults.firstStar.name
                               .split(' ')
                               .map((n) => n[0])
@@ -519,24 +489,24 @@ export function PostMatchSection({
                           </AvatarFallback>
                         </Avatar>
                         {starsResults.firstStar.jerseyNumber && (
-                          <span className="absolute -bottom-1 -right-1 bg-amber-500 text-black text-[11px] font-black px-1.5 py-0.5 rounded-full shadow">
+                          <span className="absolute -bottom-1 -right-1 bg-amber-500 text-black text-[10px] font-black px-1.5 py-0.2 rounded-full shadow">
                             #{starsResults.firstStar.jerseyNumber}
                           </span>
                         )}
                       </div>
 
-                      <p className="text-lg sm:text-xl font-black font-headline tracking-tight text-foreground leading-snug truncate max-w-full" title={starsResults.firstStar.name}>
+                      <p className="text-base sm:text-lg font-bold font-headline tracking-tight text-foreground leading-snug truncate max-w-full" title={starsResults.firstStar.name}>
                         {starsResults.firstStar.name}
                       </p>
-                      <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-full">
+                      <p className="text-[11px] text-muted-foreground mt-0.5 truncate max-w-full">
                         {starsResults.firstStar.playerType === 'goalie' ? 'Brankář' : 'Útočník / Obránce'}
                       </p>
                     </div>
 
                     <div className="pt-2 border-t border-amber-500/20 w-full min-w-0">
-                      <p className="text-xl sm:text-2xl font-black text-amber-500 tabular-nums">
+                      <p className="text-lg sm:text-xl font-black text-amber-500 tabular-nums">
                         {starsResults.firstStar.points}{' '}
-                        <span className="text-xs font-bold text-muted-foreground uppercase">
+                        <span className="text-[11px] font-bold text-muted-foreground uppercase">
                           {starsResults.firstStar.points === 1
                             ? 'bod'
                             : starsResults.firstStar.points < 5
@@ -555,22 +525,22 @@ export function PostMatchSection({
 
                 {/* 2. Hvězda (Stříbro) */}
                 {starsResults.secondStar && (
-                  <div className="relative rounded-2xl border-2 border-zinc-400/50 bg-gradient-to-b from-zinc-400/15 via-zinc-400/5 to-card/90 p-4 sm:p-5 shadow-sm flex flex-col items-center justify-between text-center min-h-[280px] w-full min-w-0 max-w-full overflow-hidden">
+                  <div className="relative rounded-xl border border-slate-400/40 bg-gradient-to-b from-slate-400/10 via-slate-400/5 to-card/95 p-3.5 sm:p-4 shadow-sm flex flex-col items-center justify-between text-center w-full min-w-0 max-w-full overflow-hidden">
                     <Badge
                       variant="outline"
-                      className="border-zinc-400 text-zinc-300 font-extrabold uppercase tracking-wider text-xs px-3 py-1 bg-zinc-400/10 shrink-0"
+                      className="border-slate-300 dark:border-slate-400 text-slate-700 dark:text-slate-100 font-extrabold uppercase tracking-wider text-[11px] px-2.5 py-0.5 bg-slate-300/20 shrink-0"
                     >
-                      <Star className="h-3.5 w-3.5 fill-zinc-400 mr-1" /> 2. Hvězda
+                      <Star className="h-3 w-3 fill-slate-400 text-slate-400 mr-1" /> 2. Hvězda
                     </Badge>
 
-                    <div className="flex flex-col items-center my-3 w-full min-w-0 px-1">
-                      <div className="relative mb-2 shrink-0">
-                        <Avatar className="h-14 w-14 sm:h-16 sm:w-16 border-2 border-zinc-400 shadow-sm">
+                    <div className="flex flex-col items-center my-2.5 w-full min-w-0 px-1">
+                      <div className="relative mb-1.5 shrink-0">
+                        <Avatar className="h-12 w-12 sm:h-14 sm:w-14 border border-slate-400 shadow-sm">
                           <AvatarImage
                             src={starsResults.secondStar.photoURL || undefined}
                             alt={starsResults.secondStar.name}
                           />
-                          <AvatarFallback className="font-bold text-sm">
+                          <AvatarFallback className="font-bold text-xs">
                             {starsResults.secondStar.name
                               .split(' ')
                               .map((n) => n[0])
@@ -579,24 +549,24 @@ export function PostMatchSection({
                           </AvatarFallback>
                         </Avatar>
                         {starsResults.secondStar.jerseyNumber && (
-                          <span className="absolute -bottom-1 -right-1 bg-zinc-400 text-black text-[10px] font-black px-1.5 py-0.5 rounded-full shadow">
+                          <span className="absolute -bottom-1 -right-1 bg-slate-300 dark:bg-slate-200 text-slate-900 text-[9px] font-black px-1.5 py-0.2 rounded-full shadow">
                             #{starsResults.secondStar.jerseyNumber}
                           </span>
                         )}
                       </div>
 
-                      <p className="text-base sm:text-lg font-extrabold font-headline text-foreground leading-snug truncate max-w-full" title={starsResults.secondStar.name}>
+                      <p className="text-sm sm:text-base font-bold font-headline text-foreground leading-snug truncate max-w-full" title={starsResults.secondStar.name}>
                         {starsResults.secondStar.name}
                       </p>
-                      <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-full">
+                      <p className="text-[11px] text-muted-foreground mt-0.5 truncate max-w-full">
                         {starsResults.secondStar.playerType === 'goalie' ? 'Brankář' : 'Útočník / Obránce'}
                       </p>
                     </div>
 
-                    <div className="pt-2 border-t border-zinc-400/20 w-full min-w-0">
-                      <p className="text-lg sm:text-xl font-black text-zinc-300 tabular-nums">
+                    <div className="pt-2 border-t border-slate-400/20 w-full min-w-0">
+                      <p className="text-base sm:text-lg font-black text-slate-800 dark:text-slate-100 tabular-nums">
                         {starsResults.secondStar.points}{' '}
-                        <span className="text-xs font-bold text-muted-foreground uppercase">
+                        <span className="text-[11px] font-bold text-muted-foreground uppercase">
                           {starsResults.secondStar.points === 1
                             ? 'bod'
                             : starsResults.secondStar.points < 5
@@ -615,22 +585,22 @@ export function PostMatchSection({
 
                 {/* 3. Hvězda (Bronz) */}
                 {starsResults.thirdStar && (
-                  <div className="relative rounded-2xl border-2 border-amber-700/50 bg-gradient-to-b from-amber-700/15 via-amber-700/5 to-card/90 p-4 sm:p-5 shadow-sm flex flex-col items-center justify-between text-center min-h-[280px] w-full min-w-0 max-w-full overflow-hidden">
+                  <div className="relative rounded-xl border border-amber-600/40 bg-gradient-to-b from-amber-600/10 via-amber-600/5 to-card/95 p-3.5 sm:p-4 shadow-sm flex flex-col items-center justify-between text-center w-full min-w-0 max-w-full overflow-hidden">
                     <Badge
                       variant="outline"
-                      className="border-amber-700 text-amber-600 font-extrabold uppercase tracking-wider text-xs px-3 py-1 bg-amber-700/10 shrink-0"
+                      className="border-amber-600 dark:border-amber-500/70 text-amber-700 dark:text-amber-300 font-extrabold uppercase tracking-wider text-[11px] px-2.5 py-0.5 bg-amber-600/15 shrink-0"
                     >
-                      <Star className="h-3.5 w-3.5 fill-amber-700 mr-1" /> 3. Hvězda
+                      <Star className="h-3 w-3 fill-amber-600 text-amber-600 mr-1" /> 3. Hvězda
                     </Badge>
 
-                    <div className="flex flex-col items-center my-3 w-full min-w-0 px-1">
-                      <div className="relative mb-2 shrink-0">
-                        <Avatar className="h-14 w-14 sm:h-16 sm:w-16 border-2 border-amber-700 shadow-sm">
+                    <div className="flex flex-col items-center my-2.5 w-full min-w-0 px-1">
+                      <div className="relative mb-1.5 shrink-0">
+                        <Avatar className="h-12 w-12 sm:h-14 sm:w-14 border border-amber-600 shadow-sm">
                           <AvatarImage
                             src={starsResults.thirdStar.photoURL || undefined}
                             alt={starsResults.thirdStar.name}
                           />
-                          <AvatarFallback className="font-bold text-sm">
+                          <AvatarFallback className="font-bold text-xs">
                             {starsResults.thirdStar.name
                               .split(' ')
                               .map((n) => n[0])
@@ -639,24 +609,24 @@ export function PostMatchSection({
                           </AvatarFallback>
                         </Avatar>
                         {starsResults.thirdStar.jerseyNumber && (
-                          <span className="absolute -bottom-1 -right-1 bg-amber-700 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full shadow">
+                          <span className="absolute -bottom-1 -right-1 bg-amber-600 text-white text-[9px] font-black px-1.5 py-0.2 rounded-full shadow">
                             #{starsResults.thirdStar.jerseyNumber}
                           </span>
                         )}
                       </div>
 
-                      <p className="text-base sm:text-lg font-extrabold font-headline text-foreground leading-snug truncate max-w-full" title={starsResults.thirdStar.name}>
+                      <p className="text-sm sm:text-base font-bold font-headline text-foreground leading-snug truncate max-w-full" title={starsResults.thirdStar.name}>
                         {starsResults.thirdStar.name}
                       </p>
-                      <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-full">
+                      <p className="text-[11px] text-muted-foreground mt-0.5 truncate max-w-full">
                         {starsResults.thirdStar.playerType === 'goalie' ? 'Brankář' : 'Útočník / Obránce'}
                       </p>
                     </div>
 
-                    <div className="pt-2 border-t border-amber-700/20 w-full min-w-0">
-                      <p className="text-lg sm:text-xl font-black text-amber-600 tabular-nums">
+                    <div className="pt-2 border-t border-amber-600/20 w-full min-w-0">
+                      <p className="text-base sm:text-lg font-black text-amber-700 dark:text-amber-300 tabular-nums">
                         {starsResults.thirdStar.points}{' '}
-                        <span className="text-xs font-bold text-muted-foreground uppercase">
+                        <span className="text-[11px] font-bold text-muted-foreground uppercase">
                           {starsResults.thirdStar.points === 1
                             ? 'bod'
                             : starsResults.thirdStar.points < 5

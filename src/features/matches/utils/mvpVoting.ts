@@ -1,8 +1,9 @@
 import type { Match, UserProfile } from '@/types';
 import { toSafeDate } from '@/lib/dates';
+import { isGoaliePlayer } from '@/lib/utils';
 
-/** 75 minutes after match start = match ends & players are in the locker room */
-export const MVP_OPEN_DELAY_MS = 75 * 60 * 1000;
+/** 90 minutes (1.5 hours) after match start = match ends & players are in the locker room ready to vote */
+export const MVP_OPEN_DELAY_MS = 90 * 60 * 1000;
 
 /** Voting stays open for 72 hours (3 days) after opening */
 export const MVP_WINDOW_DURATION_MS = 72 * 60 * 60 * 1000;
@@ -85,7 +86,7 @@ export function getMatchMvpCandidates(
           name: profile?.name || slotPlayer.name,
           jerseyNumber: profile?.jerseyNumber ?? slotPlayer.jerseyNumber ?? null,
           photoURL: profile?.photoURL ?? null,
-          playerType: profile?.playerType || 'player',
+          playerType: isGoaliePlayer(profile) || isGoaliePlayer(slotPlayer) ? 'goalie' : (profile?.playerType || 'player'),
         });
       }
     });
@@ -97,13 +98,13 @@ export function getMatchMvpCandidates(
       .filter((a) => a.status === 'going')
       .forEach((a) => {
         const profile = usersMap.get(a.userId);
-        if (profile && (profile.playerType === 'player' || profile.playerType === 'goalie')) {
+        if (profile && (profile.playerType === 'player' || profile.playerType === 'goalie' || isGoaliePlayer(profile))) {
           candidateMap.set(profile.id, {
             id: profile.id,
             name: profile.name,
             jerseyNumber: profile.jerseyNumber ?? null,
             photoURL: profile.photoURL ?? null,
-            playerType: profile.playerType,
+            playerType: isGoaliePlayer(profile) ? 'goalie' : profile.playerType,
           });
         }
       });
@@ -112,14 +113,14 @@ export function getMatchMvpCandidates(
   // 3. Fallback to all skaters and goalies on roster
   if (candidateMap.size === 0) {
     users
-      .filter((u) => u.playerType === 'player' || u.playerType === 'goalie')
+      .filter((u) => u.playerType === 'player' || u.playerType === 'goalie' || isGoaliePlayer(u))
       .forEach((u) => {
         candidateMap.set(u.id, {
           id: u.id,
           name: u.name,
           jerseyNumber: u.jerseyNumber ?? null,
           photoURL: u.photoURL ?? null,
-          playerType: u.playerType,
+          playerType: isGoaliePlayer(u) ? 'goalie' : u.playerType,
         });
       });
   }

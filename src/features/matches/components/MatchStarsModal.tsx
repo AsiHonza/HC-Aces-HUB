@@ -15,7 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Star, Loader2, Check } from 'lucide-react';
 import { useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
-import { formatName } from '@/lib/utils';
+import { cn, formatName } from '@/lib/utils';
 import { getMvpVotingStatus, getMatchMvpCandidates, MvpCandidate } from '../utils/mvpVoting';
 import { matchesService } from '../services/matchesService';
 import { getMatchOpponentName } from '../utils/headToHead';
@@ -28,6 +28,7 @@ export interface MatchStarsModalProps {
   attendees?: Array<{ userId: string; status: string }>;
   isOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
+  onSubmitVote?: (vote: { star1: string; star2: string; star3: string }) => Promise<void> | void;
 }
 
 export function MatchStarsModal({
@@ -37,6 +38,7 @@ export function MatchStarsModal({
   attendees = [],
   isOpen: propIsOpen,
   onOpenChange,
+  onSubmitVote,
 }: MatchStarsModalProps) {
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -112,7 +114,7 @@ export function MatchStarsModal({
       return;
     }
 
-    if (!isControlled) setInternalIsOpen(true);
+    setModalOpen(true);
   }, [match, currentUserId, candidates, attendees, isControlled]);
 
   const handleDismiss = () => {
@@ -123,7 +125,7 @@ export function MatchStarsModal({
   };
 
   const handleSubmit = async () => {
-    if (!firestore || !match || !currentUserId) return;
+    if (!match || !currentUserId) return;
 
     if (!selectedStar1 || !selectedStar2 || !selectedStar3) {
       toast({
@@ -162,23 +164,32 @@ export function MatchStarsModal({
 
     setSubmitting(true);
     try {
-      await matchesService.submitMatchStarsVote(
-        firestore,
-        match.id,
-        currentUserId,
-        {
+      if (onSubmitVote) {
+        await onSubmitVote({
           star1: selectedStar1,
           star2: selectedStar2,
           star3: selectedStar3,
-        },
-        match.starsVotes || {},
-        match.mvpVotes || {}
-      );
+        });
+      } else {
+        if (!firestore) return;
+        await matchesService.submitMatchStarsVote(
+          firestore,
+          match.id,
+          currentUserId,
+          {
+            star1: selectedStar1,
+            star2: selectedStar2,
+            star3: selectedStar3,
+          },
+          match.starsVotes || {},
+          match.mvpVotes || {}
+        );
 
-      toast({
-        title: 'Hlasování zaznamenáno',
-        description: 'Vaše 3 hvězdy zápasu byly úspěšně uloženy.',
-      });
+        toast({
+          title: 'Hlasování zaznamenáno',
+          description: 'Vaše 3 hvězdy zápasu byly úspěšně uloženy.',
+        });
+      }
       setModalOpen(false);
     } catch (err: any) {
       toast({
@@ -215,22 +226,22 @@ export function MatchStarsModal({
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          {/* Slot 1: 1. Hvězda */}
-          <div className="p-3.5 rounded-xl border border-primary/40 bg-primary/5 space-y-2">
+          {/* Slot 1: 1. Hvězda (Zlato - 3b) */}
+          <div className="p-3.5 rounded-xl border border-amber-500/40 bg-amber-500/5 space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-full bg-primary/20 text-primary">
-                  <Star className="h-4 w-4 fill-primary" />
+                <div className="p-1.5 rounded-full bg-amber-500/20 text-amber-500">
+                  <Star className="h-4 w-4 fill-amber-500" />
                 </div>
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-wide text-primary">
+                  <p className="text-xs font-bold uppercase tracking-wide text-amber-600 dark:text-amber-400">
                     1. Hvězda (3 body)
                   </p>
                   <p className="text-[11px] text-muted-foreground">Nejlepší hráč utkání</p>
                 </div>
               </div>
               {selectedStar1 && (
-                <Badge variant="outline" className="text-[10px] border-primary/50 text-primary">
+                <Badge variant="outline" className="text-[10px] border-amber-500/50 bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold">
                   Vybráno
                 </Badge>
               )}
@@ -246,41 +257,47 @@ export function MatchStarsModal({
                     key={c.id}
                     disabled={isUsedElsewhere}
                     onClick={() => setSelectedStar1(c.id)}
-                    className={`flex items-center gap-2 p-2 rounded-lg border text-left text-xs transition-colors ${
+                    className={cn(
+                      'flex items-center gap-2 p-2 rounded-lg border text-left text-xs transition-all',
                       isSelected
-                        ? 'border-primary bg-primary text-primary-foreground font-bold shadow-sm'
+                        ? 'border-amber-500 bg-amber-500/20 text-foreground font-bold shadow-xs ring-1 ring-amber-500/50'
                         : isUsedElsewhere
-                        ? 'opacity-40 border-border/30 bg-muted/10 cursor-not-allowed'
-                        : 'border-border/70 hover:border-primary/50 bg-card'
-                    }`}
+                        ? 'opacity-35 border-border/30 bg-muted/20 cursor-not-allowed text-muted-foreground'
+                        : 'border-border/70 hover:border-amber-500/50 hover:bg-muted/40 bg-card text-foreground'
+                    )}
                   >
-                    <Avatar className="h-6 w-6 shrink-0 border">
+                    <Avatar className="h-6 w-6 shrink-0 border border-border/60">
                       <AvatarImage src={c.photoURL || undefined} />
-                      <AvatarFallback className="text-[10px]">{c.name[0]}</AvatarFallback>
+                      <AvatarFallback className="text-[10px] font-bold">{c.name[0]}</AvatarFallback>
                     </Avatar>
-                    <span className="truncate">{formatName(c.name)}</span>
+                    <span className="truncate flex-1 font-medium">{formatName(c.name)}</span>
+                    {c.jerseyNumber != null && (
+                      <span className="text-[10px] font-mono font-bold text-muted-foreground shrink-0 tabular-nums">
+                        #{c.jerseyNumber}
+                      </span>
+                    )}
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Slot 2: 2. Hvězda */}
-          <div className="p-3.5 rounded-xl border border-border/70 bg-card space-y-2">
+          {/* Slot 2: 2. Hvězda (Stříbro - 2b) */}
+          <div className="p-3.5 rounded-xl border border-slate-400/40 bg-slate-400/5 space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-full bg-muted text-muted-foreground">
-                  <Star className="h-4 w-4 fill-muted-foreground" />
+                <div className="p-1.5 rounded-full bg-slate-400/20 text-slate-400">
+                  <Star className="h-4 w-4 fill-slate-400" />
                 </div>
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-wide text-foreground">
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-700 dark:text-slate-300">
                     2. Hvězda (2 body)
                   </p>
                   <p className="text-[11px] text-muted-foreground">Druhý nejlepší výkon</p>
                 </div>
               </div>
               {selectedStar2 && (
-                <Badge variant="outline" className="text-[10px] border-border text-foreground">
+                <Badge variant="outline" className="text-[10px] border-slate-400/50 bg-slate-400/10 text-slate-700 dark:text-slate-300 font-bold">
                   Vybráno
                 </Badge>
               )}
@@ -296,41 +313,47 @@ export function MatchStarsModal({
                     key={c.id}
                     disabled={isUsedElsewhere}
                     onClick={() => setSelectedStar2(c.id)}
-                    className={`flex items-center gap-2 p-2 rounded-lg border text-left text-xs transition-colors ${
+                    className={cn(
+                      'flex items-center gap-2 p-2 rounded-lg border text-left text-xs transition-all',
                       isSelected
-                        ? 'border-primary bg-primary text-primary-foreground font-bold shadow-sm'
+                        ? 'border-slate-400 bg-slate-400/20 text-foreground font-bold shadow-xs ring-1 ring-slate-400/50'
                         : isUsedElsewhere
-                        ? 'opacity-40 border-border/30 bg-muted/10 cursor-not-allowed'
-                        : 'border-border/70 hover:border-primary/50 bg-card'
-                    }`}
+                        ? 'opacity-35 border-border/30 bg-muted/20 cursor-not-allowed text-muted-foreground'
+                        : 'border-border/70 hover:border-slate-400/50 hover:bg-muted/40 bg-card text-foreground'
+                    )}
                   >
-                    <Avatar className="h-6 w-6 shrink-0 border">
+                    <Avatar className="h-6 w-6 shrink-0 border border-border/60">
                       <AvatarImage src={c.photoURL || undefined} />
-                      <AvatarFallback className="text-[10px]">{c.name[0]}</AvatarFallback>
+                      <AvatarFallback className="text-[10px] font-bold">{c.name[0]}</AvatarFallback>
                     </Avatar>
-                    <span className="truncate">{formatName(c.name)}</span>
+                    <span className="truncate flex-1 font-medium">{formatName(c.name)}</span>
+                    {c.jerseyNumber != null && (
+                      <span className="text-[10px] font-mono font-bold text-muted-foreground shrink-0 tabular-nums">
+                        #{c.jerseyNumber}
+                      </span>
+                    )}
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Slot 3: 3. Hvězda */}
-          <div className="p-3.5 rounded-xl border border-border/70 bg-card space-y-2">
+          {/* Slot 3: 3. Hvězda (Bronz - 1b) */}
+          <div className="p-3.5 rounded-xl border border-amber-700/40 bg-amber-700/5 space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-full bg-muted text-muted-foreground">
-                  <Star className="h-4 w-4 fill-muted-foreground" />
+                <div className="p-1.5 rounded-full bg-amber-700/20 text-amber-700 dark:text-amber-400">
+                  <Star className="h-4 w-4 fill-amber-700 dark:fill-amber-400" />
                 </div>
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-wide text-foreground">
+                  <p className="text-xs font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">
                     3. Hvězda (1 bod)
                   </p>
                   <p className="text-[11px] text-muted-foreground">Třetí nejlepší výkon</p>
                 </div>
               </div>
               {selectedStar3 && (
-                <Badge variant="outline" className="text-[10px] border-border text-foreground">
+                <Badge variant="outline" className="text-[10px] border-amber-700/50 bg-amber-700/10 text-amber-700 dark:text-amber-400 font-bold">
                   Vybráno
                 </Badge>
               )}
@@ -346,19 +369,25 @@ export function MatchStarsModal({
                     key={c.id}
                     disabled={isUsedElsewhere}
                     onClick={() => setSelectedStar3(c.id)}
-                    className={`flex items-center gap-2 p-2 rounded-lg border text-left text-xs transition-colors ${
+                    className={cn(
+                      'flex items-center gap-2 p-2 rounded-lg border text-left text-xs transition-all',
                       isSelected
-                        ? 'border-primary bg-primary text-primary-foreground font-bold shadow-sm'
+                        ? 'border-amber-700 bg-amber-700/20 text-foreground font-bold shadow-xs ring-1 ring-amber-700/50'
                         : isUsedElsewhere
-                        ? 'opacity-40 border-border/30 bg-muted/10 cursor-not-allowed'
-                        : 'border-border/70 hover:border-primary/50 bg-card'
-                    }`}
+                        ? 'opacity-35 border-border/30 bg-muted/20 cursor-not-allowed text-muted-foreground'
+                        : 'border-border/70 hover:border-amber-700/50 hover:bg-muted/40 bg-card text-foreground'
+                    )}
                   >
-                    <Avatar className="h-6 w-6 shrink-0 border">
+                    <Avatar className="h-6 w-6 shrink-0 border border-border/60">
                       <AvatarImage src={c.photoURL || undefined} />
-                      <AvatarFallback className="text-[10px]">{c.name[0]}</AvatarFallback>
+                      <AvatarFallback className="text-[10px] font-bold">{c.name[0]}</AvatarFallback>
                     </Avatar>
-                    <span className="truncate">{formatName(c.name)}</span>
+                    <span className="truncate flex-1 font-medium">{formatName(c.name)}</span>
+                    {c.jerseyNumber != null && (
+                      <span className="text-[10px] font-mono font-bold text-muted-foreground shrink-0 tabular-nums">
+                        #{c.jerseyNumber}
+                      </span>
+                    )}
                   </button>
                 );
               })}

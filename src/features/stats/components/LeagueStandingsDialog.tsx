@@ -35,7 +35,7 @@ export function LeagueStandingsDialog({
 
     const teamGroups = new Map<number, Partial<LeagueStanding>>();
     entries.forEach(([key, value]) => {
-      const match = key.match(/^(name|points|gf|ga)-(\d+)$/);
+      const match = key.match(/^(name|points|gf|ga|gp)-(\d+)$/);
       if (match) {
         const [, field, idx] = match;
         const index = parseInt(idx, 10);
@@ -45,6 +45,7 @@ export function LeagueStandingsDialog({
         else if (field === 'points') group.points = Number(value);
         else if (field === 'gf') group.gf = Number(value);
         else if (field === 'ga') group.ga = Number(value);
+        else if (field === 'gp') group.gp = Number(value);
       }
     });
 
@@ -56,6 +57,7 @@ export function LeagueStandingsDialog({
           points: group.points || 0,
           gf: group.gf || 0,
           ga: group.ga || 0,
+          gp: group.gp || 0,
         });
       }
     });
@@ -82,7 +84,7 @@ export function LeagueStandingsDialog({
                 <div className="col-span-1 text-center font-bold text-muted-foreground pb-2">
                   {i + 1}.
                 </div>
-                <div className="col-span-5 space-y-1">
+                <div className="col-span-4 space-y-1">
                   <Label className="text-[9px] uppercase">Název týmu</Label>
                   <Input
                     name={`name-${i}`}
@@ -92,6 +94,15 @@ export function LeagueStandingsDialog({
                   />
                 </div>
                 <div className="col-span-2 space-y-1">
+                  <Label className="text-[9px] uppercase font-bold">Z</Label>
+                  <Input
+                    name={`gp-${i}`}
+                    type="number"
+                    defaultValue={standings[i]?.gp || 0}
+                    className="h-8 text-xs px-1"
+                  />
+                </div>
+                <div className="col-span-1 space-y-1">
                   <Label className="text-[9px] uppercase">GF</Label>
                   <Input
                     name={`gf-${i}`}
@@ -100,7 +111,7 @@ export function LeagueStandingsDialog({
                     className="h-8 text-xs px-1"
                   />
                 </div>
-                <div className="col-span-2 space-y-1">
+                <div className="col-span-1 space-y-1">
                   <Label className="text-[9px] uppercase">GA</Label>
                   <Input
                     name={`ga-${i}`}
@@ -109,7 +120,7 @@ export function LeagueStandingsDialog({
                     className="h-8 text-xs px-1"
                   />
                 </div>
-                <div className="col-span-2 space-y-1">
+                <div className="col-span-3 space-y-1">
                   <Label className="text-[9px] uppercase font-bold text-primary">
                     Body
                   </Label>

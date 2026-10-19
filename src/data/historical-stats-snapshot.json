@@ -1,0 +1,140 @@
+{
+  "version": "2026-04-14",
+  "generatedAt": "2026-04-14T10:59:00+02:00",
+  "description": "Oficiální historické statistiky HC Aces před zahájením sezóny 2026/2027 (stav k 14. 4. 2026). Slouží jako neměnná referenční záloha (snapshot).",
+  "teamTotals": {
+    "regular": {
+      "gamesPlayed": 97,
+      "wins": 55,
+      "losses": 32,
+      "draws": 10
+    },
+    "playoff": {
+      "gamesPlayed": 39,
+      "wins": 30,
+      "losses": 9,
+      "draws": 0
+    },
+    "total": {
+      "gamesPlayed": 136,
+      "wins": 85,
+      "losses": 41,
+      "draws": 10,
+      "goalsFor": 455,
+      "goalsAgainst": 354
+    }
+  },
+  "skaters": [
+    { "name": "Denis Krejčí", "gamesPlayed": 119, "goals": 83, "assists": 48, "points": 131, "penaltyMinutes": 33.5 },
+    { "name": "Antonín Řezáč", "gamesPlayed": 93, "goals": 38, "assists": 30, "points": 68, "penaltyMinutes": 1.5 },
+    { "name": "Tomáš Konečný", "gamesPlayed": 96, "goals": 44, "assists": 23, "points": 67, "penaltyMinutes": 8.0 },
+    { "name": "Martin Bzduch", "gamesPlayed": 78, "goals": 32, "assists": 33, "points": 65, "penaltyMinutes": 16.0 },
+    { "name": "Jorgos Tzimas", "gamesPlayed": 57, "goals": 38, "assists": 25, "points": 63, "penaltyMinutes": 4.5 },
+    { "name": "Lukáš Kovařík", "gamesPlayed": 106, "goals": 29, "assists": 21, "points": 50, "penaltyMinutes": 10.5 },
+    { "name": "Martin Lang", "gamesPlayed": 23, "goals": 28, "assists": 17, "points": 45, "penaltyMinutes": 1.5 },
+    { "name": "Jan Mlčák", "gamesPlayed": 71, "goals": 26, "assists": 21, "points": 47, "penaltyMinutes": 4.5 },
+    { "name": "Tomáš Baumgartner", "gamesPlayed": 73, "goals": 12, "assists": 17, "points": 29, "penaltyMinutes": 11.0 },
+    { "name": "Antonín Bednář", "gamesPlayed": 34, "goals": 18, "assists": 9, "points": 27, "penaltyMinutes": 10.5 },
+    { "name": "Jakub Stejskal", "gamesPlayed": 119, "goals": 12, "assists": 15, "points": 27, "penaltyMinutes": 7.5 },
+    { "name": "Tomáš Marčák", "gamesPlayed": 32, "goals": 15, "assists": 10, "points": 25, "penaltyMinutes": 0.0 },
+    { "name": "Tomáš Šťastný", "gamesPlayed": 65, "goals": 14, "assists": 8, "points": 22, "penaltyMinutes": 4.5 },
+    { "name": "Michael Komín", "gamesPlayed": 86, "goals": 5, "assists": 15, "points": 20, "penaltyMinutes": 3.0 },
+    { "name": "Jiří Janíček", "gamesPlayed": 71, "goals": 12, "assists": 7, "points": 19, "penaltyMinutes": 12.0 },
+    { "name": "Stanislav Dufek ml.", "gamesPlayed": 127, "goals": 8, "assists": 10, "points": 18, "penaltyMinutes": 79.0 },
+    { "name": "Robert Pešák", "gamesPlayed": 46, "goals": 7, "assists": 9, "points": 16, "penaltyMinutes": 0.0 },
+    { "name": "Matyáš Kropát", "gamesPlayed": 76, "goals": 8, "assists": 6, "points": 14, "penaltyMinutes": 4.5 },
+    { "name": "Petr Šinkovský", "gamesPlayed": 11, "goals": 6, "assists": 7, "points": 13, "penaltyMinutes": 0.0 },
+    { "name": "Petr Přichystal", "gamesPlayed": 22, "goals": 1, "assists": 7, "points": 8, "penaltyMinutes": 9.0 },
+    { "name": "Kryštof Kepák", "gamesPlayed": 10, "goals": 5, "assists": 1, "points": 6, "penaltyMinutes": 1.5 },
+    { "name": "Jan Bober", "gamesPlayed": 9, "goals": 4, "assists": 1, "points": 5, "penaltyMinutes": 0.0 },
+    { "name": "Jakub Říčka", "gamesPlayed": 16, "goals": 1, "assists": 4, "points": 5, "penaltyMinutes": 0.0 },
+    { "name": "Michal Konečný", "gamesPlayed": 25, "goals": 4, "assists": 0, "points": 4, "penaltyMinutes": 4.5 },
+    { "name": "Tomáš Macek", "gamesPlayed": 23, "goals": 2, "assists": 2, "points": 4, "penaltyMinutes": 0.0 },
+    { "name": "Aleš Auer", "gamesPlayed": 4, "goals": 1, "assists": 3, "points": 4, "penaltyMinutes": 0.0 },
+    { "name": "Jan Klein", "gamesPlayed": 3, "goals": 1, "assists": 1, "points": 2, "penaltyMinutes": 0.0 },
+    { "name": "Martin Haas", "gamesPlayed": 3, "goals": 1, "assists": 1, "points": 2, "penaltyMinutes": 0.0 },
+    { "name": "Pavel Tetur", "gamesPlayed": 2, "goals": 1, "assists": 1, "points": 2, "penaltyMinutes": 1.5 },
+    { "name": "David Hrubeš", "gamesPlayed": 9, "goals": 0, "assists": 2, "points": 2, "penaltyMinutes": 3.0 },
+    { "name": "Richard Mudrák", "gamesPlayed": 2, "goals": 0, "assists": 2, "points": 2, "penaltyMinutes": 0.0 },
+    { "name": "Tibor Mládek", "gamesPlayed": 4, "goals": 1, "assists": 1, "points": 2, "penaltyMinutes": 0.0 },
+    { "name": "Jakub Máčal", "gamesPlayed": 11, "goals": 0, "assists": 1, "points": 1, "penaltyMinutes": 0.0 },
+    { "name": "Denis Zeman", "gamesPlayed": 13, "goals": 0, "assists": 0, "points": 0, "penaltyMinutes": 0.0 },
+    { "name": "Pavel Bara", "gamesPlayed": 13, "goals": 0, "assists": 0, "points": 0, "penaltyMinutes": 4.5 },
+    { "name": "Pavel Šnábl", "gamesPlayed": 1, "goals": 0, "assists": 0, "points": 0, "penaltyMinutes": 0.0 },
+    { "name": "Dan Zemánek", "gamesPlayed": 1, "goals": 0, "assists": 0, "points": 0, "penaltyMinutes": 0.0 }
+  ],
+  "goalies": [
+    {
+      "name": "Miroslav Štěpán",
+      "gamesPlayed": 88,
+      "wins": 52,
+      "losses": 27,
+      "draws": 9,
+      "saves": 1521,
+      "shotsAgainst": 1759,
+      "goalsAgainst": 238,
+      "savePercentage": 86.6,
+      "shutouts": 8
+    },
+    {
+      "name": "Petr Divácký",
+      "gamesPlayed": 3,
+      "wins": 0,
+      "losses": 0,
+      "draws": 0,
+      "saves": 32,
+      "shotsAgainst": 39,
+      "goalsAgainst": 7,
+      "savePercentage": 82.1,
+      "shutouts": 0
+    },
+    {
+      "name": "Michal Konečný",
+      "gamesPlayed": 6,
+      "wins": 0,
+      "losses": 0,
+      "draws": 0,
+      "saves": 110,
+      "shotsAgainst": 135,
+      "goalsAgainst": 25,
+      "savePercentage": 81.4,
+      "shutouts": 0
+    },
+    {
+      "name": "Jiří Malec",
+      "gamesPlayed": 3,
+      "wins": 0,
+      "losses": 0,
+      "draws": 0,
+      "saves": 42,
+      "shotsAgainst": 51,
+      "goalsAgainst": 9,
+      "savePercentage": 82.3,
+      "shutouts": 0
+    },
+    {
+      "name": "Pavel Bara",
+      "gamesPlayed": 5,
+      "wins": 0,
+      "losses": 5,
+      "draws": 0,
+      "saves": 61,
+      "shotsAgainst": 82,
+      "goalsAgainst": 21,
+      "savePercentage": 74.3,
+      "shutouts": 0
+    },
+    {
+      "name": "Miroslav Lacko",
+      "gamesPlayed": 31,
+      "wins": 25,
+      "losses": 5,
+      "draws": 1,
+      "saves": 532,
+      "shotsAgainst": 581,
+      "goalsAgainst": 49,
+      "savePercentage": 91.5,
+      "shutouts": 7
+    }
+  ]
+}

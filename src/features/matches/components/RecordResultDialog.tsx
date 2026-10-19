@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Loader2 } from 'lucide-react';
-import { formatName } from '@/lib/utils';
+import { formatName, isGoaliePlayer } from '@/lib/utils';
 import { getMatchDetails, MatchLike } from '../utils/match-details';
 import type { RecordResultData } from '../services/matchesService';
 import type { UserProfile } from '@/types';
@@ -53,11 +53,11 @@ export function MatchResultFormFields({
   }, [match]);
 
   const skaters = useMemo(
-    () => allUsers.filter((u) => u.playerType === 'player'),
+    () => allUsers.filter((u) => u.playerType === 'player' && !isGoaliePlayer(u)),
     [allUsers]
   );
   const goalies = useMemo(
-    () => allUsers.filter((u) => u.playerType === 'goalie'),
+    () => allUsers.filter((u) => u.playerType === 'goalie' || isGoaliePlayer(u)),
     [allUsers]
   );
 

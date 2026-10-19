@@ -7,6 +7,7 @@ export interface AttendanceSubmission {
   userId: string;
   status: 'going' | 'not-going';
   note?: string;
+  isGoalie?: boolean;
 }
 
 export const attendanceService = {
@@ -14,20 +15,20 @@ export const attendanceService = {
    * Save or update player attendance for a match
    */
   async submitAttendance(firestore: Firestore, submission: AttendanceSubmission): Promise<void> {
-    const { matchId, userId, status, note } = submission;
+    const { matchId, userId, status, note, isGoalie } = submission;
     try {
       const attRef = doc(firestore, 'matches', matchId, 'attendees', userId);
-      await setDoc(
-        attRef,
-        {
-          userId,
-          matchId,
-          status,
-          note: note ?? '',
-          updatedAt: new Date(),
-        },
-        { merge: true }
-      );
+      const dataToSave: Record<string, any> = {
+        userId,
+        matchId,
+        status,
+        note: note ?? '',
+        updatedAt: new Date(),
+      };
+      if (typeof isGoalie === 'boolean') {
+        dataToSave.isGoalie = isGoalie;
+      }
+      await setDoc(attRef, dataToSave, { merge: true });
     } catch (err: any) {
       errorEmitter.emit(
         'permission-error',

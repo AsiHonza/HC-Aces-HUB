@@ -128,7 +128,7 @@ export const matchesService = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               all: true,
-              title: 'Nový zápas naplánován! 🏒',
+              title: 'Nový zápas naplánován!',
               body: `Aces vs ${data.opponent} (${format(data.dateTime, 'd. M. HH:mm')}). Přihlas se do sestavy!`,
               url: `/dashboard/calendar`,
               tag: `match-new-${matchDoc.id}`,

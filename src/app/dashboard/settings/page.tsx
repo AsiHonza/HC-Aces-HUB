@@ -6,7 +6,8 @@ import { useFirebase, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { ProfileSettingsCard } from '@/features/roster';
 import { NotificationSettingsCard } from '@/features/notifications';
-import { AdminStatsSettingsCard } from '@/features/stats';
+import { AdminStatsSettingsCard, LeagueSyncCard } from '@/features/stats';
+import { ThemeSettingsCard } from '@/components/theme-settings-card';
 import type { UserProfile } from '@/types';
 
 function SettingsPageContent() {
@@ -27,9 +28,15 @@ function SettingsPageContent() {
 
   return (
     <div className="py-8 space-y-8">
+      <ThemeSettingsCard />
       <ProfileSettingsCard userProfile={userProfile ?? null} />
       <NotificationSettingsCard />
-      {userProfile?.role === 'admin' && <AdminStatsSettingsCard />}
+      {userProfile?.role === 'admin' && (
+        <>
+          <LeagueSyncCard />
+          <AdminStatsSettingsCard />
+        </>
+      )}
     </div>
   );
 }

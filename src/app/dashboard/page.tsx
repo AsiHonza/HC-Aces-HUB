@@ -13,11 +13,23 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { MapPin, Users, Trophy, BarChart, Pencil, Check, X, Flame, Shield, Plus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal, FileText, View, Disc, Cake, Minus, ChevronDown, ListOrdered, CalendarDays, ChevronUp, MessageSquarePlus, Goal, Calendar, Star, Clock, Archive, ShieldAlert, RefreshCw } from "lucide-react"
-import { cn, formatName } from '@/lib/utils'
+import { MapPin, Users, Trophy, BarChart, Pencil, Check, X, Flame, Shield, Plus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal, FileText, View, Disc, Cake, Minus, ChevronDown, ListOrdered, CalendarDays, ChevronUp, MessageSquarePlus, Goal, Calendar, Star, Clock, Archive, ShieldAlert, RefreshCw, DatabaseBackup } from "lucide-react"
+import { cn, formatName, isGoaliePlayer } from '@/lib/utils'
 import { toJsDate } from '@/lib/dates'
 import { BirthdaysCard } from '@/features/roster'
-import { LeagueStandingsTable, PlayerScoringTable, GoalieStatsTable, LeagueStandingsDialog, PlayoffSeriesDialog, ArchiveSeasonDialog, statsService } from '@/features/stats'
+import { 
+  LeagueStandingsTable, 
+  PlayerScoringTable, 
+  GoalieStatsTable, 
+  LeagueStandingsDialog, 
+  PlayoffSeriesDialog, 
+  ArchiveSeasonDialog, 
+  HallOfFameTab,
+  calculateTeamMilestonesOverview,
+  calculatePlayerMilestones,
+  statsService,
+  historicalStatsBackupService
+} from '@/features/stats'
 import { syncLeagueToFirestore } from '@/lib/sync/league-sync'
 import type { PlayoffSeries, LeagueStanding, Match } from '@/types'
 import { QuickRsvpButtons, attendanceService } from '@/features/attendance'
@@ -286,7 +298,7 @@ function DashboardPageContent() {
         .filter(match => {
           const mTime = toJsDate(match.dateTime).getTime();
           if (mTime < new Date('2026-09-16T00:00:00').getTime()) return false;
-          return !match.isPlayed && (mTime + 75 * 60 * 1000 > nowMs);
+          return !match.isPlayed && (mTime + 90 * 60 * 1000 > nowMs);
         })
         .sort((a, b) => toJsDate(a.dateTime).getTime() - toJsDate(b.dateTime).getTime());
   }, [allMatches]);
@@ -316,7 +328,7 @@ function DashboardPageContent() {
             return false;
           }
 
-          const matchEndTime = mTime + 75 * 60 * 1000;
+          const matchEndTime = mTime + 90 * 60 * 1000;
           // Zápas musí být dohraný a skončit v posledních 7 dnech (aktuálně čekající na oficiální zápis)
           const isRecentlyEnded = matchEndTime <= nowMs && (nowMs - matchEndTime <= sevenDaysMs);
           return !match.isPlayed && isRecentlyEnded;
@@ -658,6 +670,16 @@ function DashboardPageContent() {
       .map((p, idx) => ({ ...p, rank: idx + 1 }));
   }, [teamStarsLeaderboard]);
 
+  const teamMilestonesData = useMemo(() => {
+    return calculateTeamMilestonesOverview(
+      allUsers || [],
+      teamScoring,
+      goalieLeaderboard,
+      allMatches || [],
+      user?.uid
+    );
+  }, [allUsers, teamScoring, goalieLeaderboard, allMatches, user?.uid]);
+
   const attendancesByMatch = useMemo(() => {
       const map = new Map<string, Attendance[]>();
       allAttendances?.forEach(att => { if (!map.has(att.matchId)) map.set(att.matchId, []); map.get(att.matchId)!.push(att); });
@@ -671,7 +693,15 @@ function DashboardPageContent() {
       return map;
   }, [allAttendances, user, optimisticAttendances]);
 
-  const usersMap = useMemo(() => new Map(allUsers?.map(u => [u.id, u])), [allUsers]);
+  const usersMap = useMemo(() => {
+    const map = new Map<string, UserProfile>();
+    if (!allUsers) return map;
+    allUsers.forEach((u) => {
+      const pType: UserProfile['playerType'] = isGoaliePlayer(u) ? 'goalie' : u.playerType;
+      map.set(u.id, { ...u, playerType: pType });
+    });
+    return map;
+  }, [allUsers]);
 
   const activeSeasonData = useMemo(() => {
       if (selectedSeasonId === 'current') {
@@ -829,8 +859,8 @@ function DashboardPageContent() {
       if (unrecordedGP > 0 || unrecordedG > 0 || unrecordedA > 0) {
         skaterSeasons.push({
           seasonId: 'prior-history',
-          seasonName: 'Předchozí kariéra (historický záznam)',
-          year: 'Před 2024',
+          seasonName: 'Historické statistiky (do 14. 4. 2026)',
+          year: 'Do 2026',
           isCurrent: false,
           gamesPlayed: unrecordedGP > 0 ? unrecordedGP : currentSkaterStat.historicalGamesPlayed,
           goals: unrecordedG > 0 ? unrecordedG : currentSkaterStat.historicalGoals,
@@ -850,8 +880,8 @@ function DashboardPageContent() {
         const histPct = histSA > 0 ? (histSV / histSA) * 100 : 0;
         goalieSeasons.push({
           seasonId: 'prior-history',
-          seasonName: 'Předchozí kariéra (historický záznam)',
-          year: 'Před 2024',
+          seasonName: 'Historické statistiky (do 14. 4. 2026)',
+          year: 'Do 2026',
           isCurrent: false,
           gamesPlayed: unrecordedGP,
           wins: currentGoalieStat.historicalWins || 0,
@@ -862,6 +892,14 @@ function DashboardPageContent() {
         });
       }
     }
+
+    const milestones = calculatePlayerMilestones(
+      profile.id,
+      profile.name,
+      teamScoring,
+      goalieLeaderboard,
+      allMatches || []
+    );
 
     setSelectedCareerPlayer({
       id: profile.id,
@@ -874,6 +912,7 @@ function DashboardPageContent() {
       starsStats: countPlayerCareerStars(profile.id, allMatches || []),
       skaterSeasons,
       goalieSeasons,
+      milestones,
     });
     setIsCareerModalOpen(true);
   };
@@ -909,6 +948,35 @@ function DashboardPageContent() {
       toast({ variant: 'destructive', title: 'Chyba', description: err.message || 'Nepodařilo se uložit statistiky.' });
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const [isRestoringHistoricalSnapshot, setIsRestoringHistoricalSnapshot] = useState(false);
+
+  const hasHistoricalData = useMemo(() => {
+    return (allSkaterStats || []).some(s => (s.historicalGoals || 0) >= 40);
+  }, [allSkaterStats]);
+
+  const handleRestoreHistoricalSnapshot = async () => {
+    if (!firestore) return;
+    setIsRestoringHistoricalSnapshot(true);
+    try {
+      const result = await historicalStatsBackupService.applySnapshot(firestore, allUsers);
+      if (!result.success && result.errors?.length) {
+        throw new Error(result.errors.join(', '));
+      }
+      toast({
+        title: 'Historický snapshot byl úspěšně aplikován',
+        description: `Aktualizováno ${result.skatersUpdated} hráčů a ${result.goaliesUpdated} brankářů (přeskočeno ${result.skippedUnregisteredCount} neregistrovaných).`,
+      });
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Chyba při obnově snapshotu',
+        description: err.message,
+      });
+    } finally {
+      setIsRestoringHistoricalSnapshot(false);
     }
   };
 
@@ -1128,17 +1196,28 @@ function DashboardPageContent() {
 
   const handleQuickAttendance = async (matchId: string, status: 'going' | 'not-going') => {
     if (!user || !firestore) return;
+    const isCurrentUserGoalie = isGoaliePlayer(userProfile);
     const currentNote = userAttendancesWithOptimistic.get(matchId)?.note || '';
-    setOptimisticAttendances(cur => new Map(cur).set(matchId, { status, note: currentNote }));
+    setOptimisticAttendances(cur => new Map(cur).set(matchId, { status, note: currentNote, isGoalie: isCurrentUserGoalie } as any));
     try {
       await attendanceService.submitAttendance(firestore, {
         matchId,
         userId: user.uid,
         status,
         note: currentNote,
+        isGoalie: isCurrentUserGoalie,
       });
+      if (isCurrentUserGoalie && userProfile?.playerType !== 'goalie') {
+        try {
+          await setDoc(doc(firestore, 'users', user.uid), { playerType: 'goalie' }, { merge: true });
+        } catch {
+          // ignore
+        }
+      }
       toast({
-        title: status === 'going' ? 'Účast potvrzena: Jdu' : 'Účast zrušena: Nejdu',
+        title: status === 'going' 
+          ? (isCurrentUserGoalie ? 'Účast potvrzena: Jdu (Brankář)' : 'Účast potvrzena: Jdu') 
+          : 'Účast zrušena: Nejdu',
         description: status === 'going' ? 'Vidíme se na ledě!' : 'Zaznamenáno.',
       });
     } catch (err: any) {
@@ -1236,7 +1315,7 @@ function DashboardPageContent() {
     if (openMatch) return openMatch;
 
     const playedWithVotes = [...currentMatches]
-      .filter((m) => (m.isPlayed || toJsDate(m.dateTime).getTime() + 75 * 60 * 1000 <= Date.now()) && ((m.mvpVotes && Object.keys(m.mvpVotes).length > 0) || (m.starsVotes && Object.keys(m.starsVotes).length > 0)))
+      .filter((m) => (m.isPlayed || toJsDate(m.dateTime).getTime() + 90 * 60 * 1000 <= Date.now()) && ((m.mvpVotes && Object.keys(m.mvpVotes).length > 0) || (m.starsVotes && Object.keys(m.starsVotes).length > 0)))
       .sort((a, b) => toJsDate(b.dateTime).getTime() - toJsDate(a.dateTime).getTime())[0];
     return playedWithVotes || null;
   }, [allMatches]);
@@ -1268,6 +1347,38 @@ function DashboardPageContent() {
 
     return null;
   }, [allMatches, selectedSeasonId, matchesAwaitingResult, activeMvpMatch]);
+
+  // Automatické vyskočení modalu pro volbu 3 hvězd po odehraném zápase (1,5 hodiny po začátku)
+  useEffect(() => {
+    const targetMatch = postMatchData?.match || activeMvpMatch;
+    if (!targetMatch || !user?.uid) return;
+
+    // Zkontrolujeme, zda je hlasování otevřené (otevírá se přesně 1,5 hodiny po začátku zápasu)
+    const votingStatus = getMvpVotingStatus(targetMatch);
+    if (votingStatus.status !== 'open') return;
+
+    // Zkontrolujeme, zda už uživatel nehlasoval
+    const hasVoted = Boolean(targetMatch.starsVotes?.[user.uid] || targetMatch.mvpVotes?.[user.uid]);
+    if (hasVoted) return;
+
+    // Zkontrolujeme oprávněnost k hlasování (účast v zápase)
+    const matchAttendees = attendancesByMatch.get(targetMatch.id) || [];
+    const isParticipant =
+      (targetMatch.lineup && Object.values(targetMatch.lineup).some((p) => p?.id === user.uid)) ||
+      matchAttendees.some((a) => a.userId === user.uid && a.status === 'going');
+
+    if (!isParticipant) return;
+
+    // Zkontrolujeme session storage, zda uživatel okno v této relaci nezavřel
+    const storageKey = `dismissed_stars_modal_${targetMatch.id}_${user.uid}`;
+    if (typeof window !== 'undefined' && sessionStorage.getItem(storageKey)) {
+      return;
+    }
+
+    // Automaticky otevřeme modal pro volbu 3 hvězd
+    setSelectedVotingMatch(targetMatch);
+    setIsStarsModalOpen(true);
+  }, [postMatchData, activeMvpMatch, user?.uid, attendancesByMatch]);
 
   const renderMatchCard = (m: Match) => {
     const attStatus = userAttendancesWithOptimistic.get(m.id)?.status;
@@ -1355,89 +1466,143 @@ function DashboardPageContent() {
       )}
 
       <BirthdaysCard birthdays={upcomingBirthdays} />
-      <div className="grid gap-8 lg:grid-cols-3">
-        <Card className="p-6 text-center flex flex-col items-center justify-between">
-            <div className="flex flex-col items-center">
-              <Avatar className="h-24 w-24 mb-4 border-2 border-primary"><AvatarImage src={userProfile?.photoURL || `https://picsum.photos/seed/${userProfile?.email}/200/200`} /><AvatarFallback>{userProfile?.name[0]}</AvatarFallback></Avatar>
-              <CardTitle>{userProfile?.name || ''}</CardTitle>
-              {userProfile?.jerseyNumber && <p className="text-3xl font-bold text-primary mt-1">#{userProfile.jerseyNumber}</p>}
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* PROFESIONÁLNÍ HRÁČSKÁ LIŠTA (PLAYER STRIP) */}
+        <Card className="lg:col-span-3 border-border/70 bg-card/95 shadow-sm overflow-hidden">
+        <div className="p-3.5 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          {/* Vizuální identita hráče */}
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div className="relative shrink-0">
+              <Avatar className="h-12 w-12 sm:h-14 sm:w-14 border-2 border-primary/80 shadow-sm">
+                <AvatarImage src={userProfile?.photoURL || `https://picsum.photos/seed/${userProfile?.email}/200/200`} />
+                <AvatarFallback className="font-bold text-sm sm:text-base">{userProfile?.name ? userProfile.name[0] : 'U'}</AvatarFallback>
+              </Avatar>
+              {userProfile?.jerseyNumber && (
+                <span className="absolute -bottom-1 -right-1 bg-primary text-primary-foreground text-[10px] sm:text-[11px] font-black px-1.5 py-0.2 rounded-full shadow">
+                  #{userProfile.jerseyNumber}
+                </span>
+              )}
             </div>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="mt-4 text-xs font-semibold w-full border-primary/30 text-primary hover:bg-primary/10 hover:text-primary"
+            <div className="min-w-0 space-y-0.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-base sm:text-lg font-headline font-bold truncate text-foreground">
+                  {userProfile?.name || 'Hráč Aces'}
+                </h1>
+                <Badge variant="outline" className="text-[10px] uppercase font-bold border-primary/40 text-primary bg-primary/5">
+                  {userProfile?.playerType === 'goalie' ? 'Brankář' : userProfile?.playerType === 'member' ? 'Člen týmu' : 'Hráč'}
+                </Badge>
+              </div>
+              <p className="text-xs text-muted-foreground truncate">
+                {userProfile?.role === 'admin' ? 'Administrátor týmu' : 'Aktivní soupiska HC Aces'}
+              </p>
+            </div>
+          </div>
+
+          {/* Přepínač období & Rychlé statistické karty */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 lg:gap-4 min-w-0">
+            <Tabs value={myStatsView} onValueChange={(v) => setMyStatsView(v as any)} className="w-auto shrink-0">
+              <TabsList className="h-8 p-0.5 bg-muted/60">
+                <TabsTrigger value="regular" className="text-[10px] sm:text-xs h-7 px-2.5">ZČ</TabsTrigger>
+                <TabsTrigger value="playoff" className="text-[10px] sm:text-xs h-7 px-2.5">Play-off</TabsTrigger>
+                <TabsTrigger value="season" className="text-[10px] sm:text-xs h-7 px-2.5">Sezona</TabsTrigger>
+                <TabsTrigger value="history" className="text-[10px] sm:text-xs h-7 px-2.5">Historie</TabsTrigger>
+              </TabsList>
+            </Tabs>
+
+            {/* Metriky hráče / brankáře */}
+            <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto py-0.5 scrollbar-none">
+              {userProfile?.playerType === 'goalie' ? (
+                <>
+                  <div className="px-2.5 py-1 rounded-md bg-muted/60 dark:bg-muted/50 border border-border/70 text-center shrink-0 min-w-[42px] shadow-2xs">
+                    <span className="text-[9px] uppercase font-bold text-muted-foreground block">Zápasy</span>
+                    <span className="text-xs sm:text-sm font-bold tabular-nums text-foreground">
+                      {String(goalieLeaderboard.find(g => g.id === user.uid)?.[myStatsView]?.gamesPlayed || 0)}
+                    </span>
+                  </div>
+                  <div className="px-2.5 py-1 rounded-md bg-muted/60 dark:bg-muted/50 border border-border/70 text-center shrink-0 min-w-[42px] shadow-2xs">
+                    <span className="text-[9px] uppercase font-bold text-muted-foreground block">Výhry</span>
+                    <span className="text-xs sm:text-sm font-bold tabular-nums text-foreground">
+                      {String(goalieLeaderboard.find(g => g.id === user.uid)?.[myStatsView]?.wins || 0)}
+                    </span>
+                  </div>
+                  <div className="px-2.5 py-1 rounded-md bg-muted/60 dark:bg-muted/50 border border-border/70 text-center shrink-0 min-w-[42px] shadow-2xs">
+                    <span className="text-[9px] uppercase font-bold text-muted-foreground block">SO</span>
+                    <span className="text-xs sm:text-sm font-bold tabular-nums text-foreground">
+                      {String(goalieLeaderboard.find(g => g.id === user.uid)?.[myStatsView]?.so || 0)}
+                    </span>
+                  </div>
+                  <div className="px-2.5 py-1 rounded-md bg-primary/15 border border-primary/50 text-center shrink-0 shadow-2xs">
+                    <span className="text-[9px] uppercase font-black text-primary block">Úspěšnost</span>
+                    <span className="text-xs sm:text-sm font-black tabular-nums text-primary">
+                      {(() => {
+                        const stats = goalieLeaderboard.find(g => g.id === user.uid)?.[myStatsView];
+                        const sa = Number(stats?.shotsAgainst) || 0;
+                        const s = Number(stats?.saves) || 0;
+                        return sa > 0 ? ((s / sa) * 100).toFixed(2) : '0.00';
+                      })()}%
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="px-2.5 py-1 rounded-md bg-muted/60 dark:bg-muted/50 border border-border/70 text-center shrink-0 min-w-[38px] shadow-2xs">
+                    <span className="text-[9px] uppercase font-bold text-muted-foreground block">Z</span>
+                    <span className="text-xs sm:text-sm font-bold tabular-nums text-foreground">
+                      {String(teamScoring.find(p => p.id === user.uid)?.[myStatsView]?.gamesPlayed || 0)}
+                    </span>
+                  </div>
+                  <div className="px-2.5 py-1 rounded-md bg-muted/60 dark:bg-muted/50 border border-border/70 text-center shrink-0 min-w-[38px] shadow-2xs">
+                    <span className="text-[9px] uppercase font-bold text-muted-foreground block">G</span>
+                    <span className="text-xs sm:text-sm font-bold tabular-nums text-foreground">
+                      {String(teamScoring.find(p => p.id === user.uid)?.[myStatsView]?.goals || 0)}
+                    </span>
+                  </div>
+                  <div className="px-2.5 py-1 rounded-md bg-muted/60 dark:bg-muted/50 border border-border/70 text-center shrink-0 min-w-[38px] shadow-2xs">
+                    <span className="text-[9px] uppercase font-bold text-muted-foreground block">A</span>
+                    <span className="text-xs sm:text-sm font-bold tabular-nums text-foreground">
+                      {String(teamScoring.find(p => p.id === user.uid)?.[myStatsView]?.assists || 0)}
+                    </span>
+                  </div>
+                  <div className="px-3 py-1 rounded-md bg-primary/15 border border-primary/50 text-center shrink-0 min-w-[42px] shadow-2xs">
+                    <span className="text-[9px] uppercase font-black text-primary block">Body</span>
+                    <span className="text-xs sm:text-sm font-black tabular-nums text-primary">
+                      {String((teamScoring.find(p => p.id === user.uid)?.[myStatsView]?.goals || 0) + (teamScoring.find(p => p.id === user.uid)?.[myStatsView]?.assists || 0))}
+                    </span>
+                  </div>
+                </>
+              )}
+
+              {/* Hvězdy zápasu shrnutí */}
+              <div
+                className="px-2.5 py-1 rounded-md bg-amber-500/15 border border-amber-500/40 text-center shrink-0 cursor-default shadow-2xs"
+                title={`${currentUserStars.star1Count}x 1. hvězda (3b), ${currentUserStars.star2Count}x 2. hvězda (2b), ${currentUserStars.star3Count}x 3. hvězda (1b)`}
+              >
+                <span className="text-[9px] uppercase font-bold text-amber-600 dark:text-amber-400 flex items-center justify-center gap-0.5">
+                  <Star className="h-2.5 w-2.5 fill-amber-500 text-amber-500" />
+                  Hvězdy
+                </span>
+                <span className="text-xs sm:text-sm font-black tabular-nums text-amber-600 dark:text-amber-400">
+                  {currentUserStars.totalPoints} <span className="text-[10px] font-medium text-muted-foreground">b</span>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Tlačítko kariérní karty */}
+          <div className="flex items-center gap-2 self-start lg:self-center shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs font-semibold border-primary/40 text-primary hover:bg-primary/10 hover:text-primary shrink-0"
               onClick={() => handleOpenCareerModal(user.uid)}
             >
-              <Trophy className="h-3.5 w-3.5 mr-1 text-primary" />
-              Kariérní karta hráče
+              <Trophy className="h-3.5 w-3.5 mr-1.5 text-primary" />
+              Kariérní karta
             </Button>
-        </Card>
-        <Card className="lg:col-span-2">
-            <CardHeader className="flex-row items-center justify-between py-4 px-4 sm:px-6">
-              <CardTitle className="flex items-center gap-2"><BarChart className="text-primary"/>Moje statistiky</CardTitle>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="h-8 text-xs font-semibold text-primary hover:text-primary hover:bg-primary/10"
-                onClick={() => handleOpenCareerModal(user.uid)}
-              >
-                <Trophy className="h-3.5 w-3.5 mr-1" />
-                Kariérní karta
-              </Button>
-            </CardHeader>
-            <CardContent>
-                <Tabs value={myStatsView} onValueChange={(v) => setMyStatsView(v as any)}>
-                    <TabsList className="grid w-full grid-cols-4">
-                      <TabsTrigger value="regular" className="text-[10px] sm:text-xs">ZČ</TabsTrigger>
-                      <TabsTrigger value="playoff" className="text-[10px] sm:text-xs">Play-off</TabsTrigger>
-                      <TabsTrigger value="season" className="text-[10px] sm:text-xs">Sezona</TabsTrigger>
-                      <TabsTrigger value="history" className="text-[10px] sm:text-xs">Historie</TabsTrigger>
-                    </TabsList>
-                    <div className="mt-4">
-                        <Table>
-                            <TableBody>
-                                {userProfile?.playerType === 'player' && (
-                                    <>
-                                        <TableRow><TableCell className="font-medium">Góly</TableCell><TableCell className="text-right font-bold tabular-nums">{String(teamScoring.find(p=>p.id===user.uid)?.[myStatsView]?.goals || 0)}</TableCell></TableRow>
-                                        <TableRow><TableCell className="font-medium">Asistence</TableCell><TableCell className="text-right font-bold tabular-nums">{String(teamScoring.find(p=>p.id===user.uid)?.[myStatsView]?.assists || 0)}</TableCell></TableRow>
-                                        <TableRow><TableCell className="font-medium">Body</TableCell><TableCell className="text-right font-bold tabular-nums">{String((teamScoring.find(p=>p.id===user.uid)?.[myStatsView]?.goals || 0) + (teamScoring.find(p=>p.id===user.uid)?.[myStatsView]?.assists || 0))}</TableCell></TableRow>
-                                        <TableRow><TableCell className="font-medium">Zápasy</TableCell><TableCell className="text-right font-bold tabular-nums">{String(teamScoring.find(p=>p.id===user.uid)?.[myStatsView]?.gamesPlayed || 0)}</TableCell></TableRow>
-                                    </>
-                                )}
-                                {userProfile?.playerType === 'goalie' && (
-                                    <>
-                                        <TableRow><TableCell className="font-medium">Zápasy</TableCell><TableCell className="text-right font-bold tabular-nums">{String(goalieLeaderboard.find(g=>g.id===user.uid)?.[myStatsView]?.gamesPlayed || 0)}</TableCell></TableRow>
-                                        <TableRow><TableCell className="font-medium">Výhry</TableCell><TableCell className="text-right font-bold tabular-nums">{String(goalieLeaderboard.find(g=>g.id===user.uid)?.[myStatsView]?.wins || 0)}</TableCell></TableRow>
-                                        <TableRow><TableCell className="font-medium">Čistá konta (SO)</TableCell><TableCell className="text-right font-bold tabular-nums">{String(goalieLeaderboard.find(g=>g.id===user.uid)?.[myStatsView]?.so || 0)}</TableCell></TableRow>
-                                        <TableRow><TableCell className="font-medium">Úspěšnost</TableCell><TableCell className="text-right font-bold tabular-nums">
-                                            {(() => {
-                                                const stats = goalieLeaderboard.find(g=>g.id===user.uid)?.[myStatsView];
-                                                const sa = Number(stats?.shotsAgainst) || 0;
-                                                const s = Number(stats?.saves) || 0;
-                                                return sa > 0 ? ((s / sa) * 100).toFixed(2) : '0.00';
-                                            })()}%
-                                        </TableCell></TableRow>
-                                    </>
-                                )}
-                                    {/* Hvězdy zápasů souhrn */}
-                                    <TableRow className="bg-primary/5 border-t">
-                                        <TableCell className="font-medium flex items-center gap-1.5">
-                                            <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500 shrink-0" />
-                                            Hvězdy zápasů
-                                        </TableCell>
-                                        <TableCell className="text-right font-bold tabular-nums">
-                                            {currentUserStars.totalPoints} b.{' '}
-                                            <span className="text-[11px] text-muted-foreground font-normal">
-                                                ({currentUserStars.star1Count}x 1., {currentUserStars.star2Count}x 2., {currentUserStars.star3Count}x 3.)
-                                            </span>
-                                        </TableCell>
-                                    </TableRow>
-                            </TableBody>
-                        </Table>
-                    </div>
-                </Tabs>
-            </CardContent>
-        </Card>
+          </div>
+        </div>
+      </Card>
 
         {selectedSeasonId === 'current' ? (
           <div className="lg:col-span-3 space-y-4">
@@ -1527,14 +1692,16 @@ function DashboardPageContent() {
           </div>
         )}
 
-        <Card className="lg:col-span-3">
-            <CardHeader className="flex-col sm:flex-row items-start sm:items-center justify-between gap-4 py-4 px-4 sm:px-6">
-                <div className="flex flex-col gap-1">
-                    <CardTitle className="flex items-center gap-2 whitespace-nowrap"><ListOrdered className="text-primary"/>Soutěž</CardTitle>
-                    <div className="flex items-center gap-2 mt-2">
-                        <CalendarDays className="h-4 w-4 text-muted-foreground" />
+        {/* LIGOVÁ SOUTĚŽ & ODEHRANÉ ZÁPASY (VEDLE SEBE NA DESKTOPU) */}
+        <div className="lg:col-span-3 grid gap-6 lg:grid-cols-12 items-start">
+          <Card className="lg:col-span-5 h-fit border-border/70 bg-card/95">
+            <CardHeader className="flex-col items-start gap-3 py-3.5 px-3.5 sm:px-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full gap-2">
+                    <CardTitle className="flex items-center gap-2 text-base sm:text-lg whitespace-nowrap"><ListOrdered className="text-primary"/>Soutěž</CardTitle>
+                    <div className="flex items-center gap-1.5">
+                        <CalendarDays className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                         <Select value={selectedSeasonId} onValueChange={setSelectedSeasonId}>
-                            <SelectTrigger className="h-8 w-[180px] text-xs">
+                            <SelectTrigger className="h-7 w-[160px] text-xs">
                                 <SelectValue placeholder="Vyberte sezónu" />
                             </SelectTrigger>
                             <SelectContent>
@@ -1547,27 +1714,27 @@ function DashboardPageContent() {
                     </div>
                 </div>
                 {userProfile?.role === 'admin' && selectedSeasonId === 'current' && (
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-1.5 w-full pt-2 border-t border-border/40">
                          <Button
                            size="sm"
                            variant="outline"
                            onClick={handleSyncLeagueFromWeb}
                            disabled={isSyncingLeague}
-                           className="h-8 text-[10px] sm:text-xs font-semibold border-primary/50 text-primary hover:bg-primary/10"
+                           className="h-7 text-[10px] sm:text-xs font-semibold border-primary/50 text-primary hover:bg-primary/10"
                            title="Stáhnout a propsat aktuální ligovou tabulku, odehrané zápasy a statistiky hráčů z hobbyhokejbrno.cz"
                          >
                            <RefreshCw className={cn("h-3 w-3 mr-1", isSyncingLeague && "animate-spin")} />
-                           {isSyncingLeague ? 'Stahuji z ligy...' : 'Synchronizovat ligová data'}
+                           {isSyncingLeague ? 'Stahuji...' : 'Synchronizovat'}
                          </Button>
-                         <Button size="sm" variant="outline" onClick={() => setIsLeagueDialogOpen(true)} className="h-8 text-[10px] sm:text-xs"><Pencil className="h-3 w-3 mr-1" />Tabulka</Button>
-                         <Button size="sm" variant="outline" onClick={() => setIsPlayoffDialogOpen(true)} className="h-8 text-[10px] sm:text-xs"><Pencil className="h-3 w-3 mr-1" />Play-off</Button>
-                         <Button size="sm" variant="destructive" onClick={() => setIsArchiveSeasonDialogOpen(true)} className="h-8 text-[10px] sm:text-xs"><History className="h-3 w-3 mr-1" />Ukončit sezónu</Button>
+                         <Button size="sm" variant="outline" onClick={() => setIsLeagueDialogOpen(true)} className="h-7 text-[10px] sm:text-xs"><Pencil className="h-3 w-3 mr-1" />Tabulka</Button>
+                         <Button size="sm" variant="outline" onClick={() => setIsPlayoffDialogOpen(true)} className="h-7 text-[10px] sm:text-xs"><Pencil className="h-3 w-3 mr-1" />Play-off</Button>
+                         <Button size="sm" variant="destructive" onClick={() => setIsArchiveSeasonDialogOpen(true)} className="h-7 text-[10px] sm:text-xs"><History className="h-3 w-3 mr-1" />Ukončit</Button>
                     </div>
                 )}
             </CardHeader>
-            <CardContent className="px-2 sm:px-6">
+            <CardContent className="px-2 sm:px-4 pb-4">
                 <Tabs defaultValue="standings">
-                    <TabsList className="grid w-full grid-cols-2 mb-4">
+                    <TabsList className="grid w-full grid-cols-2 mb-3">
                         <TabsTrigger value="standings" className="text-xs">Tabulka</TabsTrigger>
                         <TabsTrigger value="playoff" className="text-xs">Play-off série</TabsTrigger>
                     </TabsList>
@@ -1575,41 +1742,42 @@ function DashboardPageContent() {
                         <LeagueStandingsTable standings={activeSeasonData.standings} />
                     </TabsContent>
                     <TabsContent value="playoff">
-                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        <div className="grid gap-3 sm:grid-cols-2">
                             {(activeSeasonData.playoffSeries || []).map((series, idx) => (
                                 <Card key={idx} className="bg-muted/30">
-                                    <CardHeader className="pb-2 p-4">
+                                    <CardHeader className="pb-2 p-3">
                                         <p className="text-[10px] font-bold text-primary uppercase">{series.round}</p>
-                                        <CardTitle className="text-base text-left">{series.opponent}</CardTitle>
+                                        <CardTitle className="text-sm text-left">{series.opponent}</CardTitle>
                                     </CardHeader>
-                                    <CardContent className="p-4 pt-0">
+                                    <CardContent className="p-3 pt-0">
                                         <div className="flex items-center justify-between">
                                             <p className="text-xs font-medium">Stav série</p>
-                                            <p className="text-xl font-bold text-primary tabular-nums">{series.wins} : {series.losses}</p>
+                                            <p className="text-lg font-bold text-primary tabular-nums">{series.wins} : {series.losses}</p>
                                         </div>
                                     </CardContent>
                                 </Card>
                             ))}
                             {(!activeSeasonData.playoffSeries || activeSeasonData.playoffSeries.length === 0) && (
-                                <div className="col-span-full py-8 text-center text-muted-foreground italic">Play-off série zatím nebyly definovány.</div>
+                                <div className="col-span-full py-8 text-center text-muted-foreground italic text-xs">Play-off série zatím nebyly definovány.</div>
                             )}
                         </div>
                     </TabsContent>
                 </Tabs>
             </CardContent>
-        </Card>
+          </Card>
 
-        <RecentMatchesSection
-          matches={recentPlayedMatches as any}
-          usersMap={usersMap}
-          className="lg:col-span-3"
-          onViewLineup={(m) => {
-            setViewLineupData(m.lineup || null);
-            setViewScorersData(m.scorers);
-            setViewMatchOpponent(getMatchDetails(m as any).opponent);
-            setIsLineupViewOpen(true);
-          }}
-        />
+          <RecentMatchesSection
+            matches={recentPlayedMatches as any}
+            usersMap={usersMap}
+            className="lg:col-span-7 h-fit border-border/70 bg-card/95"
+            onViewLineup={(m) => {
+              setViewLineupData(m.lineup || null);
+              setViewScorersData(m.scorers);
+              setViewMatchOpponent(getMatchDetails(m as any).opponent);
+              setIsLineupViewOpen(true);
+            }}
+          />
+        </div>
 
         <div className="lg:col-span-3 grid gap-8 md:grid-cols-2">
             <Card className="h-fit">
@@ -1686,6 +1854,38 @@ function DashboardPageContent() {
                           {scoringView === 'history' ? 'Upravujete historii (minulé sezóny)' : (scoringView === 'regular' ? 'Upravujete základní část' : 'Upravujete play-off')}
                         </div>
                       )}
+                      {scoringView === 'history' && userProfile?.role === 'admin' && (
+                        <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-1.5 font-bold text-amber-700 dark:text-amber-400">
+                              <DatabaseBackup className="h-4 w-4" />
+                              <span>Oficiální historický snapshot (stav k 14. 4. 2026)</span>
+                            </div>
+                            <p className="text-muted-foreground text-[11px]">
+                              {hasHistoricalData
+                                ? 'Historické statistiky (37 hráčů, 6 brankářů) jsou aktivní a dopočítávají se k letošní sezóně.'
+                                : 'V databázi chybí historické statistiky (byly dříve vynulovány). Kliknutím níže obnovíte oficiální čísla k 14. 4. 2026.'}
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant={hasHistoricalData ? 'outline' : 'default'}
+                            className={cn(
+                              'h-8 text-xs font-semibold shrink-0',
+                              !hasHistoricalData && 'bg-amber-600 hover:bg-amber-700 text-white shadow-sm'
+                            )}
+                            onClick={handleRestoreHistoricalSnapshot}
+                            disabled={isRestoringHistoricalSnapshot}
+                          >
+                            {isRestoringHistoricalSnapshot ? (
+                              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <History className="mr-1.5 h-3.5 w-3.5" />
+                            )}
+                            {hasHistoricalData ? 'Znovu přepsat snapshotem' : 'Aplikovat snapshot historie (1 klik)'}
+                          </Button>
+                        </div>
+                      )}
                       <PlayerScoringTable
                         scorers={sortedTeamScoring}
                         currentUserId={user?.uid}
@@ -1716,9 +1916,21 @@ function DashboardPageContent() {
                             <TableRow>
                               <TableHead className="w-10 text-center font-bold text-xs">#</TableHead>
                               <TableHead className="text-xs">Hráč</TableHead>
-                              <TableHead className="text-center text-xs" title="1. hvězda (3 body)">1. ★</TableHead>
-                              <TableHead className="text-center text-xs" title="2. hvězda (2 body)">2. ★</TableHead>
-                              <TableHead className="text-center text-xs" title="3. hvězda (1 bod)">3. ★</TableHead>
+                              <TableHead className="text-center text-xs" title="1. hvězda (3 body)">
+                                <span className="inline-flex items-center gap-0.5 justify-center text-amber-500">
+                                  1.<Star className="h-2.5 w-2.5 fill-current" />
+                                </span>
+                              </TableHead>
+                              <TableHead className="text-center text-xs" title="2. hvězda (2 body)">
+                                <span className="inline-flex items-center gap-0.5 justify-center text-zinc-300">
+                                  2.<Star className="h-2.5 w-2.5 fill-current" />
+                                </span>
+                              </TableHead>
+                              <TableHead className="text-center text-xs" title="3. hvězda (1 bod)">
+                                <span className="inline-flex items-center gap-0.5 justify-center text-amber-600 dark:text-amber-500">
+                                  3.<Star className="h-2.5 w-2.5 fill-current" />
+                                </span>
+                              </TableHead>
                               <TableHead className="text-right text-xs font-bold">Body</TableHead>
                             </TableRow>
                           </TableHeader>
@@ -1808,6 +2020,7 @@ function DashboardPageContent() {
                 </TabsContent>
               </Tabs>
             </Card>
+
             <Card className="h-fit">
               <Tabs value={activeGoalieTab} onValueChange={(v) => setActiveGoalieTab(v as 'goalies' | 'stars')}>
                 <CardHeader className="flex-col sm:flex-row items-start sm:items-center justify-between gap-3 py-3 px-4 sm:px-6 border-b">
@@ -1884,6 +2097,38 @@ function DashboardPageContent() {
                                 {scoringView === 'history' ? 'Upravujete historii (minulé sezóny)' : (scoringView === 'regular' ? 'Upravujete základní část' : 'Upravujete play-off')}
                             </div>
                         )}
+                        {scoringView === 'history' && userProfile?.role === 'admin' && (
+                          <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-1.5 font-bold text-amber-700 dark:text-amber-400">
+                                <DatabaseBackup className="h-4 w-4" />
+                                <span>Oficiální historický snapshot (stav k 14. 4. 2026)</span>
+                              </div>
+                              <p className="text-muted-foreground text-[11px]">
+                                {hasHistoricalData
+                                  ? 'Historické statistiky brankářů (Štěpán 88 Z, Lacko 31 Z, Bara 5 Z...) jsou aktivní.'
+                                  : 'V databázi chybí historické statistiky brankářů. Kliknutím níže obnovíte oficiální čísla k 14. 4. 2026.'}
+                              </p>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant={hasHistoricalData ? 'outline' : 'default'}
+                              className={cn(
+                                'h-8 text-xs font-semibold shrink-0',
+                                !hasHistoricalData && 'bg-amber-600 hover:bg-amber-700 text-white shadow-sm'
+                              )}
+                              onClick={handleRestoreHistoricalSnapshot}
+                              disabled={isRestoringHistoricalSnapshot}
+                            >
+                              {isRestoringHistoricalSnapshot ? (
+                                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <History className="mr-1.5 h-3.5 w-3.5" />
+                              )}
+                              {hasHistoricalData ? 'Znovu přepsat snapshotem' : 'Aplikovat snapshot historie (1 klik)'}
+                            </Button>
+                          </div>
+                        )}
                         <GoalieStatsTable
                           goalies={sortedGoalieLeaderboard}
                           currentUserId={user?.uid}
@@ -1914,9 +2159,21 @@ function DashboardPageContent() {
                             <TableRow>
                               <TableHead className="w-10 text-center font-bold text-xs">#</TableHead>
                               <TableHead className="text-xs">Brankář</TableHead>
-                              <TableHead className="text-center text-xs" title="1. hvězda (3 body)">1. ★</TableHead>
-                              <TableHead className="text-center text-xs" title="2. hvězda (2 body)">2. ★</TableHead>
-                              <TableHead className="text-center text-xs" title="3. hvězda (1 bod)">3. ★</TableHead>
+                              <TableHead className="text-center text-xs" title="1. hvězda (3 body)">
+                                <span className="inline-flex items-center gap-0.5 justify-center text-amber-500">
+                                  1.<Star className="h-2.5 w-2.5 fill-current" />
+                                </span>
+                              </TableHead>
+                              <TableHead className="text-center text-xs" title="2. hvězda (2 body)">
+                                <span className="inline-flex items-center gap-0.5 justify-center text-zinc-300">
+                                  2.<Star className="h-2.5 w-2.5 fill-current" />
+                                </span>
+                              </TableHead>
+                              <TableHead className="text-center text-xs" title="3. hvězda (1 bod)">
+                                <span className="inline-flex items-center gap-0.5 justify-center text-amber-600 dark:text-amber-500">
+                                  3.<Star className="h-2.5 w-2.5 fill-current" />
+                                </span>
+                              </TableHead>
                               <TableHead className="text-right text-xs font-bold">Body</TableHead>
                             </TableRow>
                           </TableHeader>
@@ -2061,13 +2318,22 @@ function DashboardPageContent() {
                     if(!attendanceData || !user || !firestore) return; 
                     setIsSaving(true); 
                     try {
-                        setOptimisticAttendances(cur => new Map(cur).set(attendanceData.matchId, { status: attendanceData.status, note: attendanceNote })); 
+                        const isCurrentUserGoalie = isGoaliePlayer(userProfile);
+                        setOptimisticAttendances(cur => new Map(cur).set(attendanceData.matchId, { status: attendanceData.status, note: attendanceNote, isGoalie: isCurrentUserGoalie } as any)); 
                         await attendanceService.submitAttendance(firestore, {
                             userId: user.uid,
                             matchId: attendanceData.matchId,
                             status: attendanceData.status,
                             note: attendanceNote,
+                            isGoalie: isCurrentUserGoalie,
                         });
+                        if (isCurrentUserGoalie && userProfile?.playerType !== 'goalie') {
+                          try {
+                            await setDoc(doc(firestore, 'users', user.uid), { playerType: 'goalie' }, { merge: true });
+                          } catch {
+                            // ignore
+                          }
+                        }
                         setIsAttendanceDialogOpen(false); 
                     } catch (err: any) {
                         // error emitted in attendanceService
@@ -2084,7 +2350,7 @@ function DashboardPageContent() {
             <DialogHeader className="p-6 pb-0 flex-shrink-0">
                 <DialogTitle>Editor sestavy</DialogTitle>
             </DialogHeader>
-            {lineupMatch && <LineupBuilder players={allUsers?.filter(u => (attendancesByMatch.get(lineupMatch.id)||[]).some(a => a.userId === u.id && a.status === 'going')) || []} initialData={lineupMatch.lineup} onSave={async l => { 
+            {lineupMatch && <LineupBuilder players={allUsers?.map(u => ({ ...u, playerType: (isGoaliePlayer(u) ? 'goalie' : u.playerType) as 'goalie' | 'player' | 'member' })).filter(u => (attendancesByMatch.get(lineupMatch.id)||[]).some(a => a.userId === u.id && a.status === 'going')) || []} initialData={lineupMatch.lineup} onSave={async l => { 
                 if(!lineupMatch || !firestore) return; 
                 setIsSaving(true); 
                 try {
