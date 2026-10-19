@@ -195,23 +195,23 @@ export function MilestoneDetailModal({
           {currentUserId && (
             <div className="mt-4 pt-3 border-t border-border/40">
               {isUnlockedByMe ? (
-                <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 text-xs">
-                  <div className="flex items-center gap-2 font-bold">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 text-xs">
+                  <div className="flex items-center gap-2 font-bold min-w-0">
                     <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
                     <span>Tento odznak máš odemčený ve své síni slávy!</span>
                   </div>
-                  <span className="font-black tabular-nums bg-background/80 px-2 py-0.5 rounded border border-emerald-500/30 shrink-0">
+                  <span className="font-black tabular-nums bg-background/80 px-2 py-0.5 rounded border border-emerald-500/30 shrink-0 self-start sm:self-auto">
                     Tvůj zápis: {userHolderRecord?.value} {formatUnitWithCount(userHolderRecord?.value || 0, definition.unit, definition.id)}
                   </span>
                 </div>
               ) : userCandidateRecord ? (
                 <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-1.5 text-xs">
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
                     <span className="font-bold text-foreground flex items-center gap-1.5">
                       <TrendingUp className="h-3.5 w-3.5 text-amber-500" />
                       Tvůj aktuální postup:
                     </span>
-                    <span className="font-black text-amber-600 dark:text-amber-400 tabular-nums">
+                    <span className="font-black text-amber-600 dark:text-amber-400 tabular-nums self-start sm:self-auto">
                       {userCandidateRecord.current} / {definition.target} {formatUnitWithCount(definition.target, definition.unit, definition.id)}
                     </span>
                   </div>
@@ -257,62 +257,63 @@ export function MilestoneDetailModal({
                         key={holder.id}
                         onClick={() => handlePlayerClick(holder.id)}
                         className={cn(
-                          'group cursor-pointer rounded-xl border p-2.5 sm:p-3 transition-all flex items-center justify-between gap-3 bg-card hover:bg-muted/50 hover:border-primary/40',
+                          'group cursor-pointer rounded-xl border p-2.5 sm:p-3 transition-all bg-card hover:bg-muted/50 hover:border-primary/40 space-y-2',
                           isMe && 'ring-1 ring-primary/40 bg-primary/5'
                         )}
                         title="Kliknutím zobrazíte kariérní profil hráče"
                       >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <span className="text-xs font-black text-muted-foreground/60 w-5 text-center shrink-0 tabular-nums">
-                            {idx + 1}.
-                          </span>
-                          <Avatar className="h-9 w-9 border border-border shrink-0">
-                            <AvatarImage src={holder.photoURL || undefined} />
-                            <AvatarFallback className="text-[11px] font-bold">
-                              {holder.name.substring(0, 2)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <p className="font-bold text-xs sm:text-sm text-foreground truncate group-hover:text-primary transition-colors">
-                                {holder.name}
-                              </p>
-                              {isGoalie && (
-                                <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10">
-                                  Brankář
-                                </Badge>
-                              )}
-                              {isMe && (
-                                <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-primary/50 text-primary">
-                                  Ty
-                                </Badge>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2 flex-wrap mt-0.5">
-                              {holder.jerseyNumber && (
-                                <p className="text-[10px] text-muted-foreground font-semibold">#{holder.jerseyNumber}</p>
-                              )}
-                              {holder.matchContext && (
-                                <p className="text-[10px] text-muted-foreground font-medium flex items-center gap-1">
-                                  <Calendar className="h-3 w-3 text-primary shrink-0" />
-                                  <span className="truncate">{holder.matchContext}</span>
+                        <div className="flex items-center justify-between gap-3 min-w-0">
+                          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+                            <span className="text-xs font-black text-muted-foreground/60 w-5 text-center shrink-0 tabular-nums">
+                              {idx + 1}.
+                            </span>
+                            <Avatar className="h-9 w-9 border border-border shrink-0">
+                              <AvatarImage src={holder.photoURL || undefined} />
+                              <AvatarFallback className="text-[11px] font-bold">
+                                {holder.name.substring(0, 2)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="font-bold text-xs sm:text-sm text-foreground truncate group-hover:text-primary transition-colors">
+                                  {holder.name}
                                 </p>
+                                {isGoalie && (
+                                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10 shrink-0">
+                                    Brankář
+                                  </Badge>
+                                )}
+                                {isMe && (
+                                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-primary/50 text-primary shrink-0">
+                                    Ty
+                                  </Badge>
+                                )}
+                              </div>
+                              {holder.jerseyNumber && (
+                                <p className="text-[10px] text-muted-foreground font-semibold mt-0.5">#{holder.jerseyNumber}</p>
                               )}
                             </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <div className="text-right">
+                              <span className="font-black text-xs sm:text-sm text-primary tabular-nums">
+                                {holder.value}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground block whitespace-nowrap">
+                                {formatUnitWithCount(holder.value, definition.unit, definition.id)}
+                              </span>
+                            </div>
+                            <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-foreground group-hover:translate-x-0.5 transition-all shrink-0" />
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2 shrink-0">
-                          <div className="text-right">
-                            <span className="font-black text-xs sm:text-sm text-primary tabular-nums">
-                              {holder.value}
-                            </span>
-                            <span className="text-[10px] text-muted-foreground block">
-                              {formatUnitWithCount(holder.value, definition.unit, definition.id)}
-                            </span>
+                        {holder.matchContext && (
+                          <div className="pt-1.5 border-t border-border/40 flex items-center gap-1.5 text-[10px] text-muted-foreground font-medium pl-7 sm:pl-8 min-w-0">
+                            <Calendar className="h-3 w-3 text-primary shrink-0" />
+                            <span className="truncate">{holder.matchContext}</span>
                           </div>
-                          <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />
-                        </div>
+                        )}
                       </div>
                     );
                   })}
@@ -357,44 +358,44 @@ export function MilestoneDetailModal({
                         )}
                         title="Kliknutím zobrazíte kariérní profil hráče"
                       >
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="flex items-center justify-between gap-3 min-w-0">
+                          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
                             <span className="text-xs font-black text-amber-500/80 w-5 text-center shrink-0 tabular-nums">
                               #{idx + 1}
                             </span>
-                            <Avatar className="h-8 w-8 border border-border shrink-0">
+                            <Avatar className="h-8 w-8 sm:h-9 sm:w-9 border border-border shrink-0">
                               <AvatarImage src={cand.photoURL || undefined} />
                               <AvatarFallback className="text-[10px] font-bold">
                                 {cand.name.substring(0, 2)}
                               </AvatarFallback>
                             </Avatar>
-                            <div className="min-w-0">
+                            <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <p className="font-bold text-xs sm:text-sm text-foreground truncate group-hover:text-amber-500 transition-colors">
                                   {cand.name}
                                 </p>
                                 {isGoalie && (
-                                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10">
+                                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10 shrink-0">
                                     Brankář
                                   </Badge>
                                 )}
                                 {isMe && (
-                                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-primary/50 text-primary">
+                                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-primary/50 text-primary shrink-0">
                                     Ty
                                   </Badge>
                                 )}
                               </div>
                               {cand.jerseyNumber && (
-                                <p className="text-[10px] text-muted-foreground">#{cand.jerseyNumber}</p>
+                                <p className="text-[10px] text-muted-foreground font-semibold mt-0.5">#{cand.jerseyNumber}</p>
                               )}
                             </div>
                           </div>
 
                           <div className="text-right shrink-0">
-                            <span className="font-bold text-xs text-amber-500 tabular-nums">
+                            <span className="font-bold text-xs sm:text-sm text-amber-500 tabular-nums">
                               {cand.current} / {cand.target}
                             </span>
-                            <span className="text-[10px] text-muted-foreground block">
+                            <span className="text-[10px] text-muted-foreground block whitespace-nowrap">
                               {cand.progressPct}% splněno
                             </span>
                           </div>
@@ -403,7 +404,7 @@ export function MilestoneDetailModal({
                         {/* Progress Bar & Chybějící hodnota */}
                         <div className="space-y-1 pt-0.5">
                           <Progress value={cand.progressPct} className="h-1.5 bg-muted" />
-                          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                          <div className="flex flex-wrap items-center justify-between gap-1 text-[10px] text-muted-foreground">
                             <span>{cand.note || 'Zbývá dosáhnout:'}</span>
                             <strong className="text-foreground font-semibold">
                               Chybí jen {cand.remaining} {formatUnitWithCount(cand.remaining, definition.unit, definition.id)}
