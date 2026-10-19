@@ -32,6 +32,23 @@ export interface MatchFormData {
   playoffMatchNumber?: number | null;
 }
 
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  try {
+    const { getAuth } = await import('firebase/auth');
+    const auth = getAuth();
+    if (auth.currentUser) {
+      const token = await auth.currentUser.getIdToken();
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+    }
+  } catch {
+    // Ignore if client auth is unavailable
+  }
+  return headers;
+}
+
 export const matchesService = {
   /**
    * Save match score, goalie statistics, and scorers
@@ -218,6 +235,35 @@ export const matchesService = {
       throw new Error('Nemůžete hlasovat sami pro sebe.');
     }
 
+    // 1. Zkusit bezpečné uložení přes serverové API (vyhne se problémům s Firestore rules na klientovi)
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/matches/${matchId}/vote`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          type: 'mvp',
+          voterUserId,
+          candidateUserId,
+        }),
+      });
+
+      if (res.ok) {
+        return;
+      }
+
+      const errJson = await res.json().catch(() => null);
+      if (errJson?.error) {
+        throw new Error(errJson.error);
+      }
+    } catch (apiErr: any) {
+      if (apiErr.message && !apiErr.message.includes('fetch') && !apiErr.message.includes('Failed to fetch')) {
+        throw apiErr;
+      }
+      console.warn('API vote endpoint failed, falling back to client-side Firestore updateDoc:', apiErr);
+    }
+
+    // 2. Fallback na přímý klientský zápis do Firestore
     try {
       const updatedVotes = {
         ...currentVotes,
@@ -268,6 +314,35 @@ export const matchesService = {
       throw new Error('Každá ze 3 hvězd musí patřit jinému spoluhráči.');
     }
 
+    // 1. Zkusit bezpečné uložení přes serverové API (vyhne se problémům s Firestore rules na klientovi)
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/matches/${matchId}/vote`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          type: 'stars',
+          voterUserId,
+          vote,
+        }),
+      });
+
+      if (res.ok) {
+        return;
+      }
+
+      const errJson = await res.json().catch(() => null);
+      if (errJson?.error) {
+        throw new Error(errJson.error);
+      }
+    } catch (apiErr: any) {
+      if (apiErr.message && !apiErr.message.includes('fetch') && !apiErr.message.includes('Failed to fetch')) {
+        throw apiErr;
+      }
+      console.warn('API vote endpoint failed, falling back to client-side Firestore updateDoc:', apiErr);
+    }
+
+    // 2. Fallback na přímý klientský zápis do Firestore
     try {
       const updatedStarsVotes = {
         ...currentStarsVotes,
