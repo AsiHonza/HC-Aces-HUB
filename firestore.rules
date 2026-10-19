@@ -60,6 +60,11 @@ service cloud.firestore {
         allow read, update, delete: if isOwner(userId);
         allow create: if isAdmin() || isOwner(userId);
       }
+
+      // Pravidla pro push notifikace (Web Push subscriptions)
+      match /pushSubscriptions/{subscriptionId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
     }
 
     match /matches/{matchId} {

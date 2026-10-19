@@ -48,6 +48,22 @@ export const matchesService = {
         goalieSaves: data.goalieSaves ?? 0,
         goalieShotsAgainst: data.goalieShotsAgainst ?? 0,
       });
+
+      // Dispatch Web Push notification to team members to vote for 3 stars
+      if (typeof window !== 'undefined') {
+        fetch('/api/notifications/push', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            all: true,
+            title: 'Zápas odehrán! Hlasuj o 3 hvězdách ⭐',
+            body: `Výsledek utkání byl zapsán. Zvolte 3 nejlepší hráče dnešního zápasu v kabině!`,
+            url: `/dashboard?matchId=${matchId}&reason=mvp`,
+            tag: `aces-mvp-${matchId}`,
+            id: `aces-mvp-${matchId}`,
+          }),
+        }).catch(() => {});
+      }
     } catch (err: any) {
       errorEmitter.emit(
         'permission-error',
@@ -104,6 +120,22 @@ export const matchesService = {
           });
         });
         await batch.commit();
+
+        // Dispatch Web Push notification to all subscribed team devices
+        if (typeof window !== 'undefined') {
+          fetch('/api/notifications/push', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              all: true,
+              title: 'Nový zápas naplánován! 🏒',
+              body: `Aces vs ${data.opponent} (${format(data.dateTime, 'd. M. HH:mm')}). Přihlas se do sestavy!`,
+              url: `/dashboard/calendar`,
+              tag: `match-new-${matchDoc.id}`,
+              id: `match-new-${matchDoc.id}`,
+            }),
+          }).catch(() => {});
+        }
       } catch (notifErr) {
         console.warn('Could not dispatch notifications to users:', notifErr);
       }

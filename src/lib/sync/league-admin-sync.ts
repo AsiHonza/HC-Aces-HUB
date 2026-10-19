@@ -1,5 +1,6 @@
 import * as admin from 'firebase-admin';
 import { ScrapedLeagueData } from './league-scraper';
+import { sendPushToAll } from '../server/web-push';
 
 export interface AdminSyncResult {
   success: boolean;
@@ -342,8 +343,26 @@ export async function syncLeagueToAdminFirestore(
       const sanitizedPayload = sanitizeForFirestore(basePayload);
 
       if (existing) {
+        const wasPlayedBefore = Boolean(existing.isPlayed);
         await adminDb.doc(`matches/${existing.id}`).set(sanitizedPayload, { merge: true });
         matchesUpdated++;
+
+        // Pokud byl zápas právě odehrán a nahrán oficiální zápis, upozorníme kabinu
+        if (!wasPlayedBefore && sanitizedPayload.isPlayed) {
+          try {
+            const opp = team1Formatted === 'HC Aces' ? team2Formatted : team1Formatted;
+            await sendPushToAll({
+              title: 'Zápas odehrán! Hlasuj o 3 hvězdách ⭐',
+              body: `Utkání proti ${opp} je dohráno. Zvolte 3 nejlepší hráče v kabinovém hlasování!`,
+              url: `/dashboard?matchId=${existing.id}&reason=mvp`,
+              tag: `aces-match-played-${existing.id}`,
+              id: `aces-match-played-${existing.id}`,
+            });
+            console.log(`     📢 Odeslána push notifikace kabině pro odehraný zápas kola ${scrapedMatch.round}.`);
+          } catch (pushErr: any) {
+            console.warn(`       Varování při odesílání push notifikace:`, pushErr.message);
+          }
+        }
       } else {
         const newMatchId = `match-round-${scrapedMatch.round}-regular`;
         await adminDb.doc(`matches/${newMatchId}`).set({ id: newMatchId, seasonId: '2025-2026', ...sanitizedPayload }, { merge: true });
