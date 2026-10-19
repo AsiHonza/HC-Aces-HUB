@@ -82,13 +82,13 @@ export default function RootLayout({
         />
       </head>
       <body className="font-body antialiased" suppressHydrationWarning>
-        <ThemeProvider>
-          <PwaRegister />
-          <FirebaseClientProvider>
+        <FirebaseClientProvider>
+          <ThemeProvider>
+            <PwaRegister />
             {children}
             <Toaster />
-          </FirebaseClientProvider>
-        </ThemeProvider>
+          </ThemeProvider>
+        </FirebaseClientProvider>
       </body>
     </html>
   );

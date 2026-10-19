@@ -26,7 +26,7 @@ export function useTeamMilestonesData(explicitUserId?: string | null) {
   const { data: allUsers, isLoading: areUsersLoading } = useCollection<UserProfile>(usersRef);
 
   const matchesQuery = useMemoFirebase(
-    () => (firestore && user ? query(collection(firestore, 'matches'), orderBy('dateTime', 'asc')) : null),
+    () => (firestore && user ? collection(firestore, 'matches') : null),
     [firestore, user]
   );
   const { data: allMatches, isLoading: areMatchesLoading } = useCollection<Match>(matchesQuery);

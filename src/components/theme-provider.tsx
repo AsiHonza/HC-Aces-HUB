@@ -22,10 +22,32 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>('aces');
   const [mounted, setMounted] = useState(false);
 
+  const safeGetStorageTheme = (): Theme => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const saved = window.localStorage.getItem('aces-theme');
+        if (saved === 'light' || saved === 'dark' || saved === 'aces') {
+          return saved;
+        }
+      }
+    } catch {
+      // Storage restricted / private mode
+    }
+    return 'aces';
+  };
+
+  const safeSetStorageTheme = (t: Theme) => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem('aces-theme', t);
+      }
+    } catch {
+      // Storage restricted / private mode
+    }
+  };
+
   useEffect(() => {
-    // Check saved theme in localStorage, fallback to aces
-    const saved = localStorage.getItem('aces-theme') as Theme | null;
-    const initialTheme: Theme = saved === 'light' ? 'light' : saved === 'dark' ? 'dark' : 'aces';
+    const initialTheme = safeGetStorageTheme();
     setThemeState(initialTheme);
     applyTheme(initialTheme);
     setMounted(true);
@@ -33,30 +55,42 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     // Sync from Firestore user profile if logged in
     try {
       const { auth, firestore } = initializeFirebase();
+      if (!auth) return;
       const unsub = auth.onAuthStateChanged(async (currentUser) => {
-        if (currentUser) {
+        if (currentUser && firestore) {
           try {
             const snap = await getDoc(doc(firestore, 'users', currentUser.uid));
             if (snap.exists()) {
               const data = snap.data();
               if (data?.preferredTheme === 'light' || data?.preferredTheme === 'dark' || data?.preferredTheme === 'aces') {
                 const cloudTheme = data.preferredTheme as Theme;
-                const local = localStorage.getItem('aces-theme') as Theme | null;
-                if (!local || local !== cloudTheme) {
+                const local = safeGetStorageTheme();
+                if (local !== cloudTheme) {
                   setThemeState(cloudTheme);
-                  localStorage.setItem('aces-theme', cloudTheme);
+                  safeSetStorageTheme(cloudTheme);
                   applyTheme(cloudTheme);
                 }
               }
             }
-          } catch (e) {}
+          } catch {
+            // ignore network / permission errors
+          }
         }
       });
-      return () => unsub();
-    } catch (e) {}
+      return () => {
+        try {
+          unsub();
+        } catch {
+          // ignore
+        }
+      };
+    } catch {
+      // ignore
+    }
   }, []);
 
   const applyTheme = (t: Theme) => {
+    if (typeof document === 'undefined') return;
     const root = document.documentElement;
     root.classList.remove('dark', 'light', 'theme-aces');
     if (t === 'aces') {
@@ -70,17 +104,19 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const setTheme = (newTheme: Theme) => {
     setThemeState(newTheme);
-    localStorage.setItem('aces-theme', newTheme);
+    safeSetStorageTheme(newTheme);
     applyTheme(newTheme);
 
     try {
       const { auth, firestore } = initializeFirebase();
-      if (auth.currentUser) {
+      if (auth?.currentUser && firestore) {
         updateDoc(doc(firestore, 'users', auth.currentUser.uid), {
           preferredTheme: newTheme,
         }).catch(() => {});
       }
-    } catch (e) {}
+    } catch {
+      // ignore
+    }
   };
 
   const toggleTheme = () => {

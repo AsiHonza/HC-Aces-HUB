@@ -29,11 +29,7 @@ export function FirebaseErrorListener() {
     };
   }, []);
 
-  // On re-render, if an error exists in state, throw it.
-  if (error) {
-    throw error;
-  }
-
-  // This component renders nothing.
+  // Never throw unhandled exceptions during render - log warnings instead
+  // to prevent tearing down the entire React tree with Next.js application error overlay
   return null;
 }

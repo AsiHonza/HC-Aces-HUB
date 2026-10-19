@@ -93,8 +93,7 @@ export function useCollection<T = any>(
             setData(null);
             setIsLoading(false);
             console.error("Firebase query failed (not a permission error, maybe a missing index?):", error);
-            // Throw the original error to make it visible in the Next.js overlay
-            throw error;
+            return;
         }
 
         // For permission errors, build the contextual error.
