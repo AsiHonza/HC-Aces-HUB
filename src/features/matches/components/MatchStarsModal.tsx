@@ -198,7 +198,7 @@ export function MatchStarsModal({
 
   return (
     <Dialog open={isModalOpen} onOpenChange={(open) => !open && handleDismiss()}>
-      <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-full sm:max-w-xl max-w-[calc(100vw-2rem)] max-h-[90vh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
           <div className="flex items-center gap-2 text-primary font-bold text-xs uppercase tracking-wider">
             <Star className="h-4 w-4 fill-primary text-primary" />

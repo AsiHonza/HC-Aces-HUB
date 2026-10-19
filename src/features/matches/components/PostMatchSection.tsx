@@ -227,8 +227,8 @@ export function PostMatchSection({
   const hasAnyVotes = starsResults.totalPoints > 0;
 
   return (
-    <div className="space-y-4">
-      <Card className="border-primary/40 bg-gradient-to-br from-card via-card to-primary/5 shadow-md overflow-hidden">
+    <div className="space-y-4 w-full max-w-full min-w-0">
+      <Card className="border-primary/40 bg-gradient-to-br from-card via-card to-primary/5 shadow-md overflow-hidden w-full max-w-full min-w-0">
         {/* HORNÍ ČÁST: STAV A DETAILY ODEHRANÉHO ZÁPASU */}
         <div className="p-5 sm:p-6 border-b border-border/60 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -391,17 +391,17 @@ export function PostMatchSection({
         </div>
 
         {/* DOLNÍ ČÁST: HVĚZDY ZÁPASU (MVP) */}
-        <div className="p-5 sm:p-6 space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="space-y-1">
+        <div className="p-3.5 sm:p-6 space-y-6 w-full max-w-full min-w-0 overflow-hidden">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 min-w-0">
+            <div className="space-y-1 min-w-0">
               <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-lg bg-amber-500/15 text-amber-500 border border-amber-500/30">
+                <div className="p-1.5 rounded-lg bg-amber-500/15 text-amber-500 border border-amber-500/30 shrink-0">
                   <Star className="h-4 w-4 fill-amber-500" />
                 </div>
-                <CardTitle className="text-lg sm:text-xl font-headline font-bold">
+                <CardTitle className="text-lg sm:text-xl font-headline font-bold truncate">
                   MVP zápasu
                 </CardTitle>
-                <span className="text-xs text-muted-foreground hidden sm:inline">
+                <span className="text-xs text-muted-foreground hidden sm:inline shrink-0">
                   • 3 Hvězdy utkání
                 </span>
               </div>
@@ -410,17 +410,19 @@ export function PostMatchSection({
               </CardDescription>
             </div>
 
-            <div className="flex items-center gap-2 self-start sm:self-center">
+            <div className="flex items-center gap-2 self-start sm:self-center shrink-0 max-w-full">
               {isVotingOpen ? (
-                <Badge className="bg-primary text-primary-foreground text-xs font-semibold px-2.5 py-1">
-                  <Clock className="mr-1.5 h-3.5 w-3.5" />
-                  Hlasování otevřeno • zbývá{' '}
-                  {formatDistanceToNow(votingState.closesAt, { locale: cs })}
+                <Badge className="bg-primary text-primary-foreground text-xs font-semibold px-2.5 py-1 whitespace-normal max-w-full leading-normal text-left">
+                  <Clock className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+                  <span>
+                    Hlasování otevřeno • zbývá{' '}
+                    {formatDistanceToNow(votingState.closesAt, { locale: cs })}
+                  </span>
                 </Badge>
               ) : (
-                <Badge variant="secondary" className="text-xs font-semibold px-2.5 py-1">
-                  <Lock className="mr-1.5 h-3.5 w-3.5" />
-                  Hlasování uzavřeno
+                <Badge variant="secondary" className="text-xs font-semibold px-2.5 py-1 whitespace-normal max-w-full leading-normal">
+                  <Lock className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+                  <span>Hlasování uzavřeno</span>
                 </Badge>
               )}
             </div>
@@ -492,17 +494,17 @@ export function PostMatchSection({
 
           {/* PÓDIUM 3 HVĚZD UTKÁNÍ */}
           {hasAnyVotes ? (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5">
+            <div className="space-y-4 w-full min-w-0 max-w-full">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5 w-full min-w-0 max-w-full">
                 {/* 1. Hvězda (Zlato) */}
                 {starsResults.firstStar && (
-                  <div className="relative rounded-2xl border-2 border-amber-500/60 bg-gradient-to-b from-amber-500/20 via-amber-500/10 to-card/90 p-5 sm:p-6 shadow-md shadow-amber-500/10 flex flex-col items-center justify-between text-center min-h-[280px]">
-                    <Badge className="bg-amber-500 text-black font-black uppercase tracking-wider text-xs px-3 py-1 shadow">
+                  <div className="relative rounded-2xl border-2 border-amber-500/60 bg-gradient-to-b from-amber-500/20 via-amber-500/10 to-card/90 p-4 sm:p-6 shadow-md shadow-amber-500/10 flex flex-col items-center justify-between text-center min-h-[280px] w-full min-w-0 max-w-full overflow-hidden">
+                    <Badge className="bg-amber-500 text-black font-black uppercase tracking-wider text-xs px-3 py-1 shadow shrink-0">
                       <Star className="h-3.5 w-3.5 fill-black mr-1" /> 1. Hvězda
                     </Badge>
 
-                    <div className="flex flex-col items-center my-3">
-                      <div className="relative mb-2">
+                    <div className="flex flex-col items-center my-3 w-full min-w-0 px-1">
+                      <div className="relative mb-2 shrink-0">
                         <Avatar className="h-16 w-16 sm:h-20 sm:w-20 border-2 border-amber-500 shadow-md">
                           <AvatarImage
                             src={starsResults.firstStar.photoURL || undefined}
@@ -523,15 +525,15 @@ export function PostMatchSection({
                         )}
                       </div>
 
-                      <p className="text-lg sm:text-xl font-black font-headline tracking-tight text-foreground leading-snug">
+                      <p className="text-lg sm:text-xl font-black font-headline tracking-tight text-foreground leading-snug truncate max-w-full" title={starsResults.firstStar.name}>
                         {starsResults.firstStar.name}
                       </p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
+                      <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-full">
                         {starsResults.firstStar.playerType === 'goalie' ? 'Brankář' : 'Útočník / Obránce'}
                       </p>
                     </div>
 
-                    <div className="pt-2 border-t border-amber-500/20 w-full">
+                    <div className="pt-2 border-t border-amber-500/20 w-full min-w-0">
                       <p className="text-xl sm:text-2xl font-black text-amber-500 tabular-nums">
                         {starsResults.firstStar.points}{' '}
                         <span className="text-xs font-bold text-muted-foreground uppercase">
@@ -553,16 +555,16 @@ export function PostMatchSection({
 
                 {/* 2. Hvězda (Stříbro) */}
                 {starsResults.secondStar && (
-                  <div className="relative rounded-2xl border-2 border-zinc-400/50 bg-gradient-to-b from-zinc-400/15 via-zinc-400/5 to-card/90 p-4 sm:p-5 shadow-sm flex flex-col items-center justify-between text-center min-h-[280px]">
+                  <div className="relative rounded-2xl border-2 border-zinc-400/50 bg-gradient-to-b from-zinc-400/15 via-zinc-400/5 to-card/90 p-4 sm:p-5 shadow-sm flex flex-col items-center justify-between text-center min-h-[280px] w-full min-w-0 max-w-full overflow-hidden">
                     <Badge
                       variant="outline"
-                      className="border-zinc-400 text-zinc-300 font-extrabold uppercase tracking-wider text-xs px-3 py-1 bg-zinc-400/10"
+                      className="border-zinc-400 text-zinc-300 font-extrabold uppercase tracking-wider text-xs px-3 py-1 bg-zinc-400/10 shrink-0"
                     >
                       <Star className="h-3.5 w-3.5 fill-zinc-400 mr-1" /> 2. Hvězda
                     </Badge>
 
-                    <div className="flex flex-col items-center my-3">
-                      <div className="relative mb-2">
+                    <div className="flex flex-col items-center my-3 w-full min-w-0 px-1">
+                      <div className="relative mb-2 shrink-0">
                         <Avatar className="h-14 w-14 sm:h-16 sm:w-16 border-2 border-zinc-400 shadow-sm">
                           <AvatarImage
                             src={starsResults.secondStar.photoURL || undefined}
@@ -583,15 +585,15 @@ export function PostMatchSection({
                         )}
                       </div>
 
-                      <p className="text-base sm:text-lg font-extrabold font-headline text-foreground leading-snug">
+                      <p className="text-base sm:text-lg font-extrabold font-headline text-foreground leading-snug truncate max-w-full" title={starsResults.secondStar.name}>
                         {starsResults.secondStar.name}
                       </p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
+                      <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-full">
                         {starsResults.secondStar.playerType === 'goalie' ? 'Brankář' : 'Útočník / Obránce'}
                       </p>
                     </div>
 
-                    <div className="pt-2 border-t border-zinc-400/20 w-full">
+                    <div className="pt-2 border-t border-zinc-400/20 w-full min-w-0">
                       <p className="text-lg sm:text-xl font-black text-zinc-300 tabular-nums">
                         {starsResults.secondStar.points}{' '}
                         <span className="text-xs font-bold text-muted-foreground uppercase">
@@ -613,16 +615,16 @@ export function PostMatchSection({
 
                 {/* 3. Hvězda (Bronz) */}
                 {starsResults.thirdStar && (
-                  <div className="relative rounded-2xl border-2 border-amber-700/50 bg-gradient-to-b from-amber-700/15 via-amber-700/5 to-card/90 p-4 sm:p-5 shadow-sm flex flex-col items-center justify-between text-center min-h-[280px]">
+                  <div className="relative rounded-2xl border-2 border-amber-700/50 bg-gradient-to-b from-amber-700/15 via-amber-700/5 to-card/90 p-4 sm:p-5 shadow-sm flex flex-col items-center justify-between text-center min-h-[280px] w-full min-w-0 max-w-full overflow-hidden">
                     <Badge
                       variant="outline"
-                      className="border-amber-700 text-amber-600 font-extrabold uppercase tracking-wider text-xs px-3 py-1 bg-amber-700/10"
+                      className="border-amber-700 text-amber-600 font-extrabold uppercase tracking-wider text-xs px-3 py-1 bg-amber-700/10 shrink-0"
                     >
                       <Star className="h-3.5 w-3.5 fill-amber-700 mr-1" /> 3. Hvězda
                     </Badge>
 
-                    <div className="flex flex-col items-center my-3">
-                      <div className="relative mb-2">
+                    <div className="flex flex-col items-center my-3 w-full min-w-0 px-1">
+                      <div className="relative mb-2 shrink-0">
                         <Avatar className="h-14 w-14 sm:h-16 sm:w-16 border-2 border-amber-700 shadow-sm">
                           <AvatarImage
                             src={starsResults.thirdStar.photoURL || undefined}
@@ -643,15 +645,15 @@ export function PostMatchSection({
                         )}
                       </div>
 
-                      <p className="text-base sm:text-lg font-extrabold font-headline text-foreground leading-snug">
+                      <p className="text-base sm:text-lg font-extrabold font-headline text-foreground leading-snug truncate max-w-full" title={starsResults.thirdStar.name}>
                         {starsResults.thirdStar.name}
                       </p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
+                      <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-full">
                         {starsResults.thirdStar.playerType === 'goalie' ? 'Brankář' : 'Útočník / Obránce'}
                       </p>
                     </div>
 
-                    <div className="pt-2 border-t border-amber-700/20 w-full">
+                    <div className="pt-2 border-t border-amber-700/20 w-full min-w-0">
                       <p className="text-lg sm:text-xl font-black text-amber-600 tabular-nums">
                         {starsResults.thirdStar.points}{' '}
                         <span className="text-xs font-bold text-muted-foreground uppercase">
@@ -674,27 +676,27 @@ export function PostMatchSection({
 
               {/* DETAILNÍ ROZPAD VŠECH HLASŮ (COLLAPSIBLE) */}
               {starsResults.standings.length > 0 && (
-                <div className="pt-2">
+                <div className="pt-2 w-full min-w-0 max-w-full">
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => setShowFullStandings((prev) => !prev)}
-                    className="text-xs font-semibold text-muted-foreground hover:text-foreground w-full flex items-center justify-center gap-1.5 border border-dashed border-border/80"
+                    className="text-xs font-semibold text-muted-foreground hover:text-foreground w-full flex items-center justify-center gap-1.5 border border-dashed border-border/80 whitespace-normal h-auto py-2.5 px-3 text-center max-w-full"
                   >
-                    <span>
+                    <span className="break-words max-w-full">
                       {showFullStandings
                         ? 'Skrýt detailní přehled všech hlasů'
                         : `Zobrazit detailní přehled všech hlasů (${starsResults.totalVoters} hlasujících kabiny)`}
                     </span>
                     {showFullStandings ? (
-                      <ChevronUp className="h-3.5 w-3.5" />
+                      <ChevronUp className="h-3.5 w-3.5 shrink-0" />
                     ) : (
-                      <ChevronDown className="h-3.5 w-3.5" />
+                      <ChevronDown className="h-3.5 w-3.5 shrink-0" />
                     )}
                   </Button>
 
                   {showFullStandings && (
-                    <div className="mt-3 space-y-2 rounded-xl border border-border/70 p-3 bg-muted/10">
+                    <div className="mt-3 space-y-2 rounded-xl border border-border/70 p-2 sm:p-3 bg-muted/10 w-full min-w-0 max-w-full overflow-hidden">
                       {starsResults.standings.map((item, idx) => {
                         const isMyStar1 = userStarsVote?.star1 === item.candidateId;
                         const isMyStar2 = userStarsVote?.star2 === item.candidateId;
@@ -704,44 +706,44 @@ export function PostMatchSection({
                         return (
                           <div
                             key={item.candidateId}
-                            className="flex items-center justify-between gap-3 p-2.5 rounded-lg border border-border/50 bg-card/60"
+                            className="flex items-center justify-between gap-2 sm:gap-3 p-2 sm:p-2.5 rounded-lg border border-border/50 bg-card/60 min-w-0 w-full max-w-full"
                           >
-                            <div className="flex items-center gap-3 min-w-0">
-                              <span className="font-bold text-muted-foreground text-xs w-5 text-right">
+                            <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 overflow-hidden">
+                              <span className="font-bold text-muted-foreground text-xs w-4 sm:w-5 text-right shrink-0">
                                 {idx + 1}.
                               </span>
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-bold text-sm text-foreground truncate">
+                              <div className="min-w-0 flex-1 overflow-hidden">
+                                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                                  <span className="font-bold text-xs sm:text-sm text-foreground truncate max-w-[130px] sm:max-w-none">
                                     {item.name}
                                   </span>
                                   {item.jerseyNumber && (
-                                    <span className="text-[10px] text-muted-foreground font-mono">
+                                    <span className="text-[10px] text-muted-foreground font-mono shrink-0">
                                       #{item.jerseyNumber}
                                     </span>
                                   )}
                                   {isMyVote && (
                                     <Badge
                                       variant="outline"
-                                      className="text-[10px] h-4 px-1.5 border-emerald-500/50 text-emerald-500 bg-emerald-500/10 font-normal"
+                                      className="text-[10px] h-4 px-1.5 border-emerald-500/50 text-emerald-500 bg-emerald-500/10 font-normal shrink-0"
                                     >
                                       Tvůj výběr{' '}
                                       {isMyStar1 ? '(1.)' : isMyStar2 ? '(2.)' : '(3.)'}
                                     </Badge>
                                   )}
                                 </div>
-                                <div className="flex flex-wrap items-center gap-2 pt-0.5 text-[11px]">
-                                  <span className="inline-flex items-center gap-1 text-amber-500 font-semibold">
+                                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 pt-0.5 text-[10px] sm:text-[11px]">
+                                  <span className="inline-flex items-center gap-1 text-amber-500 font-semibold shrink-0">
                                     <Star className="h-3 w-3 fill-amber-500 shrink-0" />
                                     {item.star1Count}x zlatá
                                   </span>
-                                  <span className="text-muted-foreground/40">•</span>
-                                  <span className="inline-flex items-center gap-1 text-zinc-400 font-semibold">
+                                  <span className="text-muted-foreground/40 shrink-0">•</span>
+                                  <span className="inline-flex items-center gap-1 text-zinc-400 font-semibold shrink-0">
                                     <Star className="h-3 w-3 fill-zinc-400 shrink-0" />
                                     {item.star2Count}x stříbrná
                                   </span>
-                                  <span className="text-muted-foreground/40">•</span>
-                                  <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-500 font-semibold">
+                                  <span className="text-muted-foreground/40 shrink-0">•</span>
+                                  <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-500 font-semibold shrink-0">
                                     <Star className="h-3 w-3 fill-amber-700 shrink-0" />
                                     {item.star3Count}x bronzová
                                   </span>
@@ -750,7 +752,7 @@ export function PostMatchSection({
                             </div>
 
                             <div className="text-right shrink-0">
-                              <span className="text-base font-black text-primary tabular-nums">
+                              <span className="text-sm sm:text-base font-black text-primary tabular-nums">
                                 {item.points} b.
                               </span>
                             </div>

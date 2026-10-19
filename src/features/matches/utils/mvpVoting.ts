@@ -4,8 +4,8 @@ import { toSafeDate } from '@/lib/dates';
 /** 75 minutes after match start = match ends & players are in the locker room */
 export const MVP_OPEN_DELAY_MS = 75 * 60 * 1000;
 
-/** Voting stays open for 24 hours after opening */
-export const MVP_WINDOW_DURATION_MS = 24 * 60 * 60 * 1000;
+/** Voting stays open for 72 hours (3 days) after opening */
+export const MVP_WINDOW_DURATION_MS = 72 * 60 * 60 * 1000;
 
 export type MvpVotingStatus = 'not_started' | 'open' | 'closed';
 
