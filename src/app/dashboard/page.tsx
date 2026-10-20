@@ -1605,30 +1605,7 @@ function DashboardPageContent() {
         </div>
       </Card>
 
-        {/* SPOJENÝ BLOK: ODEHRANÝ ZÁPAS & MVP / HVĚZDY ZÁPASU (PŘEDNOST PŘED PŘÍŠTÍMI ZÁPASY) */}
-        {selectedSeasonId === 'current' && postMatchData && (
-          <div className="lg:col-span-3 w-full min-w-0 max-w-full overflow-hidden">
-            <PostMatchSection
-              match={postMatchData.match}
-              currentUserId={user.uid}
-              users={allUsers || []}
-              usersMap={usersMap}
-              attendees={attendancesByMatch.get(postMatchData.match.id) || []}
-              attendancesByMatch={attendancesByMatch}
-              isAdmin={userProfile?.role === 'admin'}
-              onRecordResult={(match) => {
-                setSelectedMatch(match as any);
-                setIsResultDialogOpen(true);
-              }}
-              onOpenStarsModal={(m) => {
-                setSelectedVotingMatch(m || postMatchData.match);
-                setIsStarsModalOpen(true);
-              }}
-              additionalAwaitingMatches={postMatchData.additionalAwaiting}
-            />
-          </div>
-        )}
-
+        {/* PŘÍŠTÍ ZÁPASY / ANKETA DOCHÁZKY (UMÍSTĚNO NAHOŘE PRO RYCHLOU DOCHÁZKU) */}
         {selectedSeasonId === 'current' ? (
           <div className="lg:col-span-3 space-y-4 w-full min-w-0 max-w-full overflow-hidden">
             <div className="flex items-center justify-between px-2 sm:px-0"><h2 className="text-xl font-bold flex items-center gap-2"><Trophy className="text-primary"/>Příští zápasy</h2>{userProfile?.role === 'admin' && <Button size="sm" onClick={() => setIsAddDialogOpen(true)}><Plus className="h-4 mr-2" />Přidat zápas</Button>}</div>
@@ -1653,6 +1630,30 @@ function DashboardPageContent() {
             <Button variant="outline" size="sm" onClick={() => setSelectedSeasonId('current')} className="text-xs h-8 shrink-0">
               Přejít na aktuální sezónu
             </Button>
+          </div>
+        )}
+
+        {/* SPOJENÝ BLOK: ODEHRANÝ ZÁPAS & MVP / HVĚZDY ZÁPASU */}
+        {selectedSeasonId === 'current' && postMatchData && (
+          <div className="lg:col-span-3 w-full min-w-0 max-w-full overflow-hidden">
+            <PostMatchSection
+              match={postMatchData.match}
+              currentUserId={user.uid}
+              users={allUsers || []}
+              usersMap={usersMap}
+              attendees={attendancesByMatch.get(postMatchData.match.id) || []}
+              attendancesByMatch={attendancesByMatch}
+              isAdmin={userProfile?.role === 'admin'}
+              onRecordResult={(match) => {
+                setSelectedMatch(match as any);
+                setIsResultDialogOpen(true);
+              }}
+              onOpenStarsModal={(m) => {
+                setSelectedVotingMatch(m || postMatchData.match);
+                setIsStarsModalOpen(true);
+              }}
+              additionalAwaitingMatches={postMatchData.additionalAwaiting}
+            />
           </div>
         )}
 

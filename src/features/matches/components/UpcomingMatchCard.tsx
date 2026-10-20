@@ -280,10 +280,10 @@ export function UpcomingMatchCard({
                 </Button>
               </DialogTrigger>
               <DialogContent className="p-0 sm:max-w-md">
-                <DialogHeader className="p-5 pb-2">
-                  <DialogTitle className="flex items-center justify-between text-base">
+                <DialogHeader className="p-5 pb-2 pr-12 text-left">
+                  <DialogTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
                     <span>Soupis přihlášených</span>
-                    <Badge variant="outline" className="text-xs font-semibold">
+                    <Badge variant="outline" className="text-xs font-semibold shrink-0">
                       {goingAttendees.length} potvrzeno
                       {goingGoalies.length > 0 && (
                         <span className="ml-1 text-amber-500 font-bold">
