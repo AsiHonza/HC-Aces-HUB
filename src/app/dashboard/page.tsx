@@ -1436,7 +1436,7 @@ function DashboardPageContent() {
   if (isLoading || !user) return <div className="flex justify-center py-12"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>
 
   return (
-    <div className="py-8 space-y-8">
+    <div className="py-8 space-y-8 w-full min-w-0 max-w-full overflow-x-hidden">
       {selectedSeasonId !== 'current' && (
         <div className="bg-amber-500/10 border-2 border-amber-500/30 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -1468,10 +1468,10 @@ function DashboardPageContent() {
 
       <BirthdaysCard birthdays={upcomingBirthdays} />
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-6 lg:grid-cols-3 w-full min-w-0 max-w-full">
         {/* PROFESIONÁLNÍ HRÁČSKÁ LIŠTA (PLAYER STRIP) */}
-        <Card className="lg:col-span-3 border-border/70 bg-card/95 shadow-sm overflow-hidden">
-        <div className="p-3.5 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <Card className="lg:col-span-3 border-border/70 bg-card/95 shadow-sm overflow-hidden w-full min-w-0 max-w-full">
+        <div className="p-3.5 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 w-full min-w-0">
           {/* Vizuální identita hráče */}
           <div className="flex items-center gap-3.5 min-w-0">
             <div className="relative shrink-0">
@@ -1607,7 +1607,7 @@ function DashboardPageContent() {
 
         {/* SPOJENÝ BLOK: ODEHRANÝ ZÁPAS & MVP / HVĚZDY ZÁPASU (PŘEDNOST PŘED PŘÍŠTÍMI ZÁPASY) */}
         {selectedSeasonId === 'current' && postMatchData && (
-          <div className="lg:col-span-3">
+          <div className="lg:col-span-3 w-full min-w-0 max-w-full overflow-hidden">
             <PostMatchSection
               match={postMatchData.match}
               currentUserId={user.uid}

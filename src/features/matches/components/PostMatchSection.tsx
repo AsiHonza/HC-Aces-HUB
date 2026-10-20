@@ -50,7 +50,7 @@ interface StarCountsStackProps {
 
 function StarCountsStack({ star1Count, star2Count, star3Count }: StarCountsStackProps) {
   return (
-    <div className="mt-2 flex items-center justify-center gap-1.5 w-full text-xs">
+    <div className="mt-2 flex flex-wrap items-center justify-center gap-1.5 w-full text-xs">
       <span
         title="1. hvězda (zlatá, 3b)"
         className={cn(
@@ -200,9 +200,9 @@ export function PostMatchSection({
     <div className="space-y-4 w-full max-w-full min-w-0">
       <Card className="border-primary/40 bg-gradient-to-br from-card via-card to-primary/5 shadow-md overflow-hidden w-full max-w-full min-w-0">
         {/* HORNÍ ČÁST: STAV A DETAILY ODEHRANÉHO ZÁPASU */}
-        <div className="p-5 sm:p-6 border-b border-border/60 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="space-y-2.5">
+        <div className="p-3.5 sm:p-6 border-b border-border/60 space-y-4 w-full min-w-0 max-w-full">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 min-w-0 w-full">
+            <div className="space-y-2.5 min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 {isAwaitingScore ? (
                   <Badge
@@ -257,31 +257,33 @@ export function PostMatchSection({
                 </div>
               )}
 
-              <div className="flex flex-wrap items-baseline gap-3">
-                <h3 className="text-xl sm:text-2xl font-black font-headline tracking-tight">
-                  HC Aces vs {opponentName}
-                </h3>
-                {currentMatch.team1Score !== undefined && currentMatch.team2Score !== undefined && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl sm:text-3xl font-black text-primary tabular-nums">
-                      {currentMatch.team1Score} : {currentMatch.team2Score}
-                    </span>
-                    {matchOutcome && (
-                      <Badge
-                        className={cn(
-                          'text-xs font-bold px-2 py-0.5',
-                          matchOutcome.variant === 'win'
-                            ? 'bg-emerald-500 text-white'
-                            : matchOutcome.variant === 'loss'
-                            ? 'bg-destructive text-destructive-foreground'
-                            : 'bg-amber-500 text-black'
-                        )}
-                      >
-                        {matchOutcome.label}
-                      </Badge>
-                    )}
-                  </div>
-                )}
+              <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 sm:gap-4 min-w-0 w-full">
+                <div className="flex flex-wrap items-baseline gap-2 sm:gap-3 min-w-0">
+                  <h3 className="text-lg sm:text-2xl font-black font-headline tracking-tight break-words">
+                    HC Aces vs {opponentName}
+                  </h3>
+                  {currentMatch.team1Score !== undefined && currentMatch.team2Score !== undefined && (
+                    <div className="inline-flex items-center gap-2 shrink-0">
+                      <span className="text-2xl sm:text-3xl font-black text-primary tabular-nums">
+                        {currentMatch.team1Score} : {currentMatch.team2Score}
+                      </span>
+                      {matchOutcome && (
+                        <Badge
+                          className={cn(
+                            'text-xs font-bold px-2 py-0.5',
+                            matchOutcome.variant === 'win'
+                              ? 'bg-emerald-500 text-white'
+                              : matchOutcome.variant === 'loss'
+                              ? 'bg-destructive text-destructive-foreground'
+                              : 'bg-amber-500 text-black'
+                          )}
+                        >
+                          {matchOutcome.label}
+                        </Badge>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
@@ -380,7 +382,7 @@ export function PostMatchSection({
               </CardDescription>
             </div>
 
-            <div className="flex items-center gap-2 self-start sm:self-center shrink-0 max-w-full">
+            <div className="flex items-center gap-2 self-start sm:self-center max-w-full min-w-0">
               {isVotingOpen ? (
                 <Badge className="bg-primary text-primary-foreground text-xs font-semibold px-2.5 py-1 whitespace-normal max-w-full leading-normal text-left">
                   <Clock className="mr-1.5 h-3.5 w-3.5 shrink-0" />

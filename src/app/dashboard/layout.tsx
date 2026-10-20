@@ -166,7 +166,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
       </header>
 
       <main className="flex-1 w-full min-w-0 overflow-x-hidden pb-20 md:pb-8">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 w-full min-w-0">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full min-w-0">
           {children}
         </div>
       </main>
