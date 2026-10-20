@@ -900,8 +900,8 @@ export function HallOfFameTab({
 
         {/* Dolní řada: Scrollable kategorie + Dropdown výběr úrovně (Tier) */}
         <div className="flex items-center justify-between gap-2 pt-0.5">
-          {/* Horizontálně rolovatelné kategorie */}
-          <div className="flex items-center gap-1 overflow-x-auto pb-0.5 max-w-full scrollbar-none flex-1 -mx-1 px-1">
+          {/* Horizontálně rolovatelné kategorie bez ošklivého posuvníku */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 max-w-full flex-1 scrollbar-none [&::-webkit-scrollbar]:hidden">
             {[
               { id: 'all', label: 'Všechny odznaky' },
               { id: 'games', label: 'Zápasy' },
@@ -915,7 +915,7 @@ export function HallOfFameTab({
                 key={cat.id}
                 onClick={() => setSelectedCategory(cat.id)}
                 className={cn(
-                  'px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all touch-manipulation',
+                  'px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all touch-manipulation shrink-0',
                   selectedCategory === cat.id
                     ? 'bg-primary text-primary-foreground shadow-xs font-bold'
                     : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -926,13 +926,17 @@ export function HallOfFameTab({
             ))}
           </div>
 
-          {/* Kompaktní dropdown výběru úrovně */}
+          {/* Kompaktní dropdown výběru úrovně - nezabírá zbytečné místo */}
           <div className="shrink-0">
             <Select value={tierFilter} onValueChange={(val) => setTierFilter(val)}>
               <SelectTrigger className="h-8 text-xs font-semibold bg-background/80 border-border/80 rounded-lg px-2.5 gap-1.5 shrink-0 w-auto">
-                <Filter className="h-3 w-3 text-muted-foreground" />
-                <span className="text-muted-foreground font-normal hidden sm:inline">Úroveň:</span>
-                <SelectValue />
+                <Filter className="h-3 w-3 text-muted-foreground shrink-0" />
+                <span className={cn(
+                  "text-xs font-bold whitespace-nowrap",
+                  tierFilter !== 'all' ? TIER_CONFIG[tierFilter as MilestoneTier]?.iconColor : "text-muted-foreground"
+                )}>
+                  {tierFilter === 'all' ? 'Úroveň: Vše' : TIER_CONFIG[tierFilter as MilestoneTier]?.label}
+                </span>
               </SelectTrigger>
               <SelectContent align="end">
                 <SelectItem value="all" className="text-xs font-semibold">Všechny úrovně</SelectItem>
@@ -953,16 +957,18 @@ export function HallOfFameTab({
           {/* A. 8 POSTUPOVÝCH SÉRIÍ */}
           {filteredSeries.length > 0 && (
             <div className="space-y-3">
-              <div className="flex items-center justify-between pb-1">
-                <div>
-                  <h3 className="font-headline font-bold text-sm sm:text-base text-foreground flex items-center gap-2">
-                    <Trophy className="h-4 w-4 text-amber-500" />
-                    Postupové série HC Aces
-                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-                      8 postupových řad • 5 stupňů (Bronz ➔ Legenda)
-                    </span>
-                  </h3>
-                  <p className="text-xs text-muted-foreground">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-2 pb-1">
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="font-headline font-bold text-base sm:text-lg text-foreground flex items-center gap-2">
+                      <Trophy className="h-4 w-4 text-amber-500 shrink-0" />
+                      Postupové série HC Aces
+                    </h3>
+                    <Badge variant="secondary" className="text-[10px] font-semibold px-2 py-0.5 border border-border/60">
+                      8 sérií • 5 stupňů
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
                     Klepnutím na kterýkoliv stupeň zobrazíte jeho splnění, držitele i historii
                   </p>
                 </div>
@@ -1028,8 +1034,8 @@ export function HallOfFameTab({
                         {/* Interaktivní 5-stupňový stepper */}
                         <div className="space-y-2 pt-1">
                           <div className="flex items-center justify-between text-xs text-muted-foreground px-0.5">
-                            <span className="font-bold text-foreground/80">Stupně série:</span>
-                            <span className="text-xs">Klepnutím přepnete úroveň</span>
+                            <span className="font-bold text-foreground/80 text-xs">Stupně série</span>
+                            <span className="text-[11px] text-muted-foreground/80">Klepnutím přepnete úroveň</span>
                           </div>
 
                           <div className="grid grid-cols-5 gap-1 sm:gap-2 p-1 sm:p-1.5 rounded-xl bg-muted/40 border border-border/60">
@@ -1047,7 +1053,7 @@ export function HallOfFameTab({
                                   type="button"
                                   onClick={() => setSeriesActiveTier((prev) => ({ ...prev, [series.id]: m.definition.id }))}
                                   className={cn(
-                                    'relative flex flex-col items-center justify-center py-2 sm:py-2.5 px-0.5 sm:px-1 rounded-lg transition-all touch-manipulation border text-center select-none min-h-[66px] sm:min-h-[72px]',
+                                    'relative flex flex-col items-center justify-between py-1.5 sm:py-2.5 px-0.5 sm:px-1 rounded-lg transition-all touch-manipulation border text-center select-none min-h-[74px] sm:min-h-[82px]',
                                     isActive
                                       ? 'bg-background shadow-sm ring-2 ring-primary border-primary z-10'
                                       : 'bg-background/40 hover:bg-background/80 border-transparent hover:border-border/60',
@@ -1056,30 +1062,30 @@ export function HallOfFameTab({
                                 >
                                   {/* Značka splnění hráčem */}
                                   {isUnlocked ? (
-                                    <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px] font-bold shadow-xs">
+                                    <span className="absolute -top-1.5 -right-1.5 z-20 h-4 w-4 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px] font-black shadow-sm border border-background">
                                       ✓
                                     </span>
                                   ) : isStepNew ? (
-                                    <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-emerald-500 animate-ping" />
+                                    <span className="absolute -top-1.5 -right-1.5 z-20 h-3 w-3 rounded-full bg-emerald-500 animate-ping border border-background" />
                                   ) : null}
 
                                   {/* Tier ikona */}
-                                  <div className="mb-0.5">
+                                  <div className="mb-0.5 mt-0.5">
                                     {getMilestoneIcon(m.definition.iconName, m.definition.tier, 'h-4 w-4 sm:h-5 sm:w-5')}
                                   </div>
 
                                   {/* Cílová hodnota */}
-                                  <span className={cn('text-xs sm:text-sm font-black tabular-nums leading-tight', isActive ? 'text-foreground' : 'text-foreground/80')}>
+                                  <span className={cn('text-xs sm:text-sm font-black tabular-nums leading-none', isActive ? 'text-foreground' : 'text-foreground/80')}>
                                     {m.definition.target}
                                   </span>
 
                                   {/* Popisek úrovně */}
-                                  <span className={cn('text-[10px] sm:text-xs font-bold uppercase tracking-tight truncate max-w-full px-0.5', tConf.iconColor)}>
+                                  <span className={cn('text-[9px] sm:text-[10px] font-black uppercase tracking-tighter truncate max-w-full px-0.5 leading-none', tConf.iconColor)}>
                                     {tConf.label}
                                   </span>
 
                                   {/* Počet držitelů */}
-                                  <span className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 flex items-center justify-center gap-1 font-medium">
+                                  <span className="text-[9px] sm:text-[10px] text-muted-foreground pb-0.5 flex items-center justify-center gap-0.5 font-medium leading-none">
                                     <Users className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                                     {m.totalHolders}
                                   </span>
