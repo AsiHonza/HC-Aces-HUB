@@ -739,237 +739,210 @@ export function HallOfFameTab({
         </div>
       )}
 
-      {/* 3. FILTR PODLE HRÁČE A OVLÁDACÍ PRVKY */}
-      <div className="space-y-4 pb-2 border-b">
-        {/* Hráčský filtr bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={() => setSelectedPlayerId('all')}
-              className={cn(
-                'px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all touch-manipulation',
-                selectedPlayerId === 'all'
-                  ? 'bg-primary text-primary-foreground shadow-sm'
-                  : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground'
-              )}
-            >
-              <Users className="h-4 w-4" />
-              <span>Celý tým</span>
-            </button>
-
-            {currentUserId && (
+      {/* 3. KOMPAKTNÍ FILTR PODLE HRÁČE A OVLÁDACÍ PRVKY */}
+      <div className="space-y-2.5 pb-2 border-b">
+        {/* Horní řada: Hráčský přepínač + Výběr z dropdownu + Přepínač zobrazení (Série / Vitrína) */}
+        <div className="flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
+          {/* Hráčský výběr: Tým / Moje / Jiný hráč */}
+          <div className="flex items-center gap-1.5 flex-1 min-w-0">
+            <div className="inline-flex items-center bg-muted/60 p-0.5 sm:p-1 rounded-xl border border-border/60 shrink-0">
               <button
-                onClick={() => setSelectedPlayerId(selectedPlayerId === 'me' ? 'all' : 'me')}
+                onClick={() => setSelectedPlayerId('all')}
                 className={cn(
-                  'px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all touch-manipulation',
-                  selectedPlayerId === 'me'
-                    ? 'bg-amber-500 text-amber-950 shadow-sm'
-                    : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 hover:bg-amber-500/20'
+                  'px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all touch-manipulation',
+                  selectedPlayerId === 'all'
+                    ? 'bg-background text-foreground shadow-xs'
+                    : 'text-muted-foreground hover:text-foreground'
                 )}
               >
-                <Star className="h-4 w-4 fill-current" />
-                <span>Moje odznaky</span>
+                <Users className="h-3.5 w-3.5" />
+                <span>Tým</span>
               </button>
-            )}
-          </div>
 
-          {/* Select výběru konkrétního hráče */}
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <div className="w-full sm:w-72">
+              {currentUserId && (
+                <button
+                  onClick={() => setSelectedPlayerId(selectedPlayerId === 'me' ? 'all' : 'me')}
+                  className={cn(
+                    'px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all touch-manipulation',
+                    selectedPlayerId === 'me'
+                      ? 'bg-amber-500 text-amber-950 shadow-xs'
+                      : 'text-amber-600 dark:text-amber-400 hover:bg-amber-500/10'
+                  )}
+                >
+                  <Star className="h-3.5 w-3.5 fill-current" />
+                  <span>Moje</span>
+                </button>
+              )}
+            </div>
+
+            {/* Dropdown pro výběr konkrétního hráče */}
+            <div className="w-36 sm:w-48 shrink-0">
               <Select
-                value={selectedPlayerId}
-                onValueChange={(val) => setSelectedPlayerId(val)}
+                value={selectedPlayerId === 'me' || selectedPlayerId === 'all' ? '' : selectedPlayerId}
+                onValueChange={(val) => {
+                  if (val) setSelectedPlayerId(val);
+                }}
               >
-                <SelectTrigger className="h-10 text-xs sm:text-sm bg-background rounded-xl">
-                  <div className="flex items-center gap-2 truncate">
-                    <User className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <SelectValue placeholder="Filtrovat dle hráče..." />
+                <SelectTrigger className="h-8 text-xs bg-background/80 rounded-xl px-2">
+                  <div className="flex items-center gap-1.5 truncate">
+                    <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <span className="truncate">
+                      {selectedPlayerId !== 'all' && selectedPlayerId !== 'me' && selectedPlayerProfile
+                        ? selectedPlayerProfile.name
+                        : 'Jiný hráč...'}
+                    </span>
                   </div>
                 </SelectTrigger>
                 <SelectContent className="max-h-72">
-                  <SelectItem value="all" className="text-xs sm:text-sm font-semibold">
-                    👥 Všichni hráči týmu
-                  </SelectItem>
-                  {currentUserId && (
-                    <SelectItem value="me" className="text-xs sm:text-sm font-semibold text-amber-500">
-                      ⭐ Moje odznaky (přihlášený)
-                    </SelectItem>
-                  )}
-                  <div className="px-2 py-1 text-xs uppercase font-bold text-muted-foreground border-t my-1">
+                  <div className="px-2 py-1 text-[11px] font-bold text-muted-foreground uppercase">
                     Hráči na soupisce
                   </div>
                   {availablePlayers.map((player) => (
-                    <SelectItem key={player.id} value={player.id} className="text-xs sm:text-sm">
+                    <SelectItem key={player.id} value={player.id} className="text-xs">
                       {player.name} {player.jerseyNumber ? `(#${player.jerseyNumber})` : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+          </div>
 
-            {effectivePlayerId && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSelectedPlayerId('all')}
-                className="h-10 px-2.5 text-xs text-muted-foreground hover:text-foreground shrink-0"
-                title="Zrušit filtr hráče"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            )}
+          {/* Přepínač zobrazení: Série vs Vitrína */}
+          <div className="inline-flex items-center bg-muted/60 p-0.5 sm:p-1 rounded-xl border border-border/60 shrink-0">
+            <button
+              type="button"
+              onClick={() => setViewMode('series')}
+              className={cn(
+                'px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all touch-manipulation',
+                viewMode === 'series'
+                  ? 'bg-background text-foreground shadow-xs font-bold'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+              title="Série & Klenoty: interaktivní řady"
+            >
+              <Layers className="h-3.5 w-3.5 text-primary" />
+              <span className="hidden sm:inline">Série</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('compact')}
+              className={cn(
+                'px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all touch-manipulation',
+                viewMode === 'compact'
+                  ? 'bg-background text-foreground shadow-xs font-bold'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+              title="Vitrína všech odznaků"
+            >
+              <LayoutGrid className="h-3.5 w-3.5 text-amber-500" />
+              <span className="hidden sm:inline">Vitrína</span>
+            </button>
           </div>
         </div>
 
-        {/* Informační lišta o aktivním filtru hráče */}
+        {/* Informační lišta o aktivním filtru hráče (zobrazuje se pouze při výběru konkrétního hráče nebo 'Moje') */}
         {selectedPlayerProfile && (
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-primary/10 border border-primary/20 text-xs sm:text-sm">
-            <div className="flex items-center gap-3 min-w-0">
-              <Avatar className="h-9 w-9 border border-primary/30 shrink-0">
+          <div className="flex items-center justify-between gap-2 p-2 px-3 rounded-xl bg-primary/10 border border-primary/20 text-xs">
+            <div className="flex items-center gap-2 min-w-0">
+              <Avatar className="h-6 w-6 border border-primary/30 shrink-0">
                 <AvatarImage src={selectedPlayerProfile.photoURL || undefined} />
-                <AvatarFallback className="text-xs font-bold">
+                <AvatarFallback className="text-[10px] font-bold">
                   {selectedPlayerProfile.name.substring(0, 2)}
                 </AvatarFallback>
               </Avatar>
-              <div className="min-w-0">
-                <p className="font-bold text-foreground text-sm truncate">
-                  {selectedPlayerProfile.name} {selectedPlayerProfile.jerseyNumber ? `#${selectedPlayerProfile.jerseyNumber}` : ''}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Získáno <strong className="text-primary font-bold">{playerUnlockedCount}</strong> z {milestones.length} klubových odznaků ({Math.round((playerUnlockedCount / milestones.length) * 100)} %)
-                </p>
-              </div>
+              <span className="font-bold text-foreground text-xs truncate">
+                {selectedPlayerProfile.name} {selectedPlayerProfile.jerseyNumber ? `#${selectedPlayerProfile.jerseyNumber}` : ''}
+              </span>
+              <span className="text-muted-foreground text-[11px] hidden xs:inline">•</span>
+              <span className="text-muted-foreground text-[11px] truncate">
+                <strong className="text-primary font-bold">{playerUnlockedCount}</strong>/{milestones.length} ({Math.round((playerUnlockedCount / milestones.length) * 100)}%)
+              </span>
             </div>
 
-            <div className="flex items-center gap-2 self-end sm:self-center">
-              <div className="flex items-center gap-1 bg-background/80 rounded-xl p-1 border">
+            <div className="flex items-center gap-1.5 shrink-0">
+              <div className="inline-flex items-center bg-background/80 rounded-lg p-0.5 border text-[11px]">
                 <button
                   onClick={() => setPlayerFilterMode('only_unlocked')}
                   className={cn(
-                    'px-3 py-1.5 rounded-lg text-xs font-bold transition-all touch-manipulation',
-                    playerFilterMode === 'only_unlocked' 
-                      ? 'bg-primary text-primary-foreground shadow-xs' 
+                    'px-2 py-0.5 rounded text-[11px] font-bold transition-all',
+                    playerFilterMode === 'only_unlocked'
+                      ? 'bg-primary text-primary-foreground'
                       : 'text-muted-foreground hover:text-foreground'
                   )}
                 >
-                  Jen získané ({playerUnlockedCount})
+                  Získané ({playerUnlockedCount})
                 </button>
                 <button
                   onClick={() => setPlayerFilterMode('all_badges')}
                   className={cn(
-                    'px-3 py-1.5 rounded-lg text-xs font-bold transition-all touch-manipulation',
-                    playerFilterMode === 'all_badges' 
-                      ? 'bg-primary text-primary-foreground shadow-xs' 
+                    'px-2 py-0.5 rounded text-[11px] font-bold transition-all',
+                    playerFilterMode === 'all_badges'
+                      ? 'bg-primary text-primary-foreground'
                       : 'text-muted-foreground hover:text-foreground'
                   )}
                 >
-                  Všechny odznaky
+                  Vše
                 </button>
               </div>
 
               <Button
-                variant="outline"
-                size="sm"
+                variant="ghost"
+                size="icon"
                 onClick={() => setSelectedPlayerId('all')}
-                className="h-8 px-2.5 text-xs font-semibold"
+                className="h-6 w-6 text-muted-foreground hover:text-foreground shrink-0"
+                title="Zrušit filtr hráče"
               >
-                Zrušit filtr
+                <X className="h-3.5 w-3.5" />
               </Button>
             </div>
           </div>
         )}
 
-        {/* Kategorie & Tier filtry & Přepínač zobrazení */}
-        <div className="flex flex-col gap-3 pt-1">
-          {/* Horní řada: Kategorie */}
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full -mx-1 px-1 sm:mx-0 sm:px-0 scrollbar-none">
-              {[
-                { id: 'all', label: 'Všechny odznaky' },
-                { id: 'games', label: 'Zápasy' },
-                { id: 'points', label: 'Body' },
-                { id: 'scoring', label: 'Góly & Asistence' },
-                { id: 'goalies', label: 'Brankáři' },
-                { id: 'stars', label: 'Hvězdy & MVP' },
-                { id: 'special', label: 'Speciální klenoty' },
-              ].map((cat) => (
-                <button
-                  key={cat.id}
-                  onClick={() => setSelectedCategory(cat.id)}
-                  className={cn(
-                    'px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap transition-all touch-manipulation',
-                    selectedCategory === cat.id
-                      ? 'bg-primary text-primary-foreground shadow-sm font-bold'
-                      : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground'
-                  )}
-                >
-                  {cat.label}
-                </button>
-              ))}
-            </div>
+        {/* Dolní řada: Scrollable kategorie + Dropdown výběr úrovně (Tier) */}
+        <div className="flex items-center justify-between gap-2 pt-0.5">
+          {/* Horizontálně rolovatelné kategorie */}
+          <div className="flex items-center gap-1 overflow-x-auto pb-0.5 max-w-full scrollbar-none flex-1 -mx-1 px-1">
+            {[
+              { id: 'all', label: 'Všechny odznaky' },
+              { id: 'games', label: 'Zápasy' },
+              { id: 'points', label: 'Body' },
+              { id: 'scoring', label: 'Góly & Asistence' },
+              { id: 'goalies', label: 'Brankáři' },
+              { id: 'stars', label: 'Hvězdy & MVP' },
+              { id: 'special', label: 'Speciální klenoty' },
+            ].map((cat) => (
+              <button
+                key={cat.id}
+                onClick={() => setSelectedCategory(cat.id)}
+                className={cn(
+                  'px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all touch-manipulation',
+                  selectedCategory === cat.id
+                    ? 'bg-primary text-primary-foreground shadow-xs font-bold'
+                    : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
+                )}
+              >
+                {cat.label}
+              </button>
+            ))}
           </div>
 
-          {/* Dolní řada: Tier filtr + Segmentovaný přepínač zobrazení */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-0.5">
-            {/* Tier filtr */}
-            <div className="flex items-center gap-1.5 shrink-0 overflow-x-auto max-w-full pb-0.5 scrollbar-none">
-              <Filter className="h-3.5 w-3.5 text-muted-foreground mr-0.5 shrink-0" />
-              <span className="text-xs font-semibold text-muted-foreground mr-0.5 shrink-0">Úroveň:</span>
-              {[
-                { id: 'all', label: 'Vše' },
-                { id: 'bronze', label: 'Bronz', color: 'text-amber-700 dark:text-amber-500' },
-                { id: 'silver', label: 'Stříbro', color: 'text-zinc-300' },
-                { id: 'gold', label: 'Zlato', color: 'text-amber-400' },
-                { id: 'diamond', label: 'Diamant', color: 'text-cyan-400' },
-                { id: 'legend', label: 'Legenda', color: 'text-purple-400' },
-              ].map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => setTierFilter(t.id)}
-                  className={cn(
-                    'px-2.5 py-1 rounded-lg text-xs font-bold transition-all border shrink-0 touch-manipulation',
-                    tierFilter === t.id
-                      ? 'bg-foreground text-background border-foreground shadow-xs'
-                      : 'bg-transparent text-muted-foreground border-border/60 hover:text-foreground'
-                  )}
-                >
-                  <span className={t.color}>{t.label}</span>
-                </button>
-              ))}
-            </div>
-
-            {/* Přepínač zobrazení (Série vs. Kompaktní vitrína) */}
-            <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl border border-border/60 self-start sm:self-auto shrink-0">
-              <button
-                type="button"
-                onClick={() => setViewMode('series')}
-                className={cn(
-                  'px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition-all touch-manipulation',
-                  viewMode === 'series'
-                    ? 'bg-background text-foreground shadow-sm font-bold'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-                title="Série & Klenoty: 8 interaktivních postupových řad + zápasové klenoty (doporučeno pro minimální scrollování)"
-              >
-                <Layers className="h-4 w-4 text-primary" />
-                <span>Série & Klenoty</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setViewMode('compact')}
-                className={cn(
-                  'px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition-all touch-manipulation',
-                  viewMode === 'compact'
-                    ? 'bg-background text-foreground shadow-sm font-bold'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-                title="Kompaktní vitrína: Rychlý přehled všech odznaků na jedné obrazovce"
-              >
-                <LayoutGrid className="h-4 w-4 text-amber-500" />
-                <span>Vitrína všech odznaků</span>
-              </button>
-            </div>
+          {/* Kompaktní dropdown výběru úrovně */}
+          <div className="shrink-0">
+            <Select value={tierFilter} onValueChange={(val) => setTierFilter(val)}>
+              <SelectTrigger className="h-8 text-xs font-semibold bg-background/80 border-border/80 rounded-lg px-2.5 gap-1.5 shrink-0 w-auto">
+                <Filter className="h-3 w-3 text-muted-foreground" />
+                <span className="text-muted-foreground font-normal hidden sm:inline">Úroveň:</span>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="end">
+                <SelectItem value="all" className="text-xs font-semibold">Všechny úrovně</SelectItem>
+                <SelectItem value="bronze" className="text-xs font-bold text-amber-700 dark:text-amber-500">Bronz</SelectItem>
+                <SelectItem value="silver" className="text-xs font-bold text-zinc-300">Stříbro</SelectItem>
+                <SelectItem value="gold" className="text-xs font-bold text-amber-400">Zlato</SelectItem>
+                <SelectItem value="diamond" className="text-xs font-bold text-cyan-400">Diamant</SelectItem>
+                <SelectItem value="legend" className="text-xs font-bold text-purple-400">Legenda</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
       </div>

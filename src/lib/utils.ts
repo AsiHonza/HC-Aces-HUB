@@ -42,3 +42,17 @@ export function isGoaliePlayer(player?: { name?: string | null; playerType?: str
   if (n.includes('lacko') && (n.includes('miroslav') || n.includes('mira') || n === 'lacko')) return true;
   return false;
 }
+
+/**
+ * Matches two Czech player names flexibly (case-insensitive, diacritics-insensitive, by surname).
+ */
+export function areNamesMatching(nameA?: string | null, nameB?: string | null): boolean {
+  if (!nameA || !nameB) return false;
+  const clean = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+  const a = clean(getCanonicalPlayerName(nameA));
+  const b = clean(getCanonicalPlayerName(nameB));
+  if (a === b) return true;
+  const partsA = a.split(/\s+/).filter(Boolean);
+  const partsB = b.split(/\s+/).filter(Boolean);
+  return partsA.some((p) => p.length >= 3 && partsB.includes(p));
+}

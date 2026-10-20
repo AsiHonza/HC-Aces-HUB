@@ -21,7 +21,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { LineupBuilder, LineupDisplay, type Lineup } from '@/components/lineup-builder'
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
-import { cn, formatName } from '@/lib/utils'
+import { cn, formatName, areNamesMatching, isGoaliePlayer } from '@/lib/utils'
 import { toJsDate } from '@/lib/dates'
 import { GoalTimeline, MatchResultFormFields, PlayedMatchAccordionItem } from '@/features/matches'
 
@@ -65,6 +65,8 @@ interface UserProfile {
   email: string;
   role?: 'admin' | 'classic';
   playerType: 'player' | 'goalie' | 'member';
+  jerseyNumber?: number;
+  photoURL?: string;
 }
 
 function getMatchDetails(match: Match) {
@@ -315,7 +317,37 @@ function HistoryPageContent() {
                                     usersMap={usersMap}
                                     isAdmin={userProfile?.role === 'admin'}
                                     onViewLineup={() => {
-                                        setViewLineupData(m.lineup!);
+                                        let lineupToDisplay = m.lineup || null;
+                                        const hasExistingLineup = Boolean(lineupToDisplay && Object.values(lineupToDisplay).some((p: any) => p !== null));
+                                        if (!hasExistingLineup && m.gameRoster && m.gameRoster.length > 0) {
+                                            const skaterPlayers = m.gameRoster.map((skaterName, idx) => {
+                                                const u = users?.find(usr => areNamesMatching(usr.name, skaterName));
+                                                return u
+                                                    ? { id: u.id, name: u.name, email: u.email || '', jerseyNumber: u.jerseyNumber ?? null, photoURL: u.photoURL ?? null }
+                                                    : { id: `skater-${idx}`, name: skaterName, email: '', jerseyNumber: null, photoURL: null };
+                                            });
+                                            const goalieUser = m.goalieName ? users?.find(usr => areNamesMatching(usr.name, m.goalieName!)) : null;
+                                            const goaliePlayer = goalieUser
+                                                ? { id: goalieUser.id, name: goalieUser.name, email: goalieUser.email || '', jerseyNumber: goalieUser.jerseyNumber ?? null, photoURL: goalieUser.photoURL ?? null }
+                                                : (m.goalieName ? { id: 'goalie', name: m.goalieName, email: '', jerseyNumber: null, photoURL: null } : null);
+                                            lineupToDisplay = {
+                                                B1: goaliePlayer,
+                                                LK1: skaterPlayers[0] || null,
+                                                C1: skaterPlayers[1] || null,
+                                                PK1: skaterPlayers[2] || null,
+                                                LO1: skaterPlayers[3] || null,
+                                                PO1: skaterPlayers[4] || null,
+                                                LK2: skaterPlayers[5] || null,
+                                                C2: skaterPlayers[6] || null,
+                                                PK2: skaterPlayers[7] || null,
+                                                LO2: skaterPlayers[8] || null,
+                                                PO2: skaterPlayers[9] || null,
+                                                LK3: skaterPlayers[10] || null,
+                                                C3: skaterPlayers[11] || null,
+                                                PK3: skaterPlayers[12] || null,
+                                            } as any;
+                                        }
+                                        setViewLineupData(lineupToDisplay || m.lineup!);
                                         setViewScorersData(m.scorers);
                                         setViewMatchOpponent(getMatchDetails(m).opponent);
                                         setIsLineupViewOpen(true);

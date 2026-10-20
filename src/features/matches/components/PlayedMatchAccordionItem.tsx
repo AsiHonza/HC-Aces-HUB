@@ -21,6 +21,7 @@ import {
   Trash2,
   Share2,
   Trophy,
+  Clock,
 } from 'lucide-react';
 import { cn, formatName } from '@/lib/utils';
 import { toJsDate } from '@/lib/dates';
@@ -28,7 +29,7 @@ import { format } from 'date-fns';
 import { cs } from 'date-fns/locale';
 import { GoalTimeline } from './GoalTimeline';
 import { getMatchDetails, MatchLike } from '../utils/match-details';
-import { calculateMvpResults } from '../utils/mvpVoting';
+import { calculateMvpResults, getMvpVotingStatus } from '../utils/mvpVoting';
 import type { UserProfile } from '@/types';
 
 export interface PlayedMatchData extends MatchLike {
@@ -104,6 +105,8 @@ export function PlayedMatchAccordionItem({
 
   const mvpResults = calculateMvpResults(match as any, usersMap);
   const mvpWinner = mvpResults.winner;
+  const votingStatus = getMvpVotingStatus(match as any);
+  const isVotingOpen = votingStatus.status === 'open';
 
   return (
     <AccordionItem
@@ -138,7 +141,15 @@ export function PlayedMatchAccordionItem({
                     {match.location}
                   </span>
                 )}
-                {mvpWinner && (
+                {isVotingOpen ? (
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] bg-amber-500/15 border-amber-500/40 text-amber-500 font-bold flex items-center gap-1"
+                  >
+                    <Clock className="h-2.5 w-2.5" />
+                    Hlasování o MVP probíhá
+                  </Badge>
+                ) : mvpWinner ? (
                   <Badge
                     variant="outline"
                     className="text-[10px] bg-primary/15 border-primary/40 text-primary font-bold flex items-center gap-1"
@@ -146,7 +157,7 @@ export function PlayedMatchAccordionItem({
                     <Trophy className="h-2.5 w-2.5" />
                     MVP: {formatName(mvpWinner.name)}
                   </Badge>
-                )}
+                ) : null}
               </div>
               <div className="flex items-center gap-2 mt-0.5">
                 <span
@@ -305,7 +316,7 @@ export function PlayedMatchAccordionItem({
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-            {match.lineup && onViewLineup && (
+            {(match.lineup || (match.gameRoster && match.gameRoster.length > 0)) && onViewLineup && (
               <Button
                 size="sm"
                 variant="outline"

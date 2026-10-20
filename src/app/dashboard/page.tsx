@@ -14,7 +14,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { MapPin, Users, Trophy, BarChart, Pencil, Check, X, Flame, Shield, Plus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal, FileText, View, Disc, Cake, Minus, ChevronDown, ListOrdered, CalendarDays, ChevronUp, MessageSquarePlus, Goal, Calendar, Star, Clock, Archive, ShieldAlert, RefreshCw, DatabaseBackup } from "lucide-react"
-import { cn, formatName, isGoaliePlayer } from '@/lib/utils'
+import { cn, formatName, isGoaliePlayer, areNamesMatching } from '@/lib/utils'
 import { toJsDate } from '@/lib/dates'
 import { BirthdaysCard } from '@/features/roster'
 import { 
@@ -1331,13 +1331,14 @@ function DashboardPageContent() {
       };
     }
 
-    // 2. Priorita: Zápas s otevřeným hlasováním o 3 hvězdách nebo nedávno odehraný zápas (posledních 7 dní)
+    // 2. Priorita: Zápas s otevřeným hlasováním o 3 hvězdách nebo nedávno odehraný zápas (do 24 hodin po skončení hlasování)
     if (activeMvpMatch) {
       const votingStatus = getMvpVotingStatus(activeMvpMatch);
-      const matchTime = toJsDate(activeMvpMatch.dateTime).getTime();
-      const isWithinLast7Days = Date.now() - matchTime <= 7 * 24 * 60 * 60 * 1000;
+      const isVotingOpen = votingStatus.status === 'open';
+      const votingClosesMs = votingStatus.closesAt.getTime();
+      const isWithin24hAfterVotingCloses = Date.now() <= votingClosesMs + 24 * 60 * 60 * 1000;
 
-      if (votingStatus.status === 'open' || isWithinLast7Days) {
+      if (isVotingOpen || isWithin24hAfterVotingCloses) {
         return {
           match: activeMvpMatch,
           additionalAwaiting: [],
@@ -1604,6 +1605,30 @@ function DashboardPageContent() {
         </div>
       </Card>
 
+        {/* SPOJENÝ BLOK: ODEHRANÝ ZÁPAS & MVP / HVĚZDY ZÁPASU (PŘEDNOST PŘED PŘÍŠTÍMI ZÁPASY) */}
+        {selectedSeasonId === 'current' && postMatchData && (
+          <div className="lg:col-span-3">
+            <PostMatchSection
+              match={postMatchData.match}
+              currentUserId={user.uid}
+              users={allUsers || []}
+              usersMap={usersMap}
+              attendees={attendancesByMatch.get(postMatchData.match.id) || []}
+              attendancesByMatch={attendancesByMatch}
+              isAdmin={userProfile?.role === 'admin'}
+              onRecordResult={(match) => {
+                setSelectedMatch(match as any);
+                setIsResultDialogOpen(true);
+              }}
+              onOpenStarsModal={(m) => {
+                setSelectedVotingMatch(m || postMatchData.match);
+                setIsStarsModalOpen(true);
+              }}
+              additionalAwaitingMatches={postMatchData.additionalAwaiting}
+            />
+          </div>
+        )}
+
         {selectedSeasonId === 'current' ? (
           <div className="lg:col-span-3 space-y-4">
             <div className="flex items-center justify-between px-2 sm:px-0"><h2 className="text-xl font-bold flex items-center gap-2"><Trophy className="text-primary"/>Příští zápasy</h2>{userProfile?.role === 'admin' && <Button size="sm" onClick={() => setIsAddDialogOpen(true)}><Plus className="h-4 mr-2" />Přidat zápas</Button>}</div>
@@ -1665,30 +1690,6 @@ function DashboardPageContent() {
                 Smazat staré zápasy
               </Button>
             </div>
-          </div>
-        )}
-
-        {/* SPOJENÝ BLOK: ODEHRANÝ ZÁPAS & MVP / HVĚZDY ZÁPASU */}
-        {selectedSeasonId === 'current' && postMatchData && (
-          <div className="lg:col-span-3">
-            <PostMatchSection
-              match={postMatchData.match}
-              currentUserId={user.uid}
-              users={allUsers || []}
-              usersMap={usersMap}
-              attendees={attendancesByMatch.get(postMatchData.match.id) || []}
-              attendancesByMatch={attendancesByMatch}
-              isAdmin={userProfile?.role === 'admin'}
-              onRecordResult={(match) => {
-                setSelectedMatch(match as any);
-                setIsResultDialogOpen(true);
-              }}
-              onOpenStarsModal={(m) => {
-                setSelectedVotingMatch(m || postMatchData.match);
-                setIsStarsModalOpen(true);
-              }}
-              additionalAwaitingMatches={postMatchData.additionalAwaiting}
-            />
           </div>
         )}
 
@@ -1771,7 +1772,67 @@ function DashboardPageContent() {
             usersMap={usersMap}
             className="lg:col-span-7 h-fit border-border/70 bg-card/95"
             onViewLineup={(m) => {
-              setViewLineupData(m.lineup || null);
+              let lineupToDisplay = m.lineup || null;
+              const hasExistingLineup = Boolean(lineupToDisplay && Object.values(lineupToDisplay).some((p: any) => p !== null));
+              
+              if (!hasExistingLineup && m.gameRoster && m.gameRoster.length > 0) {
+                const skaterPlayers = m.gameRoster.map((skaterName, idx) => {
+                  const u = allUsers?.find(usr => areNamesMatching(usr.name, skaterName));
+                  return u
+                    ? { id: u.id, name: u.name, email: u.email || '', jerseyNumber: u.jerseyNumber ?? null, photoURL: u.photoURL ?? null }
+                    : { id: `skater-${idx}`, name: skaterName, email: '', jerseyNumber: null, photoURL: null };
+                });
+                const goalieUser = m.goalieName ? allUsers?.find(usr => areNamesMatching(usr.name, m.goalieName!)) : null;
+                const goaliePlayer = goalieUser
+                  ? { id: goalieUser.id, name: goalieUser.name, email: goalieUser.email || '', jerseyNumber: goalieUser.jerseyNumber ?? null, photoURL: goalieUser.photoURL ?? null }
+                  : (m.goalieName ? { id: 'goalie', name: m.goalieName, email: '', jerseyNumber: null, photoURL: null } : null);
+                
+                lineupToDisplay = {
+                  B1: goaliePlayer,
+                  LK1: skaterPlayers[0] || null,
+                  C1: skaterPlayers[1] || null,
+                  PK1: skaterPlayers[2] || null,
+                  LO1: skaterPlayers[3] || null,
+                  PO1: skaterPlayers[4] || null,
+                  LK2: skaterPlayers[5] || null,
+                  C2: skaterPlayers[6] || null,
+                  PK2: skaterPlayers[7] || null,
+                  LO2: skaterPlayers[8] || null,
+                  PO2: skaterPlayers[9] || null,
+                  LK3: skaterPlayers[10] || null,
+                  C3: skaterPlayers[11] || null,
+                  PK3: skaterPlayers[12] || null,
+                } as any;
+              } else if (!hasExistingLineup) {
+                const matchAttendees = attendancesByMatch.get(m.id) || [];
+                const goingUsers = matchAttendees
+                  .filter(a => a.status === 'going')
+                  .map(a => usersMap.get(a.userId))
+                  .filter((u): u is NonNullable<typeof u> => Boolean(u));
+                
+                if (goingUsers.length > 0) {
+                  const goalie = goingUsers.find(u => isGoaliePlayer(u) || u.playerType === 'goalie');
+                  const skaters = goingUsers.filter(u => u !== goalie);
+                  lineupToDisplay = {
+                    B1: goalie ? { id: goalie.id, name: goalie.name, email: goalie.email || '', jerseyNumber: goalie.jerseyNumber ?? null, photoURL: goalie.photoURL ?? null } : null,
+                    LK1: skaters[0] ? { id: skaters[0].id, name: skaters[0].name, email: skaters[0].email || '', jerseyNumber: skaters[0].jerseyNumber ?? null, photoURL: skaters[0].photoURL ?? null } : null,
+                    C1: skaters[1] ? { id: skaters[1].id, name: skaters[1].name, email: skaters[1].email || '', jerseyNumber: skaters[1].jerseyNumber ?? null, photoURL: skaters[1].photoURL ?? null } : null,
+                    PK1: skaters[2] ? { id: skaters[2].id, name: skaters[2].name, email: skaters[2].email || '', jerseyNumber: skaters[2].jerseyNumber ?? null, photoURL: skaters[2].photoURL ?? null } : null,
+                    LO1: skaters[3] ? { id: skaters[3].id, name: skaters[3].name, email: skaters[3].email || '', jerseyNumber: skaters[3].jerseyNumber ?? null, photoURL: skaters[3].photoURL ?? null } : null,
+                    PO1: skaters[4] ? { id: skaters[4].id, name: skaters[4].name, email: skaters[4].email || '', jerseyNumber: skaters[4].jerseyNumber ?? null, photoURL: skaters[4].photoURL ?? null } : null,
+                    LK2: skaters[5] ? { id: skaters[5].id, name: skaters[5].name, email: skaters[5].email || '', jerseyNumber: skaters[5].jerseyNumber ?? null, photoURL: skaters[5].photoURL ?? null } : null,
+                    C2: skaters[6] ? { id: skaters[6].id, name: skaters[6].name, email: skaters[6].email || '', jerseyNumber: skaters[6].jerseyNumber ?? null, photoURL: skaters[6].photoURL ?? null } : null,
+                    PK2: skaters[7] ? { id: skaters[7].id, name: skaters[7].name, email: skaters[7].email || '', jerseyNumber: skaters[7].jerseyNumber ?? null, photoURL: skaters[7].photoURL ?? null } : null,
+                    LO2: skaters[8] ? { id: skaters[8].id, name: skaters[8].name, email: skaters[8].email || '', jerseyNumber: skaters[8].jerseyNumber ?? null, photoURL: skaters[8].photoURL ?? null } : null,
+                    PO2: skaters[9] ? { id: skaters[9].id, name: skaters[9].name, email: skaters[9].email || '', jerseyNumber: skaters[9].jerseyNumber ?? null, photoURL: skaters[9].photoURL ?? null } : null,
+                    LK3: skaters[10] ? { id: skaters[10].id, name: skaters[10].name, email: skaters[10].email || '', jerseyNumber: skaters[10].jerseyNumber ?? null, photoURL: skaters[10].photoURL ?? null } : null,
+                    C3: skaters[11] ? { id: skaters[11].id, name: skaters[11].name, email: skaters[11].email || '', jerseyNumber: skaters[11].jerseyNumber ?? null, photoURL: skaters[11].photoURL ?? null } : null,
+                    PK3: skaters[12] ? { id: skaters[12].id, name: skaters[12].name, email: skaters[12].email || '', jerseyNumber: skaters[12].jerseyNumber ?? null, photoURL: skaters[12].photoURL ?? null } : null,
+                  } as any;
+                }
+              }
+
+              setViewLineupData(lineupToDisplay);
               setViewScorersData(m.scorers);
               setViewMatchOpponent(getMatchDetails(m as any).opponent);
               setIsLineupViewOpen(true);
