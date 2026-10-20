@@ -25,8 +25,8 @@ export function LeagueStandingsTable({ standings, className }: LeagueStandingsTa
   const sorted = (standings || []).slice().sort((a, b) => b.points - a.points || (b.gf - b.ga) - (a.gf - a.ga));
 
   return (
-    <div className={cn("rounded-md border overflow-hidden", className)}>
-      <Table>
+    <div className={cn("rounded-md border overflow-x-auto w-full min-w-0 max-w-full", className)}>
+      <Table className="w-full min-w-[280px]">
         <TableHeader>
           <TableRow>
             <TableHead className="w-8 px-2 text-center">#</TableHead>

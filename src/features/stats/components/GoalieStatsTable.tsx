@@ -57,9 +57,9 @@ export function GoalieStatsTable({
     showAll || isStatEditMode ? goalies : goalies.slice(0, 10);
 
   return (
-    <div className={cn('space-y-4', className)}>
-      <div className="rounded-md border overflow-hidden">
-        <Table>
+    <div className={cn('space-y-4 w-full min-w-0 max-w-full', className)}>
+      <div className="rounded-md border overflow-x-auto w-full min-w-0 max-w-full">
+        <Table className="w-full min-w-[320px]">
           <TableHeader>
             <TableRow>
               <TableHead className="px-2">Jméno</TableHead>
@@ -88,12 +88,14 @@ export function GoalieStatsTable({
                   )}
                 >
                   <TableCell
-                    className="font-medium whitespace-nowrap px-2 cursor-pointer hover:text-primary transition-colors inline-flex items-center gap-1.5 group"
+                    className="font-medium whitespace-nowrap px-2 cursor-pointer hover:text-primary transition-colors"
                     onClick={() => onGoalieClick(g.id)}
                     title="Zobrazit kariérní kartu brankáře"
                   >
-                    <span>{formatName(g.name)}</span>
-                    <View className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity text-primary" />
+                    <div className="inline-flex items-center gap-1.5 group min-w-0">
+                      <span className="truncate">{formatName(g.name)}</span>
+                      <View className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity text-primary shrink-0" />
+                    </div>
                   </TableCell>
                   <TableCell className="text-center px-1 tabular-nums font-semibold">
                     {String(g.gamesPlayed || 0)}

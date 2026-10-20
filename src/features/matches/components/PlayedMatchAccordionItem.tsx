@@ -117,12 +117,12 @@ export function PlayedMatchAccordionItem({
         className
       )}
     >
-      <div className="flex items-center w-full relative">
-        <AccordionTrigger className="flex-1 text-left hover:no-underline py-3.5 sm:py-4 px-3 sm:px-6 [&>svg]:ml-3 [&>svg]:shrink-0">
-          <div className="flex items-center justify-between w-full text-left gap-3 sm:gap-4">
+      <div className="flex items-center w-full relative min-w-0 max-w-full">
+        <AccordionTrigger className="flex-1 text-left hover:no-underline py-3.5 sm:py-4 px-3 sm:px-6 [&>svg]:ml-2 sm:[&>svg]:ml-3 [&>svg]:shrink-0 min-w-0 max-w-full overflow-hidden">
+          <div className="flex items-center justify-between w-full text-left gap-2 sm:gap-4 min-w-0">
             {/* Meta & Teams */}
-            <div className="flex-1 min-w-0 pr-2">
-              <div className="flex flex-wrap items-center gap-2 mb-1">
+            <div className="flex-1 min-w-0 pr-1 sm:pr-2">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1">
                 {prefix && (
                   <Badge
                     variant="outline"
@@ -159,21 +159,21 @@ export function PlayedMatchAccordionItem({
                   </Badge>
                 ) : null}
               </div>
-              <div className="flex items-center gap-2 mt-0.5">
+              <div className="flex items-center gap-1.5 sm:gap-2 mt-0.5 min-w-0">
                 <span
                   className={cn(
-                    'text-base sm:text-lg font-bold truncate',
+                    'text-sm sm:text-lg font-bold truncate min-w-0 flex-1',
                     isAcesHome && 'text-primary'
                   )}
                 >
                   {match.team1}
                 </span>
-                <span className="text-xs text-muted-foreground font-semibold">
+                <span className="text-xs text-muted-foreground font-semibold shrink-0">
                   vs
                 </span>
                 <span
                   className={cn(
-                    'text-base sm:text-lg font-bold truncate',
+                    'text-sm sm:text-lg font-bold truncate min-w-0 flex-1',
                     !isAcesHome && 'text-primary'
                   )}
                 >
@@ -183,15 +183,15 @@ export function PlayedMatchAccordionItem({
             </div>
 
             {/* Score & Badge */}
-            <div className="flex items-center gap-3 sm:gap-4 shrink-0">
-              <div className="text-right min-w-[3.5rem] sm:min-w-[4.5rem]">
-                <div className="flex items-baseline justify-end gap-1.5">
-                  <span className="text-xl sm:text-2xl font-black tabular-nums tracking-tight text-foreground">
+            <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+              <div className="text-right min-w-[2.75rem] sm:min-w-[4.5rem]">
+                <div className="flex items-baseline justify-end gap-1">
+                  <span className="text-base sm:text-2xl font-black tabular-nums tracking-tight text-foreground">
                     {match.team1Score} : {match.team2Score}
                   </span>
                 </div>
                 {match.periodScores && (
-                  <p className="text-[10px] text-muted-foreground font-semibold tabular-nums">
+                  <p className="text-[9px] sm:text-[10px] text-muted-foreground font-semibold tabular-nums">
                     ({match.periodScores})
                   </p>
                 )}
@@ -199,7 +199,7 @@ export function PlayedMatchAccordionItem({
 
               <Badge
                 className={cn(
-                  'w-16 sm:w-20 h-7 sm:h-8 flex items-center justify-center font-black text-xs uppercase tracking-wider rounded-lg border shrink-0',
+                  'w-14 sm:w-20 h-6 sm:h-8 flex items-center justify-center font-black text-[10px] sm:text-xs uppercase tracking-wider rounded-lg border shrink-0 px-1',
                   isWin
                     ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
                     : isDraw

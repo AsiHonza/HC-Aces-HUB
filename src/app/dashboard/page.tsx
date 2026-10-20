@@ -1468,7 +1468,7 @@ function DashboardPageContent() {
 
       <BirthdaysCard birthdays={upcomingBirthdays} />
 
-      <div className="grid gap-6 lg:grid-cols-3 w-full min-w-0 max-w-full">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 w-full min-w-0 max-w-full">
         {/* PROFESIONÁLNÍ HRÁČSKÁ LIŠTA (PLAYER STRIP) */}
         <Card className="lg:col-span-3 border-border/70 bg-card/95 shadow-sm overflow-hidden w-full min-w-0 max-w-full">
         <div className="p-3.5 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 w-full min-w-0">
@@ -1630,7 +1630,7 @@ function DashboardPageContent() {
         )}
 
         {selectedSeasonId === 'current' ? (
-          <div className="lg:col-span-3 space-y-4">
+          <div className="lg:col-span-3 space-y-4 w-full min-w-0 max-w-full overflow-hidden">
             <div className="flex items-center justify-between px-2 sm:px-0"><h2 className="text-xl font-bold flex items-center gap-2"><Trophy className="text-primary"/>Příští zápasy</h2>{userProfile?.role === 'admin' && <Button size="sm" onClick={() => setIsAddDialogOpen(true)}><Plus className="h-4 mr-2" />Přidat zápas</Button>}</div>
             {nextMatch ? renderMatchCard(nextMatch) : <p className="text-center py-8 text-muted-foreground">Žádné blížící se zápasy.</p>}
             {upcomingMatches.slice(1).length > 0 && (
@@ -1643,14 +1643,14 @@ function DashboardPageContent() {
             )}
           </div>
         ) : (
-          <div className="lg:col-span-3 p-4 rounded-xl border bg-muted/20 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+          <div className="lg:col-span-3 p-4 rounded-xl border bg-muted/20 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left w-full min-w-0 max-w-full overflow-hidden">
             <div className="flex items-center gap-3">
               <History className="h-5 w-5 text-muted-foreground shrink-0" />
               <p className="text-xs text-muted-foreground">
                 Prohlížíte uzavřený ročník <span className="font-semibold text-foreground">{activeSeasonData.name}</span>. Nadcházející zápasy a docházka jsou aktivní pouze v aktuální sezóně.
               </p>
             </div>
-            <Button variant="outline" size="sm" onClick={() => setSelectedSeasonId('current')} className="text-xs h-8">
+            <Button variant="outline" size="sm" onClick={() => setSelectedSeasonId('current')} className="text-xs h-8 shrink-0">
               Přejít na aktuální sezónu
             </Button>
           </div>
@@ -1658,7 +1658,7 @@ function DashboardPageContent() {
 
         {/* ADMIN AKCE PRO STARÉ NEZAPSANÉ ZÁPASY Z PŘEDCHOZÍHO OBDOBÍ */}
         {userProfile?.role === 'admin' && oldUnrecordedMatches.length > 0 && selectedSeasonId === 'current' && (
-          <div className="lg:col-span-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+          <div className="lg:col-span-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm w-full min-w-0 max-w-full overflow-hidden">
             <div className="space-y-1">
               <p className="text-sm font-bold text-amber-500 flex items-center gap-1.5">
                 <ShieldAlert className="h-4 w-4 shrink-0" />
@@ -1694,8 +1694,8 @@ function DashboardPageContent() {
         )}
 
         {/* LIGOVÁ SOUTĚŽ & ODEHRANÉ ZÁPASY (VEDLE SEBE NA DESKTOPU) */}
-        <div className="lg:col-span-3 grid gap-6 lg:grid-cols-12 items-start">
-          <Card className="lg:col-span-5 h-fit border-border/70 bg-card/95">
+        <div className="lg:col-span-3 grid grid-cols-1 gap-6 lg:grid-cols-12 items-start w-full min-w-0 max-w-full">
+          <Card className="lg:col-span-5 h-fit border-border/70 bg-card/95 w-full min-w-0 max-w-full overflow-hidden">
             <CardHeader className="flex-col items-start gap-3 py-3.5 px-3.5 sm:px-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full gap-2">
                     <CardTitle className="flex items-center gap-2 text-base sm:text-lg whitespace-nowrap"><ListOrdered className="text-primary"/>Soutěž</CardTitle>
@@ -1770,7 +1770,7 @@ function DashboardPageContent() {
           <RecentMatchesSection
             matches={recentPlayedMatches as any}
             usersMap={usersMap}
-            className="lg:col-span-7 h-fit border-border/70 bg-card/95"
+            className="lg:col-span-7 h-fit border-border/70 bg-card/95 w-full min-w-0 max-w-full overflow-hidden"
             onViewLineup={(m) => {
               let lineupToDisplay = m.lineup || null;
               const hasExistingLineup = Boolean(lineupToDisplay && Object.values(lineupToDisplay).some((p: any) => p !== null));
@@ -1840,8 +1840,8 @@ function DashboardPageContent() {
           />
         </div>
 
-        <div className="lg:col-span-3 grid gap-8 md:grid-cols-2">
-            <Card className="h-fit">
+        <div className="lg:col-span-3 grid grid-cols-1 gap-8 md:grid-cols-2 w-full min-w-0 max-w-full">
+            <Card className="h-fit w-full min-w-0 max-w-full overflow-hidden">
               <Tabs value={activeScoringTab} onValueChange={(v) => setActiveScoringTab(v as 'scoring' | 'stars')}>
                 <CardHeader className="flex-col sm:flex-row items-start sm:items-center justify-between gap-3 py-3 px-4 sm:px-6 border-b">
                   <TabsList className="grid grid-cols-2 w-full sm:w-auto">
@@ -2082,7 +2082,7 @@ function DashboardPageContent() {
               </Tabs>
             </Card>
 
-            <Card className="h-fit">
+            <Card className="h-fit w-full min-w-0 max-w-full overflow-hidden">
               <Tabs value={activeGoalieTab} onValueChange={(v) => setActiveGoalieTab(v as 'goalies' | 'stars')}>
                 <CardHeader className="flex-col sm:flex-row items-start sm:items-center justify-between gap-3 py-3 px-4 sm:px-6 border-b">
                   <TabsList className="grid grid-cols-2 w-full sm:w-auto">

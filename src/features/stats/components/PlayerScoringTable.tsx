@@ -56,9 +56,9 @@ export function PlayerScoringTable({
     showAll || isStatEditMode ? scorers : scorers.slice(0, 10);
 
   return (
-    <div className={cn('space-y-4', className)}>
-      <div className="rounded-md border overflow-hidden">
-        <Table>
+    <div className={cn('space-y-4 w-full min-w-0 max-w-full', className)}>
+      <div className="rounded-md border overflow-x-auto w-full min-w-0 max-w-full">
+        <Table className="w-full min-w-[280px]">
           <TableHeader>
             <TableRow>
               <TableHead className="w-6 px-1 text-center">#</TableHead>
@@ -85,12 +85,14 @@ export function PlayerScoringTable({
                       {String(p.rank || 0)}
                     </TableCell>
                     <TableCell
-                      className="font-medium whitespace-nowrap px-2 cursor-pointer hover:text-primary transition-colors inline-flex items-center gap-1.5 group"
+                      className="font-medium whitespace-nowrap px-2 cursor-pointer hover:text-primary transition-colors"
                       onClick={() => onPlayerClick(p.id)}
                       title="Zobrazit kariérní kartu hráče"
                     >
-                      <span>{formatName(p.name)}</span>
-                      <View className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity text-primary" />
+                      <div className="inline-flex items-center gap-1.5 group min-w-0">
+                        <span className="truncate">{formatName(p.name)}</span>
+                        <View className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity text-primary shrink-0" />
+                      </div>
                     </TableCell>
                     <TableCell className="text-center px-1 tabular-nums">
                       {String(p.gamesPlayed || 0)}

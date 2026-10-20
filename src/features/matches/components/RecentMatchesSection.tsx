@@ -1,5 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
+import { cn } from '@/lib/utils';
 import {
   Card,
   CardHeader,
@@ -33,7 +34,7 @@ export function RecentMatchesSection({
   className,
 }: RecentMatchesSectionProps) {
   return (
-    <Card className={className}>
+    <Card className={cn("w-full min-w-0 max-w-full overflow-hidden", className)}>
       <CardHeader className="py-4 px-4 sm:px-6">
         <CardTitle className="flex items-center gap-2">
           <History className="text-primary" />
@@ -43,9 +44,9 @@ export function RecentMatchesSection({
           Poslední odehraná utkání s podrobnými zápisy z ligy, střelami a statistikami.
         </CardDescription>
       </CardHeader>
-      <CardContent className="px-2 sm:px-6">
+      <CardContent className="px-2 sm:px-6 w-full min-w-0 max-w-full overflow-hidden">
         {matches.length > 0 ? (
-          <Accordion type="single" collapsible className="w-full space-y-3">
+          <Accordion type="single" collapsible className="w-full min-w-0 max-w-full space-y-3">
             {matches.map((m) => (
               <PlayedMatchAccordionItem
                 key={m.id}

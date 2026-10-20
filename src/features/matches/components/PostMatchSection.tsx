@@ -50,7 +50,7 @@ interface StarCountsStackProps {
 
 function StarCountsStack({ star1Count, star2Count, star3Count }: StarCountsStackProps) {
   return (
-    <div className="mt-2 flex flex-wrap items-center justify-center gap-1.5 w-full text-xs">
+    <div className="mt-2 flex flex-wrap items-center justify-center gap-1.5 w-full max-w-full min-w-0 text-xs">
       <span
         title="1. hvězda (zlatá, 3b)"
         className={cn(
@@ -402,11 +402,11 @@ export function PostMatchSection({
 
           {/* VÝZVA K HLASOVÁNÍ / POTVRZENÍ HLASU */}
           {isVotingOpen && (
-            <div className="rounded-xl border border-border/80 bg-muted/20 p-4">
+            <div className="rounded-xl border border-border/80 bg-muted/20 p-3 sm:p-4 w-full min-w-0 max-w-full">
               {isParticipant ? (
                 !hasVoted ? (
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="space-y-0.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 min-w-0">
+                    <div className="space-y-0.5 min-w-0 flex-1">
                       <p className="text-sm font-bold flex items-center gap-1.5 text-foreground">
                         <Star className="h-4 w-4 fill-amber-500 text-amber-500 shrink-0" />
                         Nastoupil jsi k tomuto utkání!
@@ -418,7 +418,7 @@ export function PostMatchSection({
                     {onOpenStarsModal && (
                       <Button
                         onClick={() => onOpenStarsModal(currentMatch)}
-                        className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs sm:text-sm shrink-0 shadow"
+                        className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs sm:text-sm shrink-0 shadow w-full sm:w-auto"
                       >
                         <Star className="mr-2 h-4 w-4 fill-current" />
                         Hlasovat o 3 hvězdách utkání
@@ -426,16 +426,16 @@ export function PostMatchSection({
                     )}
                   </div>
                 ) : (
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="flex items-center gap-2.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 min-w-0">
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
                       <div className="p-1.5 rounded-full bg-emerald-500/20 text-emerald-500 shrink-0">
                         <CheckCircle2 className="h-4 w-4" />
                       </div>
-                      <div>
+                      <div className="min-w-0 flex-1">
                         <p className="text-xs sm:text-sm font-bold text-foreground">
                           Váš hlas byl úspěšně zaznamenán
                         </p>
-                        <p className="text-[11px] text-muted-foreground">
+                        <p className="text-[11px] text-muted-foreground leading-relaxed break-words">
                           Díky za účast v kabinovém hlasování. Průběžné pořadí hvězd vidíte níže.
                         </p>
                       </div>
@@ -445,7 +445,7 @@ export function PostMatchSection({
                         variant="outline"
                         size="sm"
                         onClick={() => onOpenStarsModal(currentMatch)}
-                        className="text-xs font-semibold shrink-0"
+                        className="text-xs font-semibold shrink-0 self-end sm:self-center"
                       >
                         Změnit volbu
                       </Button>
@@ -453,7 +453,7 @@ export function PostMatchSection({
                   </div>
                 )
               ) : (
-                <p className="text-xs text-muted-foreground flex items-center gap-2">
+                <p className="text-xs text-muted-foreground flex items-center gap-2 min-w-0 break-words">
                   <Lock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                   <span>
                     Průběžné výsledky hlasování. Hlasovat o hvězdách mohou pouze hráči, kteří k zápasu
