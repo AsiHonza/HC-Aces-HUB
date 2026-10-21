@@ -54,7 +54,6 @@ import {
 } from 'lucide-react';
 import { cn, formatName } from '@/lib/utils';
 import type { TeamChemistryData, DynamicDuoRecord } from '../utils/chemistry';
-import type { OracleLeaderboardEntry } from '@/features/matches/utils/predictions';
 
 interface HallOfFameTabProps {
   milestones: MilestoneWithHolders[];
@@ -64,7 +63,6 @@ interface HallOfFameTabProps {
   onOpenPlayerCareer?: (playerId: string) => void;
   trophyLeaders?: TrophyLeader[];
   teamChemistry?: TeamChemistryData;
-  oracleLeaderboard?: OracleLeaderboardEntry[];
   newMilestoneIds?: Set<string>;
   initialPlayerId?: string;
 }
@@ -87,7 +85,6 @@ const SPECIAL_FEAT_GROUPS = [
       'feat-clutch-closer',
       'feat-center-playmaker',
       'feat-wing-sniper',
-      'feat-exact-oracle',
     ],
   },
   {
@@ -149,7 +146,6 @@ export function HallOfFameTab({
   onOpenPlayerCareer,
   trophyLeaders = [],
   teamChemistry,
-  oracleLeaderboard = [],
   newMilestoneIds,
   initialPlayerId,
 }: HallOfFameTabProps) {
@@ -231,9 +227,6 @@ export function HallOfFameTab({
           'feat-clutch-closer',
         ].includes(milestoneId)
       );
-    }
-    if (selectedCategory === 'oracle') {
-      return category === 'oracle' || milestoneId === 'feat-exact-oracle';
     }
     if (selectedCategory === 'points') {
       return category === 'points' || ['feat-4pts', 'feat-5pts', 'feat-ppg'].includes(milestoneId);
@@ -794,18 +787,9 @@ export function HallOfFameTab({
         </div>
       )}
 
-      {/* 2B. DYNAMIC DUO (CHEMIE HRÁČŮ) & VĚŠTEC KABINY (TIPOVAČKA) */}
-      {(teamChemistry || (oracleLeaderboard && oracleLeaderboard.length > 0)) && (
-        <div
-          className={cn(
-            'grid grid-cols-1 gap-4',
-            teamChemistry && oracleLeaderboard && oracleLeaderboard.length > 0
-              ? 'lg:grid-cols-2'
-              : 'lg:grid-cols-1'
-          )}
-        >
-          {teamChemistry && (
-            <div className="rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/10 via-background to-card p-3.5 sm:p-5 shadow-sm space-y-3.5">
+      {/* 2B. DYNAMIC DUO (CHEMIE HRÁČŮ) */}
+      {teamChemistry && (
+        <div className="rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/10 via-background to-card p-3.5 sm:p-5 shadow-sm space-y-3.5">
               <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-border/60 flex-wrap">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div className="h-9 w-9 rounded-xl bg-primary/15 border border-primary/30 text-primary flex items-center justify-center shrink-0">
@@ -924,14 +908,7 @@ export function HallOfFameTab({
                   </div>
                 </div>
               ) : (
-                <div
-                  className={cn(
-                    'grid grid-cols-1 gap-2.5',
-                    oracleLeaderboard && oracleLeaderboard.length > 0
-                      ? 'xl:grid-cols-2'
-                      : 'md:grid-cols-2'
-                  )}
-                >
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                   {(duoUnitFilter === 'defense' && (teamChemistry.topDefensePairs?.length || 0) > 0
                     ? teamChemistry.topDefensePairs
                     : teamChemistry.topDuos
@@ -1158,64 +1135,6 @@ export function HallOfFameTab({
                 </div>
               )}
             </div>
-          )}
-
-          {oracleLeaderboard && oracleLeaderboard.length > 0 && (
-            <div className="rounded-2xl border border-purple-500/25 bg-gradient-to-br from-purple-500/10 via-background to-card p-3.5 sm:p-5 shadow-sm space-y-3">
-              <div className="flex items-center justify-between gap-2 pb-2 border-b border-border/60">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="h-9 w-9 rounded-xl bg-purple-500/15 border border-purple-500/30 text-purple-500 flex items-center justify-center shrink-0">
-                    <Sparkles className="h-4.5 w-4.5" />
-                  </div>
-                  <div className="min-w-0">
-                    <h3 className="font-headline font-bold text-sm sm:text-base text-foreground truncate">
-                      Věštec kabiny – Tipovačka
-                    </h3>
-                    <p className="text-xs text-muted-foreground truncate">
-                      Nejlepší tipéři předzápasových výsledků a prvních střelců
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                {oracleLeaderboard.slice(0, 4).map((entry, idx) => (
-                  <div
-                    key={entry.userId}
-                    onClick={() => onOpenPlayerCareer?.(entry.userId)}
-                    className="rounded-xl border border-border/70 bg-card/80 px-3 py-2 flex items-center justify-between gap-2 cursor-pointer hover:border-purple-500/40 transition-colors"
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-xs font-black w-5 text-center shrink-0 tabular-nums text-muted-foreground">
-                        #{idx + 1}
-                      </span>
-                      <span className="font-bold text-xs sm:text-sm truncate">
-                        {formatName(entry.userName)}
-                      </span>
-                      {entry.exactScoreHits > 0 && (
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] px-1.5 py-0 h-4 bg-amber-500/15 text-amber-500 border-amber-500/30 shrink-0 inline-flex items-center gap-1"
-                        >
-                          <Target className="h-2.5 w-2.5 text-amber-500" />
-                          <span>{entry.exactScoreHits}× přesně</span>
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="text-right shrink-0">
-                      <span className="font-black text-xs sm:text-sm text-purple-500 tabular-nums">
-                        {entry.totalPoints} b.
-                      </span>
-                      <span className="text-[10px] text-muted-foreground ml-1.5">
-                        ({entry.predictionsCount} tipů)
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
       )}
 
       {/* 3. KOMPAKTNÍ FILTR PODLE HRÁČE A OVLÁDACÍ PRVKY */}
@@ -1389,7 +1308,6 @@ export function HallOfFameTab({
               { id: 'scoring', label: 'Góly & Asistence' },
               { id: 'goalies', label: 'Brankáři' },
               { id: 'stars', label: 'Hvězdy & MVP' },
-              { id: 'oracle', label: 'Tipovačka' },
               { id: 'special', label: 'Speciální klenoty' },
             ].map((cat) => (
               <button

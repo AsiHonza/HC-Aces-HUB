@@ -49,11 +49,10 @@ import { QuickRsvpButtons } from '@/features/attendance';
 import { getMatchDetails, MatchLike } from '../utils/match-details';
 import { downloadMatchIcs } from '../utils/calendarIcs';
 import { HeadToHeadSection } from './HeadToHeadSection';
-import { MatchPredictionWidget } from './MatchPredictionWidget';
 import { resolvePlayerPosition, POSITION_METADATA } from '@/features/roster/utils/positions';
 import { getPlayerFormIcon } from '@/features/stats';
 import type { PlayerFormSummary } from '@/features/stats/utils/playerForm';
-import type { Match, UserProfile, MatchPrediction } from '@/types';
+import type { Match, UserProfile } from '@/types';
 
 export interface UpcomingMatchAttendee {
   userId: string;
@@ -61,7 +60,6 @@ export interface UpcomingMatchAttendee {
   status: 'going' | 'not-going' | 'unknown';
   note?: string;
   isGoalie?: boolean;
-  prediction?: MatchPrediction | null;
 }
 
 export interface UpcomingMatchItem extends MatchLike {
@@ -90,10 +88,6 @@ export interface UpcomingMatchCardProps {
   isLineupHighlighted?: boolean;
   onRsvp: (status: 'going' | 'not-going') => void;
   onOpenNoteDialog: () => void;
-  onSavePrediction?: (
-    matchId: string,
-    prediction: { acesScore: number; opponentScore: number; firstScorerId?: string | null }
-  ) => Promise<void> | void;
   onShareMatch?: (matchId: string) => void;
   onOpenLineupView?: (match: UpcomingMatchItem) => void;
   onOpenLineupBuilder?: (match: UpcomingMatchItem) => void;
@@ -119,7 +113,6 @@ export function UpcomingMatchCard({
   isLineupHighlighted = false,
   onRsvp,
   onOpenNoteDialog,
-  onSavePrediction,
   onShareMatch,
   onOpenLineupView,
   onOpenLineupBuilder,
@@ -272,19 +265,6 @@ export function UpcomingMatchCard({
           usersMap={usersMap}
           leagueSkaters={leagueSkaters}
         />
-
-        {onSavePrediction && (
-          <MatchPredictionWidget
-            match={match as Match}
-            opponentName={opponent}
-            attendees={attendees as any}
-            usersMap={usersMap}
-            currentUserId={currentUserId}
-            onSavePrediction={async (pred) => {
-              await onSavePrediction(match.id, pred);
-            }}
-          />
-        )}
       </CardContent>
 
       <CardFooter className="flex-col items-start gap-3 pt-2 pb-4 px-4 sm:px-6">

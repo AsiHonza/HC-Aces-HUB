@@ -27,16 +27,15 @@ import { formatMatchDate } from '@/lib/dates';
 import { getMvpVotingStatus, getMatchMvpCandidates } from '../utils/mvpVoting';
 import { calculateMatchStarsResults } from '../utils/matchStars';
 import { getMatchOpponentName } from '../utils/headToHead';
-import { MatchPredictionWidget } from './MatchPredictionWidget';
-import type { Match, UserProfile, MatchPrediction } from '@/types';
+import type { Match, UserProfile } from '@/types';
 
 export interface PostMatchSectionProps {
   match: Match;
   currentUserId?: string;
   users: UserProfile[];
   usersMap?: Map<string, UserProfile>;
-  attendees?: Array<{ userId: string; status: string; prediction?: MatchPrediction | null }>;
-  attendancesByMatch?: Map<string, Array<{ userId: string; status: string; prediction?: MatchPrediction | null }>>;
+  attendees?: Array<{ userId: string; status: string }>;
+  attendancesByMatch?: Map<string, Array<{ userId: string; status: string }>>;
   isAdmin?: boolean;
   onRecordResult?: (match: Match) => void;
   onOpenStarsModal?: (match?: Match) => void;
@@ -827,19 +826,6 @@ export function PostMatchSection({
                   Udělit 3 hvězdy
                 </Button>
               )}
-            </div>
-          )}
-
-          {currentMatch.isPlayed && currentAttendees.some((a) => Boolean(a.prediction)) && (
-            <div className="pt-2 border-t border-border/50">
-              <MatchPredictionWidget
-                match={currentMatch}
-                opponentName={opponentName}
-                attendees={currentAttendees as any}
-                usersMap={usersMap}
-                currentUserId={currentUserId}
-                onSavePrediction={async () => {}}
-              />
             </div>
           )}
         </div>

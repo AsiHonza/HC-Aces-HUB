@@ -30,13 +30,6 @@ export interface MatchStarsVote {
   votedAt?: any;
 }
 
-export interface MatchPrediction {
-  acesScore: number;
-  opponentScore: number;
-  firstScorerId?: string | null;
-  updatedAt?: any;
-}
-
 export interface Match {
   id: string;
   seasonId?: string;

@@ -2,7 +2,6 @@ import type { Match, UserProfile } from '@/types';
 import { countPlayerCareerStars, calculateMatchStarsResults } from '@/features/matches/utils/matchStars';
 import { countPlayerCareerMvpAwards, getMvpVotingStatus } from '@/features/matches/utils/mvpVoting';
 import { hasMatchStatsRecorded } from '@/features/matches/utils/match-details';
-import { calculateOracleLeaderboard, type OracleLeaderboardEntry } from '@/features/matches/utils/predictions';
 import { calculateTeamChemistry, type TeamChemistryData } from './chemistry';
 import { calculateAllPlayersFormAndDefense, type PlayerFormSummary } from './playerForm';
 import {
@@ -28,7 +27,6 @@ export type MilestoneCategory =
   | 'mvp' 
   | 'defense'
   | 'ironman'
-  | 'oracle'
   | 'special';
 
 export interface MilestoneDefinition {
@@ -120,7 +118,6 @@ export interface TeamMilestonesData {
   totalMilestonesCount: number;
   trophyLeaders?: TrophyLeader[];
   teamChemistry?: TeamChemistryData;
-  oracleLeaderboard?: OracleLeaderboardEntry[];
   playerFormMap?: Map<string, PlayerFormSummary>;
 }
 
@@ -224,15 +221,6 @@ export const MILESTONE_SERIES: MilestoneSeries[] = [
     unit: 'zápasů v řadě',
     iconName: 'Zap',
     milestoneIds: ['iron-5', 'iron-10', 'iron-20', 'iron-35', 'iron-50'],
-  },
-  {
-    id: 'series-oracle',
-    title: 'Věštec kabiny',
-    category: 'oracle',
-    description: 'Body nasbírané za přesné tipy v předzápasové tipovačce',
-    unit: 'bodů',
-    iconName: 'Sparkles',
-    milestoneIds: ['oracle-5', 'oracle-15', 'oracle-30', 'oracle-60', 'oracle-100'],
   },
 ];
 
@@ -363,18 +351,11 @@ export const MILESTONE_RARITY_SCORES: Record<string, number> = {
   'iron-10': 170,
   'iron-5': 60,
 
-  'oracle-100': 1200,
-  'oracle-60': 600,
-  'oracle-30': 320,
-  'oracle-15': 150,
-  'oracle-5': 50,
-
   // 7. DEFENZIVNÍ, POSTOVÉ & TÝMOVÉ SPECIÁLNÍ VÝKONY
   'feat-unsung-hero': 440,      // Dělník ledu (Hvězda zápasu s 0+0)
   'feat-skater-shutout': 410,   // Spolustrůjce nuly (hráč v poli při SO)
   'feat-win-talisman': 390,     // Talisman kabiny (Win-rate >= 65 %)
   'feat-defense-qb': 380,       // Generál modré čáry (2+ A obránce v zápase)
-  'feat-exact-oracle': 360,     // Jasnovidec (Přesný tip na výsledek)
   'feat-shot-suppressor': 210,  // Svěrací kazajka (<= 20 střel soupeře)
   'feat-clutch-closer': 210,    // Strážce těsného vedení (výhra o 1 gól)
   'feat-defense-scorer': 195,   // Kanonýr od modré (gól obránce)
@@ -1165,59 +1146,7 @@ const RAW_MILESTONE_DEFINITIONS: MilestoneDefinition[] = [
     iconName: 'Crown',
   },
 
-  // 12. VĚŠTEC KABINY – TIPOVAČKA (5, 15, 30, 60, 100)
-  {
-    id: 'oracle-5',
-    title: 'Učeň tipovačky',
-    description: 'Zisk prvních 5 bodů v předzápasové tipovačce kabiny',
-    category: 'oracle',
-    tier: 'bronze',
-    target: 5,
-    unit: 'bodů',
-    iconName: 'Sparkles',
-  },
-  {
-    id: 'oracle-15',
-    title: 'Znalec ligy',
-    description: '15 bodů v předzápasové tipovačce',
-    category: 'oracle',
-    tier: 'silver',
-    target: 15,
-    unit: 'bodů',
-    iconName: 'Sparkles',
-  },
-  {
-    id: 'oracle-30',
-    title: 'Věštec kabiny',
-    description: '30 bodů za přesné odhady výsledků a střelců',
-    category: 'oracle',
-    tier: 'gold',
-    target: 30,
-    unit: 'bodů',
-    iconName: 'Sparkles',
-  },
-  {
-    id: 'oracle-60',
-    title: 'Hokejový prorok',
-    description: '60 bodů v tipovačce HC Aces',
-    category: 'oracle',
-    tier: 'diamond',
-    target: 60,
-    unit: 'bodů',
-    iconName: 'Sparkles',
-  },
-  {
-    id: 'oracle-100',
-    title: 'Nostradamus šatny',
-    description: '100 bodů v předzápasové tipovačce. Vidí do budoucnosti.',
-    category: 'oracle',
-    tier: 'legend',
-    target: 100,
-    unit: 'bodů',
-    iconName: 'Crown',
-  },
-
-  // 13. DEFENZIVNÍ PILÍŘE, POSTOVÉ KLENOTY & ČERNÁ PRÁCE
+  // 12. DEFENZIVNÍ PILÍŘE, POSTOVÉ KLENOTY & ČERNÁ PRÁCE
   {
     id: 'feat-unsung-hero',
     title: 'Dělník ledu (Černá práce)',
@@ -1307,16 +1236,6 @@ const RAW_MILESTONE_DEFINITIONS: MilestoneDefinition[] = [
     target: 1,
     unit: 'zápas',
     iconName: 'Flame',
-  },
-  {
-    id: 'feat-exact-oracle',
-    title: 'Jasnovidec (Přesný tip)',
-    description: 'Trefený přesný výsledek utkání v předzápasové tipovačce',
-    category: 'oracle',
-    tier: 'gold',
-    target: 1,
-    unit: 'přesný tip',
-    iconName: 'Sparkles',
   },
 ];
 
@@ -1763,8 +1682,7 @@ export function getPlayerRawStatsForMilestones(
   goalieLeaderboard: any[],
   allMatches: Match[] = [],
   userProfile?: UserProfile | null,
-  attendancesByMatch?: Map<string, Array<{ userId: string; status?: string }>>,
-  oracleEntry?: OracleLeaderboardEntry | null
+  attendancesByMatch?: Map<string, Array<{ userId: string; status?: string }>>
 ): Record<MilestoneCategory, number> {
   const skater = teamScoring.find((p) => p.id === playerId);
   const goalie = goalieLeaderboard.find((g) => g.id === playerId);
@@ -1802,7 +1720,6 @@ export function getPlayerRawStatsForMilestones(
     mvp,
     defense: feats.lockdownGames,
     ironman: feats.maxIronmanStreak,
-    oracle: oracleEntry?.totalPoints || 0,
     special: feats.hattricks + feats.fourPointGames + feats.fivePointGames + feats.quickGoals + feats.penaltyShotGoals,
   };
 }
@@ -1817,8 +1734,7 @@ export function calculatePlayerMilestones(
   goalieLeaderboard: any[],
   allMatches: Match[] = [],
   userProfile?: UserProfile | null,
-  attendancesByMatch?: Map<string, Array<{ userId: string; status?: string }>>,
-  oracleEntry?: OracleLeaderboardEntry | null
+  attendancesByMatch?: Map<string, Array<{ userId: string; status?: string }>>
 ): PlayerMilestoneProgress[] {
   const rawStats = getPlayerRawStatsForMilestones(
     playerId,
@@ -1827,8 +1743,7 @@ export function calculatePlayerMilestones(
     goalieLeaderboard,
     allMatches,
     userProfile,
-    attendancesByMatch,
-    oracleEntry
+    attendancesByMatch
   );
   const feats = countPlayerSingleGameFeats(
     playerId,
@@ -1940,9 +1855,6 @@ export function calculatePlayerMilestones(
       case 'feat-wing-sniper':
         current = feats.wingSniperGames;
         break;
-      case 'feat-exact-oracle':
-        current = oracleEntry?.exactScoreHits || 0;
-        break;
 
       // Standardní kategorie
       default:
@@ -1981,7 +1893,7 @@ export function calculateTeamMilestonesOverview(
   goalieLeaderboard: any[] = [],
   allMatches: Match[] = [],
   currentUserId?: string | null,
-  attendancesByMatch?: Map<string, Array<{ userId: string; status?: string; prediction?: any }>>
+  attendancesByMatch?: Map<string, Array<{ userId: string; status?: string }>>
 ): TeamMilestonesData {
   const holdersMap = new Map<string, MilestoneHolder[]>();
   const candidatesMap = new Map<string, MilestoneCandidate[]>();
@@ -1991,8 +1903,6 @@ export function calculateTeamMilestonesOverview(
   });
 
   const teamChemistry = calculateTeamChemistry(allMatches, allUsers);
-  const oracleLeaderboard = calculateOracleLeaderboard(allMatches, attendancesByMatch, allUsers);
-  const oracleByUserMap = new Map(oracleLeaderboard.map((o) => [o.userId, o]));
   const playerFormMap = calculateAllPlayersFormAndDefense(
     allUsers,
     allMatches,
@@ -2004,7 +1914,6 @@ export function calculateTeamMilestonesOverview(
   let myUnlockedCount = 0;
 
   allUsers.forEach((user) => {
-    const oracleEntry = oracleByUserMap.get(user.id) || null;
     const progressList = calculatePlayerMilestones(
       user.id,
       user.name,
@@ -2012,8 +1921,7 @@ export function calculateTeamMilestonesOverview(
       goalieLeaderboard,
       allMatches,
       user,
-      attendancesByMatch,
-      oracleEntry
+      attendancesByMatch
     );
     const feats = countPlayerSingleGameFeats(
       user.id,
@@ -2110,7 +2018,6 @@ export function calculateTeamMilestonesOverview(
           (prog.milestone.category === 'mvp' && prog.milestone.target > 1 && prog.remaining <= 1 && prog.current > 0) ||
           (prog.milestone.category === 'defense' && prog.milestone.target >= 5 && prog.remaining <= 2 && prog.current > 0) ||
           (prog.milestone.category === 'ironman' && prog.milestone.target >= 5 && prog.remaining <= 2 && prog.current > 0) ||
-          (prog.milestone.category === 'oracle' && prog.milestone.target >= 5 && prog.remaining <= 3 && prog.current > 0) ||
           (prog.milestone.id === 'feat-star-hattrick' && prog.remaining === 1 && prog.current > 0) ||
           (prog.milestone.id === 'feat-podium-stars' && prog.remaining === 1 && prog.current > 0);
 
@@ -2178,7 +2085,6 @@ export function calculateTeamMilestonesOverview(
     totalMilestonesCount: MILESTONE_DEFINITIONS.length,
     trophyLeaders: trophyLeadersList,
     teamChemistry,
-    oracleLeaderboard,
     playerFormMap,
   };
 }

@@ -122,7 +122,6 @@ export default function HallOfFamePage() {
       }
     }
 
-    const oracleEntry = teamMilestonesData.oracleLeaderboard?.find((o) => o.userId === profile.id) || null;
     const milestones = calculatePlayerMilestones(
       profile.id,
       profile.name,
@@ -130,8 +129,7 @@ export default function HallOfFamePage() {
       goalieLeaderboard,
       allMatches || [],
       profile,
-      undefined,
-      oracleEntry
+      undefined
     );
 
     const positionInfo = resolvePlayerPosition(profile, allMatches || []);
@@ -248,7 +246,6 @@ export default function HallOfFamePage() {
             newMilestoneIds={newMilestoneIds}
             initialPlayerId={tabPlayerFilter}
             teamChemistry={teamMilestonesData.teamChemistry}
-            oracleLeaderboard={teamMilestonesData.oracleLeaderboard}
           />
         </CardContent>
       </Card>

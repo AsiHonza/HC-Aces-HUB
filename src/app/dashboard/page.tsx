@@ -124,12 +124,6 @@ interface Attendance {
     matchId: string;
     status: 'going' | 'not-going' | 'unknown';
     note?: string;
-    prediction?: {
-      acesScore: number;
-      opponentScore: number;
-      firstScorerId?: string | null;
-      updatedAt?: any;
-    } | null;
 }
 
 
@@ -904,7 +898,6 @@ function DashboardPageContent() {
       }
     }
 
-    const oracleEntry = teamMilestonesData.oracleLeaderboard?.find((o) => o.userId === profile.id) || null;
     const milestones = calculatePlayerMilestones(
       profile.id,
       profile.name,
@@ -912,8 +905,7 @@ function DashboardPageContent() {
       goalieLeaderboard,
       allMatches || [],
       profile as any,
-      attendancesByMatch,
-      oracleEntry
+      attendancesByMatch
     );
 
     const positionInfo = resolvePlayerPosition(profile as any, allMatches || []);
@@ -1403,40 +1395,6 @@ function DashboardPageContent() {
     setIsStarsModalOpen(true);
   }, [postMatchData, activeMvpMatch, user?.uid, attendancesByMatch]);
 
-  const handleSavePrediction = async (
-    matchId: string,
-    prediction: { acesScore: number; opponentScore: number; firstScorerId?: string | null }
-  ) => {
-    if (!user || !firestore) return;
-    const existingAtt = userAttendancesWithOptimistic.get(matchId);
-    setOptimisticAttendances((cur) =>
-      new Map(cur).set(matchId, {
-        ...existingAtt,
-        status: existingAtt?.status || 'going',
-        prediction,
-      } as any)
-    );
-    try {
-      await attendanceService.submitPrediction(firestore, {
-        matchId,
-        userId: user.uid,
-        acesScore: prediction.acesScore,
-        opponentScore: prediction.opponentScore,
-        firstScorerId: prediction.firstScorerId,
-      });
-      toast({
-        title: 'Tip byl úspěšně uložen',
-        description: `Tvůj tip HC Aces ${prediction.acesScore}:${prediction.opponentScore} byl zapsán do kabiny.`,
-      });
-    } catch (err: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Chyba',
-        description: 'Nepodařilo se uložit tip na zápas.',
-      });
-    }
-  };
-
   const renderMatchCard = (m: Match) => {
     const attStatus = userAttendancesWithOptimistic.get(m.id)?.status;
     const matchAttendees = attendancesByMatch.get(m.id) || [];
@@ -1454,7 +1412,6 @@ function DashboardPageContent() {
         usersMap={usersMap}
         currentUserId={user?.uid}
         playerFormMap={teamMilestonesData.playerFormMap}
-        onSavePrediction={handleSavePrediction}
         leagueSkaters={leagueSettings?.leagueSkaters}
         isAdmin={userProfile?.role === 'admin'}
         isCardHighlighted={highlightedMatchId === m.id}

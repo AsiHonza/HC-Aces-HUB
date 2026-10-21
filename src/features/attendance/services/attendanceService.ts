@@ -10,14 +10,6 @@ export interface AttendanceSubmission {
   isGoalie?: boolean;
 }
 
-export interface PredictionSubmission {
-  matchId: string;
-  userId: string;
-  acesScore: number;
-  opponentScore: number;
-  firstScorerId?: string | null;
-}
-
 export const attendanceService = {
   /**
    * Save or update player attendance for a match
@@ -37,40 +29,6 @@ export const attendanceService = {
         dataToSave.isGoalie = isGoalie;
       }
       await setDoc(attRef, dataToSave, { merge: true });
-    } catch (err: any) {
-      errorEmitter.emit(
-        'permission-error',
-        new FirestorePermissionError({
-          path: `matches/${matchId}/attendees/${userId}`,
-          operation: 'write',
-        })
-      );
-      throw err;
-    }
-  },
-
-  /**
-   * Save or update player pre-match score and 1st goal scorer prediction ("Věštec kabiny")
-   */
-  async submitPrediction(firestore: Firestore, submission: PredictionSubmission): Promise<void> {
-    const { matchId, userId, acesScore, opponentScore, firstScorerId } = submission;
-    try {
-      const attRef = doc(firestore, 'matches', matchId, 'attendees', userId);
-      await setDoc(
-        attRef,
-        {
-          userId,
-          matchId,
-          prediction: {
-            acesScore: Math.max(0, Math.min(30, Number(acesScore) || 0)),
-            opponentScore: Math.max(0, Math.min(30, Number(opponentScore) || 0)),
-            firstScorerId: firstScorerId && firstScorerId !== 'none' ? firstScorerId : null,
-            updatedAt: new Date(),
-          },
-          updatedAt: new Date(),
-        },
-        { merge: true }
-      );
     } catch (err: any) {
       errorEmitter.emit(
         'permission-error',
