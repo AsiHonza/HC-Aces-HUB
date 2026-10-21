@@ -1453,9 +1453,9 @@ function DashboardPageContent() {
   const handleTriggerAwardSimulation = (rank: 1 | 2 | 3 = 1) => {
     const sampleMatch = (recentPlayedMatches[0] as any) || allMatches?.find((m) => m.isPlayed);
     const opponent = sampleMatch ? getMatchDetails(sampleMatch).opponent : 'HC Výletníci';
-    const isTeam1Aces = sampleMatch ? sampleMatch.team1?.toLowerCase().includes('aces') : true;
-    const scoreAces = sampleMatch ? (isTeam1Aces ? sampleMatch.team1Score : sampleMatch.team2Score) : 5;
-    const scoreOpponent = sampleMatch ? (isTeam1Aces ? sampleMatch.team2Score : sampleMatch.team1Score) : 2;
+    const isTeam1Aces = sampleMatch?.team1 ? sampleMatch.team1.toLowerCase().includes('aces') : true;
+    const scoreAces = sampleMatch ? (isTeam1Aces ? (sampleMatch.team1Score ?? 5) : (sampleMatch.team2Score ?? 5)) : 5;
+    const scoreOpponent = sampleMatch ? (isTeam1Aces ? (sampleMatch.team2Score ?? 2) : (sampleMatch.team1Score ?? 2)) : 2;
 
     const rankMockData = {
       1: { points: 14, star1Count: 4, star2Count: 1, star3Count: 0, goals: 2, assists: 1 },
@@ -1476,10 +1476,10 @@ function DashboardPageContent() {
       star1Count: rankMockData.star1Count,
       star2Count: rankMockData.star2Count,
       star3Count: rankMockData.star3Count,
-      playerName: userProfile?.name || 'Tomáš Konečný',
-      playerJersey: userProfile?.jerseyNumber ?? 66,
+      playerName: userProfile?.name || 'Jan Mlčák',
+      playerJersey: userProfile?.jerseyNumber ?? 27,
       playerPhotoURL: userProfile?.photoURL || null,
-      playerPosition: isGoaliePlayer(userProfile) ? 'Brankář' : 'Útočník',
+      playerPosition: isGoaliePlayer(userProfile) ? 'Brankář' : (userProfile?.fieldPosition ? 'Hráč v poli' : 'Útočník'),
       matchGoals: isGoaliePlayer(userProfile) ? undefined : rankMockData.goals,
       matchAssists: isGoaliePlayer(userProfile) ? undefined : rankMockData.assists,
       matchSaves: isGoaliePlayer(userProfile) ? 28 : undefined,

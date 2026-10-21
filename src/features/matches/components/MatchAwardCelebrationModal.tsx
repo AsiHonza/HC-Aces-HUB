@@ -63,8 +63,9 @@ function ConfettiCanvas({ active }: { active: boolean }) {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    let width = (canvas.width = canvas.parentElement?.clientWidth || 480);
-    let height = (canvas.height = canvas.parentElement?.clientHeight || 600);
+    const parent = canvas.parentElement;
+    let width = (canvas.width = (parent && parent.clientWidth > 0) ? parent.clientWidth : 480);
+    let height = (canvas.height = (parent && parent.clientHeight > 0) ? parent.clientHeight : 620);
 
     const colors = [
       '#F59E0B', '#FBBF24', '#D97706', // Zlato
@@ -222,7 +223,7 @@ export function MatchAwardCelebrationModal({
     }
   }, [isOpen]);
 
-  if (!awardData) return null;
+  if (!isOpen || !awardData) return null;
 
   const isRank1 = awardData.awardRank === 1;
   const isRank2 = awardData.awardRank === 2;
@@ -244,7 +245,7 @@ export function MatchAwardCelebrationModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-md w-[92vw] sm:w-full p-0 overflow-hidden border-2 bg-card shadow-2xl relative">
+      <DialogContent className="max-w-md w-[92vw] sm:w-full p-0 overflow-hidden max-h-[92vh] overflow-y-auto border-2 bg-card shadow-2xl">
         <ConfettiCanvas active={isOpen} />
 
         {/* Simulátor navigační lišta (zobrazena pouze při simulaci nebo pro testování) */}
