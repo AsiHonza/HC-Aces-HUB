@@ -11,7 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Trophy, Star, Sparkles, MapPin, Calendar, Award, CheckCircle2, RotateCcw, Flame } from 'lucide-react';
+import { Trophy, Star, Award, CheckCircle2 } from 'lucide-react';
 import { cn, formatName } from '@/lib/utils';
 import { formatMatchDate } from '@/lib/dates';
 
@@ -44,8 +44,6 @@ export interface MatchAwardCelebrationModalProps {
   isOpen: boolean;
   onClose: () => void;
   awardData: CelebrationAwardData | null;
-  onSimulateRank?: (rank: 1 | 2 | 3) => void;
-  onResetSeenHistory?: () => void;
 }
 
 /**
@@ -208,8 +206,6 @@ export function MatchAwardCelebrationModal({
   isOpen,
   onClose,
   awardData,
-  onSimulateRank,
-  onResetSeenHistory,
 }: MatchAwardCelebrationModalProps) {
   // Tactile haptic feedback on mobile if supported
   useEffect(() => {
@@ -246,64 +242,6 @@ export function MatchAwardCelebrationModal({
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-md w-[92vw] sm:w-full p-0 overflow-hidden max-h-[92vh] overflow-y-auto rounded-3xl border border-border/70 bg-card/95 shadow-2xl backdrop-blur-sm">
         <ConfettiCanvas active={isOpen} />
-
-        {/* Simulátor navigační lišta (zobrazena pouze při simulaci nebo pro testování) */}
-        {awardData.isSimulation && (
-          <div className="bg-muted/70 backdrop-blur-xs border-b border-border/60 px-3.5 py-2 flex flex-wrap items-center justify-between gap-1.5 z-30 relative text-[11px]">
-            <span className="font-semibold text-muted-foreground flex items-center gap-1.5">
-              <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-              Režim simulace:
-            </span>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => onSimulateRank?.(1)}
-                className={cn(
-                  'px-2.5 py-1 rounded-full text-[11px] font-bold transition-all',
-                  isRank1
-                    ? 'bg-amber-500 text-black shadow-xs font-black'
-                    : 'bg-background/80 hover:bg-muted text-muted-foreground'
-                )}
-              >
-                1. Hvězda
-              </button>
-              <button
-                type="button"
-                onClick={() => onSimulateRank?.(2)}
-                className={cn(
-                  'px-2.5 py-1 rounded-full text-[11px] font-bold transition-all',
-                  isRank2
-                    ? 'bg-slate-300 text-slate-900 shadow-xs font-black'
-                    : 'bg-background/80 hover:bg-muted text-muted-foreground'
-                )}
-              >
-                2. Hvězda
-              </button>
-              <button
-                type="button"
-                onClick={() => onSimulateRank?.(3)}
-                className={cn(
-                  'px-2.5 py-1 rounded-full text-[11px] font-bold transition-all',
-                  isRank3
-                    ? 'bg-amber-700 text-white shadow-xs font-black'
-                    : 'bg-background/80 hover:bg-muted text-muted-foreground'
-                )}
-              >
-                3. Hvězda
-              </button>
-              {onResetSeenHistory && (
-                <button
-                  type="button"
-                  onClick={onResetSeenHistory}
-                  title="Resetovat historii zhlédnutí pro reálné testování"
-                  className="p-1.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-background/80 transition-all ml-1"
-                >
-                  <RotateCcw className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-          </div>
-        )}
 
         {/* HORNÍ ZÁHLAVÍ: SVĚTELNÁ ZÁŘE A ODZNAK OCENĚNÍ */}
         <div

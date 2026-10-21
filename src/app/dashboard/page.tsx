@@ -1449,48 +1449,8 @@ function DashboardPageContent() {
     setIsStarsModalOpen(true);
   }, [postMatchData, activeMvpMatch, user?.uid, attendancesByMatch]);
 
-  // Spuštění simulace gratulačního okna pro MVP / Hvězdu zápasu
-  const handleTriggerAwardSimulation = (rank: 1 | 2 | 3 = 1) => {
-    const sampleMatch = (recentPlayedMatches[0] as any) || allMatches?.find((m) => m.isPlayed);
-    const opponent = sampleMatch ? getMatchDetails(sampleMatch).opponent : 'HC Výletníci';
-    const isTeam1Aces = sampleMatch?.team1 ? sampleMatch.team1.toLowerCase().includes('aces') : true;
-    const scoreAces = sampleMatch ? (isTeam1Aces ? (sampleMatch.team1Score ?? 5) : (sampleMatch.team2Score ?? 5)) : 5;
-    const scoreOpponent = sampleMatch ? (isTeam1Aces ? (sampleMatch.team2Score ?? 2) : (sampleMatch.team1Score ?? 2)) : 2;
-
-    const rankMockData = {
-      1: { points: 14, star1Count: 4, star2Count: 1, star3Count: 0, goals: 2, assists: 1 },
-      2: { points: 8, star1Count: 1, star2Count: 2, star3Count: 1, goals: 1, assists: 2 },
-      3: { points: 5, star1Count: 0, star2Count: 2, star3Count: 1, goals: 1, assists: 0 },
-    }[rank];
-
-    setCelebrationAward({
-      matchId: sampleMatch?.id || 'simulated-match',
-      matchOpponent: opponent,
-      matchDate: sampleMatch?.dateTime || new Date(),
-      scoreAces,
-      scoreOpponent,
-      isWin: Number(scoreAces) > Number(scoreOpponent),
-      awardRank: rank,
-      isTied: false,
-      awardPoints: rankMockData.points,
-      star1Count: rankMockData.star1Count,
-      star2Count: rankMockData.star2Count,
-      star3Count: rankMockData.star3Count,
-      playerName: userProfile?.name || 'Jan Mlčák',
-      playerJersey: userProfile?.jerseyNumber ?? 27,
-      playerPhotoURL: userProfile?.photoURL || null,
-      playerPosition: isGoaliePlayer(userProfile) ? 'Brankář' : (userProfile?.fieldPosition ? 'Hráč v poli' : 'Útočník'),
-      matchGoals: isGoaliePlayer(userProfile) ? undefined : rankMockData.goals,
-      matchAssists: isGoaliePlayer(userProfile) ? undefined : rankMockData.assists,
-      matchSaves: isGoaliePlayer(userProfile) ? 28 : undefined,
-      isShutout: isGoaliePlayer(userProfile) && scoreOpponent === 0,
-      isSimulation: true,
-    });
-    setIsCelebrationModalOpen(true);
-  };
-
   const handleCloseCelebration = () => {
-    if (celebrationAward && user?.uid && !celebrationAward.isSimulation) {
+    if (celebrationAward && user?.uid) {
       const storageKey = `aces_award_modal_seen_${user.uid}_${celebrationAward.matchId}_${celebrationAward.awardRank}`;
       if (typeof window !== 'undefined') {
         localStorage.setItem(storageKey, new Date().toISOString());
@@ -1498,35 +1458,6 @@ function DashboardPageContent() {
     }
     setIsCelebrationModalOpen(false);
   };
-
-  const handleResetAwardSeenHistory = () => {
-    if (typeof window !== 'undefined') {
-      const keysToRemove: string[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith('aces_award_modal_seen_')) {
-          keysToRemove.push(key);
-        }
-      }
-      keysToRemove.forEach((k) => localStorage.removeItem(k));
-      toast({
-        title: 'Historie zhlédnutí vymazána',
-        description: 'Při dalším spuštění aplikace se gratulace otevře jako při prvním otevření po ukončení hlasování.',
-      });
-    }
-  };
-
-  // Možnost okamžitého vyvolání simulace ocenění přes URL parametr ?simulateAward=1 (nebo 2, 3, mvp)
-  useEffect(() => {
-    const simParam = searchParams.get('simulateAward');
-    if (simParam) {
-      const rankNum = simParam === '2' ? 2 : (simParam === '3' ? 3 : 1);
-      const timer = setTimeout(() => {
-        handleTriggerAwardSimulation(rankNum as 1 | 2 | 3);
-      }, 300);
-      return () => clearTimeout(timer);
-    }
-  }, [searchParams]);
 
   // Automatické vyskočení gratulačního okna pro MVP / Hvězdy zápasu po skončení hlasování
   // (pouze při 1. otevření aplikace po uzavření hlasování daného zápasu)
@@ -1742,16 +1673,6 @@ function DashboardPageContent() {
           <Award className="text-primary h-4.5 w-4.5" />
           Poslední zápas & MVP
         </h2>
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-7 text-xs font-semibold border-amber-500/40 text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 shrink-0"
-          onClick={() => handleTriggerAwardSimulation(1)}
-          title="Vyzkoušet gratulační okno pro vyhlášené MVP / Hvězdy zápasu"
-        >
-          <Sparkles className="h-3 w-3 mr-1 text-amber-500" />
-          Simulovat gratulaci
-        </Button>
       </div>
       <PostMatchSection
         match={postMatchData.match}
@@ -2540,18 +2461,8 @@ function DashboardPageContent() {
               </div>
             </div>
 
-            {/* Tlačítka kariérní karty & simulace */}
+            {/* Tlačítko kariérní karty */}
             <div className="flex items-center gap-2 shrink-0">
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 text-xs font-semibold border-amber-500/40 text-amber-500 hover:bg-amber-500/10 hover:text-amber-400 shrink-0"
-                onClick={() => handleTriggerAwardSimulation(1)}
-                title="Vyzkoušet gratulační okno pro vyhlášené MVP / Hvězdu zápasu"
-              >
-                <Sparkles className="h-3.5 w-3.5 mr-1.5 text-amber-500" />
-                Simulace MVP
-              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -2792,8 +2703,6 @@ function DashboardPageContent() {
         isOpen={isCelebrationModalOpen}
         onClose={handleCloseCelebration}
         awardData={celebrationAward}
-        onSimulateRank={handleTriggerAwardSimulation}
-        onResetSeenHistory={handleResetAwardSeenHistory}
       />
     </div>
   );
