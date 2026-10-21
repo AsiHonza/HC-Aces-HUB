@@ -3,7 +3,7 @@ import { calculateMatchStarsResults } from '@/features/matches/utils/matchStars'
 import { getMvpVotingStatus } from '@/features/matches/utils/mvpVoting';
 import { hasMatchStatsRecorded } from '@/features/matches/utils/match-details';
 import { areNamesMatching, isGoaliePlayer } from '@/lib/utils';
-import { toJsDate } from '@/lib/dates';
+import { toJsDate, toSafeDate } from '@/lib/dates';
 
 export type PlayerFormBadgeType =
   | 'reigning-mvp'
@@ -158,8 +158,41 @@ function getPlayerMatchGoalsAndAssists(player: UserProfile, match: Match): { goa
 }
 
 /**
+ * Začátek aktuální sezóny HC Aces (2026/2027) – 1. 9. 2026.
+ * Zajišťuje zahrnutí všech ligových zápasů od 1. kola (15. 9. 2026) a vyloučení starých zápasů z minulé sezóny / historie.
+ */
+export const CURRENT_SEASON_START_MS = new Date('2026-09-01T00:00:00').getTime();
+
+export function getMatchTimestamp(match: Match): number {
+  if (match.dateTime) {
+    const d = toSafeDate(match.dateTime);
+    if (d) return d.getTime();
+  }
+  if (match.date && typeof match.date === 'string') {
+    const parts = match.date.match(/(\d+)\.\s*(\d+)\.\s*(\d{4})/);
+    if (parts) {
+      const day = parseInt(parts[1], 10);
+      const month = parseInt(parts[2], 10);
+      const year = parseInt(parts[3], 10);
+      return new Date(year, month - 1, day).getTime();
+    }
+  }
+  return toJsDate(match.dateTime).getTime();
+}
+
+export function isCurrentSeasonMatch(match: Match | null | undefined): boolean {
+  if (!match) return false;
+  // Vyloučit zápasy explicitně archivovaných předchozích sezón (např. 2024-2025, 2025-2026, prior-history)
+  if (match.seasonId && match.seasonId !== 'current' && match.seasonId !== '2026-2027') {
+    return false;
+  }
+  const mTime = getMatchTimestamp(match);
+  return mTime >= CURRENT_SEASON_START_MS;
+}
+
+/**
  * Computes live form badges ("Hot Streaks"), reigning MVP crown, ironman streaks,
- * and defensive metrics for all players across played matches.
+ * and defensive metrics for all players across played matches in the CURRENT season.
  */
 export function calculateAllPlayersFormAndDefense(
   users: UserProfile[] = [],
@@ -170,9 +203,10 @@ export function calculateAllPlayersFormAndDefense(
   const usersMap = new Map<string, UserProfile>(users.map((u) => [u.id, u]));
 
   // Sort played matches chronologically ascending (oldest -> newest)
+  // Striktně pouze zápasy z aktuální sezóny (2026/2027, od 1. 9. 2026)
   const playedMatchesAsc = [...matches]
-    .filter((m) => m.isPlayed)
-    .sort((a, b) => toJsDate(a.dateTime).getTime() - toJsDate(b.dateTime).getTime());
+    .filter((m) => m.isPlayed && isCurrentSeasonMatch(m))
+    .sort((a, b) => getMatchTimestamp(a) - getMatchTimestamp(b));
 
   // Identify Reigning 1st Star (strictly from the latest played match where voting is officially closed and has votes)
   const reigningMvpIds = new Set<string>();
@@ -233,13 +267,22 @@ export function calculateAllPlayersFormAndDefense(
       const att = attendancesByMatch?.get(m.id);
       const appeared = didPlayerAppearInMatch(user, m, att);
 
+      const statsRecorded = hasMatchStatsRecorded(m);
+      const hasExplicitRoster =
+        (Array.isArray(m.gameRoster) && m.gameRoster.length > 0) ||
+        (m.lineup && Object.values(m.lineup).some((v) => v !== null));
+
       if (appeared) {
         currentIronmanStreak += 1;
         if (currentIronmanStreak > maxIronmanStreak) {
           maxIronmanStreak = currentIronmanStreak;
         }
       } else {
-        currentIronmanStreak = 0;
+        // Pokud zápas ještě nemá oficiálně zapsané statistiky ani soupisku (např. Sjetý gumy, kde se statistiky teprve doplní),
+        // nepřerušíme železného muže hráčům, u kterých zatím není známo, zda hráli.
+        if (statsRecorded || hasExplicitRoster) {
+          currentIronmanStreak = 0;
+        }
       }
 
       if (!appeared) continue;
@@ -250,7 +293,6 @@ export function calculateAllPlayersFormAndDefense(
       const acesScore = isAcesTeam1 ? Number(m.team1Score ?? 0) : Number(m.team2Score ?? 0);
       const oppScore = isAcesTeam1 ? Number(m.team2Score ?? 0) : Number(m.team1Score ?? 0);
       const isWin = acesScore > oppScore;
-      const statsRecorded = hasMatchStatsRecorded(m);
 
       if (isWin) winsAppeared += 1;
 
@@ -471,8 +513,8 @@ export function calculateAllPlayersFormAndDefense(
       });
     }
 
-    // 5. Point Streak (Bod ve 3+ zápasech v řadě)
-    if (!isGoalie && currentPointStreak >= 3) {
+    // 5. Point Streak (Bod ve 2+ zápasech v řadě)
+    if (!isGoalie && currentPointStreak >= 2) {
       badges.push({
         type: 'point-streak',
         icon: 'flame',

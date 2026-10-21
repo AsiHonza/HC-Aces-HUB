@@ -303,7 +303,7 @@ function DashboardPageContent() {
       return allMatches
         .filter(match => {
           const mTime = toJsDate(match.dateTime).getTime();
-          if (mTime < new Date('2026-09-16T00:00:00').getTime()) return false;
+          if (mTime < new Date('2026-09-01T00:00:00').getTime()) return false;
           return !match.isPlayed && (mTime + 90 * 60 * 1000 > nowMs);
         })
         .sort((a, b) => toJsDate(a.dateTime).getTime() - toJsDate(b.dateTime).getTime());
@@ -312,7 +312,7 @@ function DashboardPageContent() {
   const matchesAwaitingResult = useMemo(() => {
       if (!allMatches) return [];
       const nowMs = Date.now();
-      const seasonStartMs = new Date('2026-09-16T00:00:00').getTime();
+      const seasonStartMs = new Date('2026-09-01T00:00:00').getTime();
       const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
 
       // Bezpečnostní pojistka proti kolizi: zjistíme čísla kol zápasů, které již JSOU odehrané (isPlayed: true)
@@ -345,7 +345,7 @@ function DashboardPageContent() {
   // Staré neuzavřené zápasy před začátkem aktuální sezóny (< 16. 9. 2026)
   const oldUnrecordedMatches = useMemo(() => {
       if (!allMatches) return [];
-      const seasonStartMs = new Date('2026-09-16T00:00:00').getTime();
+      const seasonStartMs = new Date('2026-09-01T00:00:00').getTime();
       return allMatches.filter(m => !m.isPlayed && toJsDate(m.dateTime).getTime() < seasonStartMs);
   }, [allMatches]);
 
@@ -375,7 +375,7 @@ function DashboardPageContent() {
   }, [allMatches]);
   
   const recentPlayedMatches = useMemo<MatchDisplayItem[]>(() => {
-      const seasonStartMs = new Date('2026-09-16T00:00:00').getTime();
+      const seasonStartMs = new Date('2026-09-01T00:00:00').getTime();
       if (selectedSeasonId !== 'current') {
           const archived = archivedSeasons?.find(s => s.id === selectedSeasonId);
           if (archived?.matches && archived.matches.length > 0) {
@@ -424,7 +424,7 @@ function DashboardPageContent() {
       if (!allUsers || !allGoalieStats) return [];
       const statsMap = new Map<string, GoalieStats>();
       allGoalieStats.forEach(stat => { if (stat.userProfileId) statsMap.set(stat.userProfileId, stat); });
-      const seasonStartMs = new Date('2026-09-16T00:00:00').getTime();
+      const seasonStartMs = new Date('2026-09-01T00:00:00').getTime();
 
       return allUsers.filter(u => u.playerType === 'goalie').map(u => {
           const stats = statsMap.get(u.id);
@@ -1368,7 +1368,7 @@ function DashboardPageContent() {
 
   const activeMvpMatch = useMemo(() => {
     if (!allMatches || allMatches.length === 0) return null;
-    const seasonStartMs = new Date('2026-09-16T00:00:00').getTime();
+    const seasonStartMs = new Date('2026-09-01T00:00:00').getTime();
     const currentMatches = allMatches.filter((m) => toJsDate(m.dateTime).getTime() >= seasonStartMs);
 
     const openMatch = [...currentMatches]

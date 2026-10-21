@@ -2154,7 +2154,7 @@ export function buildTeamScoringAndGoalieLeaderboard(
   allGoalieStats.forEach((stat) => {
     if (stat.userProfileId) goalieStatsMap.set(stat.userProfileId, stat);
   });
-  const seasonStartMs = new Date('2026-09-16T00:00:00').getTime();
+  const seasonStartMs = new Date('2026-09-01T00:00:00').getTime();
 
   const goalieLeaderboard = allUsers
     .filter((u) => u.playerType === 'goalie' || isGoaliePlayer(u))
