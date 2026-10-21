@@ -220,30 +220,30 @@ export function HeadToHeadSection({
             </div>
           )}
 
-          {/* Klíčoví hráči soupeře (Top 3) */}
+          {/* Klíčoví hráči soupeře (Top 3 vypsaní pod sebou pro maximální čitelnost) */}
           {h2h.keyOpponentPlayers.length > 0 && (
             <div className="pt-2 border-t border-border/40 space-y-1.5">
               <div className="flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
                 <ShieldAlert className="h-3.5 w-3.5 text-amber-500 shrink-0" />
                 <span>Pozor na soupeře (Klíčoví hráči)</span>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+              <div className="flex flex-col gap-1.5">
                 {h2h.keyOpponentPlayers.map((sk) => (
                   <div
                     key={sk.name}
-                    className="flex items-center justify-between px-2.5 py-1.5 rounded-md bg-card dark:bg-muted/40 border border-border/80 text-xs shadow-xs hover:border-primary/40 transition-colors"
+                    className="flex items-center justify-between px-3 py-1.5 rounded-md bg-card dark:bg-muted/40 border border-border/80 text-xs shadow-xs hover:border-primary/40 transition-colors"
                   >
-                    <div className="flex items-center gap-1.5 min-w-0 pr-1">
-                      <span className="text-[10px] font-bold text-muted-foreground w-3.5 shrink-0">{sk.rank}.</span>
-                      <span className="font-semibold truncate">{sk.name}</span>
+                    <div className="flex items-center gap-2 min-w-0 pr-2">
+                      <span className="text-[11px] font-bold text-muted-foreground w-4 shrink-0">{sk.rank}.</span>
+                      <span className="font-semibold text-foreground truncate">{sk.name}</span>
                     </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
+                    <div className="flex items-center gap-2 shrink-0">
                       {sk.gamesPlayed !== undefined && sk.gamesPlayed !== null && (
-                        <span className="text-[11px] font-bold text-foreground/80 bg-muted/80 dark:bg-background/60 px-1.5 py-0.5 rounded border border-border/60">
+                        <span className="text-[11px] font-semibold text-muted-foreground bg-muted/80 dark:bg-background/60 px-2 py-0.5 rounded border border-border/60">
                           {sk.gamesPlayed} Z
                         </span>
                       )}
-                      <span className="font-bold text-primary font-mono whitespace-nowrap">
+                      <span className="font-bold text-primary font-mono whitespace-nowrap text-xs">
                         {sk.points} B{' '}
                         <span className="text-[10px] text-muted-foreground font-normal font-sans">
                           ({sk.goals}+{sk.assists})
