@@ -1452,7 +1452,7 @@ function DashboardPageContent() {
   if (isLoading || !user) return <div className="flex justify-center py-12"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>
 
   return (
-    <div className="py-8 space-y-8 w-full min-w-0 max-w-full overflow-x-hidden">
+    <div className="py-6 sm:py-8 space-y-6 sm:space-y-8 w-full min-w-0 max-w-7xl mx-auto">
       {selectedSeasonId !== 'current' && (
         <div className="bg-amber-500/10 border-2 border-amber-500/30 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -1484,9 +1484,9 @@ function DashboardPageContent() {
 
       <BirthdaysCard birthdays={upcomingBirthdays} />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 w-full min-w-0 max-w-full">
+      <div className="space-y-6 sm:space-y-8 w-full min-w-0">
         {/* PROFESIONÁLNÍ HRÁČSKÁ LIŠTA (PLAYER STRIP) */}
-        <Card className="lg:col-span-3 border-border/70 bg-card/95 shadow-sm overflow-hidden w-full min-w-0 max-w-full">
+        <Card className="border-border/70 bg-card/95 shadow-sm overflow-hidden w-full min-w-0">
         <div className="p-3.5 sm:p-5 flex flex-col xl:flex-row xl:items-center justify-between gap-4 w-full min-w-0">
           {/* Vizuální identita hráče */}
           <div className="flex items-center gap-3.5 min-w-0">
@@ -1631,9 +1631,9 @@ function DashboardPageContent() {
         {/* AKTUÁLNÍ SEZÓNA: ZÁPASOVÉ CENTRUM (PŘÍŠTÍ ZÁPAS + ODEHRANÝ ZÁPAS/MVP VEDLE SEBE NA DESKTOPU) */}
         {selectedSeasonId === 'current' ? (
           postMatchData ? (
-            <div className="lg:col-span-3 grid grid-cols-1 lg:grid-cols-2 gap-6 items-start w-full min-w-0 max-w-full">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start w-full min-w-0">
               {/* SLOUPEC 1: PŘÍŠTÍ ZÁPASY (NA MOBILU PRVNÍ DLE POŽADAVKU) */}
-              <div className="space-y-4 w-full min-w-0 max-w-full overflow-hidden">
+              <div className="space-y-4 w-full min-w-0 overflow-hidden">
                 <div className="flex items-center justify-between px-2 sm:px-0">
                   <h2 className="text-xl font-bold flex items-center gap-2">
                     <Trophy className="text-primary" />
@@ -1658,7 +1658,7 @@ function DashboardPageContent() {
               </div>
 
               {/* SLOUPEC 2: ODEHRANÝ ZÁPAS & MVP / HVĚZDY ZÁPASU */}
-              <div className="space-y-4 w-full min-w-0 max-w-full overflow-hidden">
+              <div className="space-y-4 w-full min-w-0 overflow-hidden">
                 <div className="flex items-center justify-between px-2 sm:px-0">
                   <h2 className="text-xl font-bold flex items-center gap-2">
                     <Award className="text-primary" />
@@ -1686,7 +1686,7 @@ function DashboardPageContent() {
               </div>
             </div>
           ) : (
-            <div className="lg:col-span-3 max-w-4xl mx-auto space-y-4 w-full min-w-0 overflow-hidden">
+            <div className="max-w-4xl mx-auto space-y-4 w-full min-w-0 overflow-hidden">
               <div className="flex items-center justify-between px-2 sm:px-0">
                 <h2 className="text-xl font-bold flex items-center gap-2">
                   <Trophy className="text-primary" />
@@ -1711,7 +1711,7 @@ function DashboardPageContent() {
             </div>
           )
         ) : (
-          <div className="lg:col-span-3 p-4 rounded-xl border bg-muted/20 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left w-full min-w-0 max-w-full overflow-hidden">
+          <div className="p-4 rounded-xl border bg-muted/20 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left w-full min-w-0 overflow-hidden">
             <div className="flex items-center gap-3">
               <History className="h-5 w-5 text-muted-foreground shrink-0" />
               <p className="text-xs text-muted-foreground">
@@ -1726,7 +1726,7 @@ function DashboardPageContent() {
 
         {/* ADMIN AKCE PRO STARÉ NEZAPSANÉ ZÁPASY Z PŘEDCHOZÍHO OBDOBÍ */}
         {userProfile?.role === 'admin' && oldUnrecordedMatches.length > 0 && selectedSeasonId === 'current' && (
-          <div className="lg:col-span-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm w-full min-w-0 max-w-full overflow-hidden">
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm w-full min-w-0 overflow-hidden">
             <div className="space-y-1">
               <p className="text-sm font-bold text-amber-500 flex items-center gap-1.5">
                 <ShieldAlert className="h-4 w-4 shrink-0" />
@@ -1762,8 +1762,8 @@ function DashboardPageContent() {
         )}
 
         {/* LIGOVÁ SOUTĚŽ & ODEHRANÉ ZÁPASY (VEDLE SEBE NA DESKTOPU) */}
-        <div className="lg:col-span-3 grid grid-cols-1 gap-6 lg:grid-cols-12 items-start w-full min-w-0 max-w-full">
-          <Card className="lg:col-span-5 h-fit border-border/70 bg-card/95 w-full min-w-0 max-w-full overflow-hidden">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-start w-full min-w-0">
+          <Card className="lg:col-span-5 h-fit border-border/70 bg-card/95 w-full min-w-0 overflow-hidden">
             <CardHeader className="flex-col items-start gap-3 py-3.5 px-3.5 sm:px-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full gap-2">
                     <CardTitle className="flex items-center gap-2 text-base sm:text-lg whitespace-nowrap"><ListOrdered className="text-primary"/>Soutěž</CardTitle>
@@ -1838,7 +1838,7 @@ function DashboardPageContent() {
           <RecentMatchesSection
             matches={recentPlayedMatches as any}
             usersMap={usersMap}
-            className="lg:col-span-7 h-fit border-border/70 bg-card/95 w-full min-w-0 max-w-full overflow-hidden"
+            className="lg:col-span-7 h-fit border-border/70 bg-card/95 w-full min-w-0 overflow-hidden"
             onViewLineup={(m) => {
               let lineupToDisplay = m.lineup || null;
               const hasExistingLineup = Boolean(lineupToDisplay && Object.values(lineupToDisplay).some((p: any) => p !== null));
@@ -1908,8 +1908,8 @@ function DashboardPageContent() {
           />
         </div>
 
-        <div className="lg:col-span-3 grid grid-cols-1 gap-8 md:grid-cols-2 w-full min-w-0 max-w-full">
-            <Card className="h-fit w-full min-w-0 max-w-full overflow-hidden">
+        <div className="grid grid-cols-1 gap-6 lg:gap-8 md:grid-cols-2 w-full min-w-0">
+            <Card className="h-fit w-full min-w-0 overflow-hidden">
               <Tabs value={activeScoringTab} onValueChange={(v) => setActiveScoringTab(v as 'scoring' | 'stars')}>
                 <CardHeader className="flex-col sm:flex-row items-start sm:items-center justify-between gap-3 py-3 px-4 sm:px-6 border-b">
                   <TabsList className="grid grid-cols-2 w-full sm:w-auto">
@@ -2153,7 +2153,7 @@ function DashboardPageContent() {
               </Tabs>
             </Card>
 
-            <Card className="h-fit w-full min-w-0 max-w-full overflow-hidden">
+            <Card className="h-fit w-full min-w-0 overflow-hidden">
               <Tabs value={activeGoalieTab} onValueChange={(v) => setActiveGoalieTab(v as 'goalies' | 'stars')}>
                 <CardHeader className="flex-col sm:flex-row items-start sm:items-center justify-between gap-3 py-3 px-4 sm:px-6 border-b">
                   <TabsList className="grid grid-cols-2 w-full sm:w-auto">
