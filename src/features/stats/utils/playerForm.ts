@@ -335,6 +335,42 @@ export function calculateAllPlayersFormAndDefense(
       }
     }
 
+    // Série zápasů s hattrickem (3+ gólů po sobě)
+    let hattrickStreak = 0;
+    for (let i = playerAppearancesAsc.length - 1; i >= 0; i--) {
+      const app = playerAppearancesAsc[i];
+      if (!app.statsRecorded) continue;
+      if (app.goals >= 3) {
+        hattrickStreak += 1;
+      } else {
+        break;
+      }
+    }
+
+    // Série zápasů se 2+ góly po sobě
+    let multiGoalStreak = 0;
+    for (let i = playerAppearancesAsc.length - 1; i >= 0; i--) {
+      const app = playerAppearancesAsc[i];
+      if (!app.statsRecorded) continue;
+      if (app.goals >= 2) {
+        multiGoalStreak += 1;
+      } else {
+        break;
+      }
+    }
+
+    // Série zápasů se 2+ asistencemi po sobě
+    let playmakerStreak = 0;
+    for (let i = playerAppearancesAsc.length - 1; i >= 0; i--) {
+      const app = playerAppearancesAsc[i];
+      if (!app.statsRecorded) continue;
+      if (app.assists >= 2) {
+        playmakerStreak += 1;
+      } else {
+        break;
+      }
+    }
+
     const appearancesWithStats = playerAppearancesAsc.filter((a) => a.statsRecorded);
     let lastMatchGoals = 0;
     let lastMatchAssists = 0;
@@ -374,7 +410,7 @@ export function calculateAllPlayersFormAndDefense(
       badges.push({
         type: 'reigning-mvp',
         icon: 'crown',
-        shortLabel: 'MVP',
+        shortLabel: '',
         title: 'Úřadující 1. hvězda zápasu',
         description: reigningMatchOpponent
           ? `Zvolen kabinou 1. hvězdou posledního zápasu proti ${reigningMatchOpponent}`
@@ -389,9 +425,13 @@ export function calculateAllPlayersFormAndDefense(
       badges.push({
         type: 'hattrick-hero',
         icon: 'sparkles',
-        shortLabel: `${lastMatchGoals}G`,
-        title: `Hattrick hrdina (${lastMatchGoals} góly!)`,
-        description: `V posledním odehraném utkání nastřílel hattrick (${lastMatchGoals} gólů)!`,
+        shortLabel: hattrickStreak > 1 ? `${hattrickStreak}Z` : '',
+        title: hattrickStreak > 1
+          ? `Hattricková série (${hattrickStreak} Z v řadě)`
+          : `Hattrick hrdina (${lastMatchGoals} góly!)`,
+        description: hattrickStreak > 1
+          ? `V posledních ${hattrickStreak} odehraných utkáních v řadě nastřílel pokaždé hattrick!`
+          : `V posledním odehraném utkání nastřílel hattrick (${lastMatchGoals} gólů)!`,
         priority: 2,
         badgeClass: 'bg-purple-500/20 text-purple-600 dark:text-purple-400 border-purple-500/40',
       });
@@ -402,9 +442,13 @@ export function calculateAllPlayersFormAndDefense(
       badges.push({
         type: 'hot-sniper',
         icon: 'target',
-        shortLabel: '2G',
-        title: 'Střelecká forma (2 góly)',
-        description: 'V posledním odehraném zápase skóroval hned dvakrát!',
+        shortLabel: multiGoalStreak > 1 ? `${multiGoalStreak}Z` : '',
+        title: multiGoalStreak > 1
+          ? `Střelecká série (${multiGoalStreak} Z v řadě)`
+          : 'Střelecká forma (2 góly)',
+        description: multiGoalStreak > 1
+          ? `V posledních ${multiGoalStreak} odehraných zápasech vstřelil pokaždé 2+ góly!`
+          : 'V posledním odehraném zápase skóroval hned dvakrát!',
         priority: 3,
         badgeClass: 'bg-rose-500/20 text-rose-600 dark:text-rose-400 border-rose-500/40',
       });
@@ -415,9 +459,13 @@ export function calculateAllPlayersFormAndDefense(
       badges.push({
         type: 'playmaker',
         icon: 'share',
-        shortLabel: `${lastMatchAssists}A`,
-        title: `Dvorní nahrávač (${lastMatchAssists} asistence)`,
-        description: `V posledním odehraném zápase připravil pro spoluhráče ${lastMatchAssists} gólové nahrávky!`,
+        shortLabel: playmakerStreak > 1 ? `${playmakerStreak}Z` : '',
+        title: playmakerStreak > 1
+          ? `Nahrávačská série (${playmakerStreak} Z v řadě)`
+          : `Dvorní nahrávač (${lastMatchAssists} asistence)`,
+        description: playmakerStreak > 1
+          ? `V posledních ${playmakerStreak} zápasech v řadě zapsal pokaždé 2+ asistence!`
+          : `V posledním odehraném zápase připravil pro spoluhráče ${lastMatchAssists} gólové nahrávky!`,
         priority: 3,
         badgeClass: 'bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border-indigo-500/40',
       });
@@ -441,7 +489,7 @@ export function calculateAllPlayersFormAndDefense(
       badges.push({
         type: 'goalie-wall',
         icon: 'shield-check',
-        shortLabel: lastMatchIsShutout ? 'NULA' : `${lastMatchSavePct.toFixed(0)}%`,
+        shortLabel: '',
         title: 'Neprůstřelná zeď v bráně',
         description: lastMatchIsShutout
           ? 'Vychytal čisté konto v posledním odehraném zápase!'

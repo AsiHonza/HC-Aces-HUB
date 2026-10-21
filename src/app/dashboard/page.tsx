@@ -703,7 +703,7 @@ function DashboardPageContent() {
       {
         type: 'reigning-mvp' as const,
         icon: 'crown' as const,
-        shortLabel: 'MVP',
+        shortLabel: '',
         title: 'Úřadující 1. hvězda zápasu',
         description: 'Zvolen kabinou 1. hvězdou posledního odehraného zápasu proti Sokol Černovice',
         priority: 1,
@@ -712,7 +712,7 @@ function DashboardPageContent() {
       {
         type: 'hattrick-hero' as const,
         icon: 'sparkles' as const,
-        shortLabel: '3G',
+        shortLabel: '',
         title: 'Hattrick hrdina (3 góly!)',
         description: 'V posledním odehraném utkání nastřílel hattrick (3 góly)!',
         priority: 2,

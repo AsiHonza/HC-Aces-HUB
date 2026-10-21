@@ -59,6 +59,8 @@ export function PlayerFormBadgeItem({
 }) {
   const [open, setOpen] = useState(false);
 
+  const hasLabel = showLabel && Boolean(badge.shortLabel);
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -71,11 +73,11 @@ export function PlayerFormBadgeItem({
           onMouseEnter={() => setOpen(true)}
           onMouseLeave={() => setOpen(false)}
           className={cn(
-            "inline-flex items-center focus:outline-none rounded-md",
+            "inline-flex items-center focus:outline-none rounded-full",
             !showLabel && "p-0.5 hover:bg-muted/80"
           )}
         >
-          {showLabel ? (
+          {hasLabel ? (
             <Badge
               variant="outline"
               className={cn(
@@ -86,6 +88,17 @@ export function PlayerFormBadgeItem({
             >
               {getPlayerFormIcon(badge.type, 'h-3 w-3')}
               <span>{badge.shortLabel}</span>
+            </Badge>
+          ) : showLabel ? (
+            <Badge
+              variant="outline"
+              className={cn(
+                'h-6 w-6 p-0 inline-flex items-center justify-center rounded-full cursor-pointer select-none shadow-2xs hover:scale-105 active:scale-95 transition-all',
+                badge.badgeClass,
+                className
+              )}
+            >
+              {getPlayerFormIcon(badge.type, 'h-3.5 w-3.5')}
             </Badge>
           ) : (
             <span
