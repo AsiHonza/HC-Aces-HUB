@@ -84,36 +84,110 @@ export function LineupBuilder({
       }
     }
 
-    // 2. Specialized position passes
-    const defSlots: (keyof Lineup)[] = ['LO1', 'PO1', 'LO2', 'PO2'];
-    const centerSlots: (keyof Lineup)[] = formationCount === '3' ? ['C1', 'C2', 'C3'] : ['C1', 'C2'];
-    const wingSlots: (keyof Lineup)[] = formationCount === '3' ? ['LK1', 'PK1', 'LK2', 'PK2', 'LK3', 'PK3'] : ['LK1', 'PK1', 'LK2', 'PK2'];
+    // Helper to get mutual chemistry score between a candidate and already placed line partners
+    const getChemistryWithUnit = (candidateId: string, unitPlayers: (Player | null)[]) => {
+      if (!teamChemistry) return 0;
+      let score = 0;
+      for (const p of unitPlayers) {
+        if (!p) continue;
+        const chem = teamChemistry.byPlayerId.get(p.id);
+        score += chem?.duoGoalsByPartnerId?.[candidateId] || 0;
+      }
+      return score;
+    };
 
-    for (const slot of defSlots) {
-      if (!newLineup[slot]) {
-        const idx = unassigned.findIndex(p => p.fieldPosition === 'defense');
-        if (idx !== -1) {
-          newLineup[slot] = unassigned.splice(idx, 1)[0];
+    const pickBestCandidate = (
+      predicate: (p: Player) => boolean,
+      unitPlayers: (Player | null)[]
+    ): Player | null => {
+      const matchingIndices = unassigned
+        .map((p, i) => ({ p, i }))
+        .filter(({ p }) => predicate(p));
+      if (matchingIndices.length === 0) return null;
+
+      matchingIndices.sort((a, b) => {
+        const chemA = getChemistryWithUnit(a.p.id, unitPlayers);
+        const chemB = getChemistryWithUnit(b.p.id, unitPlayers);
+        if (chemB !== chemA) return chemB - chemA;
+        return 0;
+      });
+
+      const chosenIdx = matchingIndices[0].i;
+      return unassigned.splice(chosenIdx, 1)[0];
+    };
+
+    // 2. Specialized unit-aware passes (Obranné páry LO+PO & Útočné trojice LK+C+PK)
+    const defUnits: Array<[keyof Lineup, keyof Lineup]> = [
+      ['LO1', 'PO1'],
+      ['LO2', 'PO2'],
+    ];
+
+    for (const [loKey, poKey] of defUnits) {
+      if (!newLineup[loKey]) {
+        const chosen = pickBestCandidate(
+          (p) => p.fieldPosition === 'defense',
+          [newLineup[poKey]]
+        );
+        if (chosen) {
+          newLineup[loKey] = chosen;
+          placedCount++;
+        }
+      }
+      if (!newLineup[poKey]) {
+        const chosen = pickBestCandidate(
+          (p) => p.fieldPosition === 'defense',
+          [newLineup[loKey]]
+        );
+        if (chosen) {
+          newLineup[poKey] = chosen;
           placedCount++;
         }
       }
     }
 
-    for (const slot of centerSlots) {
-      if (!newLineup[slot]) {
-        const idx = unassigned.findIndex(p => p.fieldPosition === 'center');
-        if (idx !== -1) {
-          newLineup[slot] = unassigned.splice(idx, 1)[0];
+    const attackUnits: Array<[keyof Lineup, keyof Lineup, keyof Lineup]> =
+      formationCount === '3'
+        ? [
+            ['LK1', 'C1', 'PK1'],
+            ['LK2', 'C2', 'PK2'],
+            ['LK3', 'C3', 'PK3'],
+          ]
+        : [
+            ['LK1', 'C1', 'PK1'],
+            ['LK2', 'C2', 'PK2'],
+          ];
+
+    for (const [lkKey, cKey, pkKey] of attackUnits) {
+      // First place Center
+      if (!newLineup[cKey]) {
+        const chosen = pickBestCandidate(
+          (p) => p.fieldPosition === 'center',
+          [newLineup[lkKey], newLineup[pkKey]]
+        );
+        if (chosen) {
+          newLineup[cKey] = chosen;
           placedCount++;
         }
       }
-    }
-
-    for (const slot of wingSlots) {
-      if (!newLineup[slot]) {
-        const idx = unassigned.findIndex(p => p.fieldPosition === 'wing');
-        if (idx !== -1) {
-          newLineup[slot] = unassigned.splice(idx, 1)[0];
+      // Then place Left Wing with highest chemistry with Center
+      if (!newLineup[lkKey]) {
+        const chosen = pickBestCandidate(
+          (p) => p.fieldPosition === 'wing',
+          [newLineup[cKey], newLineup[pkKey]]
+        );
+        if (chosen) {
+          newLineup[lkKey] = chosen;
+          placedCount++;
+        }
+      }
+      // Then place Right Wing with highest chemistry with Center + Left Wing
+      if (!newLineup[pkKey]) {
+        const chosen = pickBestCandidate(
+          (p) => p.fieldPosition === 'wing',
+          [newLineup[cKey], newLineup[lkKey]]
+        );
+        if (chosen) {
+          newLineup[pkKey] = chosen;
           placedCount++;
         }
       }
