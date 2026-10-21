@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { MilestoneDetailModal } from './MilestoneDetailModal';
+import { DynamicDuoDetailModal } from './DynamicDuoDetailModal';
 import {
   Select,
   SelectContent,
@@ -52,7 +53,7 @@ import {
   Medal
 } from 'lucide-react';
 import { cn, formatName } from '@/lib/utils';
-import type { TeamChemistryData } from '../utils/chemistry';
+import type { TeamChemistryData, DynamicDuoRecord } from '../utils/chemistry';
 import type { OracleLeaderboardEntry } from '@/features/matches/utils/predictions';
 
 interface HallOfFameTabProps {
@@ -159,6 +160,7 @@ export function HallOfFameTab({
   const [viewMode, setViewMode] = useState<ViewMode>('series');
   const [seriesActiveTier, setSeriesActiveTier] = useState<Record<string, string>>({});
   const [selectedMilestoneDetail, setSelectedMilestoneDetail] = useState<MilestoneWithHolders | null>(null);
+  const [selectedDuoDetail, setSelectedDuoDetail] = useState<DynamicDuoRecord | null>(null);
 
   // Fast index by milestone ID
   const milestoneById = useMemo(() => {
@@ -794,66 +796,183 @@ export function HallOfFameTab({
       {/* 2B. DYNAMIC DUO (CHEMIE HRÁČŮ) & VĚŠTEC KABINY (TIPOVAČKA) */}
       {((teamChemistry && teamChemistry.topDuos.length > 0) ||
         (oracleLeaderboard && oracleLeaderboard.length > 0)) && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div
+          className={cn(
+            'grid grid-cols-1 gap-4',
+            teamChemistry &&
+              teamChemistry.topDuos.length > 0 &&
+              oracleLeaderboard &&
+              oracleLeaderboard.length > 0
+              ? 'lg:grid-cols-2'
+              : 'lg:grid-cols-1'
+          )}
+        >
           {teamChemistry && teamChemistry.topDuos.length > 0 && (
-            <div className="rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/10 via-background to-card p-3.5 sm:p-5 shadow-sm space-y-3">
-              <div className="flex items-center justify-between gap-2 pb-2 border-b border-border/60">
+            <div className="rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/10 via-background to-card p-3.5 sm:p-5 shadow-sm space-y-3.5">
+              <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-border/60 flex-wrap">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div className="h-9 w-9 rounded-xl bg-primary/15 border border-primary/30 text-primary flex items-center justify-center shrink-0">
                     <HeartHandshake className="h-4.5 w-4.5" />
                   </div>
                   <div className="min-w-0">
-                    <h3 className="font-headline font-bold text-sm sm:text-base text-foreground truncate">
+                    <h3 className="font-headline font-bold text-sm sm:text-base text-foreground">
                       Dynamic Duo – Chemie na ledě
                     </h3>
-                    <p className="text-xs text-muted-foreground truncate">
-                      Nejúdernější gólové dvojice (střelec + nahrávač) v zápasech Aces
+                    <p className="text-xs text-muted-foreground">
+                      Nejúdernější gólové dvojice (střelec + nahrávač) • Kliknutím zobrazíš historii gólových situací
                     </p>
                   </div>
                 </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedDuoDetail(teamChemistry.topDuos[0])}
+                  className="h-7 px-2.5 text-xs font-bold text-primary hover:text-primary hover:bg-primary/10 shrink-0"
+                >
+                  <span>Všechny dvojice ({teamChemistry.topDuos.length})</span>
+                  <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                </Button>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {teamChemistry.topDuos.slice(0, 4).map((duo, idx) => (
-                  <div
-                    key={duo.duoKey}
-                    className="rounded-xl border border-border/70 bg-card/80 p-2.5 flex items-center justify-between gap-2 hover:border-primary/40 transition-colors"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-foreground truncate">
-                        <span className="text-muted-foreground font-black text-[11px] tabular-nums">
-                          #{idx + 1}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => onOpenPlayerCareer?.(duo.player1Id)}
-                          className="hover:text-primary hover:underline truncate"
-                        >
-                          {formatName(duo.player1Name)}
-                        </button>
-                        <span className="text-muted-foreground">↔</span>
-                        <button
-                          type="button"
-                          onClick={() => onOpenPlayerCareer?.(duo.player2Id)}
-                          className="hover:text-primary hover:underline truncate"
-                        >
-                          {formatName(duo.player2Name)}
-                        </button>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                        Společné zápasy: {duo.gamesTogether} • Výhry:{' '}
-                        <strong className="text-foreground">{duo.winRatePct} %</strong>
-                      </p>
-                    </div>
-                    <Badge
-                      variant="outline"
-                      className="bg-primary/15 text-primary border-primary/30 font-black text-xs shrink-0 inline-flex items-center gap-1"
+              <div
+                className={cn(
+                  'grid grid-cols-1 gap-2.5',
+                  oracleLeaderboard && oracleLeaderboard.length > 0
+                    ? 'xl:grid-cols-2'
+                    : 'md:grid-cols-2'
+                )}
+              >
+                {teamChemistry.topDuos.slice(0, 4).map((duo, idx) => {
+                  const totalG = Math.max(1, duo.totalCombinedGoals);
+                  const dir1Pct = Math.round((duo.p1GoalsFromP2 / totalG) * 100);
+                  const dir2Pct = 100 - dir1Pct;
+                  const isBothWays = duo.p1GoalsFromP2 > 0 && duo.p2GoalsFromP1 > 0;
+
+                  return (
+                    <div
+                      key={duo.duoKey}
+                      onClick={() => setSelectedDuoDetail(duo)}
+                      className="rounded-xl border border-border/70 bg-card/85 hover:bg-card p-3 flex flex-col justify-between gap-2.5 hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group"
                     >
-                      <Flame className="h-3 w-3 fill-primary text-primary" />
-                      <span>{duo.totalCombinedGoals} G</span>
-                    </Badge>
-                  </div>
-                ))}
+                      {/* Top row: Rank + Names + Goals Badge */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                          <span
+                            className={cn(
+                              'inline-flex items-center justify-center h-6 min-w-6 px-1.5 rounded-lg font-black text-[11px] tabular-nums shrink-0 border',
+                              idx === 0
+                                ? 'bg-amber-500/15 text-amber-500 border-amber-500/35'
+                                : idx === 1
+                                ? 'bg-slate-400/15 text-slate-300 border-slate-400/35'
+                                : idx === 2
+                                ? 'bg-orange-500/15 text-orange-400 border-orange-500/35'
+                                : 'bg-muted text-muted-foreground border-border'
+                            )}
+                          >
+                            #{idx + 1}
+                          </span>
+                          <div className="flex items-center gap-1.5 text-xs sm:text-sm font-extrabold text-foreground flex-wrap">
+                            <span className="group-hover:text-primary transition-colors inline-flex items-center gap-1">
+                              {duo.player1Jersey != null && (
+                                <span className="text-[10px] font-bold text-muted-foreground">
+                                  #{duo.player1Jersey}
+                                </span>
+                              )}
+                              <span>{formatName(duo.player1Name)}</span>
+                            </span>
+                            <span className="text-primary/80 font-black">↔</span>
+                            <span className="group-hover:text-primary transition-colors inline-flex items-center gap-1">
+                              {duo.player2Jersey != null && (
+                                <span className="text-[10px] font-bold text-muted-foreground">
+                                  #{duo.player2Jersey}
+                                </span>
+                              )}
+                              <span>{formatName(duo.player2Name)}</span>
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Badge
+                            variant="outline"
+                            className="bg-primary/15 text-primary border-primary/35 font-black text-xs shrink-0 inline-flex items-center gap-1 px-2 py-0.5"
+                          >
+                            <Flame className="h-3.5 w-3.5 fill-primary text-primary" />
+                            <span>{duo.totalCombinedGoals} G</span>
+                          </Badge>
+                          <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all shrink-0" />
+                        </div>
+                      </div>
+
+                      {/* Middle row: Directional synergy breakdown & visual bar */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-[11px] text-muted-foreground gap-2 flex-wrap">
+                          {isBothWays ? (
+                            <>
+                              <span>
+                                {formatName(duo.player2Name)} ➔{' '}
+                                <strong className="text-foreground">{formatName(duo.player1Name)}</strong> ({duo.p1GoalsFromP2} G)
+                              </span>
+                              <span>
+                                {formatName(duo.player1Name)} ➔{' '}
+                                <strong className="text-foreground">{formatName(duo.player2Name)}</strong> ({duo.p2GoalsFromP1} G)
+                              </span>
+                            </>
+                          ) : duo.p1GoalsFromP2 > 0 ? (
+                            <span>
+                              Nahrává <strong className="text-foreground">{formatName(duo.player2Name)}</strong> ➔ pálí{' '}
+                              <strong className="text-primary">{formatName(duo.player1Name)}</strong> ({duo.p1GoalsFromP2}×)
+                            </span>
+                          ) : (
+                            <span>
+                              Nahrává <strong className="text-foreground">{formatName(duo.player1Name)}</strong> ➔ pálí{' '}
+                              <strong className="text-primary">{formatName(duo.player2Name)}</strong> ({duo.p2GoalsFromP1}×)
+                            </span>
+                          )}
+                        </div>
+                        <div className="h-1.5 w-full rounded-full bg-muted/80 overflow-hidden flex gap-0.5">
+                          {duo.p1GoalsFromP2 > 0 && (
+                            <div
+                              className="h-full bg-primary rounded-l-full"
+                              style={{ width: `${Math.max(15, dir1Pct)}%` }}
+                            />
+                          )}
+                          {duo.p2GoalsFromP1 > 0 && (
+                            <div
+                              className="h-full bg-amber-500 rounded-r-full"
+                              style={{ width: `${Math.max(15, dir2Pct)}%` }}
+                            />
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Bottom row: Full readable stats without truncation */}
+                      <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-border/50 text-[11px] text-muted-foreground flex-wrap">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span>
+                            Společné zápasy: <strong className="text-foreground">{duo.gamesTogether}</strong>
+                          </span>
+                          <span>•</span>
+                          <span>
+                            Výhry spolu: <strong className="text-foreground">{duo.winRatePct} %</strong>
+                          </span>
+                          {duo.gwgCount > 0 && (
+                            <>
+                              <span>•</span>
+                              <span className="text-amber-500 font-bold inline-flex items-center gap-0.5">
+                                <Trophy className="h-3 w-3" />
+                                {duo.gwgCount}× GWG
+                              </span>
+                            </>
+                          )}
+                        </div>
+                        <span className="text-[10px] font-bold text-primary/90 group-hover:text-primary">
+                          Detail souhry →
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -1560,6 +1679,18 @@ export function HallOfFameTab({
         onClose={() => setSelectedMilestoneDetail(null)}
         onOpenPlayerCareer={onOpenPlayerCareer}
         currentUserId={currentUserId}
+      />
+
+      {/* 5. MODAL DETAILU DYNAMIC DUO (HISTORIE GÓLOVÝCH SITUACÍ & SOUHRY) */}
+      <DynamicDuoDetailModal
+        open={Boolean(selectedDuoDetail)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedDuoDetail(null);
+        }}
+        selectedDuo={selectedDuoDetail}
+        allDuos={teamChemistry?.topDuos || []}
+        onSelectDuo={(duo) => setSelectedDuoDetail(duo)}
+        onOpenPlayerCareer={onOpenPlayerCareer}
       />
     </div>
   );

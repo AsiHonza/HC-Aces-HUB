@@ -1,5 +1,6 @@
 import type { Match, UserProfile } from '@/types';
 import { areNamesMatching } from '@/lib/utils';
+import { toJsDate } from '@/lib/dates';
 
 export interface ChemistryPartnerStat {
   partnerId: string;
@@ -34,6 +35,50 @@ export interface PlayerChemistrySummary {
   duoGoalsByPartnerId: Record<string, number>;
 }
 
+export interface DuoGoalEvent {
+  id: string;
+  matchId: string;
+  matchDateMs: number;
+  matchDateStr: string;
+  opponent: string;
+  acesScore: number;
+  oppScore: number;
+  isWin: boolean;
+  isTie: boolean;
+  isPlayoff: boolean;
+  playoffStage?: string | null;
+  scorerId: string;
+  scorerName: string;
+  scorerJersey?: number | null;
+  assisterId: string;
+  assisterName: string;
+  assisterJersey?: number | null;
+  minute?: number | null;
+  scoreAfterGoal?: string | null;
+  acesGoalNumber: number;
+  isGwg: boolean;
+  isOpeningGoal: boolean;
+  isGoAheadGoal: boolean;
+  isTyingGoal: boolean;
+}
+
+export interface DuoSharedMatch {
+  matchId: string;
+  matchDateMs: number;
+  matchDateStr: string;
+  opponent: string;
+  acesScore: number;
+  oppScore: number;
+  isWin: boolean;
+  isTie: boolean;
+  isPlayoff: boolean;
+  duoGoalsInMatch: number;
+  p1Goals: number;
+  p1Assists: number;
+  p2Goals: number;
+  p2Assists: number;
+}
+
 export interface DynamicDuoRecord {
   duoKey: string;
   player1Id: string;
@@ -49,7 +94,19 @@ export interface DynamicDuoRecord {
   p2GoalsFromP1: number;
   gamesTogether: number;
   winsTogether: number;
+  lossesTogether: number;
+  tiesTogether: number;
   winRatePct: number;
+  matchesWithDuoGoal: number;
+  winsWhenScoringTogether: number;
+  winRateWhenScoringPct: number;
+  maxDuoGoalsInSingleMatch: number;
+  gwgCount: number;
+  openingGoalCount: number;
+  favoriteOpponent: { name: string; goals: number } | null;
+  combinedPointsInSharedGames: number;
+  goalEvents: DuoGoalEvent[];
+  sharedMatches: DuoSharedMatch[];
 }
 
 export interface TeamChemistryData {
@@ -101,6 +158,39 @@ function getMatchAcesPlayers(
     if (g) foundMap.set(g.id, g);
   }
 
+  // Also include anyone who scored or assisted in the match protocol
+  if (Array.isArray(match.scorers)) {
+    for (const s of match.scorers) {
+      if (s?.goal) {
+        const u = resolveUser(s.goal, users, usersById);
+        if (u) foundMap.set(u.id, u);
+      }
+      if (s?.assist) {
+        const u = resolveUser(s.assist, users, usersById);
+        if (u) foundMap.set(u.id, u);
+      }
+    }
+  }
+  if (Array.isArray(match.detailedScorers)) {
+    const isAcesTeam1 = /aces/i.test(match.team1 || '');
+    for (const ds of match.detailedScorers) {
+      const isAcesGoal =
+        (isAcesTeam1 && ds.team === 'team1') ||
+        (!isAcesTeam1 && ds.team === 'team2') ||
+        /aces/i.test(ds.team || '');
+      if (isAcesGoal) {
+        if (ds?.scorer) {
+          const u = resolveUser(ds.scorer, users, usersById);
+          if (u) foundMap.set(u.id, u);
+        }
+        if (ds?.assist) {
+          const u = resolveUser(ds.assist, users, usersById);
+          if (u) foundMap.set(u.id, u);
+        }
+      }
+    }
+  }
+
   return Array.from(foundMap.values());
 }
 
@@ -122,63 +212,137 @@ export function calculateTeamChemistry(
   const goalsCountByPlayer = new Map<string, number>();
   const assistsCountByPlayer = new Map<string, number>();
 
-  // Pair co-appearances: "idA:idB" -> { games, wins }
-  const pairGamesMap = new Map<string, { games: number; wins: number }>();
+  // Pair co-appearances: "idA:idB" -> { games, wins, losses, ties }
+  const pairGamesMap = new Map<string, { games: number; wins: number; losses: number; ties: number }>();
 
-  const playedMatches = matches.filter((m) => m.isPlayed);
+  // Pair detailed events & shared matches
+  const duoEventsMap = new Map<string, DuoGoalEvent[]>();
+  const duoSharedMatchesMap = new Map<string, DuoSharedMatch[]>();
+
+  // Sort played matches chronologically ascending for accurate timeline processing
+  const playedMatches = [...matches]
+    .filter((m) => m.isPlayed)
+    .sort((a, b) => {
+      const da = toJsDate(a.dateTime || a.date)?.getTime() || 0;
+      const db = toJsDate(b.dateTime || b.date)?.getTime() || 0;
+      return da - db;
+    });
 
   for (const match of playedMatches) {
     const isAcesTeam1 = /aces/i.test(match.team1 || '');
     const acesScore = isAcesTeam1 ? Number(match.team1Score ?? 0) : Number(match.team2Score ?? 0);
     const oppScore = isAcesTeam1 ? Number(match.team2Score ?? 0) : Number(match.team1Score ?? 0);
     const isWin = acesScore > oppScore;
+    const isTie = acesScore === oppScore;
+    const opponent = (isAcesTeam1 ? match.team2 : match.team1) || match.opponent || 'Soupeř';
+    const isPlayoff = match.type === 'playoff' || match.matchType === 'playoff';
+    const matchDateObj = toJsDate(match.dateTime || match.date);
+    const matchDateMs = matchDateObj ? matchDateObj.getTime() : 0;
+    const matchDateStr = matchDateObj
+      ? matchDateObj.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'numeric', year: 'numeric' })
+      : '';
 
-    // 1. Co-appearance tracking
-    const rosterUsers = getMatchAcesPlayers(match, users, usersById);
-    for (let i = 0; i < rosterUsers.length; i++) {
-      for (let j = i + 1; j < rosterUsers.length; j++) {
-        const uA = rosterUsers[i];
-        const uB = rosterUsers[j];
-        const [firstId, secondId] = uA.id < uB.id ? [uA.id, uB.id] : [uB.id, uA.id];
-        const key = `${firstId}:${secondId}`;
-        const cur = pairGamesMap.get(key) || { games: 0, wins: 0 };
-        cur.games += 1;
-        if (isWin) cur.wins += 1;
-        pairGamesMap.set(key, cur);
-      }
+    // 1. Parse Goal + Assist events with situational context
+    interface ParsedMatchGoal {
+      scorerUser: UserProfile | null;
+      assistUser: UserProfile | null;
+      minute: number | null;
+      scoreAfterGoal: string | null;
+      acesGoalNumber: number;
+      isGwg: boolean;
+      isOpeningGoal: boolean;
+      isGoAheadGoal: boolean;
+      isTyingGoal: boolean;
     }
 
-    // 2. Goal + Assist pairs
-    // Prefer match.scorers if populated, otherwise filter detailedScorers for Aces
-    const goalEvents: Array<{ scorerRaw: string; assistRaw: string | null }> = [];
+    const parsedGoals: ParsedMatchGoal[] = [];
 
-    if (Array.isArray(match.scorers) && match.scorers.length > 0) {
-      for (const s of match.scorers) {
-        if (s && s.goal) {
-          goalEvents.push({ scorerRaw: s.goal, assistRaw: s.assist || null });
-        }
-      }
-    } else if (Array.isArray(match.detailedScorers) && match.detailedScorers.length > 0) {
-      for (const ds of match.detailedScorers) {
+    // Check if detailedScorers has Aces goals
+    const detailedList = Array.isArray(match.detailedScorers) ? match.detailedScorers : [];
+    const acesDetailedCount = detailedList.filter((ds) => {
+      return (
+        ds &&
+        ((isAcesTeam1 && ds.team === 'team1') ||
+          (!isAcesTeam1 && ds.team === 'team2') ||
+          /aces/i.test(ds.team || ''))
+      );
+    }).length;
+
+    if (acesDetailedCount > 0) {
+      const sortedDetailed = [...detailedList].sort((a, b) => Number(a?.minute || 0) - Number(b?.minute || 0));
+      let runningAces = 0;
+      let runningOpp = 0;
+
+      for (const ds of sortedDetailed) {
+        if (!ds) continue;
         const isAcesGoal =
           (isAcesTeam1 && ds.team === 'team1') ||
           (!isAcesTeam1 && ds.team === 'team2') ||
           /aces/i.test(ds.team || '');
-        if (isAcesGoal && ds.scorer) {
-          goalEvents.push({ scorerRaw: ds.scorer, assistRaw: ds.assist || null });
+
+        if (!isAcesGoal) {
+          runningOpp += 1;
+          continue;
         }
+
+        const prevAces = runningAces;
+        const prevOpp = runningOpp;
+        runningAces += 1;
+
+        const scorerUser = resolveUser(ds.scorer, users, usersById);
+        const assistUser = resolveUser(ds.assist, users, usersById);
+
+        parsedGoals.push({
+          scorerUser,
+          assistUser,
+          minute: ds.minute != null && Number(ds.minute) > 0 ? Number(ds.minute) : null,
+          scoreAfterGoal: `${runningAces}:${runningOpp}`,
+          acesGoalNumber: runningAces,
+          isGwg: isWin && runningAces === oppScore + 1,
+          isOpeningGoal: runningAces === 1 && runningOpp === 0,
+          isGoAheadGoal: prevAces <= prevOpp && runningAces === runningOpp + 1,
+          isTyingGoal: prevAces < prevOpp && runningAces === runningOpp,
+        });
+      }
+    } else if (Array.isArray(match.scorers) && match.scorers.length > 0) {
+      let runningAces = 0;
+      for (const s of match.scorers) {
+        if (!s || !s.goal) continue;
+        runningAces += 1;
+        const scorerUser = resolveUser(s.goal, users, usersById);
+        const assistUser = resolveUser(s.assist, users, usersById);
+
+        parsedGoals.push({
+          scorerUser,
+          assistUser,
+          minute: null,
+          scoreAfterGoal: null,
+          acesGoalNumber: runningAces,
+          isGwg: isWin && runningAces === oppScore + 1,
+          isOpeningGoal: runningAces === 1,
+          isGoAheadGoal: false,
+          isTyingGoal: false,
+        });
       }
     }
 
-    for (const ev of goalEvents) {
-      const scorerUser = resolveUser(ev.scorerRaw, users, usersById);
-      const assistUser = resolveUser(ev.assistRaw, users, usersById);
+    // Track per-player goals/assists in this match for shared match stats
+    const matchPlayerGoals = new Map<string, number>();
+    const matchPlayerAssists = new Map<string, number>();
+    const matchDuoGoalsCount = new Map<string, number>();
+
+    let eventIdx = 0;
+    for (const pg of parsedGoals) {
+      eventIdx += 1;
+      const { scorerUser, assistUser } = pg;
 
       if (scorerUser) {
         goalsCountByPlayer.set(scorerUser.id, (goalsCountByPlayer.get(scorerUser.id) || 0) + 1);
+        matchPlayerGoals.set(scorerUser.id, (matchPlayerGoals.get(scorerUser.id) || 0) + 1);
       }
       if (assistUser) {
         assistsCountByPlayer.set(assistUser.id, (assistsCountByPlayer.get(assistUser.id) || 0) + 1);
+        matchPlayerAssists.set(assistUser.id, (matchPlayerAssists.get(assistUser.id) || 0) + 1);
       }
 
       if (scorerUser && assistUser && scorerUser.id !== assistUser.id) {
@@ -193,6 +357,81 @@ export function calculateTeamChemistry(
         }
         const aMap = assistedToMap.get(assistUser.id)!;
         aMap.set(scorerUser.id, (aMap.get(scorerUser.id) || 0) + 1);
+
+        const [id1, id2] =
+          scorerUser.id < assistUser.id
+            ? [scorerUser.id, assistUser.id]
+            : [assistUser.id, scorerUser.id];
+        const duoKey = `${id1}:${id2}`;
+
+        matchDuoGoalsCount.set(duoKey, (matchDuoGoalsCount.get(duoKey) || 0) + 1);
+
+        if (!duoEventsMap.has(duoKey)) {
+          duoEventsMap.set(duoKey, []);
+        }
+        duoEventsMap.get(duoKey)!.push({
+          id: `${match.id}-${eventIdx}`,
+          matchId: match.id,
+          matchDateMs,
+          matchDateStr,
+          opponent,
+          acesScore,
+          oppScore,
+          isWin,
+          isTie,
+          isPlayoff,
+          playoffStage: match.playoffStage || null,
+          scorerId: scorerUser.id,
+          scorerName: scorerUser.name,
+          scorerJersey: scorerUser.jerseyNumber ?? null,
+          assisterId: assistUser.id,
+          assisterName: assistUser.name,
+          assisterJersey: assistUser.jerseyNumber ?? null,
+          minute: pg.minute,
+          scoreAfterGoal: pg.scoreAfterGoal,
+          acesGoalNumber: pg.acesGoalNumber,
+          isGwg: pg.isGwg,
+          isOpeningGoal: pg.isOpeningGoal,
+          isGoAheadGoal: pg.isGoAheadGoal,
+          isTyingGoal: pg.isTyingGoal,
+        });
+      }
+    }
+
+    // 2. Co-appearance tracking
+    const rosterUsers = getMatchAcesPlayers(match, users, usersById);
+    for (let i = 0; i < rosterUsers.length; i++) {
+      for (let j = i + 1; j < rosterUsers.length; j++) {
+        const uA = rosterUsers[i];
+        const uB = rosterUsers[j];
+        const [firstId, secondId] = uA.id < uB.id ? [uA.id, uB.id] : [uB.id, uA.id];
+        const key = `${firstId}:${secondId}`;
+        const cur = pairGamesMap.get(key) || { games: 0, wins: 0, losses: 0, ties: 0 };
+        cur.games += 1;
+        if (isWin) cur.wins += 1;
+        else if (isTie) cur.ties += 1;
+        else cur.losses += 1;
+        pairGamesMap.set(key, cur);
+
+        if (!duoSharedMatchesMap.has(key)) {
+          duoSharedMatchesMap.set(key, []);
+        }
+        duoSharedMatchesMap.get(key)!.push({
+          matchId: match.id,
+          matchDateMs,
+          matchDateStr,
+          opponent,
+          acesScore,
+          oppScore,
+          isWin,
+          isTie,
+          isPlayoff,
+          duoGoalsInMatch: matchDuoGoalsCount.get(key) || 0,
+          p1Goals: matchPlayerGoals.get(firstId) || 0,
+          p1Assists: matchPlayerAssists.get(firstId) || 0,
+          p2Goals: matchPlayerGoals.get(secondId) || 0,
+          p2Assists: matchPlayerAssists.get(secondId) || 0,
+        });
       }
     }
   }
@@ -210,7 +449,50 @@ export function calculateTeamChemistry(
       const duoKey = `${id1}:${id2}`;
       let rec = duoMap.get(duoKey);
       if (!rec) {
-        const pairGames = pairGamesMap.get(duoKey) || { games: 0, wins: 0 };
+        const pairGames = pairGamesMap.get(duoKey) || { games: 0, wins: 0, losses: 0, ties: 0 };
+        const rawEvents = duoEventsMap.get(duoKey) || [];
+        const rawSharedMatches = duoSharedMatchesMap.get(duoKey) || [];
+
+        // Sort newest first for display
+        const sortedEventsDesc = [...rawEvents].sort((a, b) => b.matchDateMs - a.matchDateMs);
+        const sortedSharedDesc = [...rawSharedMatches].sort((a, b) => b.matchDateMs - a.matchDateMs);
+
+        // Matches where this duo scored at least 1 combined goal
+        const matchOutcomeByMatchId = new Map<string, { isWin: boolean; count: number; opponent: string }>();
+        const opponentGoalsMap = new Map<string, number>();
+        let gwgCount = 0;
+        let openingGoalCount = 0;
+
+        for (const ev of rawEvents) {
+          if (ev.isGwg) gwgCount += 1;
+          if (ev.isOpeningGoal) openingGoalCount += 1;
+          opponentGoalsMap.set(ev.opponent, (opponentGoalsMap.get(ev.opponent) || 0) + 1);
+          const prev = matchOutcomeByMatchId.get(ev.matchId) || { isWin: ev.isWin, count: 0, opponent: ev.opponent };
+          prev.count += 1;
+          matchOutcomeByMatchId.set(ev.matchId, prev);
+        }
+
+        const matchesWithDuoGoal = matchOutcomeByMatchId.size;
+        let winsWhenScoringTogether = 0;
+        let maxDuoGoalsInSingleMatch = 0;
+        for (const mStat of matchOutcomeByMatchId.values()) {
+          if (mStat.isWin) winsWhenScoringTogether += 1;
+          if (mStat.count > maxDuoGoalsInSingleMatch) maxDuoGoalsInSingleMatch = mStat.count;
+        }
+        const winRateWhenScoringPct =
+          matchesWithDuoGoal > 0 ? Math.round((winsWhenScoringTogether / matchesWithDuoGoal) * 100) : 0;
+
+        let favoriteOpponent: { name: string; goals: number } | null = null;
+        if (opponentGoalsMap.size > 0) {
+          const sortedOpps = Array.from(opponentGoalsMap.entries()).sort((a, b) => b[1] - a[1]);
+          favoriteOpponent = { name: sortedOpps[0][0], goals: sortedOpps[0][1] };
+        }
+
+        let combinedPointsInSharedGames = 0;
+        for (const sm of rawSharedMatches) {
+          combinedPointsInSharedGames += sm.p1Goals + sm.p1Assists + sm.p2Goals + sm.p2Assists;
+        }
+
         rec = {
           duoKey,
           player1Id: u1.id,
@@ -226,7 +508,19 @@ export function calculateTeamChemistry(
           p2GoalsFromP1: 0,
           gamesTogether: pairGames.games,
           winsTogether: pairGames.wins,
+          lossesTogether: pairGames.losses,
+          tiesTogether: pairGames.ties,
           winRatePct: pairGames.games > 0 ? Math.round((pairGames.wins / pairGames.games) * 100) : 0,
+          matchesWithDuoGoal,
+          winsWhenScoringTogether,
+          winRateWhenScoringPct,
+          maxDuoGoalsInSingleMatch,
+          gwgCount,
+          openingGoalCount,
+          favoriteOpponent,
+          combinedPointsInSharedGames,
+          goalEvents: sortedEventsDesc,
+          sharedMatches: sortedSharedDesc,
         };
         duoMap.set(duoKey, rec);
       }
