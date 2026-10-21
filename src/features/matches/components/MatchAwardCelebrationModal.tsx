@@ -158,6 +158,52 @@ function ConfettiCanvas({ active }: { active: boolean }) {
   );
 }
 
+function getAwardTheme(awardData: CelebrationAwardData) {
+  const isRank1 = awardData.awardRank === 1;
+  const isRank2 = awardData.awardRank === 2;
+
+  if (isRank1) {
+    return {
+      tierName: awardData.isTied ? '1. Hvězda (Dělená) & MVP' : '1. Hvězda & Hráč zápasu (MVP)',
+      badgeClass: 'bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-black border-amber-400/50 shadow-md',
+      glowClass: 'from-amber-500/25 via-yellow-500/10 to-transparent',
+      borderClass: 'border-amber-500/50',
+      ringClass: 'border-amber-400 ring-4 ring-amber-400/20 shadow-amber-500/30',
+      accentText: 'text-amber-500',
+      headline: 'Gratulujeme k 1. hvězdě & MVP! 🏆',
+      quote: 'Kabina tě zvolila nejlepším hráčem zápasu! Skvělá práce a nasazení na ledě, jen tak dál!',
+      starsCount: 3,
+      starColor: 'fill-amber-400 text-amber-400',
+    };
+  }
+  if (isRank2) {
+    return {
+      tierName: '2. Hvězda zápasu',
+      badgeClass: 'bg-gradient-to-r from-slate-200 via-slate-100 to-slate-300 text-slate-900 border-slate-300 shadow-md',
+      glowClass: 'from-slate-300/25 via-slate-400/10 to-transparent',
+      borderClass: 'border-slate-400/40',
+      ringClass: 'border-slate-300 ring-4 ring-slate-300/20 shadow-slate-300/30',
+      accentText: 'text-slate-300',
+      headline: 'Skvělá práce! Stal ses 2. hvězdou! 🥈',
+      quote: 'Tým ocenil tvůj bojovný výkon a hlasy z kabiny tě vynesly na pódium mezi nejlepší hráče utkání!',
+      starsCount: 2,
+      starColor: 'fill-slate-300 text-slate-300',
+    };
+  }
+  return {
+    tierName: '3. Hvězda zápasu',
+    badgeClass: 'bg-gradient-to-r from-amber-700 via-amber-600 to-amber-800 text-white border-amber-700/50 shadow-md',
+    glowClass: 'from-amber-700/25 via-amber-800/10 to-transparent',
+    borderClass: 'border-amber-700/40',
+    ringClass: 'border-amber-700 ring-4 ring-amber-700/20 shadow-amber-700/30',
+    accentText: 'text-amber-600 dark:text-amber-400',
+    headline: 'Gratulujeme ke 3. hvězdě zápasu! 🥉',
+    quote: 'Kluci ocenili tvůj poctivý přístup a přínos pro tým. Zisk hvězdy v silné konkurenci kabiny!',
+    starsCount: 1,
+    starColor: 'fill-amber-600 text-amber-600',
+  };
+}
+
 export function MatchAwardCelebrationModal({
   isOpen,
   onClose,
@@ -181,50 +227,7 @@ export function MatchAwardCelebrationModal({
   const isRank1 = awardData.awardRank === 1;
   const isRank2 = awardData.awardRank === 2;
   const isRank3 = awardData.awardRank === 3;
-
-  // Award theme tokens
-  const theme = useMemo(() => {
-    if (isRank1) {
-      return {
-        tierName: awardData.isTied ? '1. Hvězda (Dělená) & MVP' : '1. Hvězda & Hráč zápasu (MVP)',
-        badgeClass: 'bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-black border-amber-400/50 shadow-md',
-        glowClass: 'from-amber-500/25 via-yellow-500/10 to-transparent',
-        borderClass: 'border-amber-500/50',
-        ringClass: 'border-amber-400 ring-4 ring-amber-400/20 shadow-amber-500/30',
-        accentText: 'text-amber-500',
-        headline: 'Gratulujeme k 1. hvězdě & MVP! 🏆',
-        quote: 'Kabina tě zvolila nejlepším hráčem zápasu! Skvělá práce a nasazení na ledě, jen tak dál!',
-        starsCount: 3,
-        starColor: 'fill-amber-400 text-amber-400',
-      };
-    }
-    if (isRank2) {
-      return {
-        tierName: '2. Hvězda zápasu',
-        badgeClass: 'bg-gradient-to-r from-slate-200 via-slate-100 to-slate-300 text-slate-900 border-slate-300 shadow-md',
-        glowClass: 'from-slate-300/25 via-slate-400/10 to-transparent',
-        borderClass: 'border-slate-400/40',
-        ringClass: 'border-slate-300 ring-4 ring-slate-300/20 shadow-slate-300/30',
-        accentText: 'text-slate-300',
-        headline: 'Skvělá práce! Stal ses 2. hvězdou! 🥈',
-        quote: 'Tým ocenil tvůj bojovný výkon a hlasy z kabiny tě vynesly na pódium mezi nejlepší hráče utkání!',
-        starsCount: 2,
-        starColor: 'fill-slate-300 text-slate-300',
-      };
-    }
-    return {
-      tierName: '3. Hvězda zápasu',
-      badgeClass: 'bg-gradient-to-r from-amber-700 via-amber-600 to-amber-800 text-white border-amber-700/50 shadow-md',
-      glowClass: 'from-amber-700/25 via-amber-800/10 to-transparent',
-      borderClass: 'border-amber-700/40',
-      ringClass: 'border-amber-700 ring-4 ring-amber-700/20 shadow-amber-700/30',
-      accentText: 'text-amber-600 dark:text-amber-400',
-      headline: 'Gratulujeme ke 3. hvězdě zápasu! 🥉',
-      quote: 'Kluci ocenili tvůj poctivý přístup a přínos pro tým. Zisk hvězdy v silné konkurenci kabiny!',
-      starsCount: 1,
-      starColor: 'fill-amber-600 text-amber-600',
-    };
-  }, [isRank1, isRank2, isRank3, awardData.isTied]);
+  const theme = getAwardTheme(awardData);
 
   const initials = awardData.playerName
     ? awardData.playerName
