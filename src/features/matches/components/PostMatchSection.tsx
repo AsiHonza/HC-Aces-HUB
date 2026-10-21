@@ -257,48 +257,94 @@ export function PostMatchSection({
                 </div>
               )}
 
-              <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 sm:gap-4 min-w-0 w-full">
-                <div className="flex flex-wrap items-baseline gap-2 sm:gap-3 min-w-0">
-                  <h3 className="text-lg sm:text-2xl font-black font-headline tracking-tight break-words">
-                    HC Aces vs {opponentName}
-                  </h3>
-                  {currentMatch.team1Score !== undefined && currentMatch.team2Score !== undefined && (
-                    <div className="inline-flex items-center gap-2 shrink-0">
-                      <span className="text-2xl sm:text-3xl font-black text-primary tabular-nums">
-                        {currentMatch.team1Score} : {currentMatch.team2Score}
-                      </span>
-                      {matchOutcome && (
-                        <Badge
-                          className={cn(
-                            'text-xs font-bold px-2 py-0.5',
-                            matchOutcome.variant === 'win'
-                              ? 'bg-emerald-500 text-white'
-                              : matchOutcome.variant === 'loss'
-                              ? 'bg-destructive text-destructive-foreground'
-                              : 'bg-amber-500 text-black'
-                          )}
-                        >
-                          {matchOutcome.label}
-                        </Badge>
+              {/* Zápasový duel pod sebou se skóre (Livesport styl) */}
+              <div className="rounded-xl bg-card/60 border border-border/70 p-3 sm:p-4 w-full shadow-xs space-y-2.5 max-w-xl">
+                <div className="grid grid-cols-[1fr_auto] items-center gap-3">
+                  {/* Týmy pod sebou */}
+                  <div className="min-w-0 space-y-1.5">
+                    <div
+                      className={cn(
+                        'text-base sm:text-xl font-bold truncate tracking-tight',
+                        Boolean(currentMatch.team1?.toLowerCase().includes('aces'))
+                          ? 'text-primary font-black'
+                          : 'text-foreground'
                       )}
+                      title={currentMatch.team1 || 'HC Aces'}
+                    >
+                      {currentMatch.team1 || 'HC Aces'}
+                    </div>
+                    <div
+                      className={cn(
+                        'text-base sm:text-xl font-bold truncate tracking-tight',
+                        !Boolean(currentMatch.team1?.toLowerCase().includes('aces'))
+                          ? 'text-primary font-black'
+                          : 'text-foreground'
+                      )}
+                      title={currentMatch.team2 || opponentName}
+                    >
+                      {currentMatch.team2 || opponentName}
+                    </div>
+                  </div>
+
+                  {/* Skóre pod sebou */}
+                  {currentMatch.team1Score !== undefined && currentMatch.team2Score !== undefined && (
+                    <div className="w-10 sm:w-12 space-y-1.5 text-center shrink-0">
+                      <div
+                        className={cn(
+                          'text-base sm:text-lg font-black tabular-nums py-0.5 rounded-md border min-w-[32px]',
+                          Number(currentMatch.team1Score) > Number(currentMatch.team2Score)
+                            ? 'bg-primary/10 border-primary/30 text-primary font-black shadow-xs'
+                            : 'bg-muted/40 border-border/60 text-muted-foreground font-semibold'
+                        )}
+                      >
+                        {currentMatch.team1Score}
+                      </div>
+                      <div
+                        className={cn(
+                          'text-base sm:text-lg font-black tabular-nums py-0.5 rounded-md border min-w-[32px]',
+                          Number(currentMatch.team2Score) > Number(currentMatch.team1Score)
+                            ? 'bg-primary/10 border-primary/30 text-primary font-black shadow-xs'
+                            : 'bg-muted/40 border-border/60 text-muted-foreground font-semibold'
+                        )}
+                      >
+                        {currentMatch.team2Score}
+                      </div>
                     </div>
                   )}
                 </div>
-              </div>
 
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
-                <span className="capitalize">{matchDateLabel}</span>
-                {currentMatch.location && (
-                  <span className="flex items-center gap-1">
-                    <MapPin className="h-3.5 w-3.5 text-primary shrink-0" />
-                    {currentMatch.location}
-                  </span>
-                )}
-                {currentMatch.periodScores && (
-                  <span className="font-mono text-[11px] bg-muted/60 px-1.5 py-0.5 rounded">
-                    Třetiny: {currentMatch.periodScores}
-                  </span>
-                )}
+                {/* Spodní info: Datum, místo, třetiny a stav zápasu */}
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/60 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                    <span className="capitalize font-medium">{matchDateLabel}</span>
+                    {currentMatch.location && (
+                      <span className="flex items-center gap-1 font-medium">
+                        <MapPin className="h-3.5 w-3.5 text-primary shrink-0" />
+                        {currentMatch.location}
+                      </span>
+                    )}
+                    {currentMatch.periodScores && (
+                      <span className="font-mono text-[11px] bg-muted/70 px-1.5 py-0.5 rounded font-semibold text-foreground/80">
+                        ({currentMatch.periodScores})
+                      </span>
+                    )}
+                  </div>
+
+                  {matchOutcome && (
+                    <Badge
+                      className={cn(
+                        'text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded border',
+                        matchOutcome.variant === 'win'
+                          ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
+                          : matchOutcome.variant === 'loss'
+                          ? 'bg-rose-500/15 border-rose-500/30 text-rose-400'
+                          : 'bg-amber-500/15 border-amber-500/30 text-amber-400'
+                      )}
+                    >
+                      {matchOutcome.label}
+                    </Badge>
+                  )}
+                </div>
               </div>
 
               {isAwaitingScore && (

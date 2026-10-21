@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Clock, MapPin, CheckSquare, ShieldAlert } from 'lucide-react';
 import { formatMatchDate } from '@/lib/dates';
+import { cn } from '@/lib/utils';
 import { getMatchOpponentName } from '../utils/headToHead';
 import type { Match } from '@/types';
 
@@ -21,12 +22,13 @@ export function AwaitingResultCard({
   onRecordResult,
 }: AwaitingResultCardProps) {
   const opponentName = getMatchOpponentName(match);
+  const isAcesHome = !match.team1 || /aces/i.test(match.team1);
   const matchDateLabel = formatMatchDate(match.dateTime || match.date, 'EEEE d. M. yyyy, HH:mm');
 
   return (
     <Card className="border-amber-500/30 bg-amber-500/5 shadow-sm">
       <CardContent className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="space-y-1.5">
+        <div className="space-y-1.5 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline" className="border-amber-500/50 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[11px] font-bold">
               <Clock className="mr-1 h-3 w-3 shrink-0" />
@@ -39,9 +41,14 @@ export function AwaitingResultCard({
             )}
           </div>
 
-          <h3 className="text-lg font-bold font-headline">
-            HC Aces vs {opponentName}
-          </h3>
+          <div className="space-y-0.5">
+            <div className={cn("text-base sm:text-lg font-bold font-headline truncate", isAcesHome ? "text-primary font-black" : "text-foreground")}>
+              {match.team1 || 'HC Aces'}
+            </div>
+            <div className={cn("text-base sm:text-lg font-bold font-headline truncate", !isAcesHome ? "text-primary font-black" : "text-foreground")}>
+              {match.team2 || opponentName}
+            </div>
+          </div>
 
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
             <span>{matchDateLabel}</span>

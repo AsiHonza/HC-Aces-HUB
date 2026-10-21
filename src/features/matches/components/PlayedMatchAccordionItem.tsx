@@ -190,68 +190,67 @@ export function PlayedMatchAccordionItem({
               </div>
             </div>
 
-            {/* Týmy pod sebou se skóre a třetinami (Livesport styl) */}
-            <div className="flex items-center justify-between gap-3 sm:gap-6 w-full pt-1">
-              {/* Týmy a jejich skóre pod sebou */}
-              <div className="flex-1 min-w-0 space-y-1 sm:space-y-1.5">
+            {/* Týmy pod sebou se skóre a třetinami v pevných sloupcích (Livesport styl) */}
+            <div className="grid grid-cols-[1fr_auto_76px] sm:grid-cols-[1fr_auto_110px] items-center gap-2.5 sm:gap-4 w-full pt-1">
+              {/* Sloupec 1: Týmy pod sebou */}
+              <div className="min-w-0 space-y-1 sm:space-y-1.5">
                 {/* Tým 1 (Domácí) */}
-                <div className="flex items-center justify-between gap-2.5 sm:gap-4 min-w-0">
-                  <span
-                    className={cn(
-                      'text-sm sm:text-base font-bold truncate tracking-tight',
-                      isAcesHome ? 'text-primary font-extrabold' : 'text-foreground'
-                    )}
-                    title={match.team1}
-                  >
-                    {match.team1}
-                  </span>
-                  <span
-                    className={cn(
-                      'text-sm sm:text-base font-black tabular-nums shrink-0 px-2 sm:px-2.5 py-0.5 rounded-md min-w-[28px] sm:min-w-[32px] text-center border',
-                      Number(match.team1Score) > Number(match.team2Score)
-                        ? 'bg-primary/10 border-primary/30 text-primary font-black shadow-xs'
-                        : 'bg-muted/40 border-border/60 text-muted-foreground font-semibold'
-                    )}
-                  >
-                    {match.team1Score}
-                  </span>
+                <div
+                  className={cn(
+                    'text-sm sm:text-base font-bold truncate tracking-tight',
+                    isAcesHome ? 'text-primary font-extrabold' : 'text-foreground'
+                  )}
+                  title={match.team1}
+                >
+                  {match.team1}
                 </div>
 
                 {/* Tým 2 (Hosté) */}
-                <div className="flex items-center justify-between gap-2.5 sm:gap-4 min-w-0">
-                  <span
-                    className={cn(
-                      'text-sm sm:text-base font-bold truncate tracking-tight',
-                      !isAcesHome ? 'text-primary font-extrabold' : 'text-foreground'
-                    )}
-                    title={match.team2}
-                  >
-                    {match.team2}
-                  </span>
-                  <span
-                    className={cn(
-                      'text-sm sm:text-base font-black tabular-nums shrink-0 px-2 sm:px-2.5 py-0.5 rounded-md min-w-[28px] sm:min-w-[32px] text-center border',
-                      Number(match.team2Score) > Number(match.team1Score)
-                        ? 'bg-primary/10 border-primary/30 text-primary font-black shadow-xs'
-                        : 'bg-muted/40 border-border/60 text-muted-foreground font-semibold'
-                    )}
-                  >
-                    {match.team2Score}
-                  </span>
+                <div
+                  className={cn(
+                    'text-sm sm:text-base font-bold truncate tracking-tight',
+                    !isAcesHome ? 'text-primary font-extrabold' : 'text-foreground'
+                  )}
+                  title={match.team2}
+                >
+                  {match.team2}
                 </div>
               </div>
 
-              {/* Třetiny vpravo */}
-              {match.periodScores && (
-                <div className="flex flex-col items-end sm:items-center justify-center pl-2.5 sm:pl-5 border-l border-border/60 shrink-0 text-right sm:text-center min-w-[70px] sm:min-w-[90px]">
-                  <span className="text-[9px] uppercase tracking-wider text-muted-foreground/80 font-bold hidden sm:inline">
-                    Třetiny
-                  </span>
-                  <span className="text-[11px] sm:text-xs font-semibold tabular-nums text-muted-foreground sm:text-foreground/90 mt-0.5">
+              {/* Sloupec 2: Skóre pod sebou (pevný zarovnaný sloupec) */}
+              <div className="w-8 sm:w-10 space-y-1 sm:space-y-1.5 text-center shrink-0">
+                <div
+                  className={cn(
+                    'text-sm sm:text-base font-black tabular-nums py-0.5 rounded-md border min-w-[28px] sm:min-w-[32px] text-center',
+                    Number(match.team1Score) > Number(match.team2Score)
+                      ? 'bg-primary/10 border-primary/30 text-primary font-black shadow-xs'
+                      : 'bg-muted/40 border-border/60 text-muted-foreground font-semibold'
+                  )}
+                >
+                  {match.team1Score}
+                </div>
+                <div
+                  className={cn(
+                    'text-sm sm:text-base font-black tabular-nums py-0.5 rounded-md border min-w-[28px] sm:min-w-[32px] text-center',
+                    Number(match.team2Score) > Number(match.team1Score)
+                      ? 'bg-primary/10 border-primary/30 text-primary font-black shadow-xs'
+                      : 'bg-muted/40 border-border/60 text-muted-foreground font-semibold'
+                  )}
+                >
+                  {match.team2Score}
+                </div>
+              </div>
+
+              {/* Sloupec 3: Třetiny (pevná šířka pro dokonalé zarovnání skóre ve všech kartách) */}
+              <div className="text-right sm:text-center shrink-0">
+                {match.periodScores ? (
+                  <span className="text-[10px] sm:text-xs font-semibold tabular-nums text-muted-foreground bg-muted/40 px-1.5 sm:px-2 py-0.5 rounded border border-border/40 inline-block">
                     {match.periodScores}
                   </span>
-                </div>
-              )}
+                ) : (
+                  <span className="text-xs text-transparent select-none">-</span>
+                )}
+              </div>
             </div>
           </div>
         </AccordionTrigger>

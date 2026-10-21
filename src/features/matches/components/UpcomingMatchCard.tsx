@@ -122,6 +122,9 @@ export function UpcomingMatchCard({
   className,
 }: UpcomingMatchCardProps) {
   const { prefix, opponent } = getMatchDetails(match);
+  const isAcesHome = !match.team1 || /aces/i.test(match.team1);
+  const homeTeam = match.team1 || 'HC Aces';
+  const awayTeam = match.team2 || opponent;
   const goingAttendees = attendees.filter((a) => a.status === 'going');
   const goingGoalies = goingAttendees.filter((a) => {
     const p = usersMap?.get(a.userId);
@@ -182,16 +185,25 @@ export function UpcomingMatchCard({
               {format(toJsDate(match.dateTime), 'EEEE d. M. yyyy, HH:mm', { locale: cs })}
             </span>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xl sm:text-2xl font-bold font-headline tracking-tight text-primary">
-              HC Aces
-            </span>
-            <span className="text-xs sm:text-sm text-muted-foreground font-semibold uppercase">
-              vs
-            </span>
-            <span className="text-xl sm:text-2xl font-bold font-headline tracking-tight text-foreground">
-              {opponent}
-            </span>
+          <div className="space-y-0.5 pt-0.5">
+            <div
+              className={cn(
+                'text-lg sm:text-2xl font-bold font-headline tracking-tight truncate',
+                isAcesHome ? 'text-primary font-black' : 'text-foreground'
+              )}
+              title={homeTeam}
+            >
+              {homeTeam}
+            </div>
+            <div
+              className={cn(
+                'text-lg sm:text-2xl font-bold font-headline tracking-tight truncate',
+                !isAcesHome ? 'text-primary font-black' : 'text-foreground'
+              )}
+              title={awayTeam}
+            >
+              {awayTeam}
+            </div>
           </div>
         </div>
 
