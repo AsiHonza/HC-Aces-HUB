@@ -122,73 +122,78 @@ export function PlayedMatchAccordionItem({
         className
       )}
     >
-      <div className="flex items-center w-full relative min-w-0 max-w-full">
+      <div className="relative w-full min-w-0">
         <AccordionTrigger
           className={cn(
-            'flex-1 text-left hover:no-underline py-3 sm:py-3.5 px-3 sm:px-5 [&>svg]:ml-2 sm:[&>svg]:ml-3 [&>svg]:shrink-0 min-w-0 max-w-full overflow-hidden',
+            'w-full text-left hover:no-underline py-3 sm:py-3.5 px-3 sm:px-5 [&>svg]:ml-2 sm:[&>svg]:ml-3 [&>svg]:shrink-0 min-w-0 overflow-hidden',
             isAdmin && (onEditResult || onEditLineup || onDeleteMatch) && 'pr-11 sm:pr-14'
           )}
         >
           <div className="flex flex-col gap-2 w-full min-w-0">
-            {/* Meta řádek: Kolo, datum, místo, MVP status a stav utkání */}
-            <div className="flex items-center justify-between gap-2 w-full">
+            {/* Meta řádek: Kolo, datum a místo vlevo, MVP status a stav utkání vpravo */}
+            <div className="flex items-center justify-between gap-2 w-full min-w-0">
               <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap min-w-0">
                 {prefix && (
                   <Badge
                     variant="outline"
-                    className="text-[10px] uppercase font-black bg-primary/10 border-primary/30 text-primary"
+                    className="text-[10px] uppercase font-black bg-primary/10 border-primary/30 text-primary shrink-0"
                   >
                     {prefix}
                   </Badge>
                 )}
-                <span className="text-[11px] text-muted-foreground flex items-center gap-1 font-medium">
-                  <Calendar className="h-3 w-3" />
+                <span className="text-[11px] text-muted-foreground flex items-center gap-1 font-medium shrink-0">
+                  <Calendar className="h-3 w-3 text-muted-foreground/70" />
                   {dateFormatted}
                 </span>
                 {match.location && (
-                  <span className="text-[11px] text-muted-foreground hidden md:flex items-center gap-1 font-medium">
+                  <span className="text-[11px] text-muted-foreground hidden lg:flex items-center gap-1 font-medium shrink-0">
                     <MapPin className="h-3 w-3 text-primary/70" />
                     {match.location}
                   </span>
                 )}
+              </div>
+
+              {/* Pravá strana: MVP status + Výsledek */}
+              <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                 {isVotingOpen ? (
                   <Badge
                     variant="outline"
-                    className="text-[10px] bg-amber-500/15 border-amber-500/40 text-amber-500 font-bold flex items-center gap-1"
+                    className="text-[10px] bg-amber-500/15 border-amber-500/40 text-amber-500 font-bold flex items-center gap-1 shrink-0"
                   >
                     <Clock className="h-2.5 w-2.5" />
-                    Hlasování o MVP probíhá
+                    <span className="hidden sm:inline">Hlasování o MVP</span>
+                    <span className="sm:hidden">MVP</span>
                   </Badge>
                 ) : mvpWinner ? (
                   <Badge
                     variant="outline"
-                    className="text-[10px] bg-primary/15 border-primary/40 text-primary font-bold flex items-center gap-1"
+                    className="text-[10px] bg-primary/15 border-primary/40 text-primary font-bold flex items-center gap-1 shrink-0"
                   >
                     <Trophy className="h-2.5 w-2.5" />
-                    MVP: {formatName(mvpWinner.name)}
+                    <span className="truncate max-w-[130px]">MVP: {formatName(mvpWinner.name)}</span>
                   </Badge>
                 ) : null}
-              </div>
 
-              {/* Stav zápasu (Výhra / Prohra / Remíza) */}
-              <Badge
-                className={cn(
-                  'h-5 px-2 flex items-center justify-center font-black text-[10px] uppercase tracking-wider rounded-md border shrink-0',
-                  isWin
-                    ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
-                    : isDraw
-                    ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
-                    : 'bg-rose-500/15 border-rose-500/30 text-rose-400'
-                )}
-              >
-                {isWin ? 'Výhra' : isDraw ? 'Remíza' : 'Prohra'}
-              </Badge>
+                {/* Stav zápasu (Výhra / Prohra / Remíza) */}
+                <Badge
+                  className={cn(
+                    'h-5 px-2 flex items-center justify-center font-black text-[10px] uppercase tracking-wider rounded-md border shrink-0',
+                    isWin
+                      ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
+                      : isDraw
+                      ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
+                      : 'bg-rose-500/15 border-rose-500/30 text-rose-400'
+                  )}
+                >
+                  {isWin ? 'Výhra' : isDraw ? 'Remíza' : 'Prohra'}
+                </Badge>
+              </div>
             </div>
 
             {/* Symetrický duel: Domácí tým vlevo — Skóre uprostřed — Hosté vpravo */}
-            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-3.5 w-full pt-0.5">
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4 w-full pt-1">
               {/* Tým 1 (Domácí) */}
-              <div className="min-w-0 text-right pr-1 sm:pr-2">
+              <div className="min-w-0 text-right pr-1 sm:pr-3">
                 <span
                   className={cn(
                     'text-sm sm:text-base font-bold truncate tracking-tight block',
@@ -201,23 +206,19 @@ export function PlayedMatchAccordionItem({
               </div>
 
               {/* Skóre & Třetiny uprostřed */}
-              <div className="flex flex-col items-center justify-center min-w-[72px] sm:min-w-[88px] px-2 sm:px-3 py-1 rounded-lg bg-muted/40 border border-border/70 shrink-0 shadow-xs">
-                <span className="text-base sm:text-xl font-black tabular-nums tracking-tight text-foreground">
+              <div className="flex flex-col items-center justify-center min-w-[76px] sm:min-w-[92px] min-h-[44px] px-2.5 py-1 rounded-lg bg-muted/40 border border-border/70 shrink-0 shadow-xs">
+                <span className="text-base sm:text-xl font-black tabular-nums tracking-tight text-foreground leading-none">
                   {match.team1Score} : {match.team2Score}
                 </span>
-                {match.periodScores ? (
-                  <span className="text-[9px] sm:text-[10px] text-muted-foreground font-semibold tabular-nums">
+                {match.periodScores && (
+                  <span className="text-[9px] sm:text-[10px] text-muted-foreground font-semibold tabular-nums mt-1 leading-none">
                     ({match.periodScores})
-                  </span>
-                ) : (
-                  <span className="text-[9px] sm:text-[10px] text-muted-foreground/60 font-medium">
-                    konec
                   </span>
                 )}
               </div>
 
               {/* Tým 2 (Hosté) */}
-              <div className="min-w-0 text-left pl-1 sm:pl-2">
+              <div className="min-w-0 text-left pl-1 sm:pl-3">
                 <span
                   className={cn(
                     'text-sm sm:text-base font-bold truncate tracking-tight block',
