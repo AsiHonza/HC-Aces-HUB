@@ -1,5 +1,24 @@
 import type { FieldPosition, Match, ResolvedPosition, UserProfile } from '@/types';
 import { areNamesMatching, isGoaliePlayer } from '@/lib/utils';
+import { toJsDate } from '@/lib/dates';
+
+/**
+ * Datum zahájení oficiální archivace sestav (25. 10. 2026).
+ * Od tohoto zápasu dále jsou pozice v zápase evidovány přesně dle sestavy v match.lineup.
+ * Zápasy před tímto datem neměly archivaci sestav, proto se pro postové úspěchy nezapočítávají.
+ */
+export const LINEUP_ARCHIVE_START_DATE_STR = '2026-10-25';
+export const LINEUP_ARCHIVE_START_MS = new Date('2026-10-25T00:00:00').getTime();
+
+/**
+ * Zkontroluje, zda zápas proběhl v období s ostrou archivací sestav (od 25. 10. 2026).
+ */
+export function isMatchLineupArchived(match: Match | null | undefined): boolean {
+  if (!match) return false;
+  const matchDate = toJsDate(match.dateTime || match.date);
+  if (!matchDate) return false;
+  return matchDate.getTime() >= LINEUP_ARCHIVE_START_MS;
+}
 
 export interface PositionMetadata {
   key: ResolvedPosition;
@@ -171,6 +190,7 @@ export function resolvePlayerPosition(
   let centerCount = 0;
 
   for (const m of matches) {
+    if (!isMatchLineupArchived(m)) continue;
     if (!m.lineup || typeof m.lineup !== 'object') continue;
     for (const [slotKey, slotPlayer] of Object.entries(m.lineup)) {
       if (!slotPlayer || typeof slotPlayer !== 'object') continue;
@@ -222,71 +242,67 @@ export function resolvePlayerPosition(
 }
 
 /**
- * Checks whether a player played as a Defenseman (LO/PO) in a specific match,
- * or if their primary resolved position is Defense when match lineup is not granular.
+ * Checks whether a player played as a Defenseman (LO/PO) in a specific match.
+ * Strictly requires the match to be from 25. 10. 2026 onwards with a verified lineup entry in LO/PO.
  */
 export function didPlayerPlayDefenseInMatch(
   player: { id: string; name: string; fieldPosition?: FieldPosition | null; playerType?: any },
   match: Match,
-  fallbackPrimaryPos?: ResolvedPosition
+  _fallbackPrimaryPos?: ResolvedPosition
 ): boolean {
-  if (match.lineup && typeof match.lineup === 'object') {
-    let foundInLineup = false;
-    for (const [slotKey, slotPlayer] of Object.entries(match.lineup)) {
-      if (!slotPlayer || typeof slotPlayer !== 'object') continue;
-      const pObj = slotPlayer as any;
-      if (pObj.id === player.id || (pObj.name && areNamesMatching(player.name, pObj.name))) {
-        foundInLineup = true;
-        if (mapLineupSlotToFieldPosition(slotKey) === 'defense') {
-          return true;
-        }
-      }
+  if (!isMatchLineupArchived(match)) return false;
+  if (!match.lineup || typeof match.lineup !== 'object') return false;
+
+  for (const [slotKey, slotPlayer] of Object.entries(match.lineup)) {
+    if (!slotPlayer || typeof slotPlayer !== 'object') continue;
+    const pObj = slotPlayer as any;
+    if (pObj.id === player.id || (pObj.name && areNamesMatching(player.name, pObj.name))) {
+      return mapLineupSlotToFieldPosition(slotKey) === 'defense';
     }
-    if (foundInLineup) return false;
   }
-  return (player.fieldPosition || fallbackPrimaryPos) === 'defense';
+  return false;
 }
 
+/**
+ * Checks whether a player played as a Center (C) in a specific match.
+ * Strictly requires the match to be from 25. 10. 2026 onwards with a verified lineup entry in C.
+ */
 export function didPlayerPlayCenterInMatch(
   player: { id: string; name: string; fieldPosition?: FieldPosition | null; playerType?: any },
   match: Match,
-  fallbackPrimaryPos?: ResolvedPosition
+  _fallbackPrimaryPos?: ResolvedPosition
 ): boolean {
-  if (match.lineup && typeof match.lineup === 'object') {
-    let foundInLineup = false;
-    for (const [slotKey, slotPlayer] of Object.entries(match.lineup)) {
-      if (!slotPlayer || typeof slotPlayer !== 'object') continue;
-      const pObj = slotPlayer as any;
-      if (pObj.id === player.id || (pObj.name && areNamesMatching(player.name, pObj.name))) {
-        foundInLineup = true;
-        if (mapLineupSlotToFieldPosition(slotKey) === 'center') {
-          return true;
-        }
-      }
+  if (!isMatchLineupArchived(match)) return false;
+  if (!match.lineup || typeof match.lineup !== 'object') return false;
+
+  for (const [slotKey, slotPlayer] of Object.entries(match.lineup)) {
+    if (!slotPlayer || typeof slotPlayer !== 'object') continue;
+    const pObj = slotPlayer as any;
+    if (pObj.id === player.id || (pObj.name && areNamesMatching(player.name, pObj.name))) {
+      return mapLineupSlotToFieldPosition(slotKey) === 'center';
     }
-    if (foundInLineup) return false;
   }
-  return (player.fieldPosition || fallbackPrimaryPos) === 'center';
+  return false;
 }
 
+/**
+ * Checks whether a player played as a Wing (LK/PK) in a specific match.
+ * Strictly requires the match to be from 25. 10. 2026 onwards with a verified lineup entry in LK/PK.
+ */
 export function didPlayerPlayWingInMatch(
   player: { id: string; name: string; fieldPosition?: FieldPosition | null; playerType?: any },
   match: Match,
-  fallbackPrimaryPos?: ResolvedPosition
+  _fallbackPrimaryPos?: ResolvedPosition
 ): boolean {
-  if (match.lineup && typeof match.lineup === 'object') {
-    let foundInLineup = false;
-    for (const [slotKey, slotPlayer] of Object.entries(match.lineup)) {
-      if (!slotPlayer || typeof slotPlayer !== 'object') continue;
-      const pObj = slotPlayer as any;
-      if (pObj.id === player.id || (pObj.name && areNamesMatching(player.name, pObj.name))) {
-        foundInLineup = true;
-        if (mapLineupSlotToFieldPosition(slotKey) === 'wing') {
-          return true;
-        }
-      }
+  if (!isMatchLineupArchived(match)) return false;
+  if (!match.lineup || typeof match.lineup !== 'object') return false;
+
+  for (const [slotKey, slotPlayer] of Object.entries(match.lineup)) {
+    if (!slotPlayer || typeof slotPlayer !== 'object') continue;
+    const pObj = slotPlayer as any;
+    if (pObj.id === player.id || (pObj.name && areNamesMatching(player.name, pObj.name))) {
+      return mapLineupSlotToFieldPosition(slotKey) === 'wing';
     }
-    if (foundInLineup) return false;
   }
-  return (player.fieldPosition || fallbackPrimaryPos) === 'wing';
+  return false;
 }

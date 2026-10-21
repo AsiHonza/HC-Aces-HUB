@@ -9,6 +9,7 @@ import {
   didPlayerPlayDefenseInMatch,
   didPlayerPlayCenterInMatch,
   didPlayerPlayWingInMatch,
+  isMatchLineupArchived,
 } from '@/features/roster/utils/positions';
 import { formatName, isGoaliePlayer } from '@/lib/utils';
 import { toJsDate } from '@/lib/dates';
@@ -1269,7 +1270,7 @@ const RAW_MILESTONE_DEFINITIONS: MilestoneDefinition[] = [
   {
     id: 'feat-defense-scorer',
     title: 'Kanonýr od modré',
-    description: 'Vstřelený gól v zápase z postu obránce (LO / PO)',
+    description: 'Vstřelený gól v zápase z postu obránce (LO / PO) – archivováno od 25. 10. 2026',
     category: 'defense',
     tier: 'silver',
     target: 1,
@@ -1279,7 +1280,7 @@ const RAW_MILESTONE_DEFINITIONS: MilestoneDefinition[] = [
   {
     id: 'feat-defense-qb',
     title: 'Generál modré čáry (Quarterback)',
-    description: 'Zisk 2 a více asistencí v jednom zápase na postu obránce',
+    description: 'Zisk 2 a více asistencí v jednom zápase na postu obránce (archivováno od 25. 10. 2026)',
     category: 'defense',
     tier: 'gold',
     target: 1,
@@ -1289,7 +1290,7 @@ const RAW_MILESTONE_DEFINITIONS: MilestoneDefinition[] = [
   {
     id: 'feat-center-playmaker',
     title: 'Mozek lajny (Centr)',
-    description: 'Zisk 2 a více asistencí v jednom zápase na postu středního útočníka (C)',
+    description: 'Zisk 2 a více asistencí v jednom zápase na postu středního útočníka (C) – archivováno od 25. 10. 2026',
     category: 'assists',
     tier: 'silver',
     target: 1,
@@ -1299,7 +1300,7 @@ const RAW_MILESTONE_DEFINITIONS: MilestoneDefinition[] = [
   {
     id: 'feat-wing-sniper',
     title: 'Křídelní vítr',
-    description: 'Vstřelení 2 a více gólů v jednom zápase na postu křídla (LK / PK)',
+    description: 'Vstřelení 2 a více gólů v jednom zápase na postu křídla (LK / PK) – archivováno od 25. 10. 2026',
     category: 'goals',
     tier: 'silver',
     target: 1,
@@ -1643,27 +1644,29 @@ export function countPlayerSingleGameFeats(
         }
       }
 
-      // Positional feats
-      const pObj = { id: playerId, name: playerName, fieldPosition: userProfile?.fieldPosition };
-      const playedDef = didPlayerPlayDefenseInMatch(pObj, m, posInfo.resolvedPosition);
-      const playedCen = didPlayerPlayCenterInMatch(pObj, m, posInfo.resolvedPosition);
-      const playedWing = didPlayerPlayWingInMatch(pObj, m, posInfo.resolvedPosition);
+      // Positional feats (pouze od ostrého startu archivace sestav 25. 10. 2026)
+      if (isMatchLineupArchived(m)) {
+        const pObj = { id: playerId, name: playerName, fieldPosition: userProfile?.fieldPosition };
+        const playedDef = didPlayerPlayDefenseInMatch(pObj, m);
+        const playedCen = didPlayerPlayCenterInMatch(pObj, m);
+        const playedWing = didPlayerPlayWingInMatch(pObj, m);
 
-      if (playedDef && matchGoals >= 1) {
-        defenseScorerGames += matchGoals;
-        recordFeat('feat-defense-scorer', `${matchGoals} G z postu obránce`);
-      }
-      if (playedDef && matchAssists >= 2) {
-        defenseQbGames += 1;
-        recordFeat('feat-defense-qb', `${matchAssists} A z postu obránce`);
-      }
-      if (playedCen && matchAssists >= 2) {
-        centerPlaymakerGames += 1;
-        recordFeat('feat-center-playmaker', `${matchAssists} A na postu centra`);
-      }
-      if (playedWing && matchGoals >= 2) {
-        wingSniperGames += 1;
-        recordFeat('feat-wing-sniper', `${matchGoals} G na postu křídla`);
+        if (playedDef && matchGoals >= 1) {
+          defenseScorerGames += matchGoals;
+          recordFeat('feat-defense-scorer', `${matchGoals} G z postu obránce`);
+        }
+        if (playedDef && matchAssists >= 2) {
+          defenseQbGames += 1;
+          recordFeat('feat-defense-qb', `${matchAssists} A z postu obránce`);
+        }
+        if (playedCen && matchAssists >= 2) {
+          centerPlaymakerGames += 1;
+          recordFeat('feat-center-playmaker', `${matchAssists} A na postu centra`);
+        }
+        if (playedWing && matchGoals >= 2) {
+          wingSniperGames += 1;
+          recordFeat('feat-wing-sniper', `${matchGoals} G na postu křídla`);
+        }
       }
     }
 
