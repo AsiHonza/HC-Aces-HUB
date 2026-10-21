@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { MapPin, Users, Trophy, BarChart, Pencil, Check, X, Flame, Shield, Plus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal, FileText, View, Disc, Cake, Minus, ChevronDown, ListOrdered, CalendarDays, ChevronUp, MessageSquarePlus, Goal, Calendar, Star, Clock, Archive, ShieldAlert, RefreshCw, DatabaseBackup } from "lucide-react"
+import { MapPin, Users, Trophy, Award, BarChart, Pencil, Check, X, Flame, Shield, Plus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal, FileText, View, Disc, Cake, Minus, ChevronDown, ListOrdered, CalendarDays, ChevronUp, MessageSquarePlus, Goal, Calendar, Star, Clock, Archive, ShieldAlert, RefreshCw, DatabaseBackup } from "lucide-react"
 import { cn, formatName, isGoaliePlayer, areNamesMatching } from '@/lib/utils'
 import { toJsDate } from '@/lib/dates'
 import { BirthdaysCard, rosterService } from '@/features/roster'
@@ -1529,7 +1529,7 @@ function DashboardPageContent() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 w-full min-w-0 max-w-full">
         {/* PROFESIONÁLNÍ HRÁČSKÁ LIŠTA (PLAYER STRIP) */}
         <Card className="lg:col-span-3 border-border/70 bg-card/95 shadow-sm overflow-hidden w-full min-w-0 max-w-full">
-        <div className="p-3.5 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 w-full min-w-0">
+        <div className="p-3.5 sm:p-5 flex flex-col xl:flex-row xl:items-center justify-between gap-4 w-full min-w-0">
           {/* Vizuální identita hráče */}
           <div className="flex items-center gap-3.5 min-w-0">
             <div className="relative shrink-0">
@@ -1575,8 +1575,8 @@ function DashboardPageContent() {
             </div>
           </div>
 
-          {/* Přepínač období & Rychlé statistické karty */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3 lg:gap-4 min-w-0">
+          {/* Sjednocený pravý blok: Přepínač období & Rychlé statistiky & Kariérní karta */}
+          <div className="flex flex-wrap items-center gap-3 lg:gap-4 shrink-0">
             <Tabs value={myStatsView} onValueChange={(v) => setMyStatsView(v as any)} className="w-auto shrink-0">
               <TabsList className="h-8 p-0.5 bg-muted/60">
                 <TabsTrigger value="regular" className="text-[10px] sm:text-xs h-7 px-2.5">ZČ</TabsTrigger>
@@ -1663,10 +1663,8 @@ function DashboardPageContent() {
                 </span>
               </div>
             </div>
-          </div>
 
-          {/* Tlačítko kariérní karty */}
-          <div className="flex items-center gap-2 self-start lg:self-center shrink-0">
+            {/* Tlačítko kariérní karty */}
             <Button
               variant="outline"
               size="sm"
@@ -1680,20 +1678,88 @@ function DashboardPageContent() {
         </div>
       </Card>
 
-        {/* PŘÍŠTÍ ZÁPASY / ANKETA DOCHÁZKY (UMÍSTĚNO NAHOŘE PRO RYCHLOU DOCHÁZKU) */}
+        {/* AKTUÁLNÍ SEZÓNA: ZÁPASOVÉ CENTRUM (PŘÍŠTÍ ZÁPAS + ODEHRANÝ ZÁPAS/MVP VEDLE SEBE NA DESKTOPU) */}
         {selectedSeasonId === 'current' ? (
-          <div className="lg:col-span-3 space-y-4 w-full min-w-0 max-w-full overflow-hidden">
-            <div className="flex items-center justify-between px-2 sm:px-0"><h2 className="text-xl font-bold flex items-center gap-2"><Trophy className="text-primary"/>Příští zápasy</h2>{userProfile?.role === 'admin' && <Button size="sm" onClick={() => setIsAddDialogOpen(true)}><Plus className="h-4 mr-2" />Přidat zápas</Button>}</div>
-            {nextMatch ? renderMatchCard(nextMatch) : <p className="text-center py-8 text-muted-foreground">Žádné blížící se zápasy.</p>}
-            {upcomingMatches.slice(1).length > 0 && (
+          postMatchData ? (
+            <div className="lg:col-span-3 grid grid-cols-1 lg:grid-cols-2 gap-6 items-start w-full min-w-0 max-w-full">
+              {/* SLOUPEC 1: PŘÍŠTÍ ZÁPASY (NA MOBILU PRVNÍ DLE POŽADAVKU) */}
+              <div className="space-y-4 w-full min-w-0 max-w-full overflow-hidden">
+                <div className="flex items-center justify-between px-2 sm:px-0">
+                  <h2 className="text-xl font-bold flex items-center gap-2">
+                    <Trophy className="text-primary" />
+                    Příští zápasy
+                  </h2>
+                  {userProfile?.role === 'admin' && (
+                    <Button size="sm" onClick={() => setIsAddDialogOpen(true)}>
+                      <Plus className="h-4 mr-2" />
+                      Přidat zápas
+                    </Button>
+                  )}
+                </div>
+                {nextMatch ? renderMatchCard(nextMatch) : <p className="text-center py-8 text-muted-foreground">Žádné blížící se zápasy.</p>}
+                {upcomingMatches.slice(1).length > 0 && (
                   <Accordion type="single" collapsible className="w-full px-2 sm:px-0" value={openAccordionValue} onValueChange={setOpenAccordionValue}>
-                      <AccordionItem value="item-1" className="border-none">
-                          <AccordionTrigger className="rounded-lg border px-4 bg-card">Další zápasy ({upcomingMatches.slice(1).length})</AccordionTrigger>
-                          <AccordionContent className="pt-4 space-y-4">{upcomingMatches.slice(1).map(m => renderMatchCard(m))}</AccordionContent>
-                      </AccordionItem>
+                    <AccordionItem value="item-1" className="border-none">
+                      <AccordionTrigger className="rounded-lg border px-4 bg-card">Další zápasy ({upcomingMatches.slice(1).length})</AccordionTrigger>
+                      <AccordionContent className="pt-4 space-y-4">{upcomingMatches.slice(1).map(m => renderMatchCard(m))}</AccordionContent>
+                    </AccordionItem>
                   </Accordion>
-            )}
-          </div>
+                )}
+              </div>
+
+              {/* SLOUPEC 2: ODEHRANÝ ZÁPAS & MVP / HVĚZDY ZÁPASU */}
+              <div className="space-y-4 w-full min-w-0 max-w-full overflow-hidden">
+                <div className="flex items-center justify-between px-2 sm:px-0">
+                  <h2 className="text-xl font-bold flex items-center gap-2">
+                    <Award className="text-primary" />
+                    Poslední zápas & MVP
+                  </h2>
+                </div>
+                <PostMatchSection
+                  match={postMatchData.match}
+                  currentUserId={user.uid}
+                  users={allUsers || []}
+                  usersMap={usersMap}
+                  attendees={attendancesByMatch.get(postMatchData.match.id) || []}
+                  attendancesByMatch={attendancesByMatch}
+                  isAdmin={userProfile?.role === 'admin'}
+                  onRecordResult={(match) => {
+                    setSelectedMatch(match as any);
+                    setIsResultDialogOpen(true);
+                  }}
+                  onOpenStarsModal={(m) => {
+                    setSelectedVotingMatch(m || postMatchData.match);
+                    setIsStarsModalOpen(true);
+                  }}
+                  additionalAwaitingMatches={postMatchData.additionalAwaiting}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="lg:col-span-3 max-w-4xl mx-auto space-y-4 w-full min-w-0 overflow-hidden">
+              <div className="flex items-center justify-between px-2 sm:px-0">
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                  <Trophy className="text-primary" />
+                  Příští zápasy
+                </h2>
+                {userProfile?.role === 'admin' && (
+                  <Button size="sm" onClick={() => setIsAddDialogOpen(true)}>
+                    <Plus className="h-4 mr-2" />
+                    Přidat zápas
+                  </Button>
+                )}
+              </div>
+              {nextMatch ? renderMatchCard(nextMatch) : <p className="text-center py-8 text-muted-foreground">Žádné blížící se zápasy.</p>}
+              {upcomingMatches.slice(1).length > 0 && (
+                <Accordion type="single" collapsible className="w-full px-2 sm:px-0" value={openAccordionValue} onValueChange={setOpenAccordionValue}>
+                  <AccordionItem value="item-1" className="border-none">
+                    <AccordionTrigger className="rounded-lg border px-4 bg-card">Další zápasy ({upcomingMatches.slice(1).length})</AccordionTrigger>
+                    <AccordionContent className="pt-4 space-y-4">{upcomingMatches.slice(1).map(m => renderMatchCard(m))}</AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+              )}
+            </div>
+          )
         ) : (
           <div className="lg:col-span-3 p-4 rounded-xl border bg-muted/20 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left w-full min-w-0 max-w-full overflow-hidden">
             <div className="flex items-center gap-3">
@@ -1705,30 +1771,6 @@ function DashboardPageContent() {
             <Button variant="outline" size="sm" onClick={() => setSelectedSeasonId('current')} className="text-xs h-8 shrink-0">
               Přejít na aktuální sezónu
             </Button>
-          </div>
-        )}
-
-        {/* SPOJENÝ BLOK: ODEHRANÝ ZÁPAS & MVP / HVĚZDY ZÁPASU */}
-        {selectedSeasonId === 'current' && postMatchData && (
-          <div className="lg:col-span-3 w-full min-w-0 max-w-full overflow-hidden">
-            <PostMatchSection
-              match={postMatchData.match}
-              currentUserId={user.uid}
-              users={allUsers || []}
-              usersMap={usersMap}
-              attendees={attendancesByMatch.get(postMatchData.match.id) || []}
-              attendancesByMatch={attendancesByMatch}
-              isAdmin={userProfile?.role === 'admin'}
-              onRecordResult={(match) => {
-                setSelectedMatch(match as any);
-                setIsResultDialogOpen(true);
-              }}
-              onOpenStarsModal={(m) => {
-                setSelectedVotingMatch(m || postMatchData.match);
-                setIsStarsModalOpen(true);
-              }}
-              additionalAwaitingMatches={postMatchData.additionalAwaiting}
-            />
           </div>
         )}
 
