@@ -795,38 +795,42 @@ export function HallOfFameTab({
       )}
 
       {/* 2B. DYNAMIC DUO (CHEMIE HRÁČŮ) & VĚŠTEC KABINY (TIPOVAČKA) */}
-      {((teamChemistry &&
-        (teamChemistry.topDuos.length > 0 || (teamChemistry.topDefensePairs?.length || 0) > 0)) ||
-        (oracleLeaderboard && oracleLeaderboard.length > 0)) && (
+      {(teamChemistry || (oracleLeaderboard && oracleLeaderboard.length > 0)) && (
         <div
           className={cn(
             'grid grid-cols-1 gap-4',
-            teamChemistry &&
-              (teamChemistry.topDuos.length > 0 || (teamChemistry.topDefensePairs?.length || 0) > 0) &&
-              oracleLeaderboard &&
-              oracleLeaderboard.length > 0
+            teamChemistry && oracleLeaderboard && oracleLeaderboard.length > 0
               ? 'lg:grid-cols-2'
               : 'lg:grid-cols-1'
           )}
         >
-          {teamChemistry &&
-            (teamChemistry.topDuos.length > 0 || (teamChemistry.topDefensePairs?.length || 0) > 0) && (
-              <div className="rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/10 via-background to-card p-3.5 sm:p-5 shadow-sm space-y-3.5">
-                <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-border/60 flex-wrap">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="h-9 w-9 rounded-xl bg-primary/15 border border-primary/30 text-primary flex items-center justify-center shrink-0">
-                      <HeartHandshake className="h-4.5 w-4.5" />
-                    </div>
-                    <div className="min-w-0">
-                      <h3 className="font-headline font-bold text-sm sm:text-base text-foreground">
-                        Dynamic Duo – Chemie v lajně & obraně
-                      </h3>
-                      <p className="text-xs text-muted-foreground">
-                        Souhra dvojic v rámci útočných trojic (LK–C–PK) a obranných párů (LO–PO)
-                      </p>
-                    </div>
+          {teamChemistry && (
+            <div className="rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/10 via-background to-card p-3.5 sm:p-5 shadow-sm space-y-3.5">
+              <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-border/60 flex-wrap">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="h-9 w-9 rounded-xl bg-primary/15 border border-primary/30 text-primary flex items-center justify-center shrink-0">
+                    <HeartHandshake className="h-4.5 w-4.5" />
                   </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-headline font-bold text-sm sm:text-base text-foreground">
+                        Dynamic Duo – Chemie na ledě
+                      </h3>
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] px-1.5 py-0 h-4 bg-primary/10 text-primary border-primary/30 font-bold"
+                      >
+                        Archivováno od 25. 10. 2026
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Souhra v rámci útočných trojic (LK–C–PK), obranných párů (LO–PO) a gólových akcí Ú + O
+                    </p>
+                  </div>
+                </div>
 
+                {(teamChemistry.topDuos.length > 0 ||
+                  (teamChemistry.topDefensePairs?.length || 0) > 0) && (
                   <div className="flex items-center gap-1.5 flex-wrap">
                     {teamChemistry.topDuos.length > 0 &&
                       (teamChemistry.topDefensePairs?.length || 0) > 0 && (
@@ -842,7 +846,7 @@ export function HallOfFameTab({
                             )}
                           >
                             <Flame className="h-3 w-3" />
-                            <span>Útočné trojice ({teamChemistry.topDuos.length})</span>
+                            <span>Útočná souhra ({teamChemistry.topDuos.length})</span>
                           </button>
                           <button
                             type="button"
@@ -876,8 +880,50 @@ export function HallOfFameTab({
                       <ChevronRight className="h-3.5 w-3.5 ml-1" />
                     </Button>
                   </div>
-                </div>
+                )}
+              </div>
 
+              {teamChemistry.topDuos.length === 0 &&
+              (teamChemistry.topDefensePairs?.length || 0) === 0 ? (
+                <div className="rounded-xl border border-dashed border-primary/30 bg-card/60 p-4 text-xs text-muted-foreground space-y-2">
+                  <div className="flex items-center gap-2 font-bold text-foreground text-xs sm:text-sm">
+                    <Sparkles className="h-4 w-4 text-primary shrink-0" />
+                    <span>Přesná evidence souhry startuje od zápasu 25. 10. 2026</span>
+                  </div>
+                  <p className="leading-relaxed">
+                    Aby byla statistika 100% věrná realitě, počítá se <strong>Dynamic Duo</strong> čistě ze zápasů s archivovanou sestavou:
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                    <div className="rounded-lg bg-muted/50 border border-border/60 p-2.5">
+                      <div className="font-bold text-foreground flex items-center gap-1.5">
+                        <Flame className="h-3.5 w-3.5 text-primary shrink-0" />
+                        <span>Útočné trojice (Ú + Ú)</span>
+                      </div>
+                      <p className="text-[11px] mt-0.5">
+                        Dvojice útočníků nasazených spolu ve stejné útočné lajně (1., 2. nebo 3. útok).
+                      </p>
+                    </div>
+                    <div className="rounded-lg bg-muted/50 border border-border/60 p-2.5">
+                      <div className="font-bold text-foreground flex items-center gap-1.5">
+                        <ShieldCheck className="h-3.5 w-3.5 text-sky-400 shrink-0" />
+                        <span>Obranné páry (O + O)</span>
+                      </div>
+                      <p className="text-[11px] mt-0.5">
+                        Dvojice obránců ve stejném obranném páru (1. nebo 2. obrana).
+                      </p>
+                    </div>
+                    <div className="rounded-lg bg-muted/50 border border-border/60 p-2.5">
+                      <div className="font-bold text-foreground flex items-center gap-1.5">
+                        <HeartHandshake className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                        <span>Spolupráce Ú + O</span>
+                      </div>
+                      <p className="text-[11px] mt-0.5">
+                        Gólová kombinace útočníka a obránce při nahrávce na gól napříč lajnami.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
                 <div
                   className={cn(
                     'grid grid-cols-1 gap-2.5',
@@ -1046,10 +1092,16 @@ export function HallOfFameTab({
                               <>
                                 <div className="flex items-center justify-between text-[11px] text-muted-foreground gap-2 flex-wrap">
                                   <span>
-                                    Body od modré: <strong className="text-foreground">{duo.combinedPointsInSharedGames} KB</strong>
+                                    Body od modré:{' '}
+                                    <strong className="text-foreground">
+                                      {duo.combinedPointsInSharedGames} KB
+                                    </strong>
                                   </span>
                                   <span>
-                                    Průměr obdržených: <strong className="text-sky-400">{duo.avgGoalsAgainstTogether} G/zápas</strong>
+                                    Průměr obdržených:{' '}
+                                    <strong className="text-sky-400">
+                                      {duo.avgGoalsAgainstTogether} G/zápas
+                                    </strong>
                                   </span>
                                 </div>
                                 <div className="h-1.5 w-full rounded-full bg-muted/80 overflow-hidden flex gap-0.5">
@@ -1104,8 +1156,9 @@ export function HallOfFameTab({
                       );
                     })}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
+          )}
 
           {oracleLeaderboard && oracleLeaderboard.length > 0 && (
             <div className="rounded-2xl border border-purple-500/25 bg-gradient-to-br from-purple-500/10 via-background to-card p-3.5 sm:p-5 shadow-sm space-y-3">

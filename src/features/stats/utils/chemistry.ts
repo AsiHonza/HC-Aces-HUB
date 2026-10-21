@@ -1,7 +1,10 @@
 import type { Match, UserProfile, ResolvedPosition } from '@/types';
 import { areNamesMatching } from '@/lib/utils';
 import { toJsDate } from '@/lib/dates';
-import { resolvePlayerPosition } from '@/features/roster/utils/positions';
+import {
+  resolvePlayerPosition,
+  isMatchLineupArchived,
+} from '@/features/roster/utils/positions';
 
 export interface ChemistryPartnerStat {
   partnerId: string;
@@ -30,7 +33,7 @@ export interface PlayerChemistrySummary {
   favoritePlaymaker: ChemistryPartnerStat | null;
   /** Komu hráč nejčastěji nahrává na gól */
   favoriteTarget: ChemistryPartnerStat | null;
-  /** Spoluhráč s nejvyšším společným % výher (min. 3 společné zápasy ve stejné formaci) */
+  /** Spoluhráč s nejvyšším společným % výher (min. 3 společné zápasy) */
   bestTalismanPartner: WinRatePartnerStat | null;
   /** Celkový přehled spoluprací pro případné porovnání v lajně */
   duoGoalsByPartnerId: Record<string, number>;
@@ -120,7 +123,6 @@ export interface DynamicDuoRecord {
   p1AssistsInShared: number;
   p2GoalsInShared: number;
   p2AssistsInShared: number;
-  /** Defenzivní metriky pro obranné páry i útočné lajny */
   lockdownGamesTogether: number;
   shutoutsTogether: number;
   avgGoalsAgainstTogether: number;
@@ -129,9 +131,9 @@ export interface DynamicDuoRecord {
 }
 
 export interface TeamChemistryData {
-  /** Nejlepší útočné dvojice (v rámci útočných trojic LK–C–PK) */
+  /** Gólové dvojice (Útočné dvojice ze stejné lajny LK–C–PK + gólové kombinace Ú + O) */
   topDuos: DynamicDuoRecord[];
-  /** Nejlepší obranné páry (v rámci obranných dvojic LO–PO) */
+  /** Obranné páry (Dvojice obránců ze stejného obranného páru LO–PO) */
   topDefensePairs: DynamicDuoRecord[];
   byPlayerId: Map<string, PlayerChemistrySummary>;
 }
@@ -195,7 +197,7 @@ function extractMatchFormationUnits(
       }
     }
     const players = Array.from(unitPlayersMap.values());
-    if (players.length >= 2) {
+    if (players.length >= 1) {
       units.push({
         unitId: def.unitId,
         unitTitle: def.unitTitle,
@@ -208,77 +210,13 @@ function extractMatchFormationUnits(
   return units;
 }
 
-function getMatchAcesPlayers(
-  match: Match,
-  users: UserProfile[],
-  usersById: Map<string, UserProfile>
-): UserProfile[] {
-  const foundMap = new Map<string, UserProfile>();
-
-  if (match.lineup && typeof match.lineup === 'object') {
-    for (const val of Object.values(match.lineup)) {
-      if (val && typeof val === 'object' && (val as any).id) {
-        const u = resolveUser((val as any).id, users, usersById) || resolveUser((val as any).name, users, usersById);
-        if (u) foundMap.set(u.id, u);
-      }
-    }
-  }
-
-  if (Array.isArray(match.gameRoster)) {
-    for (const rawName of match.gameRoster) {
-      const u = resolveUser(rawName, users, usersById);
-      if (u) foundMap.set(u.id, u);
-    }
-  }
-
-  if (match.goalieId) {
-    const g = resolveUser(match.goalieId, users, usersById);
-    if (g) foundMap.set(g.id, g);
-  } else if (match.goalieName) {
-    const g = resolveUser(match.goalieName, users, usersById);
-    if (g) foundMap.set(g.id, g);
-  }
-
-  if (Array.isArray(match.scorers)) {
-    for (const s of match.scorers) {
-      if (s?.goal) {
-        const u = resolveUser(s.goal, users, usersById);
-        if (u) foundMap.set(u.id, u);
-      }
-      if (s?.assist) {
-        const u = resolveUser(s.assist, users, usersById);
-        if (u) foundMap.set(u.id, u);
-      }
-    }
-  }
-  if (Array.isArray(match.detailedScorers)) {
-    const isAcesTeam1 = /aces/i.test(match.team1 || '');
-    for (const ds of match.detailedScorers) {
-      const isAcesGoal =
-        (isAcesTeam1 && ds.team === 'team1') ||
-        (!isAcesTeam1 && ds.team === 'team2') ||
-        /aces/i.test(ds.team || '');
-      if (isAcesGoal) {
-        if (ds?.scorer) {
-          const u = resolveUser(ds.scorer, users, usersById);
-          if (u) foundMap.set(u.id, u);
-        }
-        if (ds?.assist) {
-          const u = resolveUser(ds.assist, users, usersById);
-          if (u) foundMap.set(u.id, u);
-        }
-      }
-    }
-  }
-
-  return Array.from(foundMap.values());
-}
-
 /**
- * Computes formation-aware on-ice chemistry:
- * - Pairs are logically formed ONLY within an attack trio (LK-C-PK) or a defense pair (LO-PO).
- * - Never mixes a Defenseman + Forward into a false duo unless explicitly placed in the same unit in a match lineup.
- * - Separates Attack Duos (topDuos) and Defense Pairs (topDefensePairs).
+ * Computes formation-aware on-ice chemistry starting strictly from the official lineup
+ * retention cutoff (25. 10. 2026):
+ * - U + U (two forwards): must play together in the SAME attack trio (LK1-C1-PK1, LK2-C2-PK2, LK3-C3-PK3).
+ * - O + O (two defensemen): must play together in the SAME defense pair (LO1-PO1, LO2-PO2).
+ * - U + O (forward + defenseman): can combine whenever they score/assist each other in a match,
+ *   regardless of which forward line or defense pair they occupy.
  */
 export function calculateTeamChemistry(
   matches: Match[] = [],
@@ -289,168 +227,46 @@ export function calculateTeamChemistry(
   // 0. Resolve positions for all users
   const posByUserId = new Map<
     string,
-    { resolvedPosition: ResolvedPosition; shortLabel: string; explicitFieldPos?: string | null }
+    { resolvedPosition: ResolvedPosition; shortLabel: string }
   >();
   for (const u of users) {
     const info = resolvePlayerPosition(u, matches);
     posByUserId.set(u.id, {
       resolvedPosition: info.resolvedPosition,
       shortLabel: info.meta.shortLabel,
-      explicitFieldPos: u.fieldPosition || null,
     });
   }
 
-  // 1. Scan ALL matches (played and upcoming) that have a saved lineup to learn formation unit pairings
-  // pairKey -> { sameUnitCount, diffUnitCount, lastUnitTitle, lastUnitType }
-  const lineupPairStats = new Map<
+  // Filter matches strictly to those played on or after the lineup retention start date (25. 10. 2026)
+  const archivedPlayedMatches = [...matches]
+    .filter((m) => m && m.isPlayed && isMatchLineupArchived(m))
+    .sort((a, b) => {
+      const da = toJsDate(a.dateTime || a.date)?.getTime() || 0;
+      const db = toJsDate(b.dateTime || b.date)?.getTime() || 0;
+      return da - db;
+    });
+
+  // Track pair unit metadata across archived matches
+  const pairMetaMap = new Map<
     string,
     {
-      sameUnitCount: number;
-      diffUnitCount: number;
-      lastUnitTitle: string;
-      lastUnitType: 'attack' | 'defense';
+      unitType: 'attack' | 'defense';
+      formationLabel: string;
+      sameUnitGames: number;
+      isCrossUnitUO: boolean;
     }
   >();
 
-  const allMatchesSortedAsc = [...matches].sort((a, b) => {
-    const da = toJsDate(a.dateTime || a.date)?.getTime() || 0;
-    const db = toJsDate(b.dateTime || b.date)?.getTime() || 0;
-    return da - db;
-  });
-
-  for (const m of allMatchesSortedAsc) {
-    const units = extractMatchFormationUnits(m, users, usersById);
-    if (units.length === 0) continue;
-
-    // Map each player in this lineup to their unitId
-    const playerToUnit = new Map<string, ExtractedFormationUnit>();
-    for (const unit of units) {
-      for (const p of unit.players) {
-        playerToUnit.set(p.id, unit);
-      }
-    }
-
-    const lineupPlayers = Array.from(playerToUnit.keys());
-    for (let i = 0; i < lineupPlayers.length; i++) {
-      for (let j = i + 1; j < lineupPlayers.length; j++) {
-        const pA = lineupPlayers[i];
-        const pB = lineupPlayers[j];
-        const [id1, id2] = pA < pB ? [pA, pB] : [pB, pA];
-        const key = `${id1}:${id2}`;
-        const uA = playerToUnit.get(pA)!;
-        const uB = playerToUnit.get(pB)!;
-
-        const cur = lineupPairStats.get(key) || {
-          sameUnitCount: 0,
-          diffUnitCount: 0,
-          lastUnitTitle: uA.unitTitle,
-          lastUnitType: uA.unitType,
-        };
-
-        if (uA.unitId === uB.unitId) {
-          cur.sameUnitCount += 1;
-          cur.lastUnitTitle = uA.unitTitle;
-          cur.lastUnitType = uA.unitType;
-        } else {
-          cur.diffUnitCount += 1;
-        }
-        lineupPairStats.set(key, cur);
-      }
-    }
-  }
-
-  /**
-   * Determines whether two players can logically form a unit duo (either in an attack trio LK-C-PK or defense pair LO-PO).
-   * Returns null if they belong to incompatible units (e.g. Defenseman + Forward, or always separated in different lines).
-   */
-  const classifyLogicalPair = (
-    id1: string,
-    id2: string
-  ): {
-    unitType: 'attack' | 'defense';
-    formationLabel: string;
-    isVerifiedLineupPair: boolean;
-    sameUnitGames: number;
-  } | null => {
-    if (id1 === id2) return null;
-    const p1Pos = posByUserId.get(id1);
-    const p2Pos = posByUserId.get(id2);
-    if (!p1Pos || !p2Pos) return null;
-
-    // Goalies and non-playing members never form field duos
-    if (
-      p1Pos.resolvedPosition === 'goalie' ||
-      p1Pos.resolvedPosition === 'member' ||
-      p2Pos.resolvedPosition === 'goalie' ||
-      p2Pos.resolvedPosition === 'member'
-    ) {
-      return null;
-    }
-
-    const [firstId, secondId] = id1 < id2 ? [id1, id2] : [id2, id1];
-    const key = `${firstId}:${secondId}`;
-    const lStat = lineupPairStats.get(key);
-
-    // 1. If they have explicitly played in the SAME formation unit in a saved lineup:
-    if (lStat && lStat.sameUnitCount > 0) {
-      return {
-        unitType: lStat.lastUnitType,
-        formationLabel: lStat.lastUnitTitle,
-        isVerifiedLineupPair: true,
-        sameUnitGames: lStat.sameUnitCount,
-      };
-    }
-
-    // 2. If they have appeared together in saved lineups, but ONLY in DIFFERENT units (never in the same line/pair):
-    if (lStat && lStat.diffUnitCount > 0 && lStat.sameUnitCount === 0) {
-      return null;
-    }
-
-    // 3. Position-based unit compatibility (when not yet separated by a saved lineup):
-    const isP1Def = p1Pos.resolvedPosition === 'defense';
-    const isP2Def = p2Pos.resolvedPosition === 'defense';
-
-    // Defense + Forward cannot be in the same attack trio or defense pair!
-    if (isP1Def !== isP2Def) {
-      return null;
-    }
-
-    // Both are Defensemen -> Obranný pár (LO + PO)
-    if (isP1Def && isP2Def) {
-      return {
-        unitType: 'defense',
-        formationLabel: 'Obranný pár (LO + PO)',
-        isVerifiedLineupPair: false,
-        sameUnitGames: 0,
-      };
-    }
-
-    // Both are Forwards -> check that they aren't two locked Centers (since a trio has only 1 C and 2 Wings)
-    if (p1Pos.explicitFieldPos === 'center' && p2Pos.explicitFieldPos === 'center') {
-      return null;
-    }
-
-    const hasCenter =
-      p1Pos.resolvedPosition === 'center' || p2Pos.resolvedPosition === 'center';
-    return {
-      unitType: 'attack',
-      formationLabel: hasCenter ? 'Útočná lajna (C + KŘÍ)' : 'Útočná lajna (KŘÍ + KŘÍ)',
-      isVerifiedLineupPair: false,
-      sameUnitGames: 0,
-    };
-  };
-
-  // Directed maps for individual player summaries (all goals/assists)
+  // Directed maps for individual player summaries
   const individualAssistedByMap = new Map<string, Map<string, number>>();
   const individualAssistedToMap = new Map<string, Map<string, number>>();
   const goalsCountByPlayer = new Map<string, number>();
   const assistsCountByPlayer = new Map<string, number>();
 
-  // Formation-filtered directed maps (only between compatible unit partners)
+  // Valid duo goal counts: scorerId -> Map<assisterId, count>
   const unitAssistedByMap = new Map<string, Map<string, number>>();
 
-  // Pair co-appearances within compatible units:
-  // "idA:idB" -> { games, wins, losses, ties, lockdownGames, shutouts, totalOppGoals }
+  // Pair co-appearances: "id1:id2" -> stats
   const pairGamesMap = new Map<
     string,
     {
@@ -467,9 +283,7 @@ export function calculateTeamChemistry(
   const duoEventsMap = new Map<string, DuoGoalEvent[]>();
   const duoSharedMatchesMap = new Map<string, DuoSharedMatch[]>();
 
-  const playedMatches = allMatchesSortedAsc.filter((m) => m.isPlayed);
-
-  for (const match of playedMatches) {
+  for (const match of archivedPlayedMatches) {
     const isAcesTeam1 = /aces/i.test(match.team1 || '');
     const acesScore = isAcesTeam1 ? Number(match.team1Score ?? 0) : Number(match.team2Score ?? 0);
     const oppScore = isAcesTeam1 ? Number(match.team2Score ?? 0) : Number(match.team1Score ?? 0);
@@ -483,39 +297,61 @@ export function calculateTeamChemistry(
       ? matchDateObj.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'numeric', year: 'numeric' })
       : '';
 
-    // Check if this match has explicit formation units in match.lineup
     const matchUnits = extractMatchFormationUnits(match, users, usersById);
-    const hasMatchLineupUnits = matchUnits.length > 0;
-
-    // Map "id1:id2" -> unitTitle for this specific match if lineup is present
-    const matchSameUnitPairs = new Map<string, string>();
-    if (hasMatchLineupUnits) {
-      for (const unit of matchUnits) {
-        for (let i = 0; i < unit.players.length; i++) {
-          for (let j = i + 1; j < unit.players.length; j++) {
-            const pA = unit.players[i].id;
-            const pB = unit.players[j].id;
-            const [id1, id2] = pA < pB ? [pA, pB] : [pB, pA];
-            matchSameUnitPairs.set(`${id1}:${id2}`, unit.unitTitle);
-          }
-        }
+    const playerToUnit = new Map<string, ExtractedFormationUnit>();
+    for (const unit of matchUnits) {
+      for (const p of unit.players) {
+        playerToUnit.set(p.id, unit);
       }
     }
 
-    // Helper: were two players in the same logical unit in THIS match?
-    const arePlayersTogetherInThisMatch = (
+    /**
+     * Checks whether two players form a valid pair in THIS match:
+     * - U + U: must be in the SAME attack unit (1. útok, 2. útok, 3. útok)
+     * - O + O: must be in the SAME defense unit (1. obrana, 2. obrana)
+     * - U + O: one is in an attack unit and the other is in a defense unit (allowed across lines!)
+     */
+    const evaluateMatchPair = (
       idA: string,
       idB: string
-    ): { together: boolean; formationInMatch: string | null } => {
-      const [id1, id2] = idA < idB ? [idA, idB] : [idB, idA];
-      const key = `${id1}:${id2}`;
-      if (hasMatchLineupUnits) {
-        const unitTitle = matchSameUnitPairs.get(key);
-        return { together: Boolean(unitTitle), formationInMatch: unitTitle || null };
+    ): {
+      valid: boolean;
+      unitType: 'attack' | 'defense';
+      formationLabel: string;
+      isSameUnit: boolean;
+      isCrossUnitUO: boolean;
+    } | null => {
+      if (idA === idB) return null;
+      const uA = playerToUnit.get(idA);
+      const uB = playerToUnit.get(idB);
+      if (!uA || !uB) return null;
+
+      // Same unit (either same attack trio LK-C-PK or same defense pair LO-PO)
+      if (uA.unitId === uB.unitId) {
+        return {
+          valid: true,
+          unitType: uA.unitType,
+          formationLabel: uA.unitTitle,
+          isSameUnit: true,
+          isCrossUnitUO: false,
+        };
       }
-      const classification = classifyLogicalPair(id1, id2);
-      if (!classification) return { together: false, formationInMatch: null };
-      return { together: true, formationInMatch: classification.formationLabel };
+
+      // Cross-unit U + O (one in attack, one in defense)
+      if (uA.unitType !== uB.unitType) {
+        const attTitle = uA.unitType === 'attack' ? uA.unitTitle : uB.unitTitle;
+        const defTitle = uA.unitType === 'defense' ? uA.unitTitle : uB.unitTitle;
+        return {
+          valid: true,
+          unitType: 'attack',
+          formationLabel: `Spolupráce Ú + O (${attTitle} + ${defTitle})`,
+          isSameUnit: false,
+          isCrossUnitUO: true,
+        };
+      }
+
+      // Different units of the SAME type (e.g. 1. útok + 2. útok, or 1. obrana + 2. obrana) -> NOT a duo
+      return null;
     };
 
     // 1. Parse Goal + Assist events with situational context
@@ -544,7 +380,9 @@ export function calculateTeamChemistry(
     }).length;
 
     if (acesDetailedCount > 0) {
-      const sortedDetailed = [...detailedList].sort((a, b) => Number(a?.minute || 0) - Number(b?.minute || 0));
+      const sortedDetailed = [...detailedList].sort(
+        (a, b) => Number(a?.minute || 0) - Number(b?.minute || 0)
+      );
       let runningAces = 0;
       let runningOpp = 0;
 
@@ -620,7 +458,6 @@ export function calculateTeamChemistry(
       }
 
       if (scorerUser && assistUser && scorerUser.id !== assistUser.id) {
-        // Always record individual passing stats for personal career card
         if (!individualAssistedByMap.has(scorerUser.id)) {
           individualAssistedByMap.set(scorerUser.id, new Map());
         }
@@ -633,11 +470,8 @@ export function calculateTeamChemistry(
         const aMap = individualAssistedToMap.get(assistUser.id)!;
         aMap.set(scorerUser.id, (aMap.get(scorerUser.id) || 0) + 1);
 
-        // Check if this pair forms a valid logical unit duo in this match
-        const unitCheck = arePlayersTogetherInThisMatch(scorerUser.id, assistUser.id);
-        const pairClass = classifyLogicalPair(scorerUser.id, assistUser.id);
-
-        if (unitCheck.together && pairClass) {
+        const pairCheck = evaluateMatchPair(scorerUser.id, assistUser.id);
+        if (pairCheck && pairCheck.valid) {
           if (!unitAssistedByMap.has(scorerUser.id)) {
             unitAssistedByMap.set(scorerUser.id, new Map());
           }
@@ -680,23 +514,32 @@ export function calculateTeamChemistry(
             isOpeningGoal: pg.isOpeningGoal,
             isGoAheadGoal: pg.isGoAheadGoal,
             isTyingGoal: pg.isTyingGoal,
-            formationInMatch: unitCheck.formationInMatch,
+            formationInMatch: pairCheck.formationLabel,
           });
         }
       }
     }
 
-    // 2. Co-appearance tracking (only for pairs that were together in the same logical unit in this match)
-    const rosterUsers = getMatchAcesPlayers(match, users, usersById);
-    for (let i = 0; i < rosterUsers.length; i++) {
-      for (let j = i + 1; j < rosterUsers.length; j++) {
-        const uA = rosterUsers[i];
-        const uB = rosterUsers[j];
-        const unitCheck = arePlayersTogetherInThisMatch(uA.id, uB.id);
-        if (!unitCheck.together) continue;
+    // 2. Co-appearance tracking for players in the match lineup
+    const lineupPlayerIds = Array.from(playerToUnit.keys());
+    for (let i = 0; i < lineupPlayerIds.length; i++) {
+      for (let j = i + 1; j < lineupPlayerIds.length; j++) {
+        const pA = lineupPlayerIds[i];
+        const pB = lineupPlayerIds[j];
+        const pairCheck = evaluateMatchPair(pA, pB);
+        if (!pairCheck || !pairCheck.valid) continue;
 
-        const [firstId, secondId] = uA.id < uB.id ? [uA.id, uB.id] : [uB.id, uA.id];
+        const [firstId, secondId] = pA < pB ? [pA, pB] : [pB, pA];
         const key = `${firstId}:${secondId}`;
+
+        const prevMeta = pairMetaMap.get(key);
+        pairMetaMap.set(key, {
+          unitType: pairCheck.unitType,
+          formationLabel: pairCheck.formationLabel,
+          sameUnitGames: (prevMeta?.sameUnitGames || 0) + (pairCheck.isSameUnit ? 1 : 0),
+          isCrossUnitUO: pairCheck.isCrossUnitUO,
+        });
+
         const cur = pairGamesMap.get(key) || {
           games: 0,
           wins: 0,
@@ -735,28 +578,33 @@ export function calculateTeamChemistry(
           p1Assists: matchPlayerAssists.get(firstId) || 0,
           p2Goals: matchPlayerGoals.get(secondId) || 0,
           p2Assists: matchPlayerAssists.get(secondId) || 0,
-          formationInMatch: unitCheck.formationInMatch,
+          formationInMatch: pairCheck.formationLabel,
         });
       }
     }
   }
 
-  // Helper to construct a full DynamicDuoRecord for a valid pair (id1 < id2)
+  // Helper to construct a full DynamicDuoRecord
   const buildDuoRecord = (id1: string, id2: string): DynamicDuoRecord | null => {
     const u1 = usersById.get(id1);
     const u2 = usersById.get(id2);
     if (!u1 || !u2) return null;
 
-    const classification = classifyLogicalPair(id1, id2);
-    if (!classification) return null;
-
     const duoKey = `${id1}:${id2}`;
+    const meta = pairMetaMap.get(duoKey);
+    if (!meta) return null;
+
     const p1Pos = posByUserId.get(id1)!;
     const p2Pos = posByUserId.get(id2)!;
 
     const p1GoalsFromP2 = unitAssistedByMap.get(id1)?.get(id2) || 0;
     const p2GoalsFromP1 = unitAssistedByMap.get(id2)?.get(id1) || 0;
     const totalCombinedGoals = p1GoalsFromP2 + p2GoalsFromP1;
+
+    // Cross-unit U+O pairs ONLY form a duo if they actually combined for at least 1 goal!
+    if (meta.isCrossUnitUO && totalCombinedGoals === 0) {
+      return null;
+    }
 
     const pairGames = pairGamesMap.get(duoKey) || {
       games: 0,
@@ -826,10 +674,10 @@ export function calculateTeamChemistry(
 
     return {
       duoKey,
-      unitType: classification.unitType,
-      formationLabel: classification.formationLabel,
-      isVerifiedLineupPair: classification.isVerifiedLineupPair,
-      sameUnitGames: classification.sameUnitGames,
+      unitType: meta.unitType,
+      formationLabel: meta.formationLabel,
+      isVerifiedLineupPair: true,
+      sameUnitGames: meta.sameUnitGames,
       player1Id: u1.id,
       player1Name: u1.name,
       player1Jersey: u1.jerseyNumber ?? null,
@@ -870,48 +718,30 @@ export function calculateTeamChemistry(
     };
   };
 
-  // 3. Collect all candidate pairs (from unit goals, co-appearances, or saved lineups)
-  const candidateKeys = new Set<string>();
-  for (const key of pairGamesMap.keys()) candidateKeys.add(key);
-  for (const key of lineupPairStats.keys()) candidateKeys.add(key);
-  for (const [sId, aMap] of unitAssistedByMap.entries()) {
-    for (const aId of aMap.keys()) {
-      const [id1, id2] = sId < aId ? [sId, aId] : [aId, sId];
-      candidateKeys.add(`${id1}:${id2}`);
-    }
-  }
-
   const attackDuosList: DynamicDuoRecord[] = [];
   const defensePairsList: DynamicDuoRecord[] = [];
   const duoMap = new Map<string, DynamicDuoRecord>();
 
-  for (const key of candidateKeys) {
+  for (const key of pairMetaMap.keys()) {
     const [id1, id2] = key.split(':');
     const rec = buildDuoRecord(id1, id2);
     if (!rec) continue;
     duoMap.set(key, rec);
 
     if (rec.unitType === 'attack') {
-      // Attack duo must either have combined goals OR be an active lineup trio pair with shared games
-      if (rec.totalCombinedGoals > 0 || (rec.isVerifiedLineupPair && rec.gamesTogether > 0)) {
+      if (rec.totalCombinedGoals > 0 || rec.sameUnitGames > 0) {
         attackDuosList.push(rec);
       }
     } else if (rec.unitType === 'defense') {
-      // Defense pair must have played together or be an active lineup defense pair
-      if (rec.gamesTogether >= 2 || rec.isVerifiedLineupPair || rec.totalCombinedGoals > 0) {
+      if (rec.sameUnitGames > 0 || rec.totalCombinedGoals > 0) {
         defensePairsList.push(rec);
       }
     }
   }
 
-  // Sort Attack Duos:
-  // 1. Verified lineup pairs with goals first, then totalCombinedGoals DESC, then combinedPoints DESC, then winRatePct DESC
   attackDuosList.sort((a, b) => {
     if (b.totalCombinedGoals !== a.totalCombinedGoals) {
       return b.totalCombinedGoals - a.totalCombinedGoals;
-    }
-    if (a.isVerifiedLineupPair !== b.isVerifiedLineupPair) {
-      return a.isVerifiedLineupPair ? -1 : 1;
     }
     if (b.combinedPointsInSharedGames !== a.combinedPointsInSharedGames) {
       return b.combinedPointsInSharedGames - a.combinedPointsInSharedGames;
@@ -922,15 +752,7 @@ export function calculateTeamChemistry(
     return b.gamesTogether - a.gamesTogether;
   });
 
-  // Sort Defense Pairs:
-  // 1. Verified lineup pairs first, then lockdownGamesTogether DESC, then totalCombinedGoals DESC, then combinedPointsInSharedGames DESC, then winRatePct DESC
   defensePairsList.sort((a, b) => {
-    if (a.isVerifiedLineupPair !== b.isVerifiedLineupPair) {
-      return a.isVerifiedLineupPair ? -1 : 1;
-    }
-    if (b.sameUnitGames !== a.sameUnitGames) {
-      return b.sameUnitGames - a.sameUnitGames;
-    }
     if (b.totalCombinedGoals !== a.totalCombinedGoals) {
       return b.totalCombinedGoals - a.totalCombinedGoals;
     }
@@ -946,23 +768,17 @@ export function calculateTeamChemistry(
     return b.gamesTogether - a.gamesTogether;
   });
 
-  // 4. Build per-player chemistry summary
+  // Build per-player chemistry summary (from archived matches)
   const byPlayerId = new Map<string, PlayerChemistrySummary>();
 
   for (const u of users) {
     const totalGoals = goalsCountByPlayer.get(u.id) || 0;
     const totalAssists = assistsCountByPlayer.get(u.id) || 0;
 
-    // Favorite playmaker (prefer compatible unit partner if available, otherwise overall)
     let favoritePlaymaker: ChemistryPartnerStat | null = null;
     const myAssisters = individualAssistedByMap.get(u.id);
     if (myAssisters && myAssisters.size > 0) {
-      const sorted = Array.from(myAssisters.entries()).sort((a, b) => {
-        const aCompat = classifyLogicalPair(u.id, a[0]) ? 1 : 0;
-        const bCompat = classifyLogicalPair(u.id, b[0]) ? 1 : 0;
-        if (b[1] !== a[1]) return b[1] - a[1];
-        return bCompat - aCompat;
-      });
+      const sorted = Array.from(myAssisters.entries()).sort((a, b) => b[1] - a[1]);
       const [bestPartnerId, count] = sorted[0];
       const partner = usersById.get(bestPartnerId);
       if (partner && count > 0) {
@@ -977,16 +793,10 @@ export function calculateTeamChemistry(
       }
     }
 
-    // Favorite target
     let favoriteTarget: ChemistryPartnerStat | null = null;
     const myTargets = individualAssistedToMap.get(u.id);
     if (myTargets && myTargets.size > 0) {
-      const sorted = Array.from(myTargets.entries()).sort((a, b) => {
-        const aCompat = classifyLogicalPair(u.id, a[0]) ? 1 : 0;
-        const bCompat = classifyLogicalPair(u.id, b[0]) ? 1 : 0;
-        if (b[1] !== a[1]) return b[1] - a[1];
-        return bCompat - aCompat;
-      });
+      const sorted = Array.from(myTargets.entries()).sort((a, b) => b[1] - a[1]);
       const [bestTargetId, count] = sorted[0];
       const partner = usersById.get(bestTargetId);
       if (partner && count > 0) {
@@ -1001,13 +811,11 @@ export function calculateTeamChemistry(
       }
     }
 
-    // Best Talisman Partner (within compatible unit pairs, min 3 games together)
     let bestTalismanPartner: WinRatePartnerStat | null = null;
     const candidateTalismans: WinRatePartnerStat[] = [];
 
     for (const other of users) {
       if (other.id === u.id) continue;
-      if (!classifyLogicalPair(u.id, other.id)) continue;
       const [id1, id2] = u.id < other.id ? [u.id, other.id] : [other.id, u.id];
       const pairStat = pairGamesMap.get(`${id1}:${id2}`);
       if (pairStat && pairStat.games >= 3) {
@@ -1031,18 +839,16 @@ export function calculateTeamChemistry(
       bestTalismanPartner = candidateTalismans[0];
     }
 
-    // Duo goals / synergy map for LineupBuilder
     const duoGoalsByPartnerId: Record<string, number> = {};
     for (const other of users) {
       if (other.id === u.id) continue;
       const [id1, id2] = u.id < other.id ? [u.id, other.id] : [other.id, u.id];
       const d = duoMap.get(`${id1}:${id2}`);
       if (d) {
-        if (d.unitType === 'attack' && d.totalCombinedGoals > 0) {
+        if (d.totalCombinedGoals > 0) {
           duoGoalsByPartnerId[other.id] = d.totalCombinedGoals;
-        } else if (d.unitType === 'defense' && (d.totalCombinedGoals > 0 || d.lockdownGamesTogether > 0)) {
-          // For defense pairs in LineupBuilder, expose combined goals or lockdown synergy
-          duoGoalsByPartnerId[other.id] = d.totalCombinedGoals > 0 ? d.totalCombinedGoals : d.lockdownGamesTogether;
+        } else if (d.unitType === 'defense' && d.lockdownGamesTogether > 0) {
+          duoGoalsByPartnerId[other.id] = d.lockdownGamesTogether;
         }
       }
     }
