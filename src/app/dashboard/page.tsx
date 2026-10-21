@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { MapPin, Users, Trophy, Award, BarChart, Pencil, Check, X, Flame, Shield, Plus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal, FileText, View, Disc, Cake, Minus, ChevronDown, ListOrdered, CalendarDays, ChevronUp, MessageSquarePlus, Goal, Calendar, Star, Clock, Archive, ShieldAlert, RefreshCw, DatabaseBackup } from "lucide-react"
+import { MapPin, Users, Trophy, Award, BarChart, Pencil, Check, X, Flame, Shield, Plus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal, FileText, View, Disc, Cake, Minus, ChevronDown, ListOrdered, CalendarDays, ChevronUp, MessageSquarePlus, Goal, Calendar, Star, Clock, Archive, ShieldAlert, RefreshCw, DatabaseBackup, Sparkles } from "lucide-react"
 import { cn, formatName, isGoaliePlayer, areNamesMatching } from '@/lib/utils'
 import { toJsDate } from '@/lib/dates'
 import { BirthdaysCard, rosterService } from '@/features/roster'
@@ -47,6 +47,9 @@ import {
   AwaitingResultCard,
   PostMatchSection,
   getMvpVotingStatus,
+  calculateMatchStarsResults,
+  MatchAwardCelebrationModal,
+  type CelebrationAwardData,
   countPlayerCareerMvpAwards,
   countPlayerCareerStars,
   matchesService,
@@ -266,6 +269,9 @@ function DashboardPageContent() {
   const [isCareerModalOpen, setIsCareerModalOpen] = useState(false);
   const [isStarsModalOpen, setIsStarsModalOpen] = useState(false);
   const [selectedVotingMatch, setSelectedVotingMatch] = useState<Match | null>(null);
+
+  const [celebrationAward, setCelebrationAward] = useState<CelebrationAwardData | null>(null);
+  const [isCelebrationModalOpen, setIsCelebrationModalOpen] = useState(false);
 
   const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
   const { data: userProfile, isLoading: isUserProfileLoading } = useDoc<UserProfile>(userDocRef);
@@ -1443,6 +1449,157 @@ function DashboardPageContent() {
     setIsStarsModalOpen(true);
   }, [postMatchData, activeMvpMatch, user?.uid, attendancesByMatch]);
 
+  // Spuštění simulace gratulačního okna pro MVP / Hvězdu zápasu
+  const handleTriggerAwardSimulation = (rank: 1 | 2 | 3 = 1) => {
+    const sampleMatch = (recentPlayedMatches[0] as any) || allMatches?.find((m) => m.isPlayed);
+    const opponent = sampleMatch ? getMatchDetails(sampleMatch).opponent : 'HC Výletníci';
+    const isTeam1Aces = sampleMatch ? sampleMatch.team1?.toLowerCase().includes('aces') : true;
+    const scoreAces = sampleMatch ? (isTeam1Aces ? sampleMatch.team1Score : sampleMatch.team2Score) : 5;
+    const scoreOpponent = sampleMatch ? (isTeam1Aces ? sampleMatch.team2Score : sampleMatch.team1Score) : 2;
+
+    const rankMockData = {
+      1: { points: 14, star1Count: 4, star2Count: 1, star3Count: 0, goals: 2, assists: 1 },
+      2: { points: 8, star1Count: 1, star2Count: 2, star3Count: 1, goals: 1, assists: 2 },
+      3: { points: 5, star1Count: 0, star2Count: 2, star3Count: 1, goals: 1, assists: 0 },
+    }[rank];
+
+    setCelebrationAward({
+      matchId: sampleMatch?.id || 'simulated-match',
+      matchOpponent: opponent,
+      matchDate: sampleMatch?.dateTime || new Date(),
+      scoreAces,
+      scoreOpponent,
+      isWin: Number(scoreAces) > Number(scoreOpponent),
+      awardRank: rank,
+      isTied: false,
+      awardPoints: rankMockData.points,
+      star1Count: rankMockData.star1Count,
+      star2Count: rankMockData.star2Count,
+      star3Count: rankMockData.star3Count,
+      playerName: userProfile?.name || 'Tomáš Konečný',
+      playerJersey: userProfile?.jerseyNumber ?? 66,
+      playerPhotoURL: userProfile?.photoURL || null,
+      playerPosition: isGoaliePlayer(userProfile) ? 'Brankář' : 'Útočník',
+      matchGoals: isGoaliePlayer(userProfile) ? undefined : rankMockData.goals,
+      matchAssists: isGoaliePlayer(userProfile) ? undefined : rankMockData.assists,
+      matchSaves: isGoaliePlayer(userProfile) ? 28 : undefined,
+      isShutout: isGoaliePlayer(userProfile) && scoreOpponent === 0,
+      isSimulation: true,
+    });
+    setIsCelebrationModalOpen(true);
+  };
+
+  const handleCloseCelebration = () => {
+    if (celebrationAward && user?.uid && !celebrationAward.isSimulation) {
+      const storageKey = `aces_award_modal_seen_${user.uid}_${celebrationAward.matchId}_${celebrationAward.awardRank}`;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(storageKey, new Date().toISOString());
+      }
+    }
+    setIsCelebrationModalOpen(false);
+  };
+
+  const handleResetAwardSeenHistory = () => {
+    if (typeof window !== 'undefined') {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('aces_award_modal_seen_')) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach((k) => localStorage.removeItem(k));
+      toast({
+        title: 'Historie zhlédnutí vymazána',
+        description: 'Při dalším spuštění aplikace se gratulace otevře jako při prvním otevření po ukončení hlasování.',
+      });
+    }
+  };
+
+  // Možnost okamžitého vyvolání simulace ocenění přes URL parametr ?simulateAward=1 (nebo 2, 3, mvp)
+  useEffect(() => {
+    const simParam = searchParams.get('simulateAward');
+    if (simParam) {
+      const rankNum = simParam === '2' ? 2 : (simParam === '3' ? 3 : 1);
+      const timer = setTimeout(() => {
+        handleTriggerAwardSimulation(rankNum as 1 | 2 | 3);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [searchParams]);
+
+  // Automatické vyskočení gratulačního okna pro MVP / Hvězdy zápasu po skončení hlasování
+  // (pouze při 1. otevření aplikace po uzavření hlasování daného zápasu)
+  useEffect(() => {
+    if (!user?.uid || !allMatches || allMatches.length === 0) return;
+
+    const nowMs = Date.now();
+    const seasonStartMs = new Date('2026-09-01T00:00:00').getTime();
+
+    // Vybereme odehrané zápasy od začátku sezóny seřazené od nejnovějšího
+    const sortedMatches = [...allMatches]
+      .filter((m) => {
+        const mTime = toJsDate(m.dateTime || m.date).getTime();
+        return mTime >= seasonStartMs;
+      })
+      .sort((a, b) => toJsDate(b.dateTime || b.date).getTime() - toJsDate(a.dateTime || a.date).getTime());
+
+    for (const m of sortedMatches) {
+      const votingStatus = getMvpVotingStatus(m, nowMs);
+      // Hlasování musí být kompletně uzavřeno!
+      if (votingStatus.status !== 'closed') continue;
+
+      const starsResults = calculateMatchStarsResults(m, usersMap);
+      if (starsResults.totalPoints === 0) continue;
+
+      // Zkontrolujeme, zda je přihlášený uživatel mezi vyhlášenými hvězdami (TOP 3)
+      const myStanding = starsResults.standings.find((s) => s.candidateId === user.uid);
+      if (!myStanding || myStanding.rank > 3 || myStanding.points === 0) continue;
+
+      const awardRank = (myStanding.rank <= 3 ? myStanding.rank : 3) as 1 | 2 | 3;
+      const storageKey = `aces_award_modal_seen_${user.uid}_${m.id}_${awardRank}`;
+
+      // Zkontrolujeme localStorage - pokud už uživatel tuto gratulaci viděl, nepřeskakujeme dál
+      if (typeof window !== 'undefined' && localStorage.getItem(storageKey)) {
+        continue;
+      }
+
+      // Nalezena neoznámená hvězda pro aktuálního uživatele!
+      const details = getMatchDetails(m as any);
+      const isTeam1Aces = m.team1.toLowerCase().includes('aces');
+      const scoreAces = isTeam1Aces ? m.team1Score : m.team2Score;
+      const scoreOpponent = isTeam1Aces ? m.team2Score : m.team1Score;
+      const isWin = scoreAces !== undefined && scoreOpponent !== undefined ? scoreAces > scoreOpponent : undefined;
+
+      setCelebrationAward({
+        matchId: m.id,
+        matchOpponent: details.opponent,
+        matchDate: m.dateTime || m.date,
+        scoreAces,
+        scoreOpponent,
+        isWin,
+        awardRank,
+        isTied: Boolean(myStanding.isTied),
+        awardPoints: myStanding.points,
+        star1Count: myStanding.star1Count,
+        star2Count: myStanding.star2Count,
+        star3Count: myStanding.star3Count,
+        playerName: userProfile?.name || myStanding.name,
+        playerJersey: userProfile?.jerseyNumber ?? myStanding.jerseyNumber ?? null,
+        playerPhotoURL: userProfile?.photoURL || myStanding.photoURL || null,
+        playerPosition: myStanding.playerType === 'goalie' ? 'Brankář' : 'Hráč v poli',
+        matchGoals: myStanding.matchGoals,
+        matchAssists: myStanding.matchAssists,
+        matchSaves: myStanding.matchSaves,
+        isShutout: myStanding.isShutout,
+        tieBreakerReason: myStanding.tieBreakerReason,
+        isSimulation: false,
+      });
+      setIsCelebrationModalOpen(true);
+      break;
+    }
+  }, [allMatches, user?.uid, usersMap, userProfile]);
+
   const renderMatchCard = (m: Match) => {
     const attStatus = userAttendancesWithOptimistic.get(m.id)?.status;
     const matchAttendees = attendancesByMatch.get(m.id) || [];
@@ -1585,6 +1742,16 @@ function DashboardPageContent() {
           <Award className="text-primary h-4.5 w-4.5" />
           Poslední zápas & MVP
         </h2>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 text-xs font-semibold border-amber-500/40 text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 shrink-0"
+          onClick={() => handleTriggerAwardSimulation(1)}
+          title="Vyzkoušet gratulační okno pro vyhlášené MVP / Hvězdy zápasu"
+        >
+          <Sparkles className="h-3 w-3 mr-1 text-amber-500" />
+          Simulovat gratulaci
+        </Button>
       </div>
       <PostMatchSection
         match={postMatchData.match}
@@ -2373,16 +2540,28 @@ function DashboardPageContent() {
               </div>
             </div>
 
-            {/* Tlačítko kariérní karty */}
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 text-xs font-semibold border-primary/40 text-primary hover:bg-primary/10 hover:text-primary shrink-0"
-              onClick={() => handleOpenCareerModal(user.uid)}
-            >
-              <Trophy className="h-3.5 w-3.5 mr-1.5 text-primary" />
-              Kariérní karta
-            </Button>
+            {/* Tlačítka kariérní karty & simulace */}
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs font-semibold border-amber-500/40 text-amber-500 hover:bg-amber-500/10 hover:text-amber-400 shrink-0"
+                onClick={() => handleTriggerAwardSimulation(1)}
+                title="Vyzkoušet gratulační okno pro vyhlášené MVP / Hvězdu zápasu"
+              >
+                <Sparkles className="h-3.5 w-3.5 mr-1.5 text-amber-500" />
+                Simulace MVP
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs font-semibold border-primary/40 text-primary hover:bg-primary/10 hover:text-primary shrink-0"
+                onClick={() => handleOpenCareerModal(user.uid)}
+              >
+                <Trophy className="h-3.5 w-3.5 mr-1.5 text-primary" />
+                Kariérní karta
+              </Button>
+            </div>
           </div>
         </div>
       </Card>
@@ -2608,6 +2787,14 @@ function DashboardPageContent() {
           }}
         />
       )}
+
+      <MatchAwardCelebrationModal
+        isOpen={isCelebrationModalOpen}
+        onClose={handleCloseCelebration}
+        awardData={celebrationAward}
+        onSimulateRank={handleTriggerAwardSimulation}
+        onResetSeenHistory={handleResetAwardSeenHistory}
+      />
     </div>
   );
 }
