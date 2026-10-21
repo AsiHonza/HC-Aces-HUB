@@ -167,12 +167,14 @@ function getAwardTheme(awardData: CelebrationAwardData) {
     return {
       tierName: awardData.isTied ? '1. Hvězda (Dělená) & MVP' : '1. Hvězda & Hráč zápasu (MVP)',
       badgeClass: 'bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-black border-amber-400/50 shadow-md',
-      glowClass: 'from-amber-500/25 via-yellow-500/10 to-transparent',
-      borderClass: 'border-amber-500/50',
+      glowClass: 'from-amber-500/20 via-yellow-500/10 to-transparent',
+      borderClass: 'border-amber-500/40',
       ringClass: 'border-amber-400 ring-4 ring-amber-400/20 shadow-amber-500/30',
       accentText: 'text-amber-500',
-      headline: 'Gratulujeme k 1. hvězdě & MVP! 🏆',
-      quote: 'Kabina tě zvolila nejlepším hráčem zápasu! Skvělá práce a nasazení na ledě, jen tak dál!',
+      headline: awardData.isTied
+        ? 'Byl jsi zvolen dělenou 1. hvězdou zápasu (MVP)!'
+        : 'Byl jsi zvolen první hvězdou zápasu (MVP)!',
+      subline: 'Kabina tě ocenila jako nejlepšího hráče utkání. Skvělá práce a nasazení na ledě!',
       starsCount: 3,
       starColor: 'fill-amber-400 text-amber-400',
     };
@@ -181,12 +183,12 @@ function getAwardTheme(awardData: CelebrationAwardData) {
     return {
       tierName: '2. Hvězda zápasu',
       badgeClass: 'bg-gradient-to-r from-slate-200 via-slate-100 to-slate-300 text-slate-900 border-slate-300 shadow-md',
-      glowClass: 'from-slate-300/25 via-slate-400/10 to-transparent',
+      glowClass: 'from-slate-300/20 via-slate-400/10 to-transparent',
       borderClass: 'border-slate-400/40',
       ringClass: 'border-slate-300 ring-4 ring-slate-300/20 shadow-slate-300/30',
       accentText: 'text-slate-300',
-      headline: 'Skvělá práce! Stal ses 2. hvězdou! 🥈',
-      quote: 'Tým ocenil tvůj bojovný výkon a hlasy z kabiny tě vynesly na pódium mezi nejlepší hráče utkání!',
+      headline: 'Byl jsi zvolen druhou hvězdou zápasu!',
+      subline: 'Tým ocenil tvůj bojovný výkon a hlasy z kabiny tě vynesly mezi nejlepší hráče utkání.',
       starsCount: 2,
       starColor: 'fill-slate-300 text-slate-300',
     };
@@ -194,12 +196,12 @@ function getAwardTheme(awardData: CelebrationAwardData) {
   return {
     tierName: '3. Hvězda zápasu',
     badgeClass: 'bg-gradient-to-r from-amber-700 via-amber-600 to-amber-800 text-white border-amber-700/50 shadow-md',
-    glowClass: 'from-amber-700/25 via-amber-800/10 to-transparent',
+    glowClass: 'from-amber-700/20 via-amber-800/10 to-transparent',
     borderClass: 'border-amber-700/40',
     ringClass: 'border-amber-700 ring-4 ring-amber-700/20 shadow-amber-700/30',
     accentText: 'text-amber-600 dark:text-amber-400',
-    headline: 'Gratulujeme ke 3. hvězdě zápasu! 🥉',
-    quote: 'Kluci ocenili tvůj poctivý přístup a přínos pro tým. Zisk hvězdy v silné konkurenci kabiny!',
+    headline: 'Byl jsi zvolen třetí hvězdou zápasu!',
+    subline: 'Kluci ocenili tvůj poctivý přístup a přínos pro celý tým v silné konkurenci kabiny.',
     starsCount: 1,
     starColor: 'fill-amber-600 text-amber-600',
   };
@@ -245,14 +247,14 @@ export function MatchAwardCelebrationModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-md w-[92vw] sm:w-full p-0 overflow-hidden max-h-[92vh] overflow-y-auto border-2 bg-card shadow-2xl">
+      <DialogContent className="max-w-md w-[92vw] sm:w-full p-0 overflow-hidden max-h-[92vh] overflow-y-auto rounded-3xl border border-border/70 bg-card/95 shadow-2xl backdrop-blur-sm">
         <ConfettiCanvas active={isOpen} />
 
         {/* Simulátor navigační lišta (zobrazena pouze při simulaci nebo pro testování) */}
         {awardData.isSimulation && (
-          <div className="bg-muted/90 border-b px-3 py-2 flex flex-wrap items-center justify-between gap-1.5 z-30 relative text-[11px]">
-            <span className="font-bold text-muted-foreground flex items-center gap-1">
-              <Sparkles className="h-3 w-3 text-amber-500" />
+          <div className="bg-muted/70 backdrop-blur-xs border-b border-border/60 px-3.5 py-2 flex flex-wrap items-center justify-between gap-1.5 z-30 relative text-[11px]">
+            <span className="font-semibold text-muted-foreground flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5 text-amber-500" />
               Režim simulace:
             </span>
             <div className="flex items-center gap-1">
@@ -260,10 +262,10 @@ export function MatchAwardCelebrationModal({
                 type="button"
                 onClick={() => onSimulateRank?.(1)}
                 className={cn(
-                  'px-2 py-0.5 rounded text-[10px] font-bold transition-all',
+                  'px-2.5 py-1 rounded-full text-[11px] font-bold transition-all',
                   isRank1
                     ? 'bg-amber-500 text-black shadow-xs font-black'
-                    : 'bg-background hover:bg-muted text-muted-foreground'
+                    : 'bg-background/80 hover:bg-muted text-muted-foreground'
                 )}
               >
                 1. Hvězda
@@ -272,10 +274,10 @@ export function MatchAwardCelebrationModal({
                 type="button"
                 onClick={() => onSimulateRank?.(2)}
                 className={cn(
-                  'px-2 py-0.5 rounded text-[10px] font-bold transition-all',
+                  'px-2.5 py-1 rounded-full text-[11px] font-bold transition-all',
                   isRank2
-                    ? 'bg-slate-300 text-black shadow-xs font-black'
-                    : 'bg-background hover:bg-muted text-muted-foreground'
+                    ? 'bg-slate-300 text-slate-900 shadow-xs font-black'
+                    : 'bg-background/80 hover:bg-muted text-muted-foreground'
                 )}
               >
                 2. Hvězda
@@ -284,10 +286,10 @@ export function MatchAwardCelebrationModal({
                 type="button"
                 onClick={() => onSimulateRank?.(3)}
                 className={cn(
-                  'px-2 py-0.5 rounded text-[10px] font-bold transition-all',
+                  'px-2.5 py-1 rounded-full text-[11px] font-bold transition-all',
                   isRank3
                     ? 'bg-amber-700 text-white shadow-xs font-black'
-                    : 'bg-background hover:bg-muted text-muted-foreground'
+                    : 'bg-background/80 hover:bg-muted text-muted-foreground'
                 )}
               >
                 3. Hvězda
@@ -297,9 +299,9 @@ export function MatchAwardCelebrationModal({
                   type="button"
                   onClick={onResetSeenHistory}
                   title="Resetovat historii zhlédnutí pro reálné testování"
-                  className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-background transition-all"
+                  className="p-1.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-background/80 transition-all ml-1"
                 >
-                  <RotateCcw className="h-3 w-3" />
+                  <RotateCcw className="h-3.5 w-3.5" />
                 </button>
               )}
             </div>
@@ -309,12 +311,12 @@ export function MatchAwardCelebrationModal({
         {/* HORNÍ ZÁHLAVÍ: SVĚTELNÁ ZÁŘE A ODZNAK OCENĚNÍ */}
         <div
           className={cn(
-            'relative pt-7 pb-4 px-4 text-center bg-gradient-to-b flex flex-col items-center justify-center',
+            'relative pt-7 pb-3 px-6 text-center bg-gradient-to-b flex flex-col items-center justify-center',
             theme.glowClass
           )}
         >
           {/* Hvězdy dekorace */}
-          <div className="flex items-center gap-1 mb-2 animate-bounce">
+          <div className="flex items-center gap-1.5 mb-2.5">
             {Array.from({ length: theme.starsCount }).map((_, idx) => (
               <Star
                 key={idx}
@@ -323,13 +325,13 @@ export function MatchAwardCelebrationModal({
             ))}
           </div>
 
-          <Badge className={cn('text-xs font-black uppercase tracking-wider px-3.5 py-1 mb-3.5', theme.badgeClass)}>
+          <Badge className={cn('text-xs font-bold uppercase tracking-wider px-4 py-1 mb-3.5 rounded-full shadow-xs', theme.badgeClass)}>
             {isRank1 ? <Trophy className="h-3.5 w-3.5 mr-1.5 shrink-0" /> : <Award className="h-3.5 w-3.5 mr-1.5 shrink-0" />}
             {theme.tierName}
           </Badge>
 
           {/* AVATAR HRÁČE */}
-          <div className="relative mb-2.5">
+          <div className="relative mb-2">
             <Avatar className={cn('h-20 w-20 border-4 shadow-xl transition-transform hover:scale-105', theme.ringClass)}>
               <AvatarImage src={awardData.playerPhotoURL || undefined} alt={awardData.playerName} />
               <AvatarFallback className="font-headline font-black text-xl">
@@ -355,17 +357,22 @@ export function MatchAwardCelebrationModal({
         </div>
 
         {/* TĚLO MODALU: GRATULACE A KONTEXT ZÁPASU */}
-        <div className="px-5 pb-5 pt-1 space-y-4">
-          <DialogDescription className="text-center text-xs sm:text-sm text-foreground/90 font-medium px-2 leading-relaxed">
-            {theme.quote}
-          </DialogDescription>
+        <div className="px-6 pb-6 pt-1 space-y-4">
+          <div className="text-center px-2 space-y-1">
+            <p className="text-sm sm:text-base font-bold text-foreground">
+              {theme.headline}
+            </p>
+            <DialogDescription className="text-xs sm:text-sm text-muted-foreground font-normal leading-relaxed">
+              {theme.subline}
+            </DialogDescription>
+          </div>
 
           {/* KARTA ZÁPASU & BODY HLASOVÁNÍ */}
-          <div className="rounded-xl bg-muted/40 border border-border/70 p-3.5 space-y-2.5 text-xs shadow-xs">
+          <div className="rounded-2xl bg-muted/30 border border-border/60 p-4 space-y-3 text-xs shadow-xs">
             {/* Soupeř a výsledek */}
-            <div className="flex items-center justify-between gap-2 border-b border-border/50 pb-2">
+            <div className="flex items-center justify-between gap-2 border-b border-border/50 pb-2.5">
               <div className="min-w-0">
-                <span className="text-[10px] uppercase font-bold text-muted-foreground block">Utkání</span>
+                <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block">Utkání</span>
                 <span className="font-bold text-foreground truncate block text-sm">
                   HC Aces vs {awardData.matchOpponent}
                 </span>
@@ -378,10 +385,10 @@ export function MatchAwardCelebrationModal({
                   {awardData.isWin !== undefined && (
                     <span
                       className={cn(
-                        'text-[9px] font-black uppercase px-1.5 py-0.2 rounded inline-block',
+                        'text-[9px] font-black uppercase px-2 py-0.5 rounded-full inline-block',
                         awardData.isWin
-                          ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
-                          : 'bg-rose-500/20 text-rose-600 dark:text-rose-400'
+                          ? 'bg-emerald-500/20 text-emerald-500'
+                          : 'bg-rose-500/20 text-rose-500'
                       )}
                     >
                       {awardData.isWin ? 'Výhra' : 'Prohra'}
@@ -394,16 +401,16 @@ export function MatchAwardCelebrationModal({
             {/* Datum a detaily bodování */}
             <div className="grid grid-cols-2 gap-2 text-[11px] pt-0.5">
               <div>
-                <span className="text-muted-foreground block text-[10px]">Hlasování kabiny</span>
+                <span className="text-muted-foreground block text-[10px] uppercase tracking-wider font-semibold">Hlasování kabiny</span>
                 <span className="font-extrabold text-foreground tabular-nums flex items-center gap-1 mt-0.5">
-                  <Star className="h-3 w-3 text-amber-500 fill-amber-500" />
+                  <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
                   {awardData.awardPoints} bodů
                 </span>
                 <span className="text-[10px] text-muted-foreground">
                   {[
-                    awardData.star1Count ? `${awardData.star1Count}x 1.` : null,
-                    awardData.star2Count ? `${awardData.star2Count}x 2.` : null,
-                    awardData.star3Count ? `${awardData.star3Count}x 3.` : null,
+                    awardData.star1Count ? `${awardData.star1Count}× 1.` : null,
+                    awardData.star2Count ? `${awardData.star2Count}× 2.` : null,
+                    awardData.star3Count ? `${awardData.star3Count}× 3.` : null,
                   ]
                     .filter(Boolean)
                     .join(' • ') || 'Vyhlášeno kabinou'}
@@ -412,7 +419,7 @@ export function MatchAwardCelebrationModal({
 
               {/* Zápasový výkon hráče */}
               <div className="text-right">
-                <span className="text-muted-foreground block text-[10px]">Tvůj výkon v zápase</span>
+                <span className="text-muted-foreground block text-[10px] uppercase tracking-wider font-semibold">Tvůj výkon v zápase</span>
                 {awardData.matchGoals !== undefined || awardData.matchAssists !== undefined ? (
                   <span className="font-extrabold text-foreground tabular-nums block mt-0.5">
                     {awardData.matchGoals || 0} G + {awardData.matchAssists || 0} A
@@ -440,13 +447,12 @@ export function MatchAwardCelebrationModal({
           </div>
 
           {/* AKČNÍ TLAČÍTKO */}
-          <div className="pt-2">
+          <div className="pt-1">
             <Button
-              className="w-full font-black text-sm h-11 bg-primary hover:bg-primary/90 text-primary-foreground shadow-md transition-transform active:scale-98"
+              className="w-full font-bold text-sm h-11 rounded-2xl bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 transition-all active:scale-[0.98]"
               onClick={onClose}
             >
-              <CheckCircle2 className="mr-2 h-4 w-4" />
-              Díky, borci! 🏒
+              Zavřít okno
             </Button>
           </div>
         </div>
