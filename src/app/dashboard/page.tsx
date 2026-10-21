@@ -26,6 +26,7 @@ import {
   PlayoffSeriesDialog, 
   ArchiveSeasonDialog, 
   HallOfFameTab,
+  PlayerFormBadgeItem,
   calculateTeamMilestonesOverview,
   calculatePlayerMilestones,
   statsService,
@@ -1424,7 +1425,7 @@ function DashboardPageContent() {
         firstScorerId: prediction.firstScorerId,
       });
       toast({
-        title: 'Tip uložen! 🔮',
+        title: 'Tip byl úspěšně uložen',
         description: `Tvůj tip HC Aces ${prediction.acesScore}:${prediction.opponentScore} byl zapsán do kabiny.`,
       });
     } catch (err: any) {
@@ -1558,15 +1559,7 @@ function DashboardPageContent() {
                   );
                 })()}
                 {teamMilestonesData.playerFormMap?.get(user.uid)?.badges.map((b) => (
-                  <Badge
-                    key={b.type}
-                    variant="outline"
-                    className={cn("text-[10px] font-bold px-2 py-0 gap-1", b.badgeClass)}
-                    title={b.description}
-                  >
-                    <span>{b.emoji}</span>
-                    <span>{b.shortLabel}</span>
-                  </Badge>
+                  <PlayerFormBadgeItem key={b.type} badge={b} />
                 ))}
               </div>
               <p className="text-xs text-muted-foreground truncate">

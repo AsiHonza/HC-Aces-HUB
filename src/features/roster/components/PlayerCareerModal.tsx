@@ -35,6 +35,7 @@ import type { PlayerPositionBreakdown } from '../utils/positions';
 import { POSITION_METADATA } from '../utils/positions';
 import type { PlayerChemistrySummary } from '@/features/stats/utils/chemistry';
 import type { PlayerFormSummary } from '@/features/stats/utils/playerForm';
+import { getPlayerFormIcon } from '@/features/stats';
 
 export interface PlayerSeasonRecord {
   seasonId: string;
@@ -171,10 +172,10 @@ export function PlayerCareerModal({ player, isOpen, onClose, onOpenMilestoneDeta
               </Avatar>
               {player.formSummary?.isReigningMvp && (
                 <span
-                  className="absolute -top-2 -left-1 text-base drop-shadow"
+                  className="absolute -top-2 -left-1 p-0.5 rounded-full bg-amber-500/20 border border-amber-500/60 shadow-xs"
                   title="Úřadující 1. hvězda posledního zápasu"
                 >
-                  👑
+                  <Crown className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
                 </span>
               )}
               {player.jerseyNumber && (
@@ -225,10 +226,10 @@ export function PlayerCareerModal({ player, isOpen, onClose, onOpenMilestoneDeta
                       key={b.type}
                       variant="outline"
                       title={b.description}
-                      className={cn('text-[10px] px-2 py-0.5 font-bold', b.badgeClass)}
+                      className={cn('text-[10px] px-2 py-0.5 font-bold inline-flex items-center gap-1.5', b.badgeClass)}
                     >
-                      <span className="mr-1">{b.emoji}</span>
-                      {b.title}
+                      {getPlayerFormIcon(b.type, 'h-3 w-3')}
+                      <span>{b.title}</span>
                     </Badge>
                   ))}
                 </div>
@@ -392,8 +393,9 @@ export function PlayerCareerModal({ player, isOpen, onClose, onOpenMilestoneDeta
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                 {player.chemistry.favoritePlaymaker && (
                   <div className="p-2.5 rounded-xl border border-border/70 bg-muted/20 space-y-1">
-                    <p className="text-[10px] font-bold uppercase text-muted-foreground">
-                      🎁 Dvorní nahrávač
+                    <p className="text-[10px] font-bold uppercase text-muted-foreground flex items-center gap-1">
+                      <Sparkles className="h-3 w-3 text-amber-500" />
+                      Dvorní nahrávač
                     </p>
                     <p className="text-xs sm:text-sm font-bold text-foreground truncate">
                       {formatName(player.chemistry.favoritePlaymaker.partnerName)}
@@ -407,8 +409,9 @@ export function PlayerCareerModal({ player, isOpen, onClose, onOpenMilestoneDeta
 
                 {player.chemistry.favoriteTarget && (
                   <div className="p-2.5 rounded-xl border border-border/70 bg-muted/20 space-y-1">
-                    <p className="text-[10px] font-bold uppercase text-muted-foreground">
-                      🎯 Oblíbený střelec
+                    <p className="text-[10px] font-bold uppercase text-muted-foreground flex items-center gap-1">
+                      <Target className="h-3 w-3 text-primary" />
+                      Oblíbený střelec
                     </p>
                     <p className="text-xs sm:text-sm font-bold text-foreground truncate">
                       {formatName(player.chemistry.favoriteTarget.partnerName)}
@@ -422,8 +425,9 @@ export function PlayerCareerModal({ player, isOpen, onClose, onOpenMilestoneDeta
 
                 {player.chemistry.bestTalismanPartner && (
                   <div className="p-2.5 rounded-xl border border-border/70 bg-muted/20 space-y-1">
-                    <p className="text-[10px] font-bold uppercase text-muted-foreground">
-                      🍀 Vítězné duo
+                    <p className="text-[10px] font-bold uppercase text-muted-foreground flex items-center gap-1">
+                      <Trophy className="h-3 w-3 text-emerald-500" />
+                      Vítězné duo
                     </p>
                     <p className="text-xs sm:text-sm font-bold text-foreground truncate">
                       {formatName(player.chemistry.bestTalismanPartner.partnerName)}

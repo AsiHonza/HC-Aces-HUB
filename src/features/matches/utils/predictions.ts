@@ -152,12 +152,12 @@ export function evaluateMatchPrediction(
   const totalPoints = scorePoints + scorerBonusPoints;
 
   let badgeLabel = '0 b.';
-  if (isExactScore && isCorrectFirstScorer) badgeLabel = '🔥 Jackpot (+8 b.)';
-  else if (isExactScore) badgeLabel = '🎯 Přesné skóre (+5 b.)';
-  else if (isCorrectFirstScorer && scorePoints > 0) badgeLabel = `⚡ Střelec + tip (+${totalPoints} b.)`;
-  else if (isCorrectFirstScorer) badgeLabel = '🏒 1. střelec (+3 b.)';
-  else if (isExactDiff) badgeLabel = '📐 Přesný rozdíl (+2 b.)';
-  else if (isCorrectWinner) badgeLabel = '✅ Vítěz (+1 b.)';
+  if (isExactScore && isCorrectFirstScorer) badgeLabel = 'Jackpot (+8 b.)';
+  else if (isExactScore) badgeLabel = 'Přesné skóre (+5 b.)';
+  else if (isCorrectFirstScorer && scorePoints > 0) badgeLabel = `Střelec + tip (+${totalPoints} b.)`;
+  else if (isCorrectFirstScorer) badgeLabel = '1. střelec (+3 b.)';
+  else if (isExactDiff) badgeLabel = 'Přesný rozdíl (+2 b.)';
+  else if (isCorrectWinner) badgeLabel = 'Vítěz (+1 b.)';
 
   return {
     userId,

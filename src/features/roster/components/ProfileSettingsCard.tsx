@@ -243,10 +243,10 @@ export function ProfileSettingsCard({ userProfile }: ProfileSettingsCardProps) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="auto">⚡ Automaticky (podle sestavy)</SelectItem>
-                    <SelectItem value="defense">🛡️ Obránce (LO / PO)</SelectItem>
-                    <SelectItem value="center">🎯 Centr (C)</SelectItem>
-                    <SelectItem value="wing">⚡ Křídlo (LK / PK)</SelectItem>
+                    <SelectItem value="auto">Automaticky (podle sestavy)</SelectItem>
+                    <SelectItem value="defense">Obránce (LO / PO)</SelectItem>
+                    <SelectItem value="center">Centr (C)</SelectItem>
+                    <SelectItem value="wing">Křídlo (LK / PK)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

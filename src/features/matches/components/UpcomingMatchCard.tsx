@@ -37,6 +37,9 @@ import {
   X,
   CalendarPlus,
   Shield,
+  ShieldCheck,
+  Target,
+  Zap,
 } from 'lucide-react';
 import { cn, formatName, isGoaliePlayer } from '@/lib/utils';
 import { toJsDate } from '@/lib/dates';
@@ -48,6 +51,7 @@ import { downloadMatchIcs } from '../utils/calendarIcs';
 import { HeadToHeadSection } from './HeadToHeadSection';
 import { MatchPredictionWidget } from './MatchPredictionWidget';
 import { resolvePlayerPosition, POSITION_METADATA } from '@/features/roster/utils/positions';
+import { getPlayerFormIcon } from '@/features/stats';
 import type { PlayerFormSummary } from '@/features/stats/utils/playerForm';
 import type { Match, UserProfile, MatchPrediction } from '@/types';
 
@@ -336,17 +340,21 @@ export function UpcomingMatchCard({
                   </DialogTitle>
                   {goingAttendees.length > 0 && (
                     <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-semibold">
-                      <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-500 border border-amber-500/30">
-                        🥅 Brankáři: {goingGoalies.length}
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-500 border border-amber-500/30">
+                        <Shield className="h-3 w-3" />
+                        <span>Brankáři: {goingGoalies.length}</span>
                       </span>
-                      <span className="px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-500 border border-blue-500/30">
-                        🛡️ Obránci: {goingPositionsSummary.defense}
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-500 border border-blue-500/30">
+                        <ShieldCheck className="h-3 w-3" />
+                        <span>Obránci: {goingPositionsSummary.defense}</span>
                       </span>
-                      <span className="px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-500 border border-purple-500/30">
-                        🎯 Centři: {goingPositionsSummary.center}
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-500 border border-purple-500/30">
+                        <Target className="h-3 w-3" />
+                        <span>Centři: {goingPositionsSummary.center}</span>
                       </span>
-                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-500 border border-emerald-500/30">
-                        ⚡ Křídla: {goingPositionsSummary.wing}
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-500 border border-emerald-500/30">
+                        <Zap className="h-3 w-3" />
+                        <span>Křídla: {goingPositionsSummary.wing}</span>
                       </span>
                     </div>
                   )}
@@ -425,14 +433,14 @@ export function UpcomingMatchCard({
                                 </Badge>
                               ) : null}
                               {topBadges.length > 0 && (
-                                <span className="inline-flex items-center gap-0.5 shrink-0">
+                                <span className="inline-flex items-center gap-1 shrink-0">
                                   {topBadges.map((b) => (
                                     <span
                                       key={b.type}
-                                      className="text-xs leading-none"
+                                      className="inline-flex items-center"
                                       title={`${b.title}: ${b.description}`}
                                     >
-                                      {b.emoji}
+                                      {getPlayerFormIcon(b.type, 'h-3.5 w-3.5')}
                                     </span>
                                   ))}
                                 </span>

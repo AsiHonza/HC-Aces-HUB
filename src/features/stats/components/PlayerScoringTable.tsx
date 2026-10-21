@@ -16,6 +16,7 @@ import type { EditableSkaterStatItem } from '../services/statsService';
 import type { Player } from '@/types/player';
 import type { Match } from '@/types/match';
 import type { PlayerFormSummary } from '../utils/playerForm';
+import { getPlayerFormIcon } from './PlayerFormBadgeItem';
 import { resolvePlayerPosition, POSITION_METADATA } from '@/features/roster/utils/positions';
 
 export interface ScorerItem {
@@ -181,14 +182,14 @@ export function PlayerScoringTable({
                           </span>
                         )}
                         {topBadges.length > 0 && (
-                          <span className="inline-flex items-center gap-0.5 shrink-0">
+                          <span className="inline-flex items-center gap-1 shrink-0">
                             {topBadges.map((b) => (
                               <span
                                 key={b.type}
-                                className="text-xs leading-none select-none"
+                                className="inline-flex items-center select-none"
                                 title={`${b.title}: ${b.description}`}
                               >
-                                {b.emoji}
+                                {getPlayerFormIcon(b.type, 'h-3.5 w-3.5')}
                               </span>
                             ))}
                           </span>

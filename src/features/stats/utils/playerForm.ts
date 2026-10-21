@@ -11,9 +11,18 @@ export type PlayerFormBadgeType =
   | 'lockdown-shield'
   | 'ironman-streak';
 
+export type PlayerFormBadgeIcon =
+  | 'crown'
+  | 'flame'
+  | 'target'
+  | 'shield-check'
+  | 'shield'
+  | 'activity';
+
 export interface PlayerFormBadge {
   type: PlayerFormBadgeType;
-  emoji: string;
+  icon: PlayerFormBadgeIcon;
+  emoji?: string;
   shortLabel: string;
   title: string;
   description: string;
@@ -318,7 +327,7 @@ export function calculateAllPlayersFormAndDefense(
     if (isReigningMvp) {
       badges.push({
         type: 'reigning-mvp',
-        emoji: '👑',
+        icon: 'crown',
         shortLabel: 'MVP',
         title: 'Úřadující 1. hvězda zápasu',
         description: reigningMatchOpponent
@@ -333,7 +342,7 @@ export function calculateAllPlayersFormAndDefense(
     if (!isGoalie && currentPointStreak >= 3) {
       badges.push({
         type: 'point-streak',
-        emoji: '🔥',
+        icon: 'flame',
         shortLabel: `${currentPointStreak}Z`,
         title: `On Fire: Bodová šňůra (${currentPointStreak} Z)`,
         description: `Bodoval v posledních ${currentPointStreak} odehraných zápasech v řadě (${pointStreakGoals}G + ${pointStreakAssists}A)`,
@@ -346,7 +355,7 @@ export function calculateAllPlayersFormAndDefense(
     if (isGoalie && (lastMatchSavePct >= 90 || lastMatchIsShutout)) {
       badges.push({
         type: 'goalie-wall',
-        emoji: '🧱',
+        icon: 'shield-check',
         shortLabel: lastMatchIsShutout ? 'NULA' : `${lastMatchSavePct.toFixed(0)}%`,
         title: 'Neprůstřelná zeď v bráně',
         description: lastMatchIsShutout
@@ -361,7 +370,7 @@ export function calculateAllPlayersFormAndDefense(
     if (!isGoalie && lastMatchGoals >= 2) {
       badges.push({
         type: 'hot-sniper',
-        emoji: '🎯',
+        icon: 'target',
         shortLabel: `${lastMatchGoals}G`,
         title: 'Horká střela',
         description: `V posledním odehraném zápase nasázel ${lastMatchGoals} góly!`,
@@ -374,7 +383,7 @@ export function calculateAllPlayersFormAndDefense(
     if (!isGoalie && lockdownStreak >= 2) {
       badges.push({
         type: 'lockdown-shield',
-        emoji: '🛡️',
+        icon: 'shield',
         shortLabel: `${lockdownStreak}Z`,
         title: 'Defenzivní štít',
         description: `V posledních ${lockdownStreak} zápasech v sestavě udrželi Aces soupeře na max. 2 gólech`,
@@ -387,7 +396,7 @@ export function calculateAllPlayersFormAndDefense(
     if (currentIronmanStreak >= 5) {
       badges.push({
         type: 'ironman-streak',
-        emoji: '🦾',
+        icon: 'activity',
         shortLabel: `${currentIronmanStreak}Z`,
         title: `Železný muž (${currentIronmanStreak} Z v řadě)`,
         description: `Nechyběl ani v jednom z posledních ${currentIronmanStreak} zápasů HC Aces`,

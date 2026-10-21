@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Sparkles, RotateCcw, Search, UserCheck } from 'lucide-react';
+import { Loader2, Sparkles, RotateCcw, Search, UserCheck, Flame } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { TeamChemistryData } from '@/features/stats/utils/chemistry';
 
@@ -374,8 +374,9 @@ export function LineupBuilder({
           <CardHeader className="py-3 px-4 bg-muted/20 border-b flex-row items-center justify-between space-y-0">
             <CardTitle className="text-xs font-bold uppercase text-primary tracking-wider">1. Lajna (Útok & Obrana)</CardTitle>
             {line1Chem > 0 && (
-              <Badge variant="outline" className="text-[10px] font-bold bg-orange-500/15 text-orange-500 border-orange-500/40">
-                🔥 Chemie +{line1Chem} G
+              <Badge variant="outline" className="text-[10px] font-bold bg-orange-500/15 text-orange-500 border-orange-500/40 inline-flex items-center gap-1">
+                <Flame className="h-3 w-3 fill-orange-500 text-orange-500" />
+                <span>Chemie +{line1Chem} G</span>
               </Badge>
             )}
           </CardHeader>
@@ -392,8 +393,9 @@ export function LineupBuilder({
           <CardHeader className="py-3 px-4 bg-muted/20 border-b flex-row items-center justify-between space-y-0">
             <CardTitle className="text-xs font-bold uppercase text-primary tracking-wider">2. Lajna (Útok & Obrana)</CardTitle>
             {line2Chem > 0 && (
-              <Badge variant="outline" className="text-[10px] font-bold bg-orange-500/15 text-orange-500 border-orange-500/40">
-                🔥 Chemie +{line2Chem} G
+              <Badge variant="outline" className="text-[10px] font-bold bg-orange-500/15 text-orange-500 border-orange-500/40 inline-flex items-center gap-1">
+                <Flame className="h-3 w-3 fill-orange-500 text-orange-500" />
+                <span>Chemie +{line2Chem} G</span>
               </Badge>
             )}
           </CardHeader>
@@ -411,8 +413,9 @@ export function LineupBuilder({
             <CardHeader className="py-3 px-4 bg-muted/20 border-b flex-row items-center justify-between space-y-0">
               <CardTitle className="text-xs font-bold uppercase text-primary tracking-wider">3. Útočná lajna</CardTitle>
               {line3Chem > 0 && (
-                <Badge variant="outline" className="text-[10px] font-bold bg-orange-500/15 text-orange-500 border-orange-500/40">
-                  🔥 Chemie +{line3Chem} G
+                <Badge variant="outline" className="text-[10px] font-bold bg-orange-500/15 text-orange-500 border-orange-500/40 inline-flex items-center gap-1">
+                  <Flame className="h-3 w-3 fill-orange-500 text-orange-500" />
+                  <span>Chemie +{line3Chem} G</span>
                 </Badge>
               )}
             </CardHeader>
@@ -520,8 +523,9 @@ export function LineupBuilder({
                     1. Útok
                   </span>
                   {getLineChemistryGoals([lineup.LK1, lineup.C1, lineup.PK1]) > 0 && (
-                    <span className="text-[10px] font-bold text-orange-400 bg-slate-950/90 px-2.5 py-0.5 rounded-full border border-orange-500/40 shadow-xs">
-                      🔥 Chemie +{getLineChemistryGoals([lineup.LK1, lineup.C1, lineup.PK1])} G
+                    <span className="text-[10px] font-bold text-orange-400 bg-slate-950/90 px-2.5 py-0.5 rounded-full border border-orange-500/40 shadow-xs inline-flex items-center gap-1">
+                      <Flame className="h-2.5 w-2.5 fill-orange-400 text-orange-400" />
+                      <span>Chemie +{getLineChemistryGoals([lineup.LK1, lineup.C1, lineup.PK1])} G</span>
                     </span>
                   )}
                 </div>
@@ -539,8 +543,9 @@ export function LineupBuilder({
                     2. Útok
                   </span>
                   {getLineChemistryGoals([lineup.LK2, lineup.C2, lineup.PK2]) > 0 && (
-                    <span className="text-[10px] font-bold text-orange-400 bg-slate-950/90 px-2.5 py-0.5 rounded-full border border-orange-500/40 shadow-xs">
-                      🔥 Chemie +{getLineChemistryGoals([lineup.LK2, lineup.C2, lineup.PK2])} G
+                    <span className="text-[10px] font-bold text-orange-400 bg-slate-950/90 px-2.5 py-0.5 rounded-full border border-orange-500/40 shadow-xs inline-flex items-center gap-1">
+                      <Flame className="h-2.5 w-2.5 fill-orange-400 text-orange-400" />
+                      <span>Chemie +{getLineChemistryGoals([lineup.LK2, lineup.C2, lineup.PK2])} G</span>
                     </span>
                   )}
                 </div>
@@ -559,8 +564,9 @@ export function LineupBuilder({
                       3. Útok
                     </span>
                     {getLineChemistryGoals([lineup.LK3, lineup.C3, lineup.PK3]) > 0 && (
-                      <span className="text-[10px] font-bold text-orange-400 bg-slate-950/90 px-2.5 py-0.5 rounded-full border border-orange-500/40 shadow-xs">
-                        🔥 Chemie +{getLineChemistryGoals([lineup.LK3, lineup.C3, lineup.PK3])} G
+                      <span className="text-[10px] font-bold text-orange-400 bg-slate-950/90 px-2.5 py-0.5 rounded-full border border-orange-500/40 shadow-xs inline-flex items-center gap-1">
+                        <Flame className="h-2.5 w-2.5 fill-orange-400 text-orange-400" />
+                        <span>Chemie +{getLineChemistryGoals([lineup.LK3, lineup.C3, lineup.PK3])} G</span>
                       </span>
                     )}
                   </div>

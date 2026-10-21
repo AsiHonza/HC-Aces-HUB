@@ -48,7 +48,8 @@ import {
   LayoutGrid,
   HeartHandshake,
   CheckCircle2,
-  ChevronRight
+  ChevronRight,
+  Medal
 } from 'lucide-react';
 import { cn, formatName } from '@/lib/utils';
 import type { TeamChemistryData } from '../utils/chemistry';
@@ -72,7 +73,7 @@ type ViewMode = 'series' | 'compact';
 const SPECIAL_FEAT_GROUPS = [
   {
     id: 'defense_team',
-    title: '🛡️ Defenzivní pilíře, Postové klenoty & Černá práce',
+    title: 'Defenzivní pilíře, postové klenoty & černá práce',
     description: 'Čistá konta v poli, ocenění bez kanadských bodů, ubráněné těsné výhry a příspěvky obránců',
     iconName: 'ShieldCheck',
     ids: [
@@ -695,7 +696,6 @@ export function HallOfFameTab({
           <div className="flex sm:grid sm:grid-cols-2 lg:grid-cols-5 gap-2.5 sm:gap-3 overflow-x-auto pb-2 sm:pb-0 scrollbar-none snap-x -mx-1 px-1 sm:mx-0 sm:px-0">
             {trophyLeaders.slice(0, 5).map((leader, idx) => {
               const isSelected = selectedPlayerId === leader.id || (selectedPlayerId === 'me' && currentUserId === leader.id);
-              const rankMedal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`;
               const rankColor = idx === 0 
                 ? 'border-amber-500/50 bg-amber-500/10 shadow-amber-500/10' 
                 : idx === 1 
@@ -717,8 +717,11 @@ export function HallOfFameTab({
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <span className="text-sm font-black shrink-0 w-5 text-center">
-                        {rankMedal}
+                      <span className="text-xs font-black shrink-0 w-6 text-center tabular-nums inline-flex items-center justify-center">
+                        {idx === 0 && <Trophy className="h-3.5 w-3.5 text-amber-500 fill-amber-500 mr-0.5" />}
+                        {idx === 1 && <Trophy className="h-3.5 w-3.5 text-slate-300 fill-slate-300 mr-0.5" />}
+                        {idx === 2 && <Trophy className="h-3.5 w-3.5 text-amber-700 fill-amber-700 mr-0.5" />}
+                        #{idx + 1}
                       </span>
                       <Avatar className="h-8 w-8 sm:h-9 sm:w-9 border border-border shrink-0">
                         <AvatarImage src={leader.photoURL || undefined} />
@@ -750,28 +753,33 @@ export function HallOfFameTab({
                   <div className="flex items-center justify-between gap-1 pt-1.5 border-t border-border/40 text-xs font-semibold">
                     <div className="flex items-center gap-2 flex-wrap">
                       {leader.legendCount > 0 && (
-                        <span className="inline-flex items-center gap-0.5 text-purple-600 dark:text-purple-400 font-bold" title="Legendární odznaky">
-                          👑 {leader.legendCount}
+                        <span className="inline-flex items-center gap-1 text-purple-600 dark:text-purple-400 font-bold" title="Legendární odznaky">
+                          <Crown className="h-3 w-3 fill-current" />
+                          <span>{leader.legendCount}</span>
                         </span>
                       )}
                       {leader.diamondCount > 0 && (
-                        <span className="inline-flex items-center gap-0.5 text-cyan-600 dark:text-cyan-400 font-bold" title="Diamantové odznaky">
-                          💎 {leader.diamondCount}
+                        <span className="inline-flex items-center gap-1 text-cyan-600 dark:text-cyan-400 font-bold" title="Diamantové odznaky">
+                          <Sparkles className="h-3 w-3 fill-current" />
+                          <span>{leader.diamondCount}</span>
                         </span>
                       )}
                       {leader.goldCount > 0 && (
-                        <span className="inline-flex items-center gap-0.5 text-amber-600 dark:text-amber-400 font-bold" title="Zlaté odznaky">
-                          🥇 {leader.goldCount}
+                        <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400 font-bold" title="Zlaté odznaky">
+                          <Medal className="h-3 w-3 text-amber-500 fill-amber-500" />
+                          <span>{leader.goldCount}</span>
                         </span>
                       )}
                       {leader.silverCount > 0 && (
-                        <span className="inline-flex items-center gap-0.5 text-slate-700 dark:text-zinc-300 font-bold" title="Stříbrné odznaky">
-                          🥈 {leader.silverCount}
+                        <span className="inline-flex items-center gap-1 text-slate-700 dark:text-zinc-300 font-bold" title="Stříbrné odznaky">
+                          <Medal className="h-3 w-3 text-slate-300 fill-slate-300" />
+                          <span>{leader.silverCount}</span>
                         </span>
                       )}
                       {leader.bronzeCount > 0 && (
-                        <span className="inline-flex items-center gap-0.5 text-amber-800 dark:text-amber-600 font-bold" title="Bronzové odznaky">
-                          🥉 {leader.bronzeCount}
+                        <span className="inline-flex items-center gap-1 text-amber-800 dark:text-amber-600 font-bold" title="Bronzové odznaky">
+                          <Medal className="h-3 w-3 text-amber-700 fill-amber-700" />
+                          <span>{leader.bronzeCount}</span>
                         </span>
                       )}
                     </div>
@@ -796,7 +804,7 @@ export function HallOfFameTab({
                   </div>
                   <div className="min-w-0">
                     <h3 className="font-headline font-bold text-sm sm:text-base text-foreground truncate">
-                      🤝 Dynamic Duo – Chemie na ledě
+                      Dynamic Duo – Chemie na ledě
                     </h3>
                     <p className="text-xs text-muted-foreground truncate">
                       Nejúdernější gólové dvojice (střelec + nahrávač) v zápasech Aces
@@ -813,8 +821,8 @@ export function HallOfFameTab({
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5 text-xs font-bold text-foreground truncate">
-                        <span className="text-amber-500">
-                          {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`}
+                        <span className="text-muted-foreground font-black text-[11px] tabular-nums">
+                          #{idx + 1}
                         </span>
                         <button
                           type="button"
@@ -839,9 +847,10 @@ export function HallOfFameTab({
                     </div>
                     <Badge
                       variant="outline"
-                      className="bg-primary/15 text-primary border-primary/30 font-black text-xs shrink-0"
+                      className="bg-primary/15 text-primary border-primary/30 font-black text-xs shrink-0 inline-flex items-center gap-1"
                     >
-                      🔥 {duo.totalCombinedGoals} G
+                      <Flame className="h-3 w-3 fill-primary text-primary" />
+                      <span>{duo.totalCombinedGoals} G</span>
                     </Badge>
                   </div>
                 ))}
@@ -858,7 +867,7 @@ export function HallOfFameTab({
                   </div>
                   <div className="min-w-0">
                     <h3 className="font-headline font-bold text-sm sm:text-base text-foreground truncate">
-                      🔮 Věštec kabiny – Tipovačka
+                      Věštec kabiny – Tipovačka
                     </h3>
                     <p className="text-xs text-muted-foreground truncate">
                       Nejlepší tipéři předzápasových výsledků a prvních střelců
@@ -875,8 +884,8 @@ export function HallOfFameTab({
                     className="rounded-xl border border-border/70 bg-card/80 px-3 py-2 flex items-center justify-between gap-2 cursor-pointer hover:border-purple-500/40 transition-colors"
                   >
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-xs font-black w-5 text-center shrink-0">
-                        {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`}
+                      <span className="text-xs font-black w-5 text-center shrink-0 tabular-nums text-muted-foreground">
+                        #{idx + 1}
                       </span>
                       <span className="font-bold text-xs sm:text-sm truncate">
                         {formatName(entry.userName)}
@@ -884,9 +893,10 @@ export function HallOfFameTab({
                       {entry.exactScoreHits > 0 && (
                         <Badge
                           variant="outline"
-                          className="text-[10px] px-1.5 py-0 h-4 bg-amber-500/15 text-amber-500 border-amber-500/30 shrink-0"
+                          className="text-[10px] px-1.5 py-0 h-4 bg-amber-500/15 text-amber-500 border-amber-500/30 shrink-0 inline-flex items-center gap-1"
                         >
-                          🎯 {entry.exactScoreHits}× přesně
+                          <Target className="h-2.5 w-2.5 text-amber-500" />
+                          <span>{entry.exactScoreHits}× přesně</span>
                         </Badge>
                       )}
                     </div>
@@ -1071,13 +1081,13 @@ export function HallOfFameTab({
           <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 max-w-full flex-1 scrollbar-none [&::-webkit-scrollbar]:hidden">
             {[
               { id: 'all', label: 'Všechny odznaky' },
-              { id: 'defense', label: '🛡️ Obrana & Tým' },
+              { id: 'defense', label: 'Obrana & Tým' },
               { id: 'games', label: 'Zápasy & Šňůry' },
               { id: 'points', label: 'Body' },
               { id: 'scoring', label: 'Góly & Asistence' },
               { id: 'goalies', label: 'Brankáři' },
               { id: 'stars', label: 'Hvězdy & MVP' },
-              { id: 'oracle', label: '🔮 Tipovačka' },
+              { id: 'oracle', label: 'Tipovačka' },
               { id: 'special', label: 'Speciální klenoty' },
             ].map((cat) => (
               <button

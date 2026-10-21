@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Sparkles, Target, Trophy, Minus, Plus, Loader2, CheckCircle2, Lock } from 'lucide-react';
+import { Sparkles, Target, Trophy, Minus, Plus, Loader2, CheckCircle2, Lock, Scale } from 'lucide-react';
 import { cn, formatName, isGoaliePlayer } from '@/lib/utils';
 import { toJsDate } from '@/lib/dates';
 import type { Match, UserProfile } from '@/types';
@@ -156,7 +156,7 @@ export function MatchPredictionWidget({
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="text-xs font-bold text-foreground">
-                🎯 Tipovačka kabiny
+                Tipovačka kabiny
               </span>
               {allPredictions.length > 0 && (
                 <Badge
@@ -246,11 +246,11 @@ export function MatchPredictionWidget({
 
           <div className="space-y-4 py-2">
             {/* Pravidla bodování */}
-            <div className="rounded-lg bg-muted/40 border border-border/60 p-2.5 text-[11px] text-muted-foreground flex flex-wrap items-center justify-between gap-1.5">
-              <span>🎯 Přesné skóre: <strong className="text-foreground">+5 b.</strong></span>
-              <span>📐 Rozdíl: <strong className="text-foreground">+2 b.</strong></span>
-              <span>✅ Vítěz: <strong className="text-foreground">+1 b.</strong></span>
-              <span>🏒 1. střelec: <strong className="text-primary">+3 b.</strong></span>
+            <div className="rounded-lg bg-muted/40 border border-border/60 p-2.5 text-[11px] text-muted-foreground flex flex-wrap items-center justify-between gap-2">
+              <span className="inline-flex items-center gap-1"><Target className="h-3 w-3 text-primary" />Přesné skóre: <strong className="text-foreground">+5 b.</strong></span>
+              <span className="inline-flex items-center gap-1"><Scale className="h-3 w-3 text-primary" />Rozdíl: <strong className="text-foreground">+2 b.</strong></span>
+              <span className="inline-flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-emerald-500" />Vítěz: <strong className="text-foreground">+1 b.</strong></span>
+              <span className="inline-flex items-center gap-1"><Trophy className="h-3 w-3 text-primary" />1. střelec: <strong className="text-primary">+3 b.</strong></span>
             </div>
 
             {!isLocked && onSavePrediction && (
@@ -335,7 +335,7 @@ export function MatchPredictionWidget({
                           <SelectItem key={sk.id} value={sk.id}>
                             {sk.jerseyNumber ? `#${sk.jerseyNumber} ` : ''}
                             {formatName(sk.name)}
-                            {isGoing ? ' (Jde ✓)' : ''}
+                            {isGoing ? ' (Potvrzeno)' : ''}
                           </SelectItem>
                         );
                       })}
