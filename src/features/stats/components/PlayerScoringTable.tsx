@@ -9,7 +9,13 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { View, ChevronDown, ChevronUp, Shield, Crosshair, Zap, Users } from 'lucide-react';
+import { View, ChevronDown, ChevronUp, Shield, Crosshair, Zap, Users, Crown, Flame, Target, Activity, Info } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { cn, formatName } from '@/lib/utils';
 import { StatAdjuster } from './StatAdjuster';
 import type { EditableSkaterStatItem } from '../services/statsService';
@@ -129,8 +135,9 @@ export function PlayerScoringTable({
         </div>
       )}
 
-      <div className="rounded-md border overflow-x-auto w-full min-w-0 max-w-full">
-        <Table className="w-full min-w-[280px]">
+      <TooltipProvider delayDuration={150}>
+        <div className="rounded-md border overflow-x-auto w-full min-w-0 max-w-full">
+          <Table className="w-full min-w-[280px]">
           <TableHeader>
             <TableRow>
               <TableHead className="w-6 px-1 text-center">#</TableHead>
@@ -171,26 +178,44 @@ export function PlayerScoringTable({
                       <div className="inline-flex items-center gap-1.5 group min-w-0">
                         <span className="truncate">{formatName(p.name)}</span>
                         {posMeta && (
-                          <span
-                            className={cn(
-                              'inline-flex items-center justify-center rounded px-1 py-0 text-[9px] font-black uppercase border leading-tight shrink-0',
-                              posMeta.badgeClass
-                            )}
-                            title={`Post: ${posMeta.label}`}
-                          >
-                            {posMeta.tinyLabel}
-                          </span>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span
+                                className={cn(
+                                  'inline-flex items-center justify-center rounded px-1 py-0 text-[9px] font-black uppercase border leading-tight shrink-0 cursor-help',
+                                  posMeta.badgeClass
+                                )}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {posMeta.tinyLabel}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="text-xs">
+                              <span className="font-bold">Post: </span>
+                              <span>{posMeta.label}</span>
+                            </TooltipContent>
+                          </Tooltip>
                         )}
                         {topBadges.length > 0 && (
                           <span className="inline-flex items-center gap-1 shrink-0">
                             {topBadges.map((b) => (
-                              <span
-                                key={b.type}
-                                className="inline-flex items-center select-none"
-                                title={`${b.title}: ${b.description}`}
-                              >
-                                {getPlayerFormIcon(b.type, 'h-3.5 w-3.5')}
-                              </span>
+                              <Tooltip key={b.type}>
+                                <TooltipTrigger asChild>
+                                  <span
+                                    className="inline-flex items-center select-none cursor-help p-0.5 rounded hover:bg-muted/80 transition-colors"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    {getPlayerFormIcon(b.type, 'h-3.5 w-3.5')}
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="text-xs max-w-xs space-y-0.5">
+                                  <p className="font-bold text-foreground flex items-center gap-1.5">
+                                    {getPlayerFormIcon(b.type, 'h-3.5 w-3.5')}
+                                    <span>{b.title}</span>
+                                  </p>
+                                  <p className="text-[11px] text-muted-foreground">{b.description}</p>
+                                </TooltipContent>
+                              </Tooltip>
                             ))}
                           </span>
                         )}
@@ -301,6 +326,42 @@ export function PlayerScoringTable({
             )}
           </TableBody>
         </Table>
+      </div>
+    </TooltipProvider>
+
+      {/* Legenda ikon formy a ocenění */}
+      <div className="mt-4 pt-3 border-t border-border/60">
+        <div className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground mb-2">
+          <Info className="h-3.5 w-3.5 text-primary shrink-0" />
+          <span>Vysvětlivky ikon hráčů</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 text-[11px] text-muted-foreground">
+          <div className="inline-flex items-center gap-1.5 bg-muted/40 px-2 py-1 rounded-md border border-border/50">
+            <Crown className="h-3 w-3 text-amber-500 fill-amber-500 shrink-0" />
+            <span className="font-bold text-foreground">Úřadující MVP:</span>
+            <span>1. hvězda posl. uzavřeného zápasu</span>
+          </div>
+          <div className="inline-flex items-center gap-1.5 bg-muted/40 px-2 py-1 rounded-md border border-border/50">
+            <Flame className="h-3 w-3 text-orange-500 fill-orange-500 shrink-0" />
+            <span className="font-bold text-foreground">Bodová série:</span>
+            <span>Bod v 3+ zápasech v řadě</span>
+          </div>
+          <div className="inline-flex items-center gap-1.5 bg-muted/40 px-2 py-1 rounded-md border border-border/50">
+            <Target className="h-3 w-3 text-rose-500 shrink-0" />
+            <span className="font-bold text-foreground">Střelecká forma:</span>
+            <span>2+ góly v posl. zápase</span>
+          </div>
+          <div className="inline-flex items-center gap-1.5 bg-muted/40 px-2 py-1 rounded-md border border-border/50">
+            <Shield className="h-3 w-3 text-sky-500 shrink-0" />
+            <span className="font-bold text-foreground">Pilíř obrany:</span>
+            <span>Spolehlivá defenzíva a ubráněné zápasy</span>
+          </div>
+          <div className="inline-flex items-center gap-1.5 bg-muted/40 px-2 py-1 rounded-md border border-border/50">
+            <Activity className="h-3 w-3 text-emerald-500 shrink-0" />
+            <span className="font-bold text-foreground">Železný muž:</span>
+            <span>Šňůra 5+ zápasů bez absence</span>
+          </div>
+        </div>
       </div>
 
       {!isStatEditMode && filteredScorers.length > 10 && onToggleShowAll && (

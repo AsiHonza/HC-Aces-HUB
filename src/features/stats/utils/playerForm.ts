@@ -166,12 +166,17 @@ export function calculateAllPlayersFormAndDefense(
     .filter((m) => m.isPlayed)
     .sort((a, b) => toJsDate(a.dateTime).getTime() - toJsDate(b.dateTime).getTime());
 
-  // Identify Reigning 1st Star (from the latest played match that has votes)
+  // Identify Reigning 1st Star (strictly from the latest played match where voting is officially closed and has votes)
   const reigningMvpIds = new Set<string>();
   let reigningMatchOpponent = '';
 
   for (let i = playedMatchesAsc.length - 1; i >= 0; i--) {
     const m = playedMatchesAsc[i];
+    const votingState = getMvpVotingStatus(m);
+    // Never award Reigning MVP while voting is still active/open
+    if (votingState.status !== 'closed') {
+      continue;
+    }
     const starsRes = calculateMatchStarsResults(m, usersMap);
     if (starsRes.totalVoters > 0 && starsRes.standings.length > 0) {
       const rank1Holders = starsRes.standings.filter((s) => s.rank === 1 && s.points > 0);

@@ -83,8 +83,6 @@ const SPECIAL_FEAT_GROUPS = [
       'feat-defense-scorer',
       'feat-shot-suppressor',
       'feat-clutch-closer',
-      'feat-center-playmaker',
-      'feat-wing-sniper',
     ],
   },
   {
@@ -800,12 +798,6 @@ export function HallOfFameTab({
                       <h3 className="font-headline font-bold text-sm sm:text-base text-foreground">
                         Dynamic Duo – Chemie na ledě
                       </h3>
-                      <Badge
-                        variant="outline"
-                        className="text-[10px] px-1.5 py-0 h-4 bg-primary/10 text-primary border-primary/30 font-bold"
-                      >
-                        Archivováno od 25. 10. 2026
-                      </Badge>
                     </div>
                     <p className="text-xs text-muted-foreground">
                       Souhra v rámci útočných trojic (LK–C–PK), obranných párů (LO–PO) a gólových akcí Ú + O
@@ -872,7 +864,7 @@ export function HallOfFameTab({
                 <div className="rounded-xl border border-dashed border-primary/30 bg-card/60 p-4 text-xs text-muted-foreground space-y-2">
                   <div className="flex items-center gap-2 font-bold text-foreground text-xs sm:text-sm">
                     <Sparkles className="h-4 w-4 text-primary shrink-0" />
-                    <span>Přesná evidence souhry startuje od zápasu 25. 10. 2026</span>
+                    <span>Zatím nebyly zaznamenány žádné odehrané dvojice v sestavě</span>
                   </div>
                   <p className="leading-relaxed">
                     Aby byla statistika 100% věrná realitě, počítá se <strong>Dynamic Duo</strong> čistě ze zápasů s archivovanou sestavou:

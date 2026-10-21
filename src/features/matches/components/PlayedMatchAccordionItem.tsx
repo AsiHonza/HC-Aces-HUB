@@ -190,45 +190,68 @@ export function PlayedMatchAccordionItem({
               </div>
             </div>
 
-            {/* Symetrický duel: Domácí tým vlevo — Skóre uprostřed — Hosté vpravo */}
-            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4 w-full pt-1">
-              {/* Tým 1 (Domácí) */}
-              <div className="min-w-0 text-right pr-1 sm:pr-3">
-                <span
-                  className={cn(
-                    'text-sm sm:text-base font-bold truncate tracking-tight block',
-                    isAcesHome ? 'text-primary font-extrabold' : 'text-foreground'
-                  )}
-                  title={match.team1}
-                >
-                  {match.team1}
-                </span>
-              </div>
-
-              {/* Skóre & Třetiny uprostřed */}
-              <div className="flex flex-col items-center justify-center min-w-[76px] sm:min-w-[92px] min-h-[44px] px-2.5 py-1 rounded-lg bg-muted/40 border border-border/70 shrink-0 shadow-xs">
-                <span className="text-base sm:text-xl font-black tabular-nums tracking-tight text-foreground leading-none">
-                  {match.team1Score} : {match.team2Score}
-                </span>
-                {match.periodScores && (
-                  <span className="text-[9px] sm:text-[10px] text-muted-foreground font-semibold tabular-nums mt-1 leading-none">
-                    ({match.periodScores})
+            {/* Týmy pod sebou se skóre a třetinami (Livesport styl) */}
+            <div className="flex items-center justify-between gap-3 sm:gap-6 w-full pt-1">
+              {/* Týmy a jejich skóre pod sebou */}
+              <div className="flex-1 min-w-0 space-y-1 sm:space-y-1.5">
+                {/* Tým 1 (Domácí) */}
+                <div className="flex items-center justify-between gap-2.5 sm:gap-4 min-w-0">
+                  <span
+                    className={cn(
+                      'text-sm sm:text-base font-bold truncate tracking-tight',
+                      isAcesHome ? 'text-primary font-extrabold' : 'text-foreground'
+                    )}
+                    title={match.team1}
+                  >
+                    {match.team1}
                   </span>
-                )}
+                  <span
+                    className={cn(
+                      'text-sm sm:text-base font-black tabular-nums shrink-0 px-2 sm:px-2.5 py-0.5 rounded-md min-w-[28px] sm:min-w-[32px] text-center border',
+                      Number(match.team1Score) > Number(match.team2Score)
+                        ? 'bg-primary/10 border-primary/30 text-primary font-black shadow-xs'
+                        : 'bg-muted/40 border-border/60 text-muted-foreground font-semibold'
+                    )}
+                  >
+                    {match.team1Score}
+                  </span>
+                </div>
+
+                {/* Tým 2 (Hosté) */}
+                <div className="flex items-center justify-between gap-2.5 sm:gap-4 min-w-0">
+                  <span
+                    className={cn(
+                      'text-sm sm:text-base font-bold truncate tracking-tight',
+                      !isAcesHome ? 'text-primary font-extrabold' : 'text-foreground'
+                    )}
+                    title={match.team2}
+                  >
+                    {match.team2}
+                  </span>
+                  <span
+                    className={cn(
+                      'text-sm sm:text-base font-black tabular-nums shrink-0 px-2 sm:px-2.5 py-0.5 rounded-md min-w-[28px] sm:min-w-[32px] text-center border',
+                      Number(match.team2Score) > Number(match.team1Score)
+                        ? 'bg-primary/10 border-primary/30 text-primary font-black shadow-xs'
+                        : 'bg-muted/40 border-border/60 text-muted-foreground font-semibold'
+                    )}
+                  >
+                    {match.team2Score}
+                  </span>
+                </div>
               </div>
 
-              {/* Tým 2 (Hosté) */}
-              <div className="min-w-0 text-left pl-1 sm:pl-3">
-                <span
-                  className={cn(
-                    'text-sm sm:text-base font-bold truncate tracking-tight block',
-                    !isAcesHome ? 'text-primary font-extrabold' : 'text-foreground'
-                  )}
-                  title={match.team2}
-                >
-                  {match.team2}
-                </span>
-              </div>
+              {/* Třetiny vpravo */}
+              {match.periodScores && (
+                <div className="flex flex-col items-end sm:items-center justify-center pl-2.5 sm:pl-5 border-l border-border/60 shrink-0 text-right sm:text-center min-w-[70px] sm:min-w-[90px]">
+                  <span className="text-[9px] uppercase tracking-wider text-muted-foreground/80 font-bold hidden sm:inline">
+                    Třetiny
+                  </span>
+                  <span className="text-[11px] sm:text-xs font-semibold tabular-nums text-muted-foreground sm:text-foreground/90 mt-0.5">
+                    {match.periodScores}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </AccordionTrigger>

@@ -1200,7 +1200,7 @@ const RAW_MILESTONE_DEFINITIONS: MilestoneDefinition[] = [
   {
     id: 'feat-defense-scorer',
     title: 'Kanonýr od modré',
-    description: 'Vstřelený gól v zápase z postu obránce (LO / PO) – archivováno od 25. 10. 2026',
+    description: 'Vstřelený gól v zápase z postu obránce (LO / PO)',
     category: 'defense',
     tier: 'silver',
     target: 1,
@@ -1210,7 +1210,7 @@ const RAW_MILESTONE_DEFINITIONS: MilestoneDefinition[] = [
   {
     id: 'feat-defense-qb',
     title: 'Generál modré čáry (Quarterback)',
-    description: 'Zisk 2 a více asistencí v jednom zápase na postu obránce (archivováno od 25. 10. 2026)',
+    description: 'Zisk 2 a více asistencí v jednom zápase na postu obránce',
     category: 'defense',
     tier: 'gold',
     target: 1,
@@ -1220,7 +1220,7 @@ const RAW_MILESTONE_DEFINITIONS: MilestoneDefinition[] = [
   {
     id: 'feat-center-playmaker',
     title: 'Mozek lajny (Centr)',
-    description: 'Zisk 2 a více asistencí v jednom zápase na postu středního útočníka (C) – archivováno od 25. 10. 2026',
+    description: 'Zisk 2 a více asistencí v jednom zápase na postu středního útočníka (C)',
     category: 'assists',
     tier: 'silver',
     target: 1,
@@ -1230,7 +1230,7 @@ const RAW_MILESTONE_DEFINITIONS: MilestoneDefinition[] = [
   {
     id: 'feat-wing-sniper',
     title: 'Křídelní vítr',
-    description: 'Vstřelení 2 a více gólů v jednom zápase na postu křídla (LK / PK) – archivováno od 25. 10. 2026',
+    description: 'Vstřelení 2 a více gólů v jednom zápase na postu křídla (LK / PK)',
     category: 'goals',
     tier: 'silver',
     target: 1,
