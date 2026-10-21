@@ -113,16 +113,26 @@ export function PlayedMatchAccordionItem({
       value={match.id}
       key={match.id}
       className={cn(
-        'relative rounded-xl border bg-card/90 shadow-sm hover:border-primary/50 transition-colors overflow-hidden',
+        'relative rounded-xl border bg-card/90 shadow-sm hover:border-primary/50 transition-colors overflow-hidden border-l-4',
+        isWin
+          ? 'border-l-emerald-500'
+          : isDraw
+          ? 'border-l-amber-500'
+          : 'border-l-rose-500',
         className
       )}
     >
       <div className="flex items-center w-full relative min-w-0 max-w-full">
-        <AccordionTrigger className="flex-1 text-left hover:no-underline py-3.5 sm:py-4 px-3 sm:px-6 [&>svg]:ml-2 sm:[&>svg]:ml-3 [&>svg]:shrink-0 min-w-0 max-w-full overflow-hidden">
-          <div className="flex items-center justify-between w-full text-left gap-2 sm:gap-4 min-w-0">
-            {/* Meta & Teams */}
-            <div className="flex-1 min-w-0 pr-1 sm:pr-2">
-              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1">
+        <AccordionTrigger
+          className={cn(
+            'flex-1 text-left hover:no-underline py-3 sm:py-3.5 px-3 sm:px-5 [&>svg]:ml-2 sm:[&>svg]:ml-3 [&>svg]:shrink-0 min-w-0 max-w-full overflow-hidden',
+            isAdmin && (onEditResult || onEditLineup || onDeleteMatch) && 'pr-11 sm:pr-14'
+          )}
+        >
+          <div className="flex flex-col gap-2 w-full min-w-0">
+            {/* Meta řádek: Kolo, datum, místo, MVP status a stav utkání */}
+            <div className="flex items-center justify-between gap-2 w-full">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap min-w-0">
                 {prefix && (
                   <Badge
                     variant="outline"
@@ -136,7 +146,7 @@ export function PlayedMatchAccordionItem({
                   {dateFormatted}
                 </span>
                 {match.location && (
-                  <span className="text-[11px] text-muted-foreground hidden sm:flex items-center gap-1 font-medium">
+                  <span className="text-[11px] text-muted-foreground hidden md:flex items-center gap-1 font-medium">
                     <MapPin className="h-3 w-3 text-primary/70" />
                     {match.location}
                   </span>
@@ -159,47 +169,11 @@ export function PlayedMatchAccordionItem({
                   </Badge>
                 ) : null}
               </div>
-              <div className="flex items-center gap-1.5 sm:gap-2 mt-0.5 min-w-0">
-                <span
-                  className={cn(
-                    'text-sm sm:text-lg font-bold truncate min-w-0 flex-1',
-                    isAcesHome && 'text-primary'
-                  )}
-                >
-                  {match.team1}
-                </span>
-                <span className="text-xs text-muted-foreground font-semibold shrink-0">
-                  vs
-                </span>
-                <span
-                  className={cn(
-                    'text-sm sm:text-lg font-bold truncate min-w-0 flex-1',
-                    !isAcesHome && 'text-primary'
-                  )}
-                >
-                  {match.team2}
-                </span>
-              </div>
-            </div>
 
-            {/* Score & Badge */}
-            <div className="flex items-center gap-2 sm:gap-4 shrink-0">
-              <div className="text-right min-w-[2.75rem] sm:min-w-[4.5rem]">
-                <div className="flex items-baseline justify-end gap-1">
-                  <span className="text-base sm:text-2xl font-black tabular-nums tracking-tight text-foreground">
-                    {match.team1Score} : {match.team2Score}
-                  </span>
-                </div>
-                {match.periodScores && (
-                  <p className="text-[9px] sm:text-[10px] text-muted-foreground font-semibold tabular-nums">
-                    ({match.periodScores})
-                  </p>
-                )}
-              </div>
-
+              {/* Stav zápasu (Výhra / Prohra / Remíza) */}
               <Badge
                 className={cn(
-                  'w-14 sm:w-20 h-6 sm:h-8 flex items-center justify-center font-black text-[10px] sm:text-xs uppercase tracking-wider rounded-lg border shrink-0 px-1',
+                  'h-5 px-2 flex items-center justify-center font-black text-[10px] uppercase tracking-wider rounded-md border shrink-0',
                   isWin
                     ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
                     : isDraw
@@ -209,6 +183,51 @@ export function PlayedMatchAccordionItem({
               >
                 {isWin ? 'Výhra' : isDraw ? 'Remíza' : 'Prohra'}
               </Badge>
+            </div>
+
+            {/* Symetrický duel: Domácí tým vlevo — Skóre uprostřed — Hosté vpravo */}
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-3.5 w-full pt-0.5">
+              {/* Tým 1 (Domácí) */}
+              <div className="min-w-0 text-right pr-1 sm:pr-2">
+                <span
+                  className={cn(
+                    'text-sm sm:text-base font-bold truncate tracking-tight block',
+                    isAcesHome ? 'text-primary font-extrabold' : 'text-foreground'
+                  )}
+                  title={match.team1}
+                >
+                  {match.team1}
+                </span>
+              </div>
+
+              {/* Skóre & Třetiny uprostřed */}
+              <div className="flex flex-col items-center justify-center min-w-[72px] sm:min-w-[88px] px-2 sm:px-3 py-1 rounded-lg bg-muted/40 border border-border/70 shrink-0 shadow-xs">
+                <span className="text-base sm:text-xl font-black tabular-nums tracking-tight text-foreground">
+                  {match.team1Score} : {match.team2Score}
+                </span>
+                {match.periodScores ? (
+                  <span className="text-[9px] sm:text-[10px] text-muted-foreground font-semibold tabular-nums">
+                    ({match.periodScores})
+                  </span>
+                ) : (
+                  <span className="text-[9px] sm:text-[10px] text-muted-foreground/60 font-medium">
+                    konec
+                  </span>
+                )}
+              </div>
+
+              {/* Tým 2 (Hosté) */}
+              <div className="min-w-0 text-left pl-1 sm:pl-2">
+                <span
+                  className={cn(
+                    'text-sm sm:text-base font-bold truncate tracking-tight block',
+                    !isAcesHome ? 'text-primary font-extrabold' : 'text-foreground'
+                  )}
+                  title={match.team2}
+                >
+                  {match.team2}
+                </span>
+              </div>
             </div>
           </div>
         </AccordionTrigger>

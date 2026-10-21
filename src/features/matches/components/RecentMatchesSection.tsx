@@ -66,9 +66,9 @@ export function RecentMatchesSection({
         <Button
           variant="link"
           asChild
-          className="p-0 h-auto font-bold text-primary text-xs"
+          className="p-0 h-auto font-bold text-primary text-xs hover:text-primary/80 transition-colors"
         >
-          <Link href={historyHref}>Zobrazit celou historii</Link>
+          <Link href={historyHref}>Zobrazit celou historii →</Link>
         </Button>
       </CardFooter>
     </Card>
