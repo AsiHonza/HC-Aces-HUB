@@ -1761,10 +1761,10 @@ function DashboardPageContent() {
   const scoringSection = (
     <Card className="h-fit w-full min-w-0 overflow-hidden">
       <Tabs value={activeStatsTab} onValueChange={(v) => setActiveStatsTab(v as 'stats' | 'stars')}>
-        <CardHeader className="py-3 px-3 sm:px-6 border-b space-y-3">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-            {/* Přepínač Hráči v poli vs Brankáři */}
-            <div className="inline-flex p-1 bg-muted/80 rounded-xl border border-border/60 shadow-inner w-full sm:w-auto">
+        <CardHeader className="py-3 px-3 sm:px-6 border-b">
+          <div className="flex flex-wrap items-center justify-between gap-2.5">
+            {/* Přepínač Hráči v poli vs Brankáři (bez rušivých ikon, jednořádkový) */}
+            <div className="inline-flex p-1 bg-muted/80 rounded-xl border border-border/60 shadow-inner">
               <button
                 type="button"
                 onClick={() => {
@@ -1772,13 +1772,12 @@ function DashboardPageContent() {
                   setStatsCategory('skaters');
                 }}
                 className={cn(
-                  "flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all select-none cursor-pointer",
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all select-none cursor-pointer whitespace-nowrap",
                   statsCategory === 'skaters'
                     ? "bg-background text-primary shadow-xs border border-border/40 font-bold"
                     : "text-muted-foreground hover:text-foreground hover:bg-background/40"
                 )}
               >
-                <Users className={cn("h-4 w-4", statsCategory === 'skaters' ? "text-primary" : "text-muted-foreground")} />
                 <span>Hráči v poli</span>
                 <span className={cn(
                   "text-[10px] px-1.5 py-0.2 rounded-full font-bold transition-colors",
@@ -1795,13 +1794,12 @@ function DashboardPageContent() {
                   setStatsCategory('goalies');
                 }}
                 className={cn(
-                  "flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all select-none cursor-pointer",
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all select-none cursor-pointer whitespace-nowrap",
                   statsCategory === 'goalies'
                     ? "bg-background text-primary shadow-xs border border-border/40 font-bold"
                     : "text-muted-foreground hover:text-foreground hover:bg-background/40"
                 )}
               >
-                <Shield className={cn("h-4 w-4", statsCategory === 'goalies' ? "text-primary" : "text-muted-foreground")} />
                 <span>Brankáři</span>
                 <span className={cn(
                   "text-[10px] px-1.5 py-0.2 rounded-full font-bold transition-colors",
@@ -1812,28 +1810,14 @@ function DashboardPageContent() {
               </button>
             </div>
 
-            {/* Režim: Statistiky / Hvězdy zápasů + akční tlačítka */}
-            <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
-              <TabsList className="grid grid-cols-2 h-8">
-                <TabsTrigger value="stats" className="text-xs px-2.5 h-7 font-semibold flex items-center gap-1.5">
-                  {statsCategory === 'skaters' ? (
-                    <>
-                      <Flame className="h-3.5 w-3.5 text-primary" />
-                      <span className="hidden sm:inline">Kanadské bodování</span>
-                      <span className="sm:hidden">Bodování</span>
-                    </>
-                  ) : (
-                    <>
-                      <BarChart className="h-3.5 w-3.5 text-primary" />
-                      <span className="hidden sm:inline">Statistiky brankářů</span>
-                      <span className="sm:hidden">Statistiky</span>
-                    </>
-                  )}
+            {/* Režim: Bodování / Hvězdy + akční tlačítka (stabilní šířka bez překrytí textu) */}
+            <div className="flex items-center gap-2 shrink-0">
+              <TabsList className="grid grid-cols-2 h-8 w-[156px] shrink-0">
+                <TabsTrigger value="stats" className="text-xs px-2 h-7 font-semibold whitespace-nowrap">
+                  {statsCategory === 'skaters' ? 'Bodování' : 'Statistiky'}
                 </TabsTrigger>
-                <TabsTrigger value="stars" className="text-xs px-2.5 h-7 font-semibold flex items-center gap-1.5">
-                  <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
-                  <span className="hidden sm:inline">Hvězdy zápasů</span>
-                  <span className="sm:hidden">Hvězdy</span>
+                <TabsTrigger value="stars" className="text-xs px-2 h-7 font-semibold whitespace-nowrap">
+                  Hvězdy
                 </TabsTrigger>
               </TabsList>
 
@@ -1843,7 +1827,7 @@ function DashboardPageContent() {
                     <Badge variant="outline" className="text-[10px] text-muted-foreground border-muted-foreground/30">Uzamčený archiv</Badge>
                   )}
                   {userProfile?.role === 'admin' && !isStatEditMode && scoringView !== 'season' && selectedSeasonId === 'current' && (
-                    <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => { 
+                    <Button size="sm" variant="outline" className="h-8 text-xs shrink-0" onClick={() => { 
                       const viewKey = scoringView === 'history' ? 'rawHistory' : (scoringView === 'regular' ? 'regular' : 'playoff');
                       if (statsCategory === 'skaters') {
                         const initialEditData = teamScoring.map(p => {
@@ -1874,10 +1858,10 @@ function DashboardPageContent() {
                       }
                       setIsStatEditMode(true); 
                       setExpandedStatId(null);
-                    }}><Pencil className="h-3 w-3 mr-1" />Upravit</Button>
+                    }}>Upravit</Button>
                   )}
                   {isStatEditMode && (
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 shrink-0">
                       <Button size="sm" variant="outline" className="h-8 text-[10px]" onClick={() => { setIsStatEditMode(false); setExpandedStatId(null); }}>Zrušit</Button>
                       <Button size="sm" className="h-8 text-[10px]" onClick={handleSaveStatsManual}>Uložit</Button>
                     </div>

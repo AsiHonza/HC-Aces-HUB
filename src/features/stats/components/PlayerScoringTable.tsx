@@ -9,12 +9,7 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { View, ChevronDown, ChevronUp, Shield, Crosshair, Zap, Users, Crown, Flame, Target, Activity, Info, Sparkles, Share2, Lock, ShieldCheck, Award } from 'lucide-react';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
+import { View, ChevronDown, ChevronUp, Shield, Crosshair, Zap, Users } from 'lucide-react';
 import {
   Tooltip,
   TooltipContent,
@@ -27,7 +22,6 @@ import type { EditableSkaterStatItem } from '../services/statsService';
 import type { Player } from '@/types/player';
 import type { Match } from '@/types/match';
 import type { PlayerFormSummary } from '../utils/playerForm';
-import { getPlayerFormIcon, PlayerFormBadgeItem } from './PlayerFormBadgeItem';
 import { resolvePlayerPosition, POSITION_METADATA } from '@/features/roster/utils/positions';
 
 export interface ScorerItem {
@@ -77,7 +71,6 @@ export function PlayerScoringTable({
   className,
 }: PlayerScoringTableProps) {
   const [posFilter, setPosFilter] = useState<PositionFilterType>('all');
-  const [isLegendOpen, setIsLegendOpen] = useState(false);
 
   const positionByPlayerId = useMemo(() => {
     const map = new Map<string, ReturnType<typeof resolvePlayerPosition>>();
@@ -163,7 +156,6 @@ export function PlayerScoringTable({
                 posInfo && posInfo.resolvedPosition !== 'player' && posInfo.resolvedPosition !== 'member' && posInfo.resolvedPosition !== 'goalie'
                   ? posInfo.meta
                   : null;
-              const topBadges = playerFormMap?.get(p.id)?.badges.slice(0, 2) || [];
 
               return (
                 <React.Fragment key={p.id}>
@@ -201,13 +193,6 @@ export function PlayerScoringTable({
                               <span>{posMeta.label}</span>
                             </TooltipContent>
                           </Tooltip>
-                        )}
-                        {topBadges.length > 0 && (
-                          <span className="inline-flex items-center gap-1 shrink-0">
-                            {topBadges.map((b) => (
-                              <PlayerFormBadgeItem key={b.type} badge={b} showLabel={false} />
-                            ))}
-                          </span>
                         )}
                         <View className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity text-primary shrink-0" />
                       </div>
@@ -318,104 +303,6 @@ export function PlayerScoringTable({
         </Table>
       </div>
     </TooltipProvider>
-
-      {/* Legenda ikon formy a ocenění (rozbalovací) */}
-      <div className="mt-3 pt-2.5 border-t border-border/60">
-        <Collapsible open={isLegendOpen} onOpenChange={setIsLegendOpen} className="w-full">
-          <div className="flex items-center justify-between">
-            <CollapsibleTrigger asChild>
-              <button
-                type="button"
-                className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors group cursor-pointer py-1"
-              >
-                <Info className="h-3.5 w-3.5 text-primary shrink-0" />
-                <span>Vysvětlivky ikon hráčů</span>
-                <ChevronDown
-                  className={cn(
-                    "h-3.5 w-3.5 text-muted-foreground transition-transform duration-200",
-                    isLegendOpen && "rotate-180"
-                  )}
-                />
-              </button>
-            </CollapsibleTrigger>
-          </div>
-
-          <CollapsibleContent className="pt-2.5">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-[11px] text-muted-foreground">
-              <div className="inline-flex items-center gap-2 bg-muted/40 px-2 py-1.5 rounded-md border border-border/50">
-                <Crown className="h-3.5 w-3.5 text-amber-500 fill-amber-500 shrink-0" />
-                <div>
-                  <span className="font-bold text-foreground mr-1">Úřadující MVP:</span>
-                  <span>1. hvězda posl. uzavřeného zápasu</span>
-                </div>
-              </div>
-              <div className="inline-flex items-center gap-2 bg-muted/40 px-2 py-1.5 rounded-md border border-border/50">
-                <Sparkles className="h-3.5 w-3.5 text-purple-500 fill-purple-500 shrink-0" />
-                <div>
-                  <span className="font-bold text-foreground mr-1">Hattrick hrdina:</span>
-                  <span>3+ góly v posl. zápase</span>
-                </div>
-              </div>
-              <div className="inline-flex items-center gap-2 bg-muted/40 px-2 py-1.5 rounded-md border border-border/50">
-                <Target className="h-3.5 w-3.5 text-rose-500 shrink-0" />
-                <div>
-                  <span className="font-bold text-foreground mr-1">Střelecká forma:</span>
-                  <span>2 góly v posl. zápase</span>
-                </div>
-              </div>
-              <div className="inline-flex items-center gap-2 bg-muted/40 px-2 py-1.5 rounded-md border border-border/50">
-                <Share2 className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
-                <div>
-                  <span className="font-bold text-foreground mr-1">Dvorní nahrávač:</span>
-                  <span>2+ asistence v posl. zápase</span>
-                </div>
-              </div>
-              <div className="inline-flex items-center gap-2 bg-muted/40 px-2 py-1.5 rounded-md border border-border/50">
-                <Flame className="h-3.5 w-3.5 text-orange-500 fill-orange-500 shrink-0" />
-                <div>
-                  <span className="font-bold text-foreground mr-1">Bodová série:</span>
-                  <span>Bod v 3+ zápasech v řadě</span>
-                </div>
-              </div>
-              <div className="inline-flex items-center gap-2 bg-muted/40 px-2 py-1.5 rounded-md border border-border/50">
-                <ShieldCheck className="h-3.5 w-3.5 text-cyan-500 shrink-0" />
-                <div>
-                  <span className="font-bold text-foreground mr-1">Zeď v bráně:</span>
-                  <span>&gt;90 % zákroků nebo nula brankáře</span>
-                </div>
-              </div>
-              <div className="inline-flex items-center gap-2 bg-muted/40 px-2 py-1.5 rounded-md border border-border/50">
-                <Lock className="h-3.5 w-3.5 text-teal-500 shrink-0" />
-                <div>
-                  <span className="font-bold text-foreground mr-1">Čisté konto:</span>
-                  <span>Výhra s 0 inkasovanými góly</span>
-                </div>
-              </div>
-              <div className="inline-flex items-center gap-2 bg-muted/40 px-2 py-1.5 rounded-md border border-border/50">
-                <Shield className="h-3.5 w-3.5 text-sky-500 shrink-0" />
-                <div>
-                  <span className="font-bold text-foreground mr-1">Pilíř obrany:</span>
-                  <span>2+ zápasy s max. 2 góly soupeře</span>
-                </div>
-              </div>
-              <div className="inline-flex items-center gap-2 bg-muted/40 px-2 py-1.5 rounded-md border border-border/50">
-                <Award className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-                <div>
-                  <span className="font-bold text-foreground mr-1">Tichý hrdina:</span>
-                  <span>TOP 3 hvězda zápasu bez bodu</span>
-                </div>
-              </div>
-              <div className="inline-flex items-center gap-2 bg-muted/40 px-2 py-1.5 rounded-md border border-border/50">
-                <Activity className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                <div>
-                  <span className="font-bold text-foreground mr-1">Železný muž:</span>
-                  <span>Šňůra 5+ zápasů bez absence</span>
-                </div>
-              </div>
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-      </div>
 
       {!isStatEditMode && filteredScorers.length > 10 && onToggleShowAll && (
         <div className="mt-4 text-center">
