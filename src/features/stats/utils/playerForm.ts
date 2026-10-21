@@ -7,18 +7,26 @@ import { toJsDate } from '@/lib/dates';
 
 export type PlayerFormBadgeType =
   | 'reigning-mvp'
-  | 'point-streak'
+  | 'hattrick-hero'
   | 'hot-sniper'
+  | 'playmaker'
+  | 'point-streak'
   | 'goalie-wall'
+  | 'shutout'
   | 'lockdown-shield'
+  | 'unsung-hero'
   | 'ironman-streak';
 
 export type PlayerFormBadgeIcon =
   | 'crown'
-  | 'flame'
+  | 'sparkles'
   | 'target'
+  | 'share'
+  | 'flame'
   | 'shield-check'
+  | 'lock'
   | 'shield'
+  | 'award'
   | 'activity';
 
 export interface PlayerFormBadge {
@@ -212,10 +220,6 @@ export function calculateAllPlayersFormAndDefense(
     let gamesAppeared = 0;
     let winsAppeared = 0;
 
-    let lastMatchGoals = 0;
-    let lastMatchSavePct = 0;
-    let lastMatchIsShutout = false;
-
     const playerAppearancesAsc: Array<{
       match: Match;
       goals: number;
@@ -332,9 +336,21 @@ export function calculateAllPlayersFormAndDefense(
     }
 
     const appearancesWithStats = playerAppearancesAsc.filter((a) => a.statsRecorded);
+    let lastMatchGoals = 0;
+    let lastMatchAssists = 0;
+    let lastMatchIsWin = false;
+    let lastMatchOppScore = 0;
+    let lastMatchSavePct = 0;
+    let lastMatchIsShutout = false;
+    let latestMatch: Match | null = null;
+
     if (appearancesWithStats.length > 0) {
       const latestApp = appearancesWithStats[appearancesWithStats.length - 1];
+      latestMatch = latestApp.match;
       lastMatchGoals = latestApp.goals;
+      lastMatchAssists = latestApp.assists;
+      lastMatchIsWin = latestApp.isWin;
+      lastMatchOppScore = latestApp.oppScore;
       if (isGoalie) {
         const m = latestApp.match;
         const saves = Number(m.goalieSaves ?? 0);
@@ -353,7 +369,7 @@ export function calculateAllPlayersFormAndDefense(
     const badges: PlayerFormBadge[] = [];
     const isReigningMvp = reigningMvpIds.has(user.id);
 
-    // 1. Reigning MVP Crown
+    // 1. Reigning MVP Crown (1. hvězda posl. uzavřeného zápasu)
     if (isReigningMvp) {
       badges.push({
         type: 'reigning-mvp',
@@ -368,7 +384,46 @@ export function calculateAllPlayersFormAndDefense(
       });
     }
 
-    // 2. Point Streak (3+ games)
+    // 2. Hattrick Hero (3+ gólů v posl. zápase)
+    if (!isGoalie && lastMatchGoals >= 3) {
+      badges.push({
+        type: 'hattrick-hero',
+        icon: 'sparkles',
+        shortLabel: `${lastMatchGoals}G`,
+        title: `Hattrick hrdina (${lastMatchGoals} góly!)`,
+        description: `V posledním odehraném utkání nastřílel hattrick (${lastMatchGoals} gólů)!`,
+        priority: 2,
+        badgeClass: 'bg-purple-500/20 text-purple-600 dark:text-purple-400 border-purple-500/40',
+      });
+    }
+
+    // 3. Hot Sniper (2 góly v posl. zápase)
+    if (!isGoalie && lastMatchGoals === 2) {
+      badges.push({
+        type: 'hot-sniper',
+        icon: 'target',
+        shortLabel: '2G',
+        title: 'Střelecká forma (2 góly)',
+        description: 'V posledním odehraném zápase skóroval hned dvakrát!',
+        priority: 3,
+        badgeClass: 'bg-rose-500/20 text-rose-600 dark:text-rose-400 border-rose-500/40',
+      });
+    }
+
+    // 4. Playmaker (2+ asistence v posl. zápase)
+    if (!isGoalie && lastMatchAssists >= 2) {
+      badges.push({
+        type: 'playmaker',
+        icon: 'share',
+        shortLabel: `${lastMatchAssists}A`,
+        title: `Dvorní nahrávač (${lastMatchAssists} asistence)`,
+        description: `V posledním odehraném zápase připravil pro spoluhráče ${lastMatchAssists} gólové nahrávky!`,
+        priority: 3,
+        badgeClass: 'bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border-indigo-500/40',
+      });
+    }
+
+    // 5. Point Streak (Bod ve 3+ zápasech v řadě)
     if (!isGoalie && currentPointStreak >= 3) {
       badges.push({
         type: 'point-streak',
@@ -376,12 +431,12 @@ export function calculateAllPlayersFormAndDefense(
         shortLabel: `${currentPointStreak}Z`,
         title: `On Fire: Bodová šňůra (${currentPointStreak} Z)`,
         description: `Bodoval v posledních ${currentPointStreak} odehraných zápasech v řadě (${pointStreakGoals}G + ${pointStreakAssists}A)`,
-        priority: 2,
+        priority: 4,
         badgeClass: 'bg-orange-500/20 text-orange-600 dark:text-orange-400 border-orange-500/40',
       });
     }
 
-    // 3. Goalie Wall (>90% or Shutout in latest game)
+    // 6. Goalie Wall (>90 % zákroků nebo čisté konto v posl. zápase)
     if (isGoalie && (lastMatchSavePct >= 90 || lastMatchIsShutout)) {
       badges.push({
         type: 'goalie-wall',
@@ -396,20 +451,20 @@ export function calculateAllPlayersFormAndDefense(
       });
     }
 
-    // 4. Hot Sniper (2+ goals in latest game)
-    if (!isGoalie && lastMatchGoals >= 2) {
+    // 7. Shutout (Čisté konto týmu pro hráče v poli)
+    if (!isGoalie && appearancesWithStats.length > 0 && lastMatchIsWin && lastMatchOppScore === 0) {
       badges.push({
-        type: 'hot-sniper',
-        icon: 'target',
-        shortLabel: `${lastMatchGoals}G`,
-        title: 'Horká střela',
-        description: `V posledním odehraném zápase nasázel ${lastMatchGoals} góly!`,
-        priority: 3,
-        badgeClass: 'bg-rose-500/20 text-rose-600 dark:text-rose-400 border-rose-500/40',
+        type: 'shutout',
+        icon: 'lock',
+        shortLabel: 'NULA',
+        title: 'Čisté konto / Nulák',
+        description: 'Byl na ledě při vítězném utkání s čistým kontem (0 obdržených gólů)!',
+        priority: 4,
+        badgeClass: 'bg-teal-500/20 text-teal-600 dark:text-teal-400 border-teal-500/40',
       });
     }
 
-    // 5. Lockdown Shield (2+ consecutive games with <= 2 GA)
+    // 8. Lockdown Shield (2+ po sobě jdoucí zápasy s max 2 obdrženými góly)
     if (!isGoalie && lockdownStreak >= 2) {
       badges.push({
         type: 'lockdown-shield',
@@ -417,12 +472,40 @@ export function calculateAllPlayersFormAndDefense(
         shortLabel: `${lockdownStreak}Z`,
         title: 'Defenzivní štít',
         description: `V posledních ${lockdownStreak} zápasech v sestavě udrželi Aces soupeře na max. 2 gólech`,
-        priority: 4,
+        priority: 5,
         badgeClass: 'bg-sky-500/20 text-sky-600 dark:text-sky-400 border-sky-500/40',
       });
     }
 
-    // 6. Ironman Streak (5+ consecutive team games without missing)
+    // 9. Unsung Hero (Top 3 hvězda zápasu bez gólů a asistencí)
+    if (latestMatch) {
+      const starsRes = starsByMatchId.get(latestMatch.id);
+      const votingState = getMvpVotingStatus(latestMatch);
+      if (
+        votingState.status === 'closed' &&
+        starsRes &&
+        starsRes.totalVoters > 0 &&
+        lastMatchGoals === 0 &&
+        lastMatchAssists === 0
+      ) {
+        const onPodium = starsRes.standings.some(
+          (s) => s.candidateId === user.id && s.rank <= 3 && s.points > 0
+        );
+        if (onPodium) {
+          badges.push({
+            type: 'unsung-hero',
+            icon: 'award',
+            shortLabel: 'HRDINA',
+            title: 'Tichý hrdina (Černá práce)',
+            description: 'Zvolen kabinou mezi 3 nejlepší hvězdy zápasu za obětavou hru, bloky a spolehlivou defenzívu!',
+            priority: 6,
+            badgeClass: 'bg-amber-600/20 text-amber-700 dark:text-amber-300 border-amber-600/40',
+          });
+        }
+      }
+    }
+
+    // 10. Ironman Streak (5+ zápasů bez absence)
     if (currentIronmanStreak >= 5) {
       badges.push({
         type: 'ironman-streak',
@@ -430,7 +513,7 @@ export function calculateAllPlayersFormAndDefense(
         shortLabel: `${currentIronmanStreak}Z`,
         title: `Železný muž (${currentIronmanStreak} Z v řadě)`,
         description: `Nechyběl ani v jednom z posledních ${currentIronmanStreak} zápasů HC Aces`,
-        priority: 5,
+        priority: 7,
         badgeClass: 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/40',
       });
     }

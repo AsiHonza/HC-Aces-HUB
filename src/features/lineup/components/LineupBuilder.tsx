@@ -327,7 +327,7 @@ export function LineupBuilder({
                 : player
                 ? "border-transparent bg-transparent"
                 : "border-slate-500/40 bg-slate-900/60 hover:border-slate-400/60 backdrop-blur-sm",
-              isSmall ? "h-16 w-36 sm:w-44" : "h-20 w-44 sm:w-52"
+              isSmall ? "h-16 w-40 sm:w-48 lg:w-52" : "h-20 w-48 sm:w-56 lg:w-64"
             )}
           >
             {player ? (
@@ -520,7 +520,7 @@ export function LineupBuilder({
       <DragDropContext onDragEnd={onDragEnd}>
         <div className="flex h-full gap-4 p-4 min-h-0">
           {/* Available Players Drawer */}
-          <Card className="w-72 flex flex-col shrink-0 border-border bg-card/60 backdrop-blur-sm">
+          <Card className="w-64 xl:w-72 flex flex-col shrink-0 border-border bg-card/60 backdrop-blur-sm">
             <div className="p-3 border-b space-y-2">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-sm flex items-center gap-2">

@@ -2490,7 +2490,7 @@ function DashboardPageContent() {
       </Dialog>
 
       <Dialog open={isLineupBuilderOpen} onOpenChange={setIsLineupBuilderOpen}>
-        <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 overflow-hidden text-left">
+        <DialogContent className="max-w-5xl xl:max-w-6xl w-[95vw] h-[92vh] flex flex-col p-0 overflow-hidden text-left">
             <DialogHeader className="p-6 pb-0 flex-shrink-0">
                 <DialogTitle>Editor sestavy</DialogTitle>
             </DialogHeader>
