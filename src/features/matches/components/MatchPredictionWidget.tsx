@@ -62,8 +62,8 @@ export function MatchPredictionWidget({
   );
   const myPrediction = myAttendee?.prediction;
 
-  const [acesScore, setAcesScore] = useState<number>(myPrediction?.acesScore ?? 5);
-  const [opponentScore, setOpponentScore] = useState<number>(myPrediction?.opponentScore ?? 3);
+  const [acesScore, setAcesScore] = useState<number>(myPrediction?.acesScore ?? 0);
+  const [opponentScore, setOpponentScore] = useState<number>(myPrediction?.opponentScore ?? 0);
   const [firstScorerId, setFirstScorerId] = useState<string>(
     myPrediction?.firstScorerId || 'none'
   );
@@ -119,8 +119,8 @@ export function MatchPredictionWidget({
   }, [allPredictions]);
 
   const handleOpenDialog = () => {
-    setAcesScore(myPrediction?.acesScore ?? 5);
-    setOpponentScore(myPrediction?.opponentScore ?? 3);
+    setAcesScore(myPrediction?.acesScore ?? 0);
+    setOpponentScore(myPrediction?.opponentScore ?? 0);
     setFirstScorerId(myPrediction?.firstScorerId || 'none');
     setIsDialogOpen(true);
   };
@@ -156,7 +156,7 @@ export function MatchPredictionWidget({
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="text-xs font-bold text-foreground">
-                Tipovačka kabiny
+                Tipovačka
               </span>
               {allPredictions.length > 0 && (
                 <Badge
@@ -181,7 +181,7 @@ export function MatchPredictionWidget({
               )}
             </div>
 
-            {myPrediction ? (
+            {myPrediction && (
               <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
                 Můj tip:{' '}
                 <span className="font-bold text-primary">
@@ -193,10 +193,6 @@ export function MatchPredictionWidget({
                     • 1. gól: <strong>{myScorerName}</strong>
                   </span>
                 )}
-              </p>
-            ) : (
-              <p className="text-[11px] text-muted-foreground mt-0.5">
-                Tipni si přesný výsledek (+5 b.) a střelce 1. gólu Aces (+3 b.)!
               </p>
             )}
           </div>
@@ -237,10 +233,10 @@ export function MatchPredictionWidget({
           <DialogHeader className="pr-8 text-left">
             <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
               <Target className="h-5 w-5 text-primary shrink-0" />
-              <span>Předzápasová tipovačka</span>
+              <span>Tipovačka</span>
             </DialogTitle>
-            <DialogDescription className="text-xs">
-              Soutěž <strong>Věštec kabiny</strong> • Uzávěrka s úvodním buly utkání.
+            <DialogDescription className="text-xs text-muted-foreground">
+              Tipni si přesný výsledek (+5 b.) a střelce 1. gólu Aces (+3 b.)! Uzávěrka s úvodním buly utkání.
             </DialogDescription>
           </DialogHeader>
 
