@@ -252,8 +252,8 @@ function DashboardPageContent() {
   const [showAllGoalies, setShowAllGoalies] = useState(false);
   const [showAllStars, setShowAllStars] = useState(false);
   const [showAllGoalieStars, setShowAllGoalieStars] = useState(false);
-  const [activeScoringTab, setActiveScoringTab] = useState<'scoring' | 'stars'>('scoring');
-  const [activeGoalieTab, setActiveGoalieTab] = useState<'goalies' | 'stars'>('goalies');
+  const [statsCategory, setStatsCategory] = useState<'skaters' | 'goalies'>('skaters');
+  const [activeStatsTab, setActiveStatsTab] = useState<'stats' | 'stars'>('stats');
 
   const [editableSkaterStats, setEditableSkaterStats] = useState<any[]>([]);
   const [editableGoalieStats, setEditableGoalieStats] = useState<any[]>([]);
@@ -1757,497 +1757,474 @@ function DashboardPageContent() {
           />
   );
 
-  // 6. Kanadské bodování & Hvězdy
+  // 6. Týmové statistiky (Hráči v poli & Brankáři)
   const scoringSection = (
-            <Card className="h-fit w-full min-w-0 overflow-hidden">
-              <Tabs value={activeScoringTab} onValueChange={(v) => setActiveScoringTab(v as 'scoring' | 'stars')}>
-                <CardHeader className="flex-col sm:flex-row items-start sm:items-center justify-between gap-3 py-3 px-4 sm:px-6 border-b">
-                  <TabsList className="grid grid-cols-2 w-full sm:w-auto">
-                    <TabsTrigger value="scoring" className="text-xs font-semibold flex items-center gap-1.5">
+    <Card className="h-fit w-full min-w-0 overflow-hidden">
+      <Tabs value={activeStatsTab} onValueChange={(v) => setActiveStatsTab(v as 'stats' | 'stars')}>
+        <CardHeader className="py-3 px-3 sm:px-6 border-b space-y-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            {/* Přepínač Hráči v poli vs Brankáři */}
+            <div className="inline-flex p-1 bg-muted/80 rounded-xl border border-border/60 shadow-inner w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  if (isStatEditMode) return;
+                  setStatsCategory('skaters');
+                }}
+                className={cn(
+                  "flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all select-none cursor-pointer",
+                  statsCategory === 'skaters'
+                    ? "bg-background text-primary shadow-xs border border-border/40 font-bold"
+                    : "text-muted-foreground hover:text-foreground hover:bg-background/40"
+                )}
+              >
+                <Users className={cn("h-4 w-4", statsCategory === 'skaters' ? "text-primary" : "text-muted-foreground")} />
+                <span>Hráči v poli</span>
+                <span className={cn(
+                  "text-[10px] px-1.5 py-0.2 rounded-full font-bold transition-colors",
+                  statsCategory === 'skaters' ? "bg-primary/15 text-primary" : "bg-muted-foreground/15 text-muted-foreground"
+                )}>
+                  {teamScoring.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (isStatEditMode) return;
+                  setStatsCategory('goalies');
+                }}
+                className={cn(
+                  "flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all select-none cursor-pointer",
+                  statsCategory === 'goalies'
+                    ? "bg-background text-primary shadow-xs border border-border/40 font-bold"
+                    : "text-muted-foreground hover:text-foreground hover:bg-background/40"
+                )}
+              >
+                <Shield className={cn("h-4 w-4", statsCategory === 'goalies' ? "text-primary" : "text-muted-foreground")} />
+                <span>Brankáři</span>
+                <span className={cn(
+                  "text-[10px] px-1.5 py-0.2 rounded-full font-bold transition-colors",
+                  statsCategory === 'goalies' ? "bg-primary/15 text-primary" : "bg-muted-foreground/15 text-muted-foreground"
+                )}>
+                  {goalieLeaderboard.length}
+                </span>
+              </button>
+            </div>
+
+            {/* Režim: Statistiky / Hvězdy zápasů + akční tlačítka */}
+            <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
+              <TabsList className="grid grid-cols-2 h-8">
+                <TabsTrigger value="stats" className="text-xs px-2.5 h-7 font-semibold flex items-center gap-1.5">
+                  {statsCategory === 'skaters' ? (
+                    <>
                       <Flame className="h-3.5 w-3.5 text-primary" />
-                      Kanadské bodování
-                    </TabsTrigger>
-                    <TabsTrigger value="stars" className="text-xs font-semibold flex items-center gap-1.5">
-                      <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
-                      Hvězdy zápasů
-                    </TabsTrigger>
-                  </TabsList>
+                      <span className="hidden sm:inline">Kanadské bodování</span>
+                      <span className="sm:hidden">Bodování</span>
+                    </>
+                  ) : (
+                    <>
+                      <BarChart className="h-3.5 w-3.5 text-primary" />
+                      <span className="hidden sm:inline">Statistiky brankářů</span>
+                      <span className="sm:hidden">Statistiky</span>
+                    </>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="stars" className="text-xs px-2.5 h-7 font-semibold flex items-center gap-1.5">
+                  <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
+                  <span className="hidden sm:inline">Hvězdy zápasů</span>
+                  <span className="sm:hidden">Hvězdy</span>
+                </TabsTrigger>
+              </TabsList>
 
-                  {activeScoringTab === 'scoring' && (
-                    <div className="flex items-center gap-2 self-end sm:self-center">
-                      {selectedSeasonId !== 'current' && (
-                        <Badge variant="outline" className="text-[10px] text-muted-foreground border-muted-foreground/30">Uzamčený archiv</Badge>
-                      )}
-                      {userProfile?.role === 'admin' && !isStatEditMode && scoringView !== 'season' && selectedSeasonId === 'current' && (
-                        <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => { 
-                          const viewKey = scoringView === 'history' ? 'rawHistory' : (scoringView === 'regular' ? 'regular' : 'playoff');
-                          const initialEditData = teamScoring.map(p => {
-                            const data = p[viewKey as keyof typeof p] as any;
-                            return {
-                              id: p.id,
-                              name: p.name,
-                              goals: String(data.goals || 0),
-                              assists: String(data.assists || 0),
-                              gamesPlayed: String(data.gamesPlayed || 0)
-                            };
-                          });
-                          setEditableSkaterStats(initialEditData); 
-                          setIsStatEditMode(true); 
-                          setExpandedStatId(null);
-                        }}><Pencil className="h-3 w-3 mr-1" />Upravit</Button>
-                      )}
-                      {isStatEditMode && (
-                        <div className="flex gap-2">
-                          <Button size="sm" variant="outline" className="h-8 text-[10px]" onClick={() => { setIsStatEditMode(false); setExpandedStatId(null); }}>Zrušit</Button>
-                          <Button size="sm" className="h-8 text-[10px]" onClick={handleSaveStatsManual}>Uložit</Button>
-                        </div>
-                      )}
+              {activeStatsTab === 'stats' && (
+                <div className="flex items-center gap-2">
+                  {selectedSeasonId !== 'current' && (
+                    <Badge variant="outline" className="text-[10px] text-muted-foreground border-muted-foreground/30">Uzamčený archiv</Badge>
+                  )}
+                  {userProfile?.role === 'admin' && !isStatEditMode && scoringView !== 'season' && selectedSeasonId === 'current' && (
+                    <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => { 
+                      const viewKey = scoringView === 'history' ? 'rawHistory' : (scoringView === 'regular' ? 'regular' : 'playoff');
+                      if (statsCategory === 'skaters') {
+                        const initialEditData = teamScoring.map(p => {
+                          const data = p[viewKey as keyof typeof p] as any;
+                          return {
+                            id: p.id,
+                            name: p.name,
+                            goals: String(data.goals || 0),
+                            assists: String(data.assists || 0),
+                            gamesPlayed: String(data.gamesPlayed || 0)
+                          };
+                        });
+                        setEditableSkaterStats(initialEditData); 
+                      } else {
+                        const initialEditData = goalieLeaderboard.map(g => {
+                          const data = g[viewKey as keyof typeof g] as any;
+                          return {
+                            id: g.id,
+                            name: g.name,
+                            gamesPlayed: String(data.gamesPlayed || 0),
+                            wins: String(data.wins || 0),
+                            saves: String(data.saves || 0),
+                            shotsAgainst: String(data.shotsAgainst || 0),
+                            so: String(data.so || 0)
+                          };
+                        });
+                        setEditableGoalieStats(initialEditData); 
+                      }
+                      setIsStatEditMode(true); 
+                      setExpandedStatId(null);
+                    }}><Pencil className="h-3 w-3 mr-1" />Upravit</Button>
+                  )}
+                  {isStatEditMode && (
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" className="h-8 text-[10px]" onClick={() => { setIsStatEditMode(false); setExpandedStatId(null); }}>Zrušit</Button>
+                      <Button size="sm" className="h-8 text-[10px]" onClick={handleSaveStatsManual}>Uložit</Button>
                     </div>
                   )}
+                </div>
+              )}
 
-                  {activeScoringTab === 'stars' && (
-                    <Badge variant="outline" className="text-[11px] font-semibold border-amber-500/30 text-amber-500 bg-amber-500/10 self-end sm:self-center">
-                      3 b. / 2 b. / 1 b.
-                    </Badge>
+              {activeStatsTab === 'stars' && (
+                <Badge variant="outline" className="text-[11px] font-semibold border-amber-500/30 text-amber-500 bg-amber-500/10 shrink-0">
+                  3 b. / 2 b. / 1 b.
+                </Badge>
+              )}
+            </div>
+          </div>
+        </CardHeader>
+
+        <TabsContent value="stats" className="mt-0">
+          <CardContent className="px-1 sm:px-6 pt-4">
+            <Tabs value={scoringView} onValueChange={(v) => { if (!isStatEditMode) setScoringView(v as any); }}>
+              {selectedSeasonId === 'current' ? (
+                <TabsList className="grid w-full grid-cols-4 mb-4">
+                  <TabsTrigger value="regular" className="text-[10px] px-1">ZČ</TabsTrigger>
+                  <TabsTrigger value="playoff" className="text-[10px] px-1">Play-off</TabsTrigger>
+                  <TabsTrigger value="season" className="text-[10px] px-1">Sezona</TabsTrigger>
+                  <TabsTrigger value="history" className="text-[10px] px-1">Historie</TabsTrigger>
+                </TabsList>
+              ) : (
+                <div className="mb-3 px-1 text-xs text-muted-foreground flex items-center justify-between">
+                  <span>Konečné statistiky ročníku <strong>{activeSeasonData.name}</strong></span>
+                  <Badge variant="secondary" className="text-[10px]">Archiv</Badge>
+                </div>
+              )}
+              {isStatEditMode && (
+                <div className="mb-4 p-2 bg-primary/5 border rounded-lg text-[10px] text-primary text-center font-bold uppercase">
+                  {statsCategory === 'skaters' ? (
+                    scoringView === 'history' ? 'Upravujete historii hráčů (minulé sezóny)' : (scoringView === 'regular' ? 'Upravujete základní část hráčů' : 'Upravujete play-off hráčů')
+                  ) : (
+                    scoringView === 'history' ? 'Upravujete historii brankářů (minulé sezóny)' : (scoringView === 'regular' ? 'Upravujete základní část brankářů' : 'Upravujete play-off brankářů')
                   )}
-                </CardHeader>
-
-                <TabsContent value="scoring" className="mt-0">
-                  <CardContent className="px-1 sm:px-6 pt-4">
-                    <Tabs value={scoringView} onValueChange={(v) => { if (!isStatEditMode) setScoringView(v as any); }}>
-                      {selectedSeasonId === 'current' ? (
-                        <TabsList className="grid w-full grid-cols-4 mb-4">
-                          <TabsTrigger value="regular" className="text-[10px] px-1">ZČ</TabsTrigger>
-                          <TabsTrigger value="playoff" className="text-[10px] px-1">Play-off</TabsTrigger>
-                          <TabsTrigger value="season" className="text-[10px] px-1">Sezona</TabsTrigger>
-                          <TabsTrigger value="history" className="text-[10px] px-1">Historie</TabsTrigger>
-                        </TabsList>
+                </div>
+              )}
+              {scoringView === 'history' && userProfile?.role === 'admin' && (
+                <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-1.5 font-bold text-amber-700 dark:text-amber-400">
+                      <DatabaseBackup className="h-4 w-4" />
+                      <span>Oficiální historický snapshot (stav k 14. 4. 2026)</span>
+                    </div>
+                    <p className="text-muted-foreground text-[11px]">
+                      {statsCategory === 'skaters' ? (
+                        hasHistoricalData
+                          ? 'Historické statistiky (37 hráčů, 6 brankářů) jsou aktivní a dopočítávají se k letošní sezóně.'
+                          : 'V databázi chybí historické statistiky (byly dříve vynulovány). Kliknutím níže obnovíte oficiální čísla k 14. 4. 2026.'
                       ) : (
-                        <div className="mb-3 px-1 text-xs text-muted-foreground flex items-center justify-between">
-                          <span>Konečné statistiky ročníku <strong>{activeSeasonData.name}</strong></span>
-                          <Badge variant="secondary" className="text-[10px]">Archiv</Badge>
-                        </div>
+                        hasHistoricalData
+                          ? 'Historické statistiky brankářů (Štěpán 88 Z, Lacko 31 Z, Bara 5 Z...) jsou aktivní.'
+                          : 'V databázi chybí historické statistiky brankářů. Kliknutím níže obnovíte oficiální čísla k 14. 4. 2026.'
                       )}
-                      {isStatEditMode && (
-                        <div className="mb-4 p-2 bg-primary/5 border rounded-lg text-[10px] text-primary text-center font-bold uppercase">
-                          {scoringView === 'history' ? 'Upravujete historii (minulé sezóny)' : (scoringView === 'regular' ? 'Upravujete základní část' : 'Upravujete play-off')}
-                        </div>
-                      )}
-                      {scoringView === 'history' && userProfile?.role === 'admin' && (
-                        <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                          <div className="space-y-0.5">
-                            <div className="flex items-center gap-1.5 font-bold text-amber-700 dark:text-amber-400">
-                              <DatabaseBackup className="h-4 w-4" />
-                              <span>Oficiální historický snapshot (stav k 14. 4. 2026)</span>
-                            </div>
-                            <p className="text-muted-foreground text-[11px]">
-                              {hasHistoricalData
-                                ? 'Historické statistiky (37 hráčů, 6 brankářů) jsou aktivní a dopočítávají se k letošní sezóně.'
-                                : 'V databázi chybí historické statistiky (byly dříve vynulovány). Kliknutím níže obnovíte oficiální čísla k 14. 4. 2026.'}
-                            </p>
-                          </div>
-                          <Button
-                            size="sm"
-                            variant={hasHistoricalData ? 'outline' : 'default'}
-                            className={cn(
-                              'h-8 text-xs font-semibold shrink-0',
-                              !hasHistoricalData && 'bg-amber-600 hover:bg-amber-700 text-white shadow-sm'
-                            )}
-                            onClick={handleRestoreHistoricalSnapshot}
-                            disabled={isRestoringHistoricalSnapshot}
-                          >
-                            {isRestoringHistoricalSnapshot ? (
-                              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <History className="mr-1.5 h-3.5 w-3.5" />
-                            )}
-                            {hasHistoricalData ? 'Znovu přepsat snapshotem' : 'Aplikovat snapshot historie (1 klik)'}
-                          </Button>
-                        </div>
-                      )}
-                      <PlayerScoringTable
-                        scorers={sortedTeamScoring}
-                        currentUserId={user?.uid}
-                        onPlayerClick={handleOpenCareerModal}
-                        showAll={showAllScoring}
-                        onToggleShowAll={() => setShowAllScoring(!showAllScoring)}
-                        isStatEditMode={isStatEditMode}
-                        expandedStatId={expandedStatId}
-                        onToggleExpandStat={(id) => setExpandedStatId(expandedStatId === id ? null : id)}
-                        onUpdateEditableSkaterStat={setEditableSkaterStats}
-                        allUsers={allUsers || []}
-                        allMatches={allMatches || []}
-                        playerFormMap={teamMilestonesData.playerFormMap}
-                      />
-                    </Tabs>
-                  </CardContent>
-                </TabsContent>
-
-                <TabsContent value="stars" className="mt-0">
-                  <CardContent className="px-2 sm:px-6 pt-4">
-                    {skaterStarsLeaderboard.length === 0 ? (
-                      <div className="py-8 text-center text-xs text-muted-foreground">
-                        <Star className="h-7 w-7 text-muted-foreground/30 mx-auto mb-2" />
-                        <p className="font-semibold text-foreground">Zatím nebyly uděleny žádné hvězdy hráčům</p>
-                        <p className="mt-1">Po skončení každého zápasu mohou hráči v kabině hlasovat o 1., 2. a 3. hvězdě.</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead className="w-10 text-center font-bold text-xs">#</TableHead>
-                              <TableHead className="text-xs">Hráč</TableHead>
-                              <TableHead className="text-center text-xs" title="1. hvězda (3 body)">
-                                <span className="inline-flex items-center gap-0.5 justify-center text-amber-500">
-                                  1.<Star className="h-2.5 w-2.5 fill-current" />
-                                </span>
-                              </TableHead>
-                              <TableHead className="text-center text-xs" title="2. hvězda (2 body)">
-                                <span className="inline-flex items-center gap-0.5 justify-center text-zinc-300">
-                                  2.<Star className="h-2.5 w-2.5 fill-current" />
-                                </span>
-                              </TableHead>
-                              <TableHead className="text-center text-xs" title="3. hvězda (1 bod)">
-                                <span className="inline-flex items-center gap-0.5 justify-center text-amber-600 dark:text-amber-500">
-                                  3.<Star className="h-2.5 w-2.5 fill-current" />
-                                </span>
-                              </TableHead>
-                              <TableHead className="text-right text-xs font-bold">Body</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {(showAllStars ? skaterStarsLeaderboard : skaterStarsLeaderboard.slice(0, 10)).map((player) => {
-                              const isMe = player.id === user.uid;
-                              return (
-                                <TableRow
-                                  key={player.id}
-                                  className={cn(
-                                    "cursor-pointer transition-colors",
-                                    isMe && "bg-primary/10 hover:bg-primary/15 font-semibold"
-                                  )}
-                                  onClick={() => handleOpenCareerModal(player.id)}
-                                >
-                                  <TableCell className="text-center font-bold tabular-nums text-xs">
-                                    {player.rank}.
-                                  </TableCell>
-                                  <TableCell className="text-xs">
-                                    <div className="flex items-center gap-2">
-                                      <Avatar className="h-6 w-6">
-                                        <AvatarImage src={player.photoURL || undefined} />
-                                        <AvatarFallback className="text-[10px]">
-                                          {player.name.substring(0, 2)}
-                                        </AvatarFallback>
-                                      </Avatar>
-                                      <span className="truncate">{player.name}</span>
-                                      {player.jerseyNumber && (
-                                        <span className="text-[11px] text-muted-foreground">
-                                          #{player.jerseyNumber}
-                                        </span>
-                                      )}
-                                      {isMe && (
-                                        <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-primary/50 text-primary">
-                                          Ty
-                                        </Badge>
-                                      )}
-                                    </div>
-                                  </TableCell>
-                                  <TableCell className="text-center tabular-nums text-xs font-medium">
-                                    {player.star1Count > 0 ? (
-                                      <span className="text-amber-500 font-bold">{player.star1Count}x</span>
-                                    ) : (
-                                      <span className="text-muted-foreground/40">0</span>
-                                    )}
-                                  </TableCell>
-                                  <TableCell className="text-center tabular-nums text-xs font-medium">
-                                    {player.star2Count > 0 ? (
-                                      <span className="text-zinc-400 font-bold">{player.star2Count}x</span>
-                                    ) : (
-                                      <span className="text-muted-foreground/40">0</span>
-                                    )}
-                                  </TableCell>
-                                  <TableCell className="text-center tabular-nums text-xs font-medium">
-                                    {player.star3Count > 0 ? (
-                                      <span className="text-amber-700 dark:text-amber-600 font-bold">{player.star3Count}x</span>
-                                    ) : (
-                                      <span className="text-muted-foreground/40">0</span>
-                                    )}
-                                  </TableCell>
-                                  <TableCell className="text-right tabular-nums text-xs font-bold text-amber-500">
-                                    {player.totalPoints} b.
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            })}
-                          </TableBody>
-                        </Table>
-                        {skaterStarsLeaderboard.length > 10 && (
-                          <div className="text-center pt-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-xs h-7 text-muted-foreground hover:text-foreground"
-                              onClick={() => setShowAllStars(!showAllStars)}
-                            >
-                              {showAllStars ? 'Zobrazit méně' : `Zobrazit všech ${skaterStarsLeaderboard.length} hráčů`}
-                            </Button>
-                          </div>
-                        )}
-                        <p className="text-[10px] text-muted-foreground text-right pt-1">
-                          Bodování: 1. hvězda = 3 b. • 2. hvězda = 2 b. • 3. hvězda = 1 b.
-                        </p>
-                      </div>
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant={hasHistoricalData ? 'outline' : 'default'}
+                    className={cn(
+                      'h-8 text-xs font-semibold shrink-0',
+                      !hasHistoricalData && 'bg-amber-600 hover:bg-amber-700 text-white shadow-sm'
                     )}
-                  </CardContent>
-                </TabsContent>
-              </Tabs>
-            </Card>
-  );
+                    onClick={handleRestoreHistoricalSnapshot}
+                    disabled={isRestoringHistoricalSnapshot}
+                  >
+                    {isRestoringHistoricalSnapshot ? (
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <History className="mr-1.5 h-3.5 w-3.5" />
+                    )}
+                    {hasHistoricalData ? 'Znovu přepsat snapshotem' : 'Aplikovat snapshot historie (1 klik)'}
+                  </Button>
+                </div>
+              )}
 
-  // 7. Brankáři
-  const goalieSection = (
-            <Card className="h-fit w-full min-w-0 overflow-hidden">
-              <Tabs value={activeGoalieTab} onValueChange={(v) => setActiveGoalieTab(v as 'goalies' | 'stars')}>
-                <CardHeader className="flex-col sm:flex-row items-start sm:items-center justify-between gap-3 py-3 px-4 sm:px-6 border-b">
-                  <TabsList className="grid grid-cols-2 w-full sm:w-auto">
-                    <TabsTrigger value="goalies" className="text-xs font-semibold flex items-center gap-1.5">
-                      <Shield className="h-3.5 w-3.5 text-primary" />
-                      Brankáři
-                    </TabsTrigger>
-                    <TabsTrigger value="stars" className="text-xs font-semibold flex items-center gap-1.5">
-                      <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
-                      Hvězdy zápasů
-                    </TabsTrigger>
-                  </TabsList>
+              {statsCategory === 'skaters' ? (
+                <PlayerScoringTable
+                  scorers={sortedTeamScoring}
+                  currentUserId={user?.uid}
+                  onPlayerClick={handleOpenCareerModal}
+                  showAll={showAllScoring}
+                  onToggleShowAll={() => setShowAllScoring(!showAllScoring)}
+                  isStatEditMode={isStatEditMode}
+                  expandedStatId={expandedStatId}
+                  onToggleExpandStat={(id) => setExpandedStatId(expandedStatId === id ? null : id)}
+                  onUpdateEditableSkaterStat={setEditableSkaterStats}
+                  allUsers={allUsers || []}
+                  allMatches={allMatches || []}
+                  playerFormMap={teamMilestonesData.playerFormMap}
+                />
+              ) : (
+                <GoalieStatsTable
+                  goalies={sortedGoalieLeaderboard}
+                  currentUserId={user?.uid}
+                  onGoalieClick={handleOpenCareerModal}
+                  showAll={showAllGoalies}
+                  onToggleShowAll={() => setShowAllGoalies(!showAllGoalies)}
+                  isStatEditMode={isStatEditMode}
+                  expandedStatId={expandedStatId}
+                  onToggleExpandStat={(id) => setExpandedStatId(expandedStatId === id ? null : id)}
+                  onUpdateEditableGoalieStat={setEditableGoalieStats}
+                />
+              )}
+            </Tabs>
+          </CardContent>
+        </TabsContent>
 
-                  {activeGoalieTab === 'goalies' && (
-                    <div className="flex items-center gap-2 self-end sm:self-center">
-                      {selectedSeasonId !== 'current' && (
-                        <Badge variant="outline" className="text-[10px] text-muted-foreground border-muted-foreground/30">Uzamčený archiv</Badge>
-                      )}
-                      {userProfile?.role === 'admin' && !isStatEditMode && scoringView !== 'season' && selectedSeasonId === 'current' && (
-                        <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => { 
-                          const viewKey = scoringView === 'history' ? 'rawHistory' : (scoringView === 'regular' ? 'regular' : 'playoff');
-                          const initialEditData = goalieLeaderboard.map(g => {
-                            const data = g[viewKey as keyof typeof g] as any;
-                            return {
-                              id: g.id,
-                              name: g.name,
-                              gamesPlayed: String(data.gamesPlayed || 0),
-                              wins: String(data.wins || 0),
-                              saves: String(data.saves || 0),
-                              shotsAgainst: String(data.shotsAgainst || 0),
-                              so: String(data.so || 0)
-                            };
-                          });
-                          setEditableGoalieStats(initialEditData); 
-                          setIsStatEditMode(true); 
-                          setExpandedStatId(null);
-                        }}><Pencil className="h-3 w-3 mr-1" />Upravit</Button>
-                      )}
-                      {isStatEditMode && (
-                        <div className="flex gap-2">
-                          <Button size="sm" variant="outline" className="h-8 text-[10px]" onClick={() => { setIsStatEditMode(false); setExpandedStatId(null); }}>Zrušit</Button>
-                          <Button size="sm" className="h-8 text-[10px]" onClick={handleSaveStatsManual}>Uložit</Button>
-                        </div>
-                      )}
+        <TabsContent value="stars" className="mt-0">
+          <CardContent className="px-2 sm:px-6 pt-4">
+            {statsCategory === 'skaters' ? (
+              skaterStarsLeaderboard.length === 0 ? (
+                <div className="py-8 text-center text-xs text-muted-foreground">
+                  <Star className="h-7 w-7 text-muted-foreground/30 mx-auto mb-2" />
+                  <p className="font-semibold text-foreground">Zatím nebyly uděleny žádné hvězdy hráčům</p>
+                  <p className="mt-1">Po skončení každého zápasu mohou hráči v kabině hlasovat o 1., 2. a 3. hvězdě.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-10 text-center font-bold text-xs">#</TableHead>
+                        <TableHead className="text-xs">Hráč</TableHead>
+                        <TableHead className="text-center text-xs" title="1. hvězda (3 body)">
+                          <span className="inline-flex items-center gap-0.5 justify-center text-amber-500">
+                            1.<Star className="h-2.5 w-2.5 fill-current" />
+                          </span>
+                        </TableHead>
+                        <TableHead className="text-center text-xs" title="2. hvězda (2 body)">
+                          <span className="inline-flex items-center gap-0.5 justify-center text-zinc-300">
+                            2.<Star className="h-2.5 w-2.5 fill-current" />
+                          </span>
+                        </TableHead>
+                        <TableHead className="text-center text-xs" title="3. hvězda (1 bod)">
+                          <span className="inline-flex items-center gap-0.5 justify-center text-amber-600 dark:text-amber-500">
+                            3.<Star className="h-2.5 w-2.5 fill-current" />
+                          </span>
+                        </TableHead>
+                        <TableHead className="text-right text-xs font-bold">Body</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(showAllStars ? skaterStarsLeaderboard : skaterStarsLeaderboard.slice(0, 10)).map((player) => {
+                        const isMe = player.id === user.uid;
+                        return (
+                          <TableRow
+                            key={player.id}
+                            className={cn(
+                              "cursor-pointer transition-colors",
+                              isMe && "bg-primary/10 hover:bg-primary/15 font-semibold"
+                            )}
+                            onClick={() => handleOpenCareerModal(player.id)}
+                          >
+                            <TableCell className="text-center font-bold tabular-nums text-xs">
+                              {player.rank}.
+                            </TableCell>
+                            <TableCell className="text-xs">
+                              <div className="flex items-center gap-2">
+                                <Avatar className="h-6 w-6">
+                                  <AvatarImage src={player.photoURL || undefined} />
+                                  <AvatarFallback className="text-[10px]">
+                                    {player.name.substring(0, 2)}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <span className="truncate">{player.name}</span>
+                                {player.jerseyNumber && (
+                                  <span className="text-[11px] text-muted-foreground">
+                                    #{player.jerseyNumber}
+                                  </span>
+                                )}
+                                {isMe && (
+                                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-primary/50 text-primary">
+                                    Ty
+                                  </Badge>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-center tabular-nums text-xs font-medium">
+                              {player.star1Count > 0 ? (
+                                <span className="text-amber-500 font-bold">{player.star1Count}x</span>
+                              ) : (
+                                <span className="text-muted-foreground/40">0</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-center tabular-nums text-xs font-medium">
+                              {player.star2Count > 0 ? (
+                                <span className="text-zinc-400 font-bold">{player.star2Count}x</span>
+                              ) : (
+                                <span className="text-muted-foreground/40">0</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-center tabular-nums text-xs font-medium">
+                              {player.star3Count > 0 ? (
+                                <span className="text-amber-700 dark:text-amber-600 font-bold">{player.star3Count}x</span>
+                              ) : (
+                                <span className="text-muted-foreground/40">0</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums text-xs font-bold text-amber-500">
+                              {player.totalPoints} b.
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                  {skaterStarsLeaderboard.length > 10 && (
+                    <div className="text-center pt-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs h-7 text-muted-foreground hover:text-foreground"
+                        onClick={() => setShowAllStars(!showAllStars)}
+                      >
+                        {showAllStars ? 'Zobrazit méně' : `Zobrazit všech ${skaterStarsLeaderboard.length} hráčů`}
+                      </Button>
                     </div>
                   )}
-
-                  {activeGoalieTab === 'stars' && (
-                    <Badge variant="outline" className="text-[11px] font-semibold border-amber-500/30 text-amber-500 bg-amber-500/10 self-end sm:self-center">
-                      3 b. / 2 b. / 1 b.
-                    </Badge>
-                  )}
-                </CardHeader>
-
-                <TabsContent value="goalies" className="mt-0">
-                  <CardContent className="px-1 sm:px-6 pt-4">
-                    <Tabs value={scoringView} onValueChange={(v) => { if (!isStatEditMode) setScoringView(v as any); }}>
-                        {selectedSeasonId === 'current' ? (
-                            <TabsList className="grid w-full grid-cols-4 mb-4">
-                                <TabsTrigger value="regular" className="text-[10px] px-1">ZČ</TabsTrigger>
-                                <TabsTrigger value="playoff" className="text-[10px] px-1">Play-off</TabsTrigger>
-                                <TabsTrigger value="season" className="text-[10px] px-1">Sezona</TabsTrigger>
-                                <TabsTrigger value="history" className="text-[10px] px-1">Historie</TabsTrigger>
-                            </TabsList>
-                        ) : (
-                            <div className="mb-3 px-1 text-xs text-muted-foreground flex items-center justify-between">
-                                <span>Konečné statistiky ročníku <strong>{activeSeasonData.name}</strong></span>
-                                <Badge variant="secondary" className="text-[10px]">Archiv</Badge>
-                            </div>
-                        )}
-                        {isStatEditMode && (
-                            <div className="mb-4 p-2 bg-primary/5 border rounded-lg text-[10px] text-primary text-center font-bold uppercase">
-                                {scoringView === 'history' ? 'Upravujete historii (minulé sezóny)' : (scoringView === 'regular' ? 'Upravujete základní část' : 'Upravujete play-off')}
-                            </div>
-                        )}
-                        {scoringView === 'history' && userProfile?.role === 'admin' && (
-                          <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                            <div className="space-y-0.5">
-                              <div className="flex items-center gap-1.5 font-bold text-amber-700 dark:text-amber-400">
-                                <DatabaseBackup className="h-4 w-4" />
-                                <span>Oficiální historický snapshot (stav k 14. 4. 2026)</span>
+                  <p className="text-[10px] text-muted-foreground text-right pt-1">
+                    Bodování: 1. hvězda = 3 b. • 2. hvězda = 2 b. • 3. hvězda = 1 b.
+                  </p>
+                </div>
+              )
+            ) : (
+              goalieStarsLeaderboard.length === 0 ? (
+                <div className="py-8 text-center text-xs text-muted-foreground">
+                  <Star className="h-7 w-7 text-muted-foreground/30 mx-auto mb-2" />
+                  <p className="font-semibold text-foreground">Zatím nebyly uděleny žádné hvězdy brankářům</p>
+                  <p className="mt-1">Po skončení každého zápasu mohou hráči v kabině hlasovat o 1., 2. a 3. hvězdě.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-10 text-center font-bold text-xs">#</TableHead>
+                        <TableHead className="text-xs">Brankář</TableHead>
+                        <TableHead className="text-center text-xs" title="1. hvězda (3 body)">
+                          <span className="inline-flex items-center gap-0.5 justify-center text-amber-500">
+                            1.<Star className="h-2.5 w-2.5 fill-current" />
+                          </span>
+                        </TableHead>
+                        <TableHead className="text-center text-xs" title="2. hvězda (2 body)">
+                          <span className="inline-flex items-center gap-0.5 justify-center text-zinc-300">
+                            2.<Star className="h-2.5 w-2.5 fill-current" />
+                          </span>
+                        </TableHead>
+                        <TableHead className="text-center text-xs" title="3. hvězda (1 bod)">
+                          <span className="inline-flex items-center gap-0.5 justify-center text-amber-600 dark:text-amber-500">
+                            3.<Star className="h-2.5 w-2.5 fill-current" />
+                          </span>
+                        </TableHead>
+                        <TableHead className="text-right text-xs font-bold">Body</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(showAllGoalieStars ? goalieStarsLeaderboard : goalieStarsLeaderboard.slice(0, 10)).map((player) => {
+                        const isMe = player.id === user.uid;
+                        return (
+                          <TableRow
+                            key={player.id}
+                            className={cn(
+                              "cursor-pointer transition-colors",
+                              isMe && "bg-primary/10 hover:bg-primary/15 font-semibold"
+                            )}
+                            onClick={() => handleOpenCareerModal(player.id)}
+                          >
+                            <TableCell className="text-center font-bold tabular-nums text-xs">
+                              {player.rank}.
+                            </TableCell>
+                            <TableCell className="text-xs">
+                              <div className="flex items-center gap-2">
+                                <Avatar className="h-6 w-6">
+                                  <AvatarImage src={player.photoURL || undefined} />
+                                  <AvatarFallback className="text-[10px]">
+                                    {player.name.substring(0, 2)}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <span className="truncate">{player.name}</span>
+                                {player.jerseyNumber && (
+                                  <span className="text-[11px] text-muted-foreground">
+                                    #{player.jerseyNumber}
+                                  </span>
+                                )}
+                                {isMe && (
+                                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-primary/50 text-primary">
+                                    Ty
+                                  </Badge>
+                                )}
                               </div>
-                              <p className="text-muted-foreground text-[11px]">
-                                {hasHistoricalData
-                                  ? 'Historické statistiky brankářů (Štěpán 88 Z, Lacko 31 Z, Bara 5 Z...) jsou aktivní.'
-                                  : 'V databázi chybí historické statistiky brankářů. Kliknutím níže obnovíte oficiální čísla k 14. 4. 2026.'}
-                              </p>
-                            </div>
-                            <Button
-                              size="sm"
-                              variant={hasHistoricalData ? 'outline' : 'default'}
-                              className={cn(
-                                'h-8 text-xs font-semibold shrink-0',
-                                !hasHistoricalData && 'bg-amber-600 hover:bg-amber-700 text-white shadow-sm'
-                              )}
-                              onClick={handleRestoreHistoricalSnapshot}
-                              disabled={isRestoringHistoricalSnapshot}
-                            >
-                              {isRestoringHistoricalSnapshot ? (
-                                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                            </TableCell>
+                            <TableCell className="text-center tabular-nums text-xs font-medium">
+                              {player.star1Count > 0 ? (
+                                <span className="text-amber-500 font-bold">{player.star1Count}x</span>
                               ) : (
-                                <History className="mr-1.5 h-3.5 w-3.5" />
+                                <span className="text-muted-foreground/40">0</span>
                               )}
-                              {hasHistoricalData ? 'Znovu přepsat snapshotem' : 'Aplikovat snapshot historie (1 klik)'}
-                            </Button>
-                          </div>
-                        )}
-                        <GoalieStatsTable
-                          goalies={sortedGoalieLeaderboard}
-                          currentUserId={user?.uid}
-                          onGoalieClick={handleOpenCareerModal}
-                          showAll={showAllGoalies}
-                          onToggleShowAll={() => setShowAllGoalies(!showAllGoalies)}
-                          isStatEditMode={isStatEditMode}
-                          expandedStatId={expandedStatId}
-                          onToggleExpandStat={(id) => setExpandedStatId(expandedStatId === id ? null : id)}
-                          onUpdateEditableGoalieStat={setEditableGoalieStats}
-                        />
-                    </Tabs>
-                  </CardContent>
-                </TabsContent>
-
-                <TabsContent value="stars" className="mt-0">
-                  <CardContent className="px-2 sm:px-6 pt-4">
-                    {goalieStarsLeaderboard.length === 0 ? (
-                      <div className="py-8 text-center text-xs text-muted-foreground">
-                        <Star className="h-7 w-7 text-muted-foreground/30 mx-auto mb-2" />
-                        <p className="font-semibold text-foreground">Zatím nebyly uděleny žádné hvězdy brankářům</p>
-                        <p className="mt-1">Po skončení každého zápasu mohou hráči v kabině hlasovat o 1., 2. a 3. hvězdě.</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead className="w-10 text-center font-bold text-xs">#</TableHead>
-                              <TableHead className="text-xs">Brankář</TableHead>
-                              <TableHead className="text-center text-xs" title="1. hvězda (3 body)">
-                                <span className="inline-flex items-center gap-0.5 justify-center text-amber-500">
-                                  1.<Star className="h-2.5 w-2.5 fill-current" />
-                                </span>
-                              </TableHead>
-                              <TableHead className="text-center text-xs" title="2. hvězda (2 body)">
-                                <span className="inline-flex items-center gap-0.5 justify-center text-zinc-300">
-                                  2.<Star className="h-2.5 w-2.5 fill-current" />
-                                </span>
-                              </TableHead>
-                              <TableHead className="text-center text-xs" title="3. hvězda (1 bod)">
-                                <span className="inline-flex items-center gap-0.5 justify-center text-amber-600 dark:text-amber-500">
-                                  3.<Star className="h-2.5 w-2.5 fill-current" />
-                                </span>
-                              </TableHead>
-                              <TableHead className="text-right text-xs font-bold">Body</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {(showAllGoalieStars ? goalieStarsLeaderboard : goalieStarsLeaderboard.slice(0, 10)).map((player) => {
-                              const isMe = player.id === user.uid;
-                              return (
-                                <TableRow
-                                  key={player.id}
-                                  className={cn(
-                                    "cursor-pointer transition-colors",
-                                    isMe && "bg-primary/10 hover:bg-primary/15 font-semibold"
-                                  )}
-                                  onClick={() => handleOpenCareerModal(player.id)}
-                                >
-                                  <TableCell className="text-center font-bold tabular-nums text-xs">
-                                    {player.rank}.
-                                  </TableCell>
-                                  <TableCell className="text-xs">
-                                    <div className="flex items-center gap-2">
-                                      <Avatar className="h-6 w-6">
-                                        <AvatarImage src={player.photoURL || undefined} />
-                                        <AvatarFallback className="text-[10px]">
-                                          {player.name.substring(0, 2)}
-                                        </AvatarFallback>
-                                      </Avatar>
-                                      <span className="truncate">{player.name}</span>
-                                      {player.jerseyNumber && (
-                                        <span className="text-[11px] text-muted-foreground">
-                                          #{player.jerseyNumber}
-                                        </span>
-                                      )}
-                                      {isMe && (
-                                        <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-primary/50 text-primary">
-                                          Ty
-                                        </Badge>
-                                      )}
-                                    </div>
-                                  </TableCell>
-                                  <TableCell className="text-center tabular-nums text-xs font-medium">
-                                    {player.star1Count > 0 ? (
-                                      <span className="text-amber-500 font-bold">{player.star1Count}x</span>
-                                    ) : (
-                                      <span className="text-muted-foreground/40">0</span>
-                                    )}
-                                  </TableCell>
-                                  <TableCell className="text-center tabular-nums text-xs font-medium">
-                                    {player.star2Count > 0 ? (
-                                      <span className="text-zinc-400 font-bold">{player.star2Count}x</span>
-                                    ) : (
-                                      <span className="text-muted-foreground/40">0</span>
-                                    )}
-                                  </TableCell>
-                                  <TableCell className="text-center tabular-nums text-xs font-medium">
-                                    {player.star3Count > 0 ? (
-                                      <span className="text-amber-700 dark:text-amber-600 font-bold">{player.star3Count}x</span>
-                                    ) : (
-                                      <span className="text-muted-foreground/40">0</span>
-                                    )}
-                                  </TableCell>
-                                  <TableCell className="text-right tabular-nums text-xs font-bold text-amber-500">
-                                    {player.totalPoints} b.
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            })}
-                          </TableBody>
-                        </Table>
-                        {goalieStarsLeaderboard.length > 10 && (
-                          <div className="text-center pt-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-xs h-7 text-muted-foreground hover:text-foreground"
-                              onClick={() => setShowAllGoalieStars(!showAllGoalieStars)}
-                            >
-                              {showAllGoalieStars ? 'Zobrazit méně' : `Zobrazit všech ${goalieStarsLeaderboard.length} brankářů`}
-                            </Button>
-                          </div>
-                        )}
-                        <p className="text-[10px] text-muted-foreground text-right pt-1">
-                          Bodování: 1. hvězda = 3 b. • 2. hvězda = 2 b. • 3. hvězda = 1 b.
-                        </p>
-                      </div>
-                    )}
-                  </CardContent>
-                </TabsContent>
-              </Tabs>
-            </Card>
+                            </TableCell>
+                            <TableCell className="text-center tabular-nums text-xs font-medium">
+                              {player.star2Count > 0 ? (
+                                <span className="text-zinc-400 font-bold">{player.star2Count}x</span>
+                              ) : (
+                                <span className="text-muted-foreground/40">0</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-center tabular-nums text-xs font-medium">
+                              {player.star3Count > 0 ? (
+                                <span className="text-amber-700 dark:text-amber-600 font-bold">{player.star3Count}x</span>
+                              ) : (
+                                <span className="text-muted-foreground/40">0</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums text-xs font-bold text-amber-500">
+                              {player.totalPoints} b.
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                  {goalieStarsLeaderboard.length > 10 && (
+                    <div className="text-center pt-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs h-7 text-muted-foreground hover:text-foreground"
+                        onClick={() => setShowAllGoalieStars(!showAllGoalieStars)}
+                      >
+                        {showAllGoalieStars ? 'Zobrazit méně' : `Zobrazit všech ${goalieStarsLeaderboard.length} brankářů`}
+                      </Button>
+                    </div>
+                  )}
+                  <p className="text-[10px] text-muted-foreground text-right pt-1">
+                    Bodování: 1. hvězda = 3 b. • 2. hvězda = 2 b. • 3. hvězda = 1 b.
+                  </p>
+                </div>
+              )
+            )}
+          </CardContent>
+        </TabsContent>
+      </Tabs>
+    </Card>
   );
 
   return (
@@ -2429,19 +2406,18 @@ function DashboardPageContent() {
       {/* HLAVNÍ BLOKY: RESPONZIVNÍ 2 NEZÁVISLÉ SLOUPCE NA DESKTOPU VS JEDEN SLOUPEC NA MOBILU */}
       {isDesktop ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5 items-start w-full min-w-0">
-          {/* LEVÝ SLOUPEC: Příští zápasy -> Soutěž -> Kanadské bodování */}
+          {/* LEVÝ SLOUPEC: Příští zápasy -> Soutěž -> Statistiky týmu (Hráči & Brankáři) */}
           <div className="space-y-4 lg:space-y-5 w-full min-w-0">
             {nextMatchesSection}
             {leagueSection}
             {scoringSection}
           </div>
 
-          {/* PRAVÝ SLOUPEC: Upozornění -> Poslední zápas & MVP -> Odehrané zápasy -> Brankáři */}
+          {/* PRAVÝ SLOUPEC: Upozornění -> Poslední zápas & MVP -> Odehrané zápasy */}
           <div className="space-y-4 lg:space-y-5 w-full min-w-0">
             {oldMatchesAlert}
             {postMatchSection}
             {recentMatchesSection}
-            {goalieSection}
           </div>
         </div>
       ) : (
@@ -2452,7 +2428,6 @@ function DashboardPageContent() {
           {leagueSection}
           {recentMatchesSection}
           {scoringSection}
-          {goalieSection}
         </div>
       )}
 
