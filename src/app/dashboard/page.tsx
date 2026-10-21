@@ -638,52 +638,6 @@ function DashboardPageContent() {
     return countPlayerCareerStars(user.uid, scopedMatches);
   }, [user, allMatches, myStatsView]);
 
-  const currentUserBadges = useMemo(() => {
-    if (!user) return [];
-    const realBadges = teamMilestonesData.playerFormMap?.get(user.uid)?.badges || [];
-    if (realBadges.length > 0) return realBadges;
-
-    // DEMO / SIMULACE PRO NÁHLED (pokud přihlášený hráč zatím nemá aktivní sérii v ostrých datech)
-    return [
-      {
-        type: 'reigning-mvp' as const,
-        icon: 'crown' as const,
-        shortLabel: 'MVP',
-        title: 'Úřadující 1. hvězda zápasu',
-        description: 'Zvolen kabinou 1. hvězdou posledního odehraného zápasu proti Sokol Černovice',
-        priority: 1,
-        badgeClass: 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/40',
-      },
-      {
-        type: 'hattrick-hero' as const,
-        icon: 'sparkles' as const,
-        shortLabel: '3G',
-        title: 'Hattrick hrdina (3 góly!)',
-        description: 'V posledním odehraném utkání nastřílel hattrick (3 góly)!',
-        priority: 2,
-        badgeClass: 'bg-purple-500/20 text-purple-600 dark:text-purple-400 border-purple-500/40',
-      },
-      {
-        type: 'point-streak' as const,
-        icon: 'flame' as const,
-        shortLabel: '3Z',
-        title: 'On Fire: Bodová šňůra (3 Z)',
-        description: 'Bodoval v posledních 3 odehraných zápasech v řadě (2G + 3A)',
-        priority: 3,
-        badgeClass: 'bg-orange-500/20 text-orange-600 dark:text-orange-400 border-orange-500/40',
-      },
-      {
-        type: 'ironman-streak' as const,
-        icon: 'activity' as const,
-        shortLabel: '5Z',
-        title: 'Železný muž (5 Z v řadě)',
-        description: 'Nechyběl ani v jednom z posledních 5 zápasů HC Aces',
-        priority: 4,
-        badgeClass: 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/40',
-      },
-    ];
-  }, [user, teamMilestonesData.playerFormMap]);
-
   const teamStarsLeaderboard = useMemo(() => {
     if (!allUsers || !allMatches) return [];
     const list = allUsers.map((u) => {
@@ -738,6 +692,52 @@ function DashboardPageContent() {
       attendancesByMatch
     );
   }, [allUsers, teamScoring, goalieLeaderboard, allMatches, user?.uid, attendancesByMatch]);
+
+  const currentUserBadges = useMemo(() => {
+    if (!user) return [];
+    const realBadges = teamMilestonesData.playerFormMap?.get(user.uid)?.badges || [];
+    if (realBadges.length > 0) return realBadges;
+
+    // DEMO / SIMULACE PRO NÁHLED (pokud přihlášený hráč zatím nemá aktivní sérii v ostrých datech)
+    return [
+      {
+        type: 'reigning-mvp' as const,
+        icon: 'crown' as const,
+        shortLabel: 'MVP',
+        title: 'Úřadující 1. hvězda zápasu',
+        description: 'Zvolen kabinou 1. hvězdou posledního odehraného zápasu proti Sokol Černovice',
+        priority: 1,
+        badgeClass: 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/40',
+      },
+      {
+        type: 'hattrick-hero' as const,
+        icon: 'sparkles' as const,
+        shortLabel: '3G',
+        title: 'Hattrick hrdina (3 góly!)',
+        description: 'V posledním odehraném utkání nastřílel hattrick (3 góly)!',
+        priority: 2,
+        badgeClass: 'bg-purple-500/20 text-purple-600 dark:text-purple-400 border-purple-500/40',
+      },
+      {
+        type: 'point-streak' as const,
+        icon: 'flame' as const,
+        shortLabel: '3Z',
+        title: 'On Fire: Bodová šňůra (3 Z)',
+        description: 'Bodoval v posledních 3 odehraných zápasech v řadě (2G + 3A)',
+        priority: 3,
+        badgeClass: 'bg-orange-500/20 text-orange-600 dark:text-orange-400 border-orange-500/40',
+      },
+      {
+        type: 'ironman-streak' as const,
+        icon: 'activity' as const,
+        shortLabel: '5Z',
+        title: 'Železný muž (5 Z v řadě)',
+        description: 'Nechyběl ani v jednom z posledních 5 zápasů HC Aces',
+        priority: 4,
+        badgeClass: 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/40',
+      },
+    ];
+  }, [user, teamMilestonesData.playerFormMap]);
 
   const userAttendancesWithOptimistic = useMemo(() => {
       const map = new Map<string, Attendance>();
