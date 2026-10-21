@@ -174,7 +174,6 @@ function getAwardTheme(awardData: CelebrationAwardData) {
       headline: awardData.isTied
         ? 'Byl jsi zvolen dělenou 1. hvězdou zápasu (MVP)!'
         : 'Byl jsi zvolen první hvězdou zápasu (MVP)!',
-      subline: 'Kabina tě ocenila jako nejlepšího hráče utkání. Skvělá práce a nasazení na ledě!',
       starsCount: 3,
       starColor: 'fill-amber-400 text-amber-400',
     };
@@ -188,7 +187,6 @@ function getAwardTheme(awardData: CelebrationAwardData) {
       ringClass: 'border-slate-300 ring-4 ring-slate-300/20 shadow-slate-300/30',
       accentText: 'text-slate-300',
       headline: 'Byl jsi zvolen druhou hvězdou zápasu!',
-      subline: 'Tým ocenil tvůj bojovný výkon a hlasy z kabiny tě vynesly mezi nejlepší hráče utkání.',
       starsCount: 2,
       starColor: 'fill-slate-300 text-slate-300',
     };
@@ -201,7 +199,6 @@ function getAwardTheme(awardData: CelebrationAwardData) {
     ringClass: 'border-amber-700 ring-4 ring-amber-700/20 shadow-amber-700/30',
     accentText: 'text-amber-600 dark:text-amber-400',
     headline: 'Byl jsi zvolen třetí hvězdou zápasu!',
-    subline: 'Kluci ocenili tvůj poctivý přístup a přínos pro celý tým v silné konkurenci kabiny.',
     starsCount: 1,
     starColor: 'fill-amber-600 text-amber-600',
   };
@@ -358,14 +355,9 @@ export function MatchAwardCelebrationModal({
 
         {/* TĚLO MODALU: GRATULACE A KONTEXT ZÁPASU */}
         <div className="px-6 pb-6 pt-1 space-y-4">
-          <div className="text-center px-2 space-y-1">
-            <p className="text-sm sm:text-base font-bold text-foreground">
-              {theme.headline}
-            </p>
-            <DialogDescription className="text-xs sm:text-sm text-muted-foreground font-normal leading-relaxed">
-              {theme.subline}
-            </DialogDescription>
-          </div>
+          <DialogDescription className="text-center text-sm sm:text-base font-bold text-foreground px-2 leading-snug">
+            {theme.headline}
+          </DialogDescription>
 
           {/* KARTA ZÁPASU & BODY HLASOVÁNÍ */}
           <div className="rounded-2xl bg-muted/30 border border-border/60 p-4 space-y-3 text-xs shadow-xs">
