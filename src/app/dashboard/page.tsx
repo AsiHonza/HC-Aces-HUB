@@ -68,6 +68,7 @@ import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { PlayerCareerModal, type PlayerCareerData } from '@/components/player-career-modal'
+import { useIsDesktop } from '@/hooks/use-mobile'
 
 interface UserProfile {
   id: string;
@@ -221,6 +222,7 @@ function DashboardPageContent() {
   const firestore = useFirestore()
   const { toast } = useToast()
   const searchParams = useSearchParams()
+  const isDesktop = useIsDesktop()
   
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -1451,319 +1453,117 @@ function DashboardPageContent() {
 
   if (isLoading || !user) return <div className="flex justify-center py-12"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>
 
-  return (
-    <div className="py-6 sm:py-8 space-y-6 sm:space-y-8 w-full min-w-0 max-w-7xl mx-auto">
-      {selectedSeasonId !== 'current' && (
-        <div className="bg-amber-500/10 border-2 border-amber-500/30 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-amber-500/20 text-amber-500 flex items-center justify-center shrink-0">
-              <History className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className="bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/30 text-[10px] uppercase font-bold">
-                  Archivní ročník
-                </Badge>
-                <h3 className="font-bold text-base">{activeSeasonData.name}</h3>
-              </div>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Prohlížíte historické statistiky, tabulku a odehrané zápasy tohoto ročníku. Údaje jsou uzamčeny.
-              </p>
-            </div>
-          </div>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => setSelectedSeasonId('current')}
-            className="shrink-0 text-xs font-bold border-amber-500/40 hover:bg-amber-500/10"
-          >
-            Zpět na aktuální sezónu
+  // 1. Upozornění pro administrátora na staré nezapsané zápasy
+  const oldMatchesAlert = userProfile?.role === 'admin' && oldUnrecordedMatches.length > 0 && selectedSeasonId === 'current' ? (
+    <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm w-full min-w-0 overflow-hidden">
+      <div className="space-y-1">
+        <p className="text-sm font-bold text-amber-500 flex items-center gap-1.5">
+          <ShieldAlert className="h-4 w-4 shrink-0" />
+          Nalezeno {oldUnrecordedMatches.length} starých zápasů z předchozího období (před 16. 9. 2026)
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Tyto zápasy proběhly před zahájením aktuální sezóny. Chcete je zapsat a archivovat do minulého ročníku, nebo smazat testovací data?
+        </p>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 shrink-0">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={handleArchiveOldMatches}
+          disabled={isProcessingOldMatches}
+          className="text-xs font-semibold border-amber-500/50 text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 h-7"
+        >
+          {isProcessingOldMatches ? <Loader2 className="mr-1.5 h-3 w-3 animate-spin" /> : <Archive className="mr-1.5 h-3 w-3" />}
+          Zapsat a archivovat
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={handleDeleteOldMatches}
+          disabled={isProcessingOldMatches}
+          className="text-xs text-destructive hover:bg-destructive/10 h-7"
+        >
+          <Trash2 className="mr-1.5 h-3 w-3" />
+          Smazat staré zápasy
+        </Button>
+      </div>
+    </div>
+  ) : null;
+
+  // 2. Příští zápasy (nebo archivní upozornění pro uzavřený ročník)
+  const nextMatchesSection = selectedSeasonId !== 'current' ? (
+    <div className="p-3.5 sm:p-4 rounded-xl border bg-muted/20 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left w-full min-w-0 overflow-hidden">
+      <div className="flex items-center gap-3">
+        <History className="h-5 w-5 text-muted-foreground shrink-0" />
+        <p className="text-xs text-muted-foreground">
+          Prohlížíte uzavřený ročník <span className="font-semibold text-foreground">{activeSeasonData.name}</span>. Nadcházející zápasy a docházka jsou aktivní pouze v aktuální sezóně.
+        </p>
+      </div>
+      <Button variant="outline" size="sm" onClick={() => setSelectedSeasonId('current')} className="text-xs h-7 shrink-0">
+        Přejít na aktuální sezónu
+      </Button>
+    </div>
+  ) : (
+    <div className="space-y-3 w-full min-w-0 overflow-hidden">
+      <div className="flex items-center justify-between px-1 sm:px-0">
+        <h2 className="text-base sm:text-lg font-bold flex items-center gap-2">
+          <Trophy className="text-primary h-4.5 w-4.5" />
+          Příští zápasy
+        </h2>
+        {userProfile?.role === 'admin' && (
+          <Button size="sm" onClick={() => setIsAddDialogOpen(true)} className="h-7 text-xs font-semibold">
+            <Plus className="h-3 w-3 mr-1" />
+            Přidat zápas
           </Button>
-        </div>
+        )}
+      </div>
+      {nextMatch ? renderMatchCard(nextMatch) : <p className="text-center py-6 text-muted-foreground text-xs sm:text-sm">Žádné blížící se zápasy.</p>}
+      {upcomingMatches.slice(1).length > 0 && (
+        <Accordion type="single" collapsible className="w-full" value={openAccordionValue} onValueChange={setOpenAccordionValue}>
+          <AccordionItem value="item-1" className="border-none">
+            <AccordionTrigger className="rounded-lg border px-3.5 py-2 bg-card hover:bg-card/80 text-xs font-semibold">
+              Další zápasy ({upcomingMatches.slice(1).length})
+            </AccordionTrigger>
+            <AccordionContent className="pt-2.5 space-y-3">{upcomingMatches.slice(1).map(m => renderMatchCard(m))}</AccordionContent>
+          </AccordionItem>
+        </Accordion>
       )}
+    </div>
+  );
 
-      <BirthdaysCard birthdays={upcomingBirthdays} />
+  // 3. Poslední zápas & MVP (pouze v aktuální sezóně a pokud existuje odehraný zápas)
+  const postMatchSection = selectedSeasonId === 'current' && postMatchData ? (
+    <div className="space-y-3 w-full min-w-0 overflow-hidden">
+      <div className="flex items-center justify-between px-1 sm:px-0">
+        <h2 className="text-base sm:text-lg font-bold flex items-center gap-2">
+          <Award className="text-primary h-4.5 w-4.5" />
+          Poslední zápas & MVP
+        </h2>
+      </div>
+      <PostMatchSection
+        match={postMatchData.match}
+        currentUserId={user.uid}
+        users={allUsers || []}
+        usersMap={usersMap}
+        attendees={attendancesByMatch.get(postMatchData.match.id) || []}
+        attendancesByMatch={attendancesByMatch}
+        isAdmin={userProfile?.role === 'admin'}
+        onRecordResult={(match) => {
+          setSelectedMatch(match as any);
+          setIsResultDialogOpen(true);
+        }}
+        onOpenStarsModal={(m) => {
+          setSelectedVotingMatch(m || postMatchData.match);
+          setIsStarsModalOpen(true);
+        }}
+        additionalAwaitingMatches={postMatchData.additionalAwaiting}
+      />
+    </div>
+  ) : null;
 
-      <div className="space-y-6 sm:space-y-8 w-full min-w-0">
-        {/* PROFESIONÁLNÍ HRÁČSKÁ LIŠTA (PLAYER STRIP) */}
-        <Card className="border-border/70 bg-card/95 shadow-sm overflow-hidden w-full min-w-0">
-        <div className="p-3.5 sm:p-5 flex flex-col xl:flex-row xl:items-center justify-between gap-4 w-full min-w-0">
-          {/* Vizuální identita hráče */}
-          <div className="flex items-center gap-3.5 min-w-0">
-            <div className="relative shrink-0">
-              <Avatar className="h-12 w-12 sm:h-14 sm:w-14 border-2 border-primary/80 shadow-sm">
-                <AvatarImage src={userProfile?.photoURL || `https://picsum.photos/seed/${userProfile?.email}/200/200`} />
-                <AvatarFallback className="font-bold text-sm sm:text-base">{userProfile?.name ? userProfile.name[0] : 'U'}</AvatarFallback>
-              </Avatar>
-              {userProfile?.jerseyNumber && (
-                <span className="absolute -bottom-1 -right-1 bg-primary text-primary-foreground text-[10px] sm:text-[11px] font-black px-1.5 py-0.2 rounded-full shadow">
-                  #{userProfile.jerseyNumber}
-                </span>
-              )}
-            </div>
-            <div className="min-w-0 space-y-0.5">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <h1 className="text-base sm:text-lg font-headline font-bold truncate text-foreground">
-                  {userProfile?.name || 'Hráč Aces'}
-                </h1>
-                {(() => {
-                  if (!userProfile) return null;
-                  const posInfo = resolvePlayerPosition(userProfile as any, allMatches || []);
-                  return (
-                    <Badge variant="outline" className={cn("text-[10px] uppercase font-bold", posInfo.meta.badgeClass)}>
-                      {posInfo.meta.label}
-                    </Badge>
-                  );
-                })()}
-                {teamMilestonesData.playerFormMap?.get(user.uid)?.badges.map((b) => (
-                  <PlayerFormBadgeItem key={b.type} badge={b} />
-                ))}
-              </div>
-              <p className="text-xs text-muted-foreground truncate">
-                {userProfile?.role === 'admin' ? 'Administrátor týmu' : 'Aktivní soupiska HC Aces'}
-              </p>
-            </div>
-          </div>
-
-          {/* Sjednocený pravý blok: Přepínač období & Rychlé statistiky & Kariérní karta */}
-          <div className="flex flex-wrap items-center gap-3 lg:gap-4 shrink-0">
-            <Tabs value={myStatsView} onValueChange={(v) => setMyStatsView(v as any)} className="w-auto shrink-0">
-              <TabsList className="h-8 p-0.5 bg-muted/60">
-                <TabsTrigger value="regular" className="text-[10px] sm:text-xs h-7 px-2.5">ZČ</TabsTrigger>
-                <TabsTrigger value="playoff" className="text-[10px] sm:text-xs h-7 px-2.5">Play-off</TabsTrigger>
-                <TabsTrigger value="season" className="text-[10px] sm:text-xs h-7 px-2.5">Sezona</TabsTrigger>
-                <TabsTrigger value="history" className="text-[10px] sm:text-xs h-7 px-2.5">Historie</TabsTrigger>
-              </TabsList>
-            </Tabs>
-
-            {/* Metriky hráče / brankáře */}
-            <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto py-0.5 scrollbar-none">
-              {userProfile?.playerType === 'goalie' ? (
-                <>
-                  <div className="px-2.5 py-1 rounded-md bg-muted/60 dark:bg-muted/50 border border-border/70 text-center shrink-0 min-w-[42px] shadow-2xs">
-                    <span className="text-[9px] uppercase font-bold text-muted-foreground block">Zápasy</span>
-                    <span className="text-xs sm:text-sm font-bold tabular-nums text-foreground">
-                      {String(goalieLeaderboard.find(g => g.id === user.uid)?.[myStatsView]?.gamesPlayed || 0)}
-                    </span>
-                  </div>
-                  <div className="px-2.5 py-1 rounded-md bg-muted/60 dark:bg-muted/50 border border-border/70 text-center shrink-0 min-w-[42px] shadow-2xs">
-                    <span className="text-[9px] uppercase font-bold text-muted-foreground block">Výhry</span>
-                    <span className="text-xs sm:text-sm font-bold tabular-nums text-foreground">
-                      {String(goalieLeaderboard.find(g => g.id === user.uid)?.[myStatsView]?.wins || 0)}
-                    </span>
-                  </div>
-                  <div className="px-2.5 py-1 rounded-md bg-muted/60 dark:bg-muted/50 border border-border/70 text-center shrink-0 min-w-[42px] shadow-2xs">
-                    <span className="text-[9px] uppercase font-bold text-muted-foreground block">SO</span>
-                    <span className="text-xs sm:text-sm font-bold tabular-nums text-foreground">
-                      {String(goalieLeaderboard.find(g => g.id === user.uid)?.[myStatsView]?.so || 0)}
-                    </span>
-                  </div>
-                  <div className="px-2.5 py-1 rounded-md bg-primary/15 border border-primary/50 text-center shrink-0 shadow-2xs">
-                    <span className="text-[9px] uppercase font-black text-primary block">Úspěšnost</span>
-                    <span className="text-xs sm:text-sm font-black tabular-nums text-primary">
-                      {(() => {
-                        const stats = goalieLeaderboard.find(g => g.id === user.uid)?.[myStatsView];
-                        const sa = Number(stats?.shotsAgainst) || 0;
-                        const s = Number(stats?.saves) || 0;
-                        return sa > 0 ? ((s / sa) * 100).toFixed(2) : '0.00';
-                      })()}%
-                    </span>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="px-2.5 py-1 rounded-md bg-muted/60 dark:bg-muted/50 border border-border/70 text-center shrink-0 min-w-[38px] shadow-2xs">
-                    <span className="text-[9px] uppercase font-bold text-muted-foreground block">Z</span>
-                    <span className="text-xs sm:text-sm font-bold tabular-nums text-foreground">
-                      {String(teamScoring.find(p => p.id === user.uid)?.[myStatsView]?.gamesPlayed || 0)}
-                    </span>
-                  </div>
-                  <div className="px-2.5 py-1 rounded-md bg-muted/60 dark:bg-muted/50 border border-border/70 text-center shrink-0 min-w-[38px] shadow-2xs">
-                    <span className="text-[9px] uppercase font-bold text-muted-foreground block">G</span>
-                    <span className="text-xs sm:text-sm font-bold tabular-nums text-foreground">
-                      {String(teamScoring.find(p => p.id === user.uid)?.[myStatsView]?.goals || 0)}
-                    </span>
-                  </div>
-                  <div className="px-2.5 py-1 rounded-md bg-muted/60 dark:bg-muted/50 border border-border/70 text-center shrink-0 min-w-[38px] shadow-2xs">
-                    <span className="text-[9px] uppercase font-bold text-muted-foreground block">A</span>
-                    <span className="text-xs sm:text-sm font-bold tabular-nums text-foreground">
-                      {String(teamScoring.find(p => p.id === user.uid)?.[myStatsView]?.assists || 0)}
-                    </span>
-                  </div>
-                  <div className="px-3 py-1 rounded-md bg-primary/15 border border-primary/50 text-center shrink-0 min-w-[42px] shadow-2xs">
-                    <span className="text-[9px] uppercase font-black text-primary block">Body</span>
-                    <span className="text-xs sm:text-sm font-black tabular-nums text-primary">
-                      {String((teamScoring.find(p => p.id === user.uid)?.[myStatsView]?.goals || 0) + (teamScoring.find(p => p.id === user.uid)?.[myStatsView]?.assists || 0))}
-                    </span>
-                  </div>
-                </>
-              )}
-
-              {/* Hvězdy zápasu shrnutí */}
-              <div
-                className="px-2.5 py-1 rounded-md bg-amber-500/15 border border-amber-500/40 text-center shrink-0 cursor-default shadow-2xs"
-                title={`${currentUserStars.star1Count}x 1. hvězda (3b), ${currentUserStars.star2Count}x 2. hvězda (2b), ${currentUserStars.star3Count}x 3. hvězda (1b)`}
-              >
-                <span className="text-[9px] uppercase font-bold text-amber-600 dark:text-amber-400 flex items-center justify-center gap-0.5">
-                  <Star className="h-2.5 w-2.5 fill-amber-500 text-amber-500" />
-                  Hvězdy
-                </span>
-                <span className="text-xs sm:text-sm font-black tabular-nums text-amber-600 dark:text-amber-400">
-                  {currentUserStars.totalPoints} <span className="text-[10px] font-medium text-muted-foreground">b</span>
-                </span>
-              </div>
-            </div>
-
-            {/* Tlačítko kariérní karty */}
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 text-xs font-semibold border-primary/40 text-primary hover:bg-primary/10 hover:text-primary shrink-0"
-              onClick={() => handleOpenCareerModal(user.uid)}
-            >
-              <Trophy className="h-3.5 w-3.5 mr-1.5 text-primary" />
-              Kariérní karta
-            </Button>
-          </div>
-        </div>
-      </Card>
-
-        {/* AKTUÁLNÍ SEZÓNA: ZÁPASOVÉ CENTRUM (PŘÍŠTÍ ZÁPAS + ODEHRANÝ ZÁPAS/MVP VEDLE SEBE NA DESKTOPU) */}
-        {selectedSeasonId === 'current' ? (
-          postMatchData ? (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start w-full min-w-0">
-              {/* SLOUPEC 1: PŘÍŠTÍ ZÁPASY (NA MOBILU PRVNÍ DLE POŽADAVKU) */}
-              <div className="space-y-4 w-full min-w-0 overflow-hidden">
-                <div className="flex items-center justify-between px-2 sm:px-0">
-                  <h2 className="text-xl font-bold flex items-center gap-2">
-                    <Trophy className="text-primary" />
-                    Příští zápasy
-                  </h2>
-                  {userProfile?.role === 'admin' && (
-                    <Button size="sm" onClick={() => setIsAddDialogOpen(true)}>
-                      <Plus className="h-4 mr-2" />
-                      Přidat zápas
-                    </Button>
-                  )}
-                </div>
-                {nextMatch ? renderMatchCard(nextMatch) : <p className="text-center py-8 text-muted-foreground">Žádné blížící se zápasy.</p>}
-                {upcomingMatches.slice(1).length > 0 && (
-                  <Accordion type="single" collapsible className="w-full px-2 sm:px-0" value={openAccordionValue} onValueChange={setOpenAccordionValue}>
-                    <AccordionItem value="item-1" className="border-none">
-                      <AccordionTrigger className="rounded-lg border px-4 bg-card">Další zápasy ({upcomingMatches.slice(1).length})</AccordionTrigger>
-                      <AccordionContent className="pt-4 space-y-4">{upcomingMatches.slice(1).map(m => renderMatchCard(m))}</AccordionContent>
-                    </AccordionItem>
-                  </Accordion>
-                )}
-              </div>
-
-              {/* SLOUPEC 2: ODEHRANÝ ZÁPAS & MVP / HVĚZDY ZÁPASU */}
-              <div className="space-y-4 w-full min-w-0 overflow-hidden">
-                <div className="flex items-center justify-between px-2 sm:px-0">
-                  <h2 className="text-xl font-bold flex items-center gap-2">
-                    <Award className="text-primary" />
-                    Poslední zápas & MVP
-                  </h2>
-                </div>
-                <PostMatchSection
-                  match={postMatchData.match}
-                  currentUserId={user.uid}
-                  users={allUsers || []}
-                  usersMap={usersMap}
-                  attendees={attendancesByMatch.get(postMatchData.match.id) || []}
-                  attendancesByMatch={attendancesByMatch}
-                  isAdmin={userProfile?.role === 'admin'}
-                  onRecordResult={(match) => {
-                    setSelectedMatch(match as any);
-                    setIsResultDialogOpen(true);
-                  }}
-                  onOpenStarsModal={(m) => {
-                    setSelectedVotingMatch(m || postMatchData.match);
-                    setIsStarsModalOpen(true);
-                  }}
-                  additionalAwaitingMatches={postMatchData.additionalAwaiting}
-                />
-              </div>
-            </div>
-          ) : (
-            <div className="max-w-4xl mx-auto space-y-4 w-full min-w-0 overflow-hidden">
-              <div className="flex items-center justify-between px-2 sm:px-0">
-                <h2 className="text-xl font-bold flex items-center gap-2">
-                  <Trophy className="text-primary" />
-                  Příští zápasy
-                </h2>
-                {userProfile?.role === 'admin' && (
-                  <Button size="sm" onClick={() => setIsAddDialogOpen(true)}>
-                    <Plus className="h-4 mr-2" />
-                    Přidat zápas
-                  </Button>
-                )}
-              </div>
-              {nextMatch ? renderMatchCard(nextMatch) : <p className="text-center py-8 text-muted-foreground">Žádné blížící se zápasy.</p>}
-              {upcomingMatches.slice(1).length > 0 && (
-                <Accordion type="single" collapsible className="w-full px-2 sm:px-0" value={openAccordionValue} onValueChange={setOpenAccordionValue}>
-                  <AccordionItem value="item-1" className="border-none">
-                    <AccordionTrigger className="rounded-lg border px-4 bg-card">Další zápasy ({upcomingMatches.slice(1).length})</AccordionTrigger>
-                    <AccordionContent className="pt-4 space-y-4">{upcomingMatches.slice(1).map(m => renderMatchCard(m))}</AccordionContent>
-                  </AccordionItem>
-                </Accordion>
-              )}
-            </div>
-          )
-        ) : (
-          <div className="p-4 rounded-xl border bg-muted/20 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left w-full min-w-0 overflow-hidden">
-            <div className="flex items-center gap-3">
-              <History className="h-5 w-5 text-muted-foreground shrink-0" />
-              <p className="text-xs text-muted-foreground">
-                Prohlížíte uzavřený ročník <span className="font-semibold text-foreground">{activeSeasonData.name}</span>. Nadcházející zápasy a docházka jsou aktivní pouze v aktuální sezóně.
-              </p>
-            </div>
-            <Button variant="outline" size="sm" onClick={() => setSelectedSeasonId('current')} className="text-xs h-8 shrink-0">
-              Přejít na aktuální sezónu
-            </Button>
-          </div>
-        )}
-
-        {/* ADMIN AKCE PRO STARÉ NEZAPSANÉ ZÁPASY Z PŘEDCHOZÍHO OBDOBÍ */}
-        {userProfile?.role === 'admin' && oldUnrecordedMatches.length > 0 && selectedSeasonId === 'current' && (
-          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm w-full min-w-0 overflow-hidden">
-            <div className="space-y-1">
-              <p className="text-sm font-bold text-amber-500 flex items-center gap-1.5">
-                <ShieldAlert className="h-4 w-4 shrink-0" />
-                Nalezeno {oldUnrecordedMatches.length} starých zápasů z předchozího období (před 16. 9. 2026)
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Tyto zápasy proběhly před zahájením aktuální sezóny. Chcete je zapsat a archivovat do minulého ročníku, nebo smazat testovací data?
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 shrink-0">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleArchiveOldMatches}
-                disabled={isProcessingOldMatches}
-                className="text-xs font-semibold border-amber-500/50 text-amber-500 hover:text-amber-400 hover:bg-amber-500/10"
-              >
-                {isProcessingOldMatches ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Archive className="mr-1.5 h-3.5 w-3.5" />}
-                Zapsat a archivovat
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={handleDeleteOldMatches}
-                disabled={isProcessingOldMatches}
-                className="text-xs text-destructive hover:bg-destructive/10"
-              >
-                <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                Smazat staré zápasy
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* LIGOVÁ SOUTĚŽ & ODEHRANÉ ZÁPASY (VEDLE SEBE NA DESKTOPU) */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-start w-full min-w-0">
-          <Card className="lg:col-span-5 h-fit border-border/70 bg-card/95 w-full min-w-0 overflow-hidden">
+  // 4. Ligová soutěž
+  const leagueSection = (
+          <Card className="h-fit border-border/70 bg-card/95 w-full min-w-0 overflow-hidden">
             <CardHeader className="flex-col items-start gap-3 py-3.5 px-3.5 sm:px-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full gap-2">
                     <CardTitle className="flex items-center gap-2 text-base sm:text-lg whitespace-nowrap"><ListOrdered className="text-primary"/>Soutěž</CardTitle>
@@ -1834,11 +1634,14 @@ function DashboardPageContent() {
                 </Tabs>
             </CardContent>
           </Card>
+  );
 
+  // 5. Odehrané zápasy
+  const recentMatchesSection = (
           <RecentMatchesSection
             matches={recentPlayedMatches as any}
             usersMap={usersMap}
-            className="lg:col-span-7 h-fit border-border/70 bg-card/95 w-full min-w-0 overflow-hidden"
+            className="h-fit border-border/70 bg-card/95 w-full min-w-0 overflow-hidden"
             onViewLineup={(m) => {
               let lineupToDisplay = m.lineup || null;
               const hasExistingLineup = Boolean(lineupToDisplay && Object.values(lineupToDisplay).some((p: any) => p !== null));
@@ -1906,9 +1709,10 @@ function DashboardPageContent() {
               setIsLineupViewOpen(true);
             }}
           />
-        </div>
+  );
 
-        <div className="grid grid-cols-1 gap-6 lg:gap-8 md:grid-cols-2 w-full min-w-0">
+  // 6. Kanadské bodování & Hvězdy
+  const scoringSection = (
             <Card className="h-fit w-full min-w-0 overflow-hidden">
               <Tabs value={activeScoringTab} onValueChange={(v) => setActiveScoringTab(v as 'scoring' | 'stars')}>
                 <CardHeader className="flex-col sm:flex-row items-start sm:items-center justify-between gap-3 py-3 px-4 sm:px-6 border-b">
@@ -2152,7 +1956,10 @@ function DashboardPageContent() {
                 </TabsContent>
               </Tabs>
             </Card>
+  );
 
+  // 7. Brankáři
+  const goalieSection = (
             <Card className="h-fit w-full min-w-0 overflow-hidden">
               <Tabs value={activeGoalieTab} onValueChange={(v) => setActiveGoalieTab(v as 'goalies' | 'stars')}>
                 <CardHeader className="flex-col sm:flex-row items-start sm:items-center justify-between gap-3 py-3 px-4 sm:px-6 border-b">
@@ -2395,9 +2202,214 @@ function DashboardPageContent() {
                 </TabsContent>
               </Tabs>
             </Card>
+  );
+
+  return (
+    <div className="py-4 sm:py-6 space-y-4 lg:space-y-5 w-full min-w-0 max-w-7xl mx-auto">
+      {selectedSeasonId !== 'current' && (
+        <div className="bg-amber-500/10 border-2 border-amber-500/30 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-amber-500/20 text-amber-500 flex items-center justify-center shrink-0">
+              <History className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/30 text-[10px] uppercase font-bold">
+                  Archivní ročník
+                </Badge>
+                <h3 className="font-bold text-base">{activeSeasonData.name}</h3>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Prohlížíte historické statistiky, tabulku a odehrané zápasy tohoto ročníku. Údaje jsou uzamčeny.
+              </p>
+            </div>
+          </div>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setSelectedSeasonId('current')}
+            className="shrink-0 text-xs font-bold border-amber-500/40 hover:bg-amber-500/10"
+          >
+            Zpět na aktuální sezónu
+          </Button>
         </div>
-      </div>
-      
+      )}
+
+      <BirthdaysCard birthdays={upcomingBirthdays} />
+
+        {/* PROFESIONÁLNÍ HRÁČSKÁ LIŠTA (PLAYER STRIP) */}
+        <Card className="border-border/70 bg-card/95 shadow-sm overflow-hidden w-full min-w-0">
+        <div className="p-3.5 sm:p-5 flex flex-col xl:flex-row xl:items-center justify-between gap-4 w-full min-w-0">
+          {/* Vizuální identita hráče */}
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div className="relative shrink-0">
+              <Avatar className="h-12 w-12 sm:h-14 sm:w-14 border-2 border-primary/80 shadow-sm">
+                <AvatarImage src={userProfile?.photoURL || `https://picsum.photos/seed/${userProfile?.email}/200/200`} />
+                <AvatarFallback className="font-bold text-sm sm:text-base">{userProfile?.name ? userProfile.name[0] : 'U'}</AvatarFallback>
+              </Avatar>
+              {userProfile?.jerseyNumber && (
+                <span className="absolute -bottom-1 -right-1 bg-primary text-primary-foreground text-[10px] sm:text-[11px] font-black px-1.5 py-0.2 rounded-full shadow">
+                  #{userProfile.jerseyNumber}
+                </span>
+              )}
+            </div>
+            <div className="min-w-0 space-y-0.5">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <h1 className="text-base sm:text-lg font-headline font-bold truncate text-foreground">
+                  {userProfile?.name || 'Hráč Aces'}
+                </h1>
+                {(() => {
+                  if (!userProfile) return null;
+                  const posInfo = resolvePlayerPosition(userProfile as any, allMatches || []);
+                  return (
+                    <Badge variant="outline" className={cn("text-[10px] uppercase font-bold", posInfo.meta.badgeClass)}>
+                      {posInfo.meta.label}
+                    </Badge>
+                  );
+                })()}
+                {teamMilestonesData.playerFormMap?.get(user.uid)?.badges.map((b) => (
+                  <PlayerFormBadgeItem key={b.type} badge={b} />
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground truncate">
+                {userProfile?.role === 'admin' ? 'Administrátor týmu' : 'Aktivní soupiska HC Aces'}
+              </p>
+            </div>
+          </div>
+
+          {/* Sjednocený pravý blok: Přepínač období & Rychlé statistiky & Kariérní karta */}
+          <div className="flex flex-wrap items-center gap-3 lg:gap-4 shrink-0">
+            <Tabs value={myStatsView} onValueChange={(v) => setMyStatsView(v as any)} className="w-auto shrink-0">
+              <TabsList className="h-8 p-0.5 bg-muted/60">
+                <TabsTrigger value="regular" className="text-[10px] sm:text-xs h-7 px-2.5">ZČ</TabsTrigger>
+                <TabsTrigger value="playoff" className="text-[10px] sm:text-xs h-7 px-2.5">Play-off</TabsTrigger>
+                <TabsTrigger value="season" className="text-[10px] sm:text-xs h-7 px-2.5">Sezona</TabsTrigger>
+                <TabsTrigger value="history" className="text-[10px] sm:text-xs h-7 px-2.5">Historie</TabsTrigger>
+              </TabsList>
+            </Tabs>
+
+            {/* Metriky hráče / brankáře */}
+            <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto py-0.5 scrollbar-none">
+              {userProfile?.playerType === 'goalie' ? (
+                <>
+                  <div className="px-2.5 py-1 rounded-md bg-muted/60 dark:bg-muted/50 border border-border/70 text-center shrink-0 min-w-[42px] shadow-2xs">
+                    <span className="text-[9px] uppercase font-bold text-muted-foreground block">Zápasy</span>
+                    <span className="text-xs sm:text-sm font-bold tabular-nums text-foreground">
+                      {String(goalieLeaderboard.find(g => g.id === user.uid)?.[myStatsView]?.gamesPlayed || 0)}
+                    </span>
+                  </div>
+                  <div className="px-2.5 py-1 rounded-md bg-muted/60 dark:bg-muted/50 border border-border/70 text-center shrink-0 min-w-[42px] shadow-2xs">
+                    <span className="text-[9px] uppercase font-bold text-muted-foreground block">Výhry</span>
+                    <span className="text-xs sm:text-sm font-bold tabular-nums text-foreground">
+                      {String(goalieLeaderboard.find(g => g.id === user.uid)?.[myStatsView]?.wins || 0)}
+                    </span>
+                  </div>
+                  <div className="px-2.5 py-1 rounded-md bg-muted/60 dark:bg-muted/50 border border-border/70 text-center shrink-0 min-w-[42px] shadow-2xs">
+                    <span className="text-[9px] uppercase font-bold text-muted-foreground block">SO</span>
+                    <span className="text-xs sm:text-sm font-bold tabular-nums text-foreground">
+                      {String(goalieLeaderboard.find(g => g.id === user.uid)?.[myStatsView]?.so || 0)}
+                    </span>
+                  </div>
+                  <div className="px-2.5 py-1 rounded-md bg-primary/15 border border-primary/50 text-center shrink-0 shadow-2xs">
+                    <span className="text-[9px] uppercase font-black text-primary block">Úspěšnost</span>
+                    <span className="text-xs sm:text-sm font-black tabular-nums text-primary">
+                      {(() => {
+                        const stats = goalieLeaderboard.find(g => g.id === user.uid)?.[myStatsView];
+                        const sa = Number(stats?.shotsAgainst) || 0;
+                        const s = Number(stats?.saves) || 0;
+                        return sa > 0 ? ((s / sa) * 100).toFixed(2) : '0.00';
+                      })()}%
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="px-2.5 py-1 rounded-md bg-muted/60 dark:bg-muted/50 border border-border/70 text-center shrink-0 min-w-[38px] shadow-2xs">
+                    <span className="text-[9px] uppercase font-bold text-muted-foreground block">Z</span>
+                    <span className="text-xs sm:text-sm font-bold tabular-nums text-foreground">
+                      {String(teamScoring.find(p => p.id === user.uid)?.[myStatsView]?.gamesPlayed || 0)}
+                    </span>
+                  </div>
+                  <div className="px-2.5 py-1 rounded-md bg-muted/60 dark:bg-muted/50 border border-border/70 text-center shrink-0 min-w-[38px] shadow-2xs">
+                    <span className="text-[9px] uppercase font-bold text-muted-foreground block">G</span>
+                    <span className="text-xs sm:text-sm font-bold tabular-nums text-foreground">
+                      {String(teamScoring.find(p => p.id === user.uid)?.[myStatsView]?.goals || 0)}
+                    </span>
+                  </div>
+                  <div className="px-2.5 py-1 rounded-md bg-muted/60 dark:bg-muted/50 border border-border/70 text-center shrink-0 min-w-[38px] shadow-2xs">
+                    <span className="text-[9px] uppercase font-bold text-muted-foreground block">A</span>
+                    <span className="text-xs sm:text-sm font-bold tabular-nums text-foreground">
+                      {String(teamScoring.find(p => p.id === user.uid)?.[myStatsView]?.assists || 0)}
+                    </span>
+                  </div>
+                  <div className="px-3 py-1 rounded-md bg-primary/15 border border-primary/50 text-center shrink-0 min-w-[42px] shadow-2xs">
+                    <span className="text-[9px] uppercase font-black text-primary block">Body</span>
+                    <span className="text-xs sm:text-sm font-black tabular-nums text-primary">
+                      {String((teamScoring.find(p => p.id === user.uid)?.[myStatsView]?.goals || 0) + (teamScoring.find(p => p.id === user.uid)?.[myStatsView]?.assists || 0))}
+                    </span>
+                  </div>
+                </>
+              )}
+
+              {/* Hvězdy zápasu shrnutí */}
+              <div
+                className="px-2.5 py-1 rounded-md bg-amber-500/15 border border-amber-500/40 text-center shrink-0 cursor-default shadow-2xs"
+                title={`${currentUserStars.star1Count}x 1. hvězda (3b), ${currentUserStars.star2Count}x 2. hvězda (2b), ${currentUserStars.star3Count}x 3. hvězda (1b)`}
+              >
+                <span className="text-[9px] uppercase font-bold text-amber-600 dark:text-amber-400 flex items-center justify-center gap-0.5">
+                  <Star className="h-2.5 w-2.5 fill-amber-500 text-amber-500" />
+                  Hvězdy
+                </span>
+                <span className="text-xs sm:text-sm font-black tabular-nums text-amber-600 dark:text-amber-400">
+                  {currentUserStars.totalPoints} <span className="text-[10px] font-medium text-muted-foreground">b</span>
+                </span>
+              </div>
+            </div>
+
+            {/* Tlačítko kariérní karty */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs font-semibold border-primary/40 text-primary hover:bg-primary/10 hover:text-primary shrink-0"
+              onClick={() => handleOpenCareerModal(user.uid)}
+            >
+              <Trophy className="h-3.5 w-3.5 mr-1.5 text-primary" />
+              Kariérní karta
+            </Button>
+          </div>
+        </div>
+      </Card>
+
+      {/* HLAVNÍ BLOKY: RESPONZIVNÍ 2 NEZÁVISLÉ SLOUPCE NA DESKTOPU VS JEDEN SLOUPEC NA MOBILU */}
+      {isDesktop ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5 items-start w-full min-w-0">
+          {/* LEVÝ SLOUPEC: Příští zápasy -> Soutěž -> Kanadské bodování */}
+          <div className="space-y-4 lg:space-y-5 w-full min-w-0">
+            {nextMatchesSection}
+            {leagueSection}
+            {scoringSection}
+          </div>
+
+          {/* PRAVÝ SLOUPEC: Upozornění -> Poslední zápas & MVP -> Odehrané zápasy -> Brankáři */}
+          <div className="space-y-4 lg:space-y-5 w-full min-w-0">
+            {oldMatchesAlert}
+            {postMatchSection}
+            {recentMatchesSection}
+            {goalieSection}
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-3.5 sm:space-y-4 w-full min-w-0">
+          {oldMatchesAlert}
+          {nextMatchesSection}
+          {postMatchSection}
+          {leagueSection}
+          {recentMatchesSection}
+          {scoringSection}
+          {goalieSection}
+        </div>
+      )}
+
       <MatchFormDialog
         open={isAddDialogOpen}
         onOpenChange={setIsAddDialogOpen}
@@ -2592,7 +2604,7 @@ function DashboardPageContent() {
         />
       )}
     </div>
-  )
+  );
 }
 
 export default function DashboardPage() { return <Suspense fallback={<div className="container py-8 text-center">Načítání...</div>}><DashboardPageContent /></Suspense> }

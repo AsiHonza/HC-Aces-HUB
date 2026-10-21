@@ -25,3 +25,23 @@ export function useIsMobile() {
 
   return isMobile
 }
+
+export function useIsDesktop() {
+  const [isDesktop, setIsDesktop] = React.useState<boolean>(false)
+
+  React.useEffect(() => {
+    const mql = window.matchMedia("(min-width: 1024px)")
+    
+    const onChange = () => {
+      setIsDesktop(mql.matches)
+    }
+    
+    setIsDesktop(mql.matches)
+    
+    mql.addEventListener("change", onChange)
+
+    return () => mql.removeEventListener("change", onChange)
+  }, [])
+
+  return isDesktop
+}

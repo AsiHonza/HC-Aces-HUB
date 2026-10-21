@@ -34,19 +34,19 @@ export function RecentMatchesSection({
   className,
 }: RecentMatchesSectionProps) {
   return (
-    <Card className={cn("w-full min-w-0 max-w-full overflow-hidden", className)}>
-      <CardHeader className="py-4 px-4 sm:px-6">
-        <CardTitle className="flex items-center gap-2">
-          <History className="text-primary" />
+    <Card className={cn("w-full min-w-0 overflow-hidden", className)}>
+      <CardHeader className="py-3 px-3.5 sm:px-5">
+        <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+          <History className="text-primary h-4 w-4 sm:h-5 sm:w-5" />
           Odehrané zápasy
         </CardTitle>
-        <CardDescription>
+        <CardDescription className="text-xs">
           Poslední odehraná utkání s podrobnými zápisy z ligy, střelami a statistikami.
         </CardDescription>
       </CardHeader>
-      <CardContent className="px-2 sm:px-6 w-full min-w-0 max-w-full overflow-hidden">
+      <CardContent className="px-2 sm:px-4 pb-3.5 w-full min-w-0 overflow-hidden">
         {matches.length > 0 ? (
-          <Accordion type="single" collapsible className="w-full min-w-0 max-w-full space-y-3">
+          <Accordion type="single" collapsible className="w-full min-w-0 space-y-2.5">
             {matches.map((m) => (
               <PlayedMatchAccordionItem
                 key={m.id}
