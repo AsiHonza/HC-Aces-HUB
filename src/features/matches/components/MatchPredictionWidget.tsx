@@ -64,9 +64,14 @@ export function MatchPredictionWidget({
 
   const [acesScore, setAcesScore] = useState<number>(myPrediction?.acesScore ?? 0);
   const [opponentScore, setOpponentScore] = useState<number>(myPrediction?.opponentScore ?? 0);
-  const [firstScorerId, setFirstScorerId] = useState<string>(
-    myPrediction?.firstScorerId || 'none'
-  );
+  const [firstScorerId, setFirstScorerId] = useState<string>(() => {
+    const existing = myPrediction?.firstScorerId;
+    if (existing && existing !== 'none') {
+      const isGoing = attendees.some((a) => a.userId === existing && a.status === 'going');
+      return isGoing ? existing : 'none';
+    }
+    return 'none';
+  });
 
   const matchStart = useMemo(() => toJsDate(match.dateTime), [match.dateTime]);
   const isLocked = Boolean(match.isPlayed || new Date().getTime() >= matchStart.getTime());
@@ -76,19 +81,14 @@ export function MatchPredictionWidget({
     [usersMap]
   );
 
-  // Skaters sorted: going skaters first, then others alphabetically
+  // Skaters who have confirmed attendance ('going')
   const skaterOptions = useMemo(() => {
     const goingSet = new Set(
       attendees.filter((a) => a.status === 'going').map((a) => a.userId)
     );
     return allUsersList
-      .filter((u) => !isGoaliePlayer(u) && u.playerType !== 'member')
-      .sort((a, b) => {
-        const aGoing = goingSet.has(a.id);
-        const bGoing = goingSet.has(b.id);
-        if (aGoing !== bGoing) return aGoing ? -1 : 1;
-        return a.name.localeCompare(b.name, 'cs');
-      });
+      .filter((u) => !isGoaliePlayer(u) && u.playerType !== 'member' && goingSet.has(u.id))
+      .sort((a, b) => a.name.localeCompare(b.name, 'cs'));
   }, [allUsersList, attendees]);
 
   const allPredictions = useMemo(() => {
@@ -121,7 +121,11 @@ export function MatchPredictionWidget({
   const handleOpenDialog = () => {
     setAcesScore(myPrediction?.acesScore ?? 0);
     setOpponentScore(myPrediction?.opponentScore ?? 0);
-    setFirstScorerId(myPrediction?.firstScorerId || 'none');
+    const existing = myPrediction?.firstScorerId;
+    const isGoing =
+      existing &&
+      attendees.some((a) => a.userId === existing && a.status === 'going');
+    setFirstScorerId(isGoing ? existing : 'none');
     setIsDialogOpen(true);
   };
 
@@ -314,29 +318,47 @@ export function MatchPredictionWidget({
 
                 {/* First scorer select */}
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold">
-                    Kdo vstřelí první gól HC Aces? (bonus +3 body)
-                  </Label>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold">
+                      Kdo vstřelí první gól HC Aces? (bonus +3 body)
+                    </Label>
+                    <span className="text-[11px] text-muted-foreground">
+                      Jen nahlášení ({skaterOptions.length})
+                    </span>
+                  </div>
                   <Select value={firstScorerId} onValueChange={setFirstScorerId}>
                     <SelectTrigger className="h-9 text-xs">
                       <SelectValue placeholder="Vyber střelce 1. gólu..." />
                     </SelectTrigger>
                     <SelectContent className="max-h-60">
                       <SelectItem value="none">Nevybráno (bez tipu na střelce)</SelectItem>
-                      {skaterOptions.map((sk) => {
-                        const isGoing = attendees.some(
-                          (a) => a.userId === sk.id && a.status === 'going'
-                        );
-                        return (
+                      {skaterOptions.length === 0 ? (
+                        <SelectItem value="no_skaters" disabled>
+                          Zatím nikdo nepotvrdil účast
+                        </SelectItem>
+                      ) : (
+                        skaterOptions.map((sk) => (
                           <SelectItem key={sk.id} value={sk.id}>
                             {sk.jerseyNumber ? `#${sk.jerseyNumber} ` : ''}
                             {formatName(sk.name)}
-                            {isGoing ? ' (Potvrzeno)' : ''}
                           </SelectItem>
-                        );
-                      })}
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
+                  {myPrediction?.firstScorerId &&
+                    myPrediction.firstScorerId !== 'none' &&
+                    !attendees.some(
+                      (a) => a.userId === myPrediction.firstScorerId && a.status === 'going'
+                    ) && (
+                      <p className="text-[11px] text-amber-500 pt-0.5">
+                        Původní tip na střelce (
+                        {usersMap?.get(myPrediction.firstScorerId)?.name
+                          ? formatName(usersMap.get(myPrediction.firstScorerId)!.name)
+                          : 'hráč'}
+                        ) již není mezi nahlášenými k zápasu.
+                      </p>
+                    )}
                 </div>
               </>
             )}
