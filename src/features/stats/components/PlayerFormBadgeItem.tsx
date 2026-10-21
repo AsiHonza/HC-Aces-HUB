@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Crown,
   Flame,
@@ -13,11 +13,10 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import type { PlayerFormBadge, PlayerFormBadgeType } from '../utils/playerForm';
 
@@ -58,33 +57,62 @@ export function PlayerFormBadgeItem({
   showLabel?: boolean;
   className?: string;
 }) {
+  const [open, setOpen] = useState(false);
+
   return (
-    <TooltipProvider delayDuration={150}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Badge
-            variant="outline"
-            className={cn(
-              'text-[10px] font-bold px-1.5 py-0.5 inline-flex items-center gap-1 cursor-help select-none shadow-2xs hover:scale-105 transition-all',
-              badge.badgeClass,
-              className
-            )}
-          >
-            {getPlayerFormIcon(badge.type, 'h-3 w-3')}
-            {showLabel && <span>{badge.shortLabel}</span>}
-          </Badge>
-        </TooltipTrigger>
-        <TooltipContent
-          side="top"
-          className="text-xs max-w-xs space-y-1 p-2.5 shadow-lg border border-border/80 bg-popover/95 backdrop-blur-md z-50 text-left"
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen((prev) => !prev);
+          }}
+          onMouseEnter={() => setOpen(true)}
+          onMouseLeave={() => setOpen(false)}
+          className={cn(
+            "inline-flex items-center focus:outline-none rounded-md",
+            !showLabel && "p-0.5 hover:bg-muted/80"
+          )}
         >
-          <p className="font-bold text-foreground flex items-center gap-1.5">
-            {getPlayerFormIcon(badge.type, 'h-3.5 w-3.5')}
-            <span>{badge.title}</span>
-          </p>
-          <p className="text-[11px] text-muted-foreground leading-snug">{badge.description}</p>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+          {showLabel ? (
+            <Badge
+              variant="outline"
+              className={cn(
+                'text-[10px] font-bold px-1.5 py-0.5 inline-flex items-center gap-1 cursor-pointer select-none shadow-2xs hover:scale-105 active:scale-95 transition-all',
+                badge.badgeClass,
+                className
+              )}
+            >
+              {getPlayerFormIcon(badge.type, 'h-3 w-3')}
+              <span>{badge.shortLabel}</span>
+            </Badge>
+          ) : (
+            <span
+              className={cn(
+                'inline-flex items-center justify-center p-0.5 rounded cursor-pointer select-none transition-colors',
+                className
+              )}
+            >
+              {getPlayerFormIcon(badge.type, 'h-3.5 w-3.5')}
+            </span>
+          )}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        side="top"
+        align="center"
+        sideOffset={6}
+        className="w-auto max-w-[280px] p-2.5 text-xs shadow-xl border border-border/80 bg-popover/95 backdrop-blur-md z-50 text-left pointer-events-auto"
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+      >
+        <p className="font-bold text-foreground flex items-center gap-1.5">
+          {getPlayerFormIcon(badge.type, 'h-3.5 w-3.5')}
+          <span>{badge.title}</span>
+        </p>
+        <p className="text-[11px] text-muted-foreground leading-snug mt-1">{badge.description}</p>
+      </PopoverContent>
+    </Popover>
   );
 }

@@ -27,7 +27,7 @@ import type { EditableSkaterStatItem } from '../services/statsService';
 import type { Player } from '@/types/player';
 import type { Match } from '@/types/match';
 import type { PlayerFormSummary } from '../utils/playerForm';
-import { getPlayerFormIcon } from './PlayerFormBadgeItem';
+import { getPlayerFormIcon, PlayerFormBadgeItem } from './PlayerFormBadgeItem';
 import { resolvePlayerPosition, POSITION_METADATA } from '@/features/roster/utils/positions';
 
 export interface ScorerItem {
@@ -205,23 +205,7 @@ export function PlayerScoringTable({
                         {topBadges.length > 0 && (
                           <span className="inline-flex items-center gap-1 shrink-0">
                             {topBadges.map((b) => (
-                              <Tooltip key={b.type}>
-                                <TooltipTrigger asChild>
-                                  <span
-                                    className="inline-flex items-center select-none cursor-help p-0.5 rounded hover:bg-muted/80 transition-colors"
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    {getPlayerFormIcon(b.type, 'h-3.5 w-3.5')}
-                                  </span>
-                                </TooltipTrigger>
-                                <TooltipContent side="top" className="text-xs max-w-xs space-y-0.5">
-                                  <p className="font-bold text-foreground flex items-center gap-1.5">
-                                    {getPlayerFormIcon(b.type, 'h-3.5 w-3.5')}
-                                    <span>{b.title}</span>
-                                  </p>
-                                  <p className="text-[11px] text-muted-foreground">{b.description}</p>
-                                </TooltipContent>
-                              </Tooltip>
+                              <PlayerFormBadgeItem key={b.type} badge={b} showLabel={false} />
                             ))}
                           </span>
                         )}
