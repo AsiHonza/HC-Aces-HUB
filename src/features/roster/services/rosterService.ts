@@ -24,7 +24,8 @@ import {
 } from 'firebase/storage';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import type { UserProfile, PlayerType } from '@/types';
+import type { UserProfile, PlayerType, FieldPosition } from '@/types';
+import { extractPositionsFromLineup } from '../utils/positions';
 
 export interface UpdateUserData {
   name: string;
@@ -32,11 +33,14 @@ export interface UpdateUserData {
   jerseyNumber?: number | null;
   dob?: string | null;
   playerType: PlayerType;
+  fieldPosition?: FieldPosition | null;
+  positionLocked?: boolean;
 }
 
 export interface CreateUserData {
   name: string;
   playerType: PlayerType;
+  fieldPosition?: FieldPosition | null;
   jerseyNumber?: number | null;
   email?: string;
   password?: string;
@@ -53,13 +57,20 @@ export const rosterService = {
   ): Promise<void> {
     try {
       const userRef = doc(firestore, 'users', userId);
-      await updateDoc(userRef, {
+      const payload: Record<string, any> = {
         name: data.name,
         phoneNumber: data.phoneNumber ?? null,
         jerseyNumber: data.jerseyNumber ?? null,
         dob: data.dob ?? null,
         playerType: data.playerType,
-      });
+      };
+      if (data.fieldPosition !== undefined) {
+        payload.fieldPosition = data.fieldPosition;
+      }
+      if (data.positionLocked !== undefined) {
+        payload.positionLocked = data.positionLocked;
+      }
+      await updateDoc(userRef, payload);
     } catch (err: any) {
       errorEmitter.emit(
         'permission-error',
@@ -70,6 +81,46 @@ export const rosterService = {
       );
       throw err;
     }
+  },
+
+  /**
+   * Automatically updates skaters' fieldPosition (defense / wing / center)
+   * when an admin saves a match lineup, unless the player's position is explicitly locked.
+   */
+  async syncPositionsFromLineup(
+    firestore: Firestore,
+    lineup: Record<string, any> | null | undefined,
+    allUsers: UserProfile[] = []
+  ): Promise<number> {
+    const extracted = extractPositionsFromLineup(lineup);
+    if (extracted.length === 0) return 0;
+
+    const usersMap = new Map(allUsers.map((u) => [u.id, u]));
+    const batch = writeBatch(firestore);
+    let updatedCount = 0;
+
+    for (const item of extracted) {
+      const existing = usersMap.get(item.userId);
+      if (!existing) continue;
+      if (existing.playerType === 'goalie' || existing.playerType === 'member') continue;
+      if (existing.positionLocked) continue;
+      if (existing.fieldPosition === item.fieldPosition) continue;
+
+      batch.update(doc(firestore, 'users', item.userId), {
+        fieldPosition: item.fieldPosition,
+      });
+      updatedCount++;
+    }
+
+    if (updatedCount > 0) {
+      try {
+        await batch.commit();
+      } catch (err) {
+        console.warn('Nepodařilo se automaticky synchronizovat posty ze sestavy:', err);
+      }
+    }
+
+    return updatedCount;
   },
 
   /**
@@ -114,16 +165,25 @@ export const rosterService = {
       phoneNumber?: string | null;
       jerseyNumber?: number | null;
       dob?: string | null;
+      fieldPosition?: FieldPosition | null;
+      positionLocked?: boolean;
     }
   ): Promise<void> {
     try {
       const userDocRef = doc(firestore, 'users', userId);
-      await updateDoc(userDocRef, {
+      const payload: Record<string, any> = {
         name: data.name,
         phoneNumber: data.phoneNumber || null,
         jerseyNumber: data.jerseyNumber ? Number(data.jerseyNumber) : null,
         dob: data.dob || null,
-      });
+      };
+      if (data.fieldPosition !== undefined) {
+        payload.fieldPosition = data.fieldPosition;
+      }
+      if (data.positionLocked !== undefined) {
+        payload.positionLocked = data.positionLocked;
+      }
+      await updateDoc(userDocRef, payload);
 
       if (auth.currentUser && auth.currentUser.uid === userId) {
         await updateProfile(auth.currentUser, { displayName: data.name });

@@ -50,7 +50,9 @@ import {
   CheckCircle2,
   ChevronRight
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, formatName } from '@/lib/utils';
+import type { TeamChemistryData } from '../utils/chemistry';
+import type { OracleLeaderboardEntry } from '@/features/matches/utils/predictions';
 
 interface HallOfFameTabProps {
   milestones: MilestoneWithHolders[];
@@ -59,6 +61,8 @@ interface HallOfFameTabProps {
   currentUserId?: string | null;
   onOpenPlayerCareer?: (playerId: string) => void;
   trophyLeaders?: TrophyLeader[];
+  teamChemistry?: TeamChemistryData;
+  oracleLeaderboard?: OracleLeaderboardEntry[];
   newMilestoneIds?: Set<string>;
   initialPlayerId?: string;
 }
@@ -66,6 +70,24 @@ interface HallOfFameTabProps {
 type ViewMode = 'series' | 'compact';
 
 const SPECIAL_FEAT_GROUPS = [
+  {
+    id: 'defense_team',
+    title: '🛡️ Defenzivní pilíře, Postové klenoty & Černá práce',
+    description: 'Čistá konta v poli, ocenění bez kanadských bodů, ubráněné těsné výhry a příspěvky obránců',
+    iconName: 'ShieldCheck',
+    ids: [
+      'feat-unsung-hero',
+      'feat-skater-shutout',
+      'feat-win-talisman',
+      'feat-defense-qb',
+      'feat-defense-scorer',
+      'feat-shot-suppressor',
+      'feat-clutch-closer',
+      'feat-center-playmaker',
+      'feat-wing-sniper',
+      'feat-exact-oracle',
+    ],
+  },
   {
     id: 'offense',
     title: 'Útočné klenoty & Ofenzivní galapředstavení',
@@ -80,6 +102,8 @@ const SPECIAL_FEAT_GROUPS = [
       'feat-4assists',
       'feat-quick-goal',
       'feat-ppg',
+      'feat-wing-sniper',
+      'feat-center-playmaker',
     ],
   },
   {
@@ -122,6 +146,8 @@ export function HallOfFameTab({
   currentUserId,
   onOpenPlayerCareer,
   trophyLeaders = [],
+  teamChemistry,
+  oracleLeaderboard = [],
   newMilestoneIds,
   initialPlayerId,
 }: HallOfFameTabProps) {
@@ -186,7 +212,25 @@ export function HallOfFameTab({
   // Category filter matcher for a category
   const matchesCategory = (category: MilestoneCategory, milestoneId: string) => {
     if (selectedCategory === 'all') return true;
-    if (selectedCategory === 'games') return category === 'games';
+    if (selectedCategory === 'games') return category === 'games' || category === 'ironman';
+    if (selectedCategory === 'defense') {
+      return (
+        category === 'defense' ||
+        category === 'ironman' ||
+        [
+          'feat-unsung-hero',
+          'feat-skater-shutout',
+          'feat-win-talisman',
+          'feat-defense-qb',
+          'feat-defense-scorer',
+          'feat-shot-suppressor',
+          'feat-clutch-closer',
+        ].includes(milestoneId)
+      );
+    }
+    if (selectedCategory === 'oracle') {
+      return category === 'oracle' || milestoneId === 'feat-exact-oracle';
+    }
     if (selectedCategory === 'points') {
       return category === 'points' || ['feat-4pts', 'feat-5pts', 'feat-ppg'].includes(milestoneId);
     }
@@ -739,6 +783,129 @@ export function HallOfFameTab({
         </div>
       )}
 
+      {/* 2B. DYNAMIC DUO (CHEMIE HRÁČŮ) & VĚŠTEC KABINY (TIPOVAČKA) */}
+      {((teamChemistry && teamChemistry.topDuos.length > 0) ||
+        (oracleLeaderboard && oracleLeaderboard.length > 0)) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {teamChemistry && teamChemistry.topDuos.length > 0 && (
+            <div className="rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/10 via-background to-card p-3.5 sm:p-5 shadow-sm space-y-3">
+              <div className="flex items-center justify-between gap-2 pb-2 border-b border-border/60">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="h-9 w-9 rounded-xl bg-primary/15 border border-primary/30 text-primary flex items-center justify-center shrink-0">
+                    <HeartHandshake className="h-4.5 w-4.5" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="font-headline font-bold text-sm sm:text-base text-foreground truncate">
+                      🤝 Dynamic Duo – Chemie na ledě
+                    </h3>
+                    <p className="text-xs text-muted-foreground truncate">
+                      Nejúdernější gólové dvojice (střelec + nahrávač) v zápasech Aces
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {teamChemistry.topDuos.slice(0, 4).map((duo, idx) => (
+                  <div
+                    key={duo.duoKey}
+                    className="rounded-xl border border-border/70 bg-card/80 p-2.5 flex items-center justify-between gap-2 hover:border-primary/40 transition-colors"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-foreground truncate">
+                        <span className="text-amber-500">
+                          {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => onOpenPlayerCareer?.(duo.player1Id)}
+                          className="hover:text-primary hover:underline truncate"
+                        >
+                          {formatName(duo.player1Name)}
+                        </button>
+                        <span className="text-muted-foreground">↔</span>
+                        <button
+                          type="button"
+                          onClick={() => onOpenPlayerCareer?.(duo.player2Id)}
+                          className="hover:text-primary hover:underline truncate"
+                        >
+                          {formatName(duo.player2Name)}
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
+                        Společné zápasy: {duo.gamesTogether} • Výhry:{' '}
+                        <strong className="text-foreground">{duo.winRatePct} %</strong>
+                      </p>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className="bg-primary/15 text-primary border-primary/30 font-black text-xs shrink-0"
+                    >
+                      🔥 {duo.totalCombinedGoals} G
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {oracleLeaderboard && oracleLeaderboard.length > 0 && (
+            <div className="rounded-2xl border border-purple-500/25 bg-gradient-to-br from-purple-500/10 via-background to-card p-3.5 sm:p-5 shadow-sm space-y-3">
+              <div className="flex items-center justify-between gap-2 pb-2 border-b border-border/60">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="h-9 w-9 rounded-xl bg-purple-500/15 border border-purple-500/30 text-purple-500 flex items-center justify-center shrink-0">
+                    <Sparkles className="h-4.5 w-4.5" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="font-headline font-bold text-sm sm:text-base text-foreground truncate">
+                      🔮 Věštec kabiny – Tipovačka
+                    </h3>
+                    <p className="text-xs text-muted-foreground truncate">
+                      Nejlepší tipéři předzápasových výsledků a prvních střelců
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                {oracleLeaderboard.slice(0, 4).map((entry, idx) => (
+                  <div
+                    key={entry.userId}
+                    onClick={() => onOpenPlayerCareer?.(entry.userId)}
+                    className="rounded-xl border border-border/70 bg-card/80 px-3 py-2 flex items-center justify-between gap-2 cursor-pointer hover:border-purple-500/40 transition-colors"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-xs font-black w-5 text-center shrink-0">
+                        {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`}
+                      </span>
+                      <span className="font-bold text-xs sm:text-sm truncate">
+                        {formatName(entry.userName)}
+                      </span>
+                      {entry.exactScoreHits > 0 && (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] px-1.5 py-0 h-4 bg-amber-500/15 text-amber-500 border-amber-500/30 shrink-0"
+                        >
+                          🎯 {entry.exactScoreHits}× přesně
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="font-black text-xs sm:text-sm text-purple-500 tabular-nums">
+                        {entry.totalPoints} b.
+                      </span>
+                      <span className="text-[10px] text-muted-foreground ml-1.5">
+                        ({entry.predictionsCount} tipů)
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* 3. KOMPAKTNÍ FILTR PODLE HRÁČE A OVLÁDACÍ PRVKY */}
       <div className="space-y-2.5 pb-2 border-b">
         {/* Horní řada: Hráčský přepínač + Výběr z dropdownu + Přepínač zobrazení (Série / Vitrína) */}
@@ -904,11 +1071,13 @@ export function HallOfFameTab({
           <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 max-w-full flex-1 scrollbar-none [&::-webkit-scrollbar]:hidden">
             {[
               { id: 'all', label: 'Všechny odznaky' },
-              { id: 'games', label: 'Zápasy' },
+              { id: 'defense', label: '🛡️ Obrana & Tým' },
+              { id: 'games', label: 'Zápasy & Šňůry' },
               { id: 'points', label: 'Body' },
               { id: 'scoring', label: 'Góly & Asistence' },
               { id: 'goalies', label: 'Brankáři' },
               { id: 'stars', label: 'Hvězdy & MVP' },
+              { id: 'oracle', label: '🔮 Tipovačka' },
               { id: 'special', label: 'Speciální klenoty' },
             ].map((cat) => (
               <button
@@ -965,7 +1134,7 @@ export function HallOfFameTab({
                       Postupové série HC Aces
                     </h3>
                     <Badge variant="secondary" className="text-[10px] font-semibold px-2 py-0.5 border border-border/60">
-                      8 sérií • 5 stupňů
+                      {MILESTONE_SERIES.length} sérií • 5 stupňů
                     </Badge>
                   </div>
                   <p className="text-xs text-muted-foreground leading-relaxed">

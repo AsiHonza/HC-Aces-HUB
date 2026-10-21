@@ -5,6 +5,8 @@ export interface Player {
   jerseyNumber?: number;
   photoURL?: string | null;
   playerType?: 'player' | 'goalie' | 'member';
+  fieldPosition?: 'defense' | 'wing' | 'center' | null;
+  positionLocked?: boolean;
   role?: 'admin' | 'classic';
   isGuest?: boolean;
 }

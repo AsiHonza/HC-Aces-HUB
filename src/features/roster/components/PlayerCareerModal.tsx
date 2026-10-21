@@ -28,9 +28,13 @@ import {
   ChevronUp
 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
-import { cn } from '@/lib/utils';
+import { cn, formatName } from '@/lib/utils';
 import type { PlayerMilestoneProgress } from '@/features/stats/utils/milestones';
 import { TIER_CONFIG, formatUnitWithCount, getMilestoneRarityScore } from '@/features/stats/utils/milestones';
+import type { PlayerPositionBreakdown } from '../utils/positions';
+import { POSITION_METADATA } from '../utils/positions';
+import type { PlayerChemistrySummary } from '@/features/stats/utils/chemistry';
+import type { PlayerFormSummary } from '@/features/stats/utils/playerForm';
 
 export interface PlayerSeasonRecord {
   seasonId: string;
@@ -74,6 +78,9 @@ export interface PlayerCareerData {
   skaterSeasons?: PlayerSeasonRecord[];
   goalieSeasons?: GoalieSeasonRecord[];
   milestones?: PlayerMilestoneProgress[];
+  positionInfo?: PlayerPositionBreakdown;
+  chemistry?: PlayerChemistrySummary | null;
+  formSummary?: PlayerFormSummary | null;
 }
 
 function renderMilestoneIcon(iconName: string, iconColor: string) {
@@ -148,29 +155,84 @@ export function PlayerCareerModal({ player, isOpen, onClose, onOpenMilestoneDeta
   return (
     <Dialog open={isOpen} onOpenChange={open => !open && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader className="pb-4 border-b">
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <Avatar className="h-16 w-16 border-2 border-primary shadow-md">
+        <DialogHeader className="pb-4 border-b pr-8 text-left">
+          <div className="flex items-start sm:items-center gap-4">
+            <div className="relative shrink-0">
+              <Avatar
+                className={cn(
+                  'h-16 w-16 border-2 shadow-md',
+                  player.formSummary?.isReigningMvp
+                    ? 'border-amber-400 ring-2 ring-amber-400/50'
+                    : 'border-primary'
+                )}
+              >
                 <AvatarImage src={player.photoURL || undefined} alt={player.name} />
                 <AvatarFallback className="font-bold text-lg bg-muted">{initials}</AvatarFallback>
               </Avatar>
+              {player.formSummary?.isReigningMvp && (
+                <span
+                  className="absolute -top-2 -left-1 text-base drop-shadow"
+                  title="Úřadující 1. hvězda posledního zápasu"
+                >
+                  👑
+                </span>
+              )}
               {player.jerseyNumber && (
                 <span className="absolute -bottom-1 -right-1 bg-primary text-primary-foreground font-black text-xs px-1.5 py-0.5 rounded-full border border-background shadow-sm">
                   #{player.jerseyNumber}
                 </span>
               )}
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <DialogTitle className="text-xl font-headline font-bold">{player.name}</DialogTitle>
-                <Badge variant={isGoalie ? 'secondary' : 'default'} className="text-xs">
-                  {isGoalie ? 'Brankář' : player.playerType === 'player' ? 'Útočník / Obránce' : 'Člen'}
-                </Badge>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <DialogTitle className="text-xl font-headline font-bold truncate">
+                  {player.name}
+                </DialogTitle>
+                {player.positionInfo ? (
+                  <Badge
+                    variant="outline"
+                    className={cn('text-xs font-bold', player.positionInfo.meta.badgeClass)}
+                  >
+                    {player.positionInfo.meta.label}
+                  </Badge>
+                ) : (
+                  <Badge variant={isGoalie ? 'secondary' : 'default'} className="text-xs">
+                    {isGoalie ? 'Brankář' : player.playerType === 'player' ? 'Hráč v poli' : 'Člen'}
+                  </Badge>
+                )}
+                {player.positionInfo?.secondaryPosition && (
+                  <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                    + {POSITION_METADATA[player.positionInfo.secondaryPosition].label}
+                  </Badge>
+                )}
               </div>
               <DialogDescription className="text-xs text-muted-foreground mt-0.5">
                 Kariérní karta a statistiky po ročnících v HC Aces
+                {player.positionInfo && player.positionInfo.totalLineupAppearances > 0 && (
+                  <span className="ml-1.5 text-foreground/80 font-medium">
+                    • Sestavy: {player.positionInfo.defenseCount > 0 ? `${player.positionInfo.defenseCount}× OBR ` : ''}
+                    {player.positionInfo.centerCount > 0 ? `${player.positionInfo.centerCount}× CEN ` : ''}
+                    {player.positionInfo.wingCount > 0 ? `${player.positionInfo.wingCount}× KŘÍ` : ''}
+                  </span>
+                )}
               </DialogDescription>
+
+              {/* Živé odznaky aktuální formy */}
+              {player.formSummary && player.formSummary.badges.length > 0 && (
+                <div className="flex items-center gap-1.5 flex-wrap mt-2">
+                  {player.formSummary.badges.map((b) => (
+                    <Badge
+                      key={b.type}
+                      variant="outline"
+                      title={b.description}
+                      className={cn('text-[10px] px-2 py-0.5 font-bold', b.badgeClass)}
+                    >
+                      <span className="mr-1">{b.emoji}</span>
+                      {b.title}
+                    </Badge>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </DialogHeader>
@@ -284,7 +346,98 @@ export function PlayerCareerModal({ player, isOpen, onClose, onOpenMilestoneDeta
               </div>
             </div>
           )}
+
+          {/* Defenzivní a týmový přínos (Win-Rate, Ironman, Defenzivní tvrz) */}
+          {player.formSummary && player.formSummary.gamesAppeared > 0 && (
+            <div className="grid grid-cols-3 gap-2 text-center mt-2">
+              <div className="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+                <p className="text-[10px] text-muted-foreground">Týmový Win-Rate</p>
+                <p className="text-sm font-bold text-emerald-500">
+                  {player.formSummary.teamWinRatePct} %{' '}
+                  <span className="text-[10px] font-normal text-muted-foreground">
+                    ({player.formSummary.winsAppeared}/{player.formSummary.gamesAppeared})
+                  </span>
+                </p>
+              </div>
+              <div className="p-2 rounded-lg bg-sky-500/5 border border-sky-500/20">
+                <p className="text-[10px] text-muted-foreground">Defenzivní tvrz (≤2 G)</p>
+                <p className="text-sm font-bold text-sky-500">
+                  {player.formSummary.lockdownGamesCount}×{' '}
+                  <span className="text-[10px] font-normal text-muted-foreground">zápas</span>
+                </p>
+              </div>
+              <div className="p-2 rounded-lg bg-amber-500/5 border border-amber-500/20">
+                <p className="text-[10px] text-muted-foreground">Nejdelší šňůra (Ironman)</p>
+                <p className="text-sm font-bold text-amber-500">
+                  {player.formSummary.maxIronmanStreak} Z{' '}
+                  <span className="text-[10px] font-normal text-muted-foreground">
+                    (teď {player.formSummary.currentIronmanStreak})
+                  </span>
+                </p>
+              </div>
+            </div>
+          )}
         </div>
+
+        {/* Sekce 4.1: Chemie na ledě & Spolupráce */}
+        {player.chemistry &&
+          (player.chemistry.favoritePlaymaker ||
+            player.chemistry.favoriteTarget ||
+            player.chemistry.bestTalismanPartner) && (
+            <div className="mb-4 space-y-2">
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <HeartHandshake className="h-3.5 w-3.5 text-primary" />
+                Chemie na ledě & Spolupráce
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                {player.chemistry.favoritePlaymaker && (
+                  <div className="p-2.5 rounded-xl border border-border/70 bg-muted/20 space-y-1">
+                    <p className="text-[10px] font-bold uppercase text-muted-foreground">
+                      🎁 Dvorní nahrávač
+                    </p>
+                    <p className="text-xs sm:text-sm font-bold text-foreground truncate">
+                      {formatName(player.chemistry.favoritePlaymaker.partnerName)}
+                    </p>
+                    <p className="text-[11px] text-primary font-semibold">
+                      Přihrál na {player.chemistry.favoritePlaymaker.count} G (
+                      {player.chemistry.favoritePlaymaker.sharePct} %)
+                    </p>
+                  </div>
+                )}
+
+                {player.chemistry.favoriteTarget && (
+                  <div className="p-2.5 rounded-xl border border-border/70 bg-muted/20 space-y-1">
+                    <p className="text-[10px] font-bold uppercase text-muted-foreground">
+                      🎯 Oblíbený střelec
+                    </p>
+                    <p className="text-xs sm:text-sm font-bold text-foreground truncate">
+                      {formatName(player.chemistry.favoriteTarget.partnerName)}
+                    </p>
+                    <p className="text-[11px] text-primary font-semibold">
+                      Nahrál mu na {player.chemistry.favoriteTarget.count} G (
+                      {player.chemistry.favoriteTarget.sharePct} %)
+                    </p>
+                  </div>
+                )}
+
+                {player.chemistry.bestTalismanPartner && (
+                  <div className="p-2.5 rounded-xl border border-border/70 bg-muted/20 space-y-1">
+                    <p className="text-[10px] font-bold uppercase text-muted-foreground">
+                      🍀 Vítězné duo
+                    </p>
+                    <p className="text-xs sm:text-sm font-bold text-foreground truncate">
+                      {formatName(player.chemistry.bestTalismanPartner.partnerName)}
+                    </p>
+                    <p className="text-[11px] text-emerald-500 font-semibold">
+                      Výhry spolu: {player.chemistry.bestTalismanPartner.winRatePct} % (
+                      {player.chemistry.bestTalismanPartner.winsTogether}/
+                      {player.chemistry.bestTalismanPartner.gamesTogether} Z)
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
         {/* Klubové milníky a Síň slávy hráče */}
         {player.milestones && player.milestones.length > 0 && (() => {

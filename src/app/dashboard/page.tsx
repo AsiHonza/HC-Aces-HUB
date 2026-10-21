@@ -16,7 +16,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { MapPin, Users, Trophy, BarChart, Pencil, Check, X, Flame, Shield, Plus, Loader2, Trash2, ClipboardEdit, History, Share2, MoreHorizontal, FileText, View, Disc, Cake, Minus, ChevronDown, ListOrdered, CalendarDays, ChevronUp, MessageSquarePlus, Goal, Calendar, Star, Clock, Archive, ShieldAlert, RefreshCw, DatabaseBackup } from "lucide-react"
 import { cn, formatName, isGoaliePlayer, areNamesMatching } from '@/lib/utils'
 import { toJsDate } from '@/lib/dates'
-import { BirthdaysCard } from '@/features/roster'
+import { BirthdaysCard, rosterService } from '@/features/roster'
+import { resolvePlayerPosition, POSITION_METADATA } from '@/features/roster/utils/positions'
 import { 
   LeagueStandingsTable, 
   PlayerScoringTable, 
@@ -75,6 +76,8 @@ interface UserProfile {
   phoneNumber?: string;
   role: 'admin' | 'classic';
   playerType: 'player' | 'goalie' | 'member';
+  fieldPosition?: 'defense' | 'wing' | 'center' | null;
+  positionLocked?: boolean;
   photoURL?: string | null;
   dob?: string;
 }
@@ -120,6 +123,12 @@ interface Attendance {
     matchId: string;
     status: 'going' | 'not-going' | 'unknown';
     note?: string;
+    prediction?: {
+      acesScore: number;
+      opponentScore: number;
+      firstScorerId?: string | null;
+      updatedAt?: any;
+    } | null;
 }
 
 
@@ -670,21 +679,22 @@ function DashboardPageContent() {
       .map((p, idx) => ({ ...p, rank: idx + 1 }));
   }, [teamStarsLeaderboard]);
 
+  const attendancesByMatch = useMemo(() => {
+      const map = new Map<string, Attendance[]>();
+      allAttendances?.forEach(att => { if (!map.has(att.matchId)) map.set(att.matchId, []); map.get(att.matchId)!.push(att); });
+      return map;
+  }, [allAttendances]);
+
   const teamMilestonesData = useMemo(() => {
     return calculateTeamMilestonesOverview(
       allUsers || [],
       teamScoring,
       goalieLeaderboard,
       allMatches || [],
-      user?.uid
+      user?.uid,
+      attendancesByMatch
     );
-  }, [allUsers, teamScoring, goalieLeaderboard, allMatches, user?.uid]);
-
-  const attendancesByMatch = useMemo(() => {
-      const map = new Map<string, Attendance[]>();
-      allAttendances?.forEach(att => { if (!map.has(att.matchId)) map.set(att.matchId, []); map.get(att.matchId)!.push(att); });
-      return map;
-  }, [allAttendances]);
+  }, [allUsers, teamScoring, goalieLeaderboard, allMatches, user?.uid, attendancesByMatch]);
 
   const userAttendancesWithOptimistic = useMemo(() => {
       const map = new Map<string, Attendance>();
@@ -893,13 +903,21 @@ function DashboardPageContent() {
       }
     }
 
+    const oracleEntry = teamMilestonesData.oracleLeaderboard?.find((o) => o.userId === profile.id) || null;
     const milestones = calculatePlayerMilestones(
       profile.id,
       profile.name,
       teamScoring,
       goalieLeaderboard,
-      allMatches || []
+      allMatches || [],
+      profile as any,
+      attendancesByMatch,
+      oracleEntry
     );
+
+    const positionInfo = resolvePlayerPosition(profile as any, allMatches || []);
+    const chemistry = teamMilestonesData.teamChemistry?.byPlayerId.get(profile.id) || null;
+    const formSummary = teamMilestonesData.playerFormMap?.get(profile.id) || null;
 
     setSelectedCareerPlayer({
       id: profile.id,
@@ -907,6 +925,9 @@ function DashboardPageContent() {
       photoURL: profile.photoURL,
       jerseyNumber: profile.jerseyNumber,
       playerType: profile.playerType,
+      positionInfo,
+      chemistry,
+      formSummary,
       role: profile.role,
       mvpAwardsCount: countPlayerCareerMvpAwards(profile.id, allMatches || []),
       starsStats: countPlayerCareerStars(profile.id, allMatches || []),
@@ -1381,6 +1402,40 @@ function DashboardPageContent() {
     setIsStarsModalOpen(true);
   }, [postMatchData, activeMvpMatch, user?.uid, attendancesByMatch]);
 
+  const handleSavePrediction = async (
+    matchId: string,
+    prediction: { acesScore: number; opponentScore: number; firstScorerId?: string | null }
+  ) => {
+    if (!user || !firestore) return;
+    const existingAtt = userAttendancesWithOptimistic.get(matchId);
+    setOptimisticAttendances((cur) =>
+      new Map(cur).set(matchId, {
+        ...existingAtt,
+        status: existingAtt?.status || 'going',
+        prediction,
+      } as any)
+    );
+    try {
+      await attendanceService.submitPrediction(firestore, {
+        matchId,
+        userId: user.uid,
+        acesScore: prediction.acesScore,
+        opponentScore: prediction.opponentScore,
+        firstScorerId: prediction.firstScorerId,
+      });
+      toast({
+        title: 'Tip uložen! 🔮',
+        description: `Tvůj tip HC Aces ${prediction.acesScore}:${prediction.opponentScore} byl zapsán do kabiny.`,
+      });
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Chyba',
+        description: 'Nepodařilo se uložit tip na zápas.',
+      });
+    }
+  };
+
   const renderMatchCard = (m: Match) => {
     const attStatus = userAttendancesWithOptimistic.get(m.id)?.status;
     const matchAttendees = attendancesByMatch.get(m.id) || [];
@@ -1396,6 +1451,9 @@ function DashboardPageContent() {
         attendanceNote={userAttendancesWithOptimistic.get(m.id)?.note}
         attendees={matchAttendees as any}
         usersMap={usersMap}
+        currentUserId={user?.uid}
+        playerFormMap={teamMilestonesData.playerFormMap}
+        onSavePrediction={handleSavePrediction}
         leagueSkaters={leagueSettings?.leagueSkaters}
         isAdmin={userProfile?.role === 'admin'}
         isCardHighlighted={highlightedMatchId === m.id}
@@ -1486,13 +1544,30 @@ function DashboardPageContent() {
               )}
             </div>
             <div className="min-w-0 space-y-0.5">
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 <h1 className="text-base sm:text-lg font-headline font-bold truncate text-foreground">
                   {userProfile?.name || 'Hráč Aces'}
                 </h1>
-                <Badge variant="outline" className="text-[10px] uppercase font-bold border-primary/40 text-primary bg-primary/5">
-                  {userProfile?.playerType === 'goalie' ? 'Brankář' : userProfile?.playerType === 'member' ? 'Člen týmu' : 'Hráč'}
-                </Badge>
+                {(() => {
+                  if (!userProfile) return null;
+                  const posInfo = resolvePlayerPosition(userProfile as any, allMatches || []);
+                  return (
+                    <Badge variant="outline" className={cn("text-[10px] uppercase font-bold", posInfo.meta.badgeClass)}>
+                      {posInfo.meta.label}
+                    </Badge>
+                  );
+                })()}
+                {teamMilestonesData.playerFormMap?.get(user.uid)?.badges.map((b) => (
+                  <Badge
+                    key={b.type}
+                    variant="outline"
+                    className={cn("text-[10px] font-bold px-2 py-0 gap-1", b.badgeClass)}
+                    title={b.description}
+                  >
+                    <span>{b.emoji}</span>
+                    <span>{b.shortLabel}</span>
+                  </Badge>
+                ))}
               </div>
               <p className="text-xs text-muted-foreground truncate">
                 {userProfile?.role === 'admin' ? 'Administrátor týmu' : 'Aktivní soupiska HC Aces'}
@@ -1958,6 +2033,9 @@ function DashboardPageContent() {
                         expandedStatId={expandedStatId}
                         onToggleExpandStat={(id) => setExpandedStatId(expandedStatId === id ? null : id)}
                         onUpdateEditableSkaterStat={setEditableSkaterStats}
+                        allUsers={allUsers || []}
+                        allMatches={allMatches || []}
+                        playerFormMap={teamMilestonesData.playerFormMap}
                       />
                     </Tabs>
                   </CardContent>
@@ -2412,11 +2490,22 @@ function DashboardPageContent() {
             <DialogHeader className="p-6 pb-0 flex-shrink-0">
                 <DialogTitle>Editor sestavy</DialogTitle>
             </DialogHeader>
-            {lineupMatch && <LineupBuilder players={allUsers?.map(u => ({ ...u, playerType: (isGoaliePlayer(u) ? 'goalie' : u.playerType) as 'goalie' | 'player' | 'member' })).filter(u => (attendancesByMatch.get(lineupMatch.id)||[]).some(a => a.userId === u.id && a.status === 'going')) || []} initialData={lineupMatch.lineup} onSave={async l => { 
+            {lineupMatch && <LineupBuilder players={allUsers?.map(u => {
+              const resolvedPos = resolvePlayerPosition(u as any, allMatches || []).resolvedPosition;
+              const derivedFieldPos = (resolvedPos === 'defense' || resolvedPos === 'wing' || resolvedPos === 'center') ? resolvedPos : u.fieldPosition;
+              return {
+                ...u,
+                playerType: (isGoaliePlayer(u) ? 'goalie' : u.playerType) as 'goalie' | 'player' | 'member',
+                fieldPosition: derivedFieldPos,
+              };
+            }).filter(u => (attendancesByMatch.get(lineupMatch.id)||[]).some(a => a.userId === u.id && a.status === 'going')) || []} initialData={lineupMatch.lineup} teamChemistry={teamMilestonesData.teamChemistry} onSave={async l => { 
                 if(!lineupMatch || !firestore) return; 
                 setIsSaving(true); 
                 try {
                     await updateDoc(doc(firestore, 'matches', lineupMatch.id), { lineup: l }); 
+                    if (userProfile?.role === 'admin' && allUsers) {
+                        await rosterService.syncPositionsFromLineup(firestore, l, allUsers as any);
+                    } 
                     
                     const batch = writeBatch(firestore);
                     const opponent = getMatchDetails(lineupMatch).opponent;

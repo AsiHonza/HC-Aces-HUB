@@ -15,6 +15,7 @@ import {
 import { PlayerCareerModal, type PlayerCareerData, type PlayerSeasonRecord, type GoalieSeasonRecord } from '@/components/player-career-modal';
 import { countPlayerCareerStars } from '@/features/matches/utils/matchStars';
 import { countPlayerCareerMvpAwards } from '@/features/matches/utils/mvpVoting';
+import { resolvePlayerPosition } from '@/features/roster/utils/positions';
 import { cn } from '@/lib/utils';
 
 export default function HallOfFamePage() {
@@ -121,13 +122,21 @@ export default function HallOfFamePage() {
       }
     }
 
+    const oracleEntry = teamMilestonesData.oracleLeaderboard?.find((o) => o.userId === profile.id) || null;
     const milestones = calculatePlayerMilestones(
       profile.id,
       profile.name,
       teamScoring,
       goalieLeaderboard,
-      allMatches || []
+      allMatches || [],
+      profile,
+      undefined,
+      oracleEntry
     );
+
+    const positionInfo = resolvePlayerPosition(profile, allMatches || []);
+    const chemistry = teamMilestonesData.teamChemistry?.byPlayerId.get(profile.id) || null;
+    const formSummary = teamMilestonesData.playerFormMap?.get(profile.id) || null;
 
     setSelectedCareerPlayer({
       id: profile.id,
@@ -135,6 +144,9 @@ export default function HallOfFamePage() {
       photoURL: profile.photoURL,
       jerseyNumber: profile.jerseyNumber,
       playerType: profile.playerType,
+      positionInfo,
+      chemistry,
+      formSummary,
       role: profile.role,
       mvpAwardsCount: countPlayerCareerMvpAwards(profile.id, allMatches || []),
       starsStats: countPlayerCareerStars(profile.id, allMatches || []),
@@ -235,6 +247,8 @@ export default function HallOfFamePage() {
             trophyLeaders={teamMilestonesData.trophyLeaders}
             newMilestoneIds={newMilestoneIds}
             initialPlayerId={tabPlayerFilter}
+            teamChemistry={teamMilestonesData.teamChemistry}
+            oracleLeaderboard={teamMilestonesData.oracleLeaderboard}
           />
         </CardContent>
       </Card>

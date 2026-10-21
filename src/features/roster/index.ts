@@ -7,3 +7,4 @@ export * from './components/AccountDiagnosticsCard';
 export * from './components/ProfileSettingsCard';
 export * from './components/PlayerCareerModal';
 export * from './services/rosterService';
+export * from './utils/positions';

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Loader2, Camera, User } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -83,6 +84,17 @@ export function ProfileSettingsCard({ userProfile }: ProfileSettingsCardProps) {
     const jerseyStr = formData.get('jerseyNumber') as string;
     const jerseyNumber = jerseyStr ? Number(jerseyStr) : null;
     const dob = (formData.get('dob') as string) || null;
+    const rawFieldPos = formData.get('fieldPosition') as string;
+    const fieldPosition =
+      userProfile?.playerType === 'player' && rawFieldPos && rawFieldPos !== 'auto'
+        ? (rawFieldPos as 'defense' | 'wing' | 'center')
+        : rawFieldPos === 'auto'
+        ? null
+        : userProfile?.fieldPosition ?? undefined;
+    const positionLocked =
+      userProfile?.playerType === 'player' && rawFieldPos
+        ? rawFieldPos !== 'auto'
+        : undefined;
 
     try {
       await rosterService.updateProfileWithAuth(auth, firestore, user.uid, {
@@ -90,6 +102,8 @@ export function ProfileSettingsCard({ userProfile }: ProfileSettingsCardProps) {
         phoneNumber,
         jerseyNumber,
         dob,
+        fieldPosition,
+        positionLocked,
       });
 
       toast({
@@ -217,6 +231,26 @@ export function ProfileSettingsCard({ userProfile }: ProfileSettingsCardProps) {
                 defaultValue={userProfile?.dob || ''}
               />
             </div>
+
+            {userProfile?.playerType === 'player' && (
+              <div className="grid gap-2">
+                <Label htmlFor="fieldPosition">Primární post na ledě</Label>
+                <Select
+                  name="fieldPosition"
+                  defaultValue={userProfile?.fieldPosition || 'auto'}
+                >
+                  <SelectTrigger id="fieldPosition">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">⚡ Automaticky (podle sestavy)</SelectItem>
+                    <SelectItem value="defense">🛡️ Obránce (LO / PO)</SelectItem>
+                    <SelectItem value="center">🎯 Centr (C)</SelectItem>
+                    <SelectItem value="wing">⚡ Křídlo (LK / PK)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
         </CardContent>
         <CardFooter className="border-t border-border/60 px-6 py-4 flex justify-end">

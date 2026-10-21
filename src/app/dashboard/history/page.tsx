@@ -24,6 +24,7 @@ import { FirestorePermissionError } from '@/firebase/errors'
 import { cn, formatName, areNamesMatching, isGoaliePlayer } from '@/lib/utils'
 import { toJsDate } from '@/lib/dates'
 import { GoalTimeline, MatchResultFormFields, PlayedMatchAccordionItem } from '@/features/matches'
+import { rosterService } from '@/features/roster'
 
 interface Match {
   id: string;
@@ -161,7 +162,10 @@ function HistoryPageContent() {
         setIsSaving(true);
         try {
             await updateDoc(doc(firestore, 'matches', lineupMatch.id), { lineup });
-            toast({ title: "Sestava uložena." });
+            if (userProfile?.role === 'admin' && users) {
+                await rosterService.syncPositionsFromLineup(firestore, lineup, users as any);
+            }
+            toast({ title: "Sestava uložena (včetně aktualizace postů)." });
         } catch (error: any) { 
             const permissionError = new FirestorePermissionError({
                 path: `matches/${lineupMatch.id}`,

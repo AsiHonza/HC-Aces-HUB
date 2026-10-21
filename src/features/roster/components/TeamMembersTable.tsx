@@ -15,7 +15,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { MoreHorizontal, Plus, Search, Edit, MailQuestion, Trash2, Users } from 'lucide-react';
-import type { UserProfile } from '@/types';
+import { cn } from '@/lib/utils';
+import type { UserProfile, Match } from '@/types';
+import { resolvePlayerPosition } from '../utils/positions';
 
 const playerTypeLabels: Record<UserProfile['playerType'], string> = {
   player: 'Hráč',
@@ -25,6 +27,7 @@ const playerTypeLabels: Record<UserProfile['playerType'], string> = {
 
 export interface TeamMembersTableProps {
   users: UserProfile[];
+  allMatches?: Match[];
   onEditUser: (user: UserProfile) => void;
   onResetPassword: (email: string) => void;
   onDeleteUser: (user: UserProfile) => void;
@@ -33,6 +36,7 @@ export interface TeamMembersTableProps {
 
 export function TeamMembersTable({
   users,
+  allMatches = [],
   onEditUser,
   onResetPassword,
   onDeleteUser,
@@ -125,9 +129,20 @@ export function TeamMembersTable({
                       )}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="text-[10px] uppercase font-bold tracking-wider">
-                        {playerTypeLabels[u.playerType] || u.playerType}
-                      </Badge>
+                      {(() => {
+                        const pos = resolvePlayerPosition(u, allMatches);
+                        return (
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              'text-[10px] uppercase font-bold tracking-wider',
+                              pos.meta.badgeClass
+                            )}
+                          >
+                            {pos.meta.label}
+                          </Badge>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell>
                       <Badge

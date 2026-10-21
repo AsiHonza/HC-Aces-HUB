@@ -1,4 +1,6 @@
 export type PlayerType = 'player' | 'goalie' | 'member';
+export type FieldPosition = 'defense' | 'wing' | 'center';
+export type ResolvedPosition = 'goalie' | 'defense' | 'wing' | 'center' | 'player' | 'member';
 export type UserRole = 'admin' | 'classic';
 
 export interface Player {
@@ -6,6 +8,8 @@ export interface Player {
   name: string;
   jerseyNumber?: number;
   playerType?: PlayerType;
+  fieldPosition?: FieldPosition | null;
+  positionLocked?: boolean;
   role?: UserRole;
   photoURL?: string | null;
   isGuest?: boolean;
@@ -22,6 +26,8 @@ export interface UserProfile {
   jerseyNumber?: number;
   role?: UserRole;
   playerType: PlayerType;
+  fieldPosition?: FieldPosition | null;
+  positionLocked?: boolean;
   dob?: string;
   photoURL?: string | null;
   isGuest?: boolean;

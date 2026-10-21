@@ -1,6 +1,15 @@
 import type { Match, UserProfile } from '@/types';
-import { countPlayerCareerStars } from '@/features/matches/utils/matchStars';
+import { countPlayerCareerStars, calculateMatchStarsResults } from '@/features/matches/utils/matchStars';
 import { countPlayerCareerMvpAwards } from '@/features/matches/utils/mvpVoting';
+import { calculateOracleLeaderboard, type OracleLeaderboardEntry } from '@/features/matches/utils/predictions';
+import { calculateTeamChemistry, type TeamChemistryData } from './chemistry';
+import { calculateAllPlayersFormAndDefense, type PlayerFormSummary } from './playerForm';
+import {
+  resolvePlayerPosition,
+  didPlayerPlayDefenseInMatch,
+  didPlayerPlayCenterInMatch,
+  didPlayerPlayWingInMatch,
+} from '@/features/roster/utils/positions';
 import { formatName, isGoaliePlayer } from '@/lib/utils';
 import { toJsDate } from '@/lib/dates';
 
@@ -15,6 +24,9 @@ export type MilestoneCategory =
   | 'goalie_so' 
   | 'stars' 
   | 'mvp' 
+  | 'defense'
+  | 'ironman'
+  | 'oracle'
   | 'special';
 
 export interface MilestoneDefinition {
@@ -105,6 +117,9 @@ export interface TeamMilestonesData {
   myUnlockedCount: number;
   totalMilestonesCount: number;
   trophyLeaders?: TrophyLeader[];
+  teamChemistry?: TeamChemistryData;
+  oracleLeaderboard?: OracleLeaderboardEntry[];
+  playerFormMap?: Map<string, PlayerFormSummary>;
 }
 
 export interface MilestoneSeries {
@@ -189,6 +204,33 @@ export const MILESTONE_SERIES: MilestoneSeries[] = [
     unit: 'x MVP',
     iconName: 'Trophy',
     milestoneIds: ['mvp-1', 'mvp-5', 'mvp-10', 'mvp-15', 'mvp-25'],
+  },
+  {
+    id: 'series-lockdown',
+    title: 'Defenzivní tvrz',
+    category: 'defense',
+    description: 'Odehrané zápasy v poli s maximálně 2 inkasovanými góly HC Aces',
+    unit: 'zápasů',
+    iconName: 'ShieldCheck',
+    milestoneIds: ['lock-5', 'lock-15', 'lock-30', 'lock-50', 'lock-75'],
+  },
+  {
+    id: 'series-ironman',
+    title: 'Železný muž (Šňůra)',
+    category: 'ironman',
+    description: 'Nejdelší nepřerušená série odehraných zápasů týmu bez jediné absence',
+    unit: 'zápasů v řadě',
+    iconName: 'Zap',
+    milestoneIds: ['iron-5', 'iron-10', 'iron-20', 'iron-35', 'iron-50'],
+  },
+  {
+    id: 'series-oracle',
+    title: 'Věštec kabiny',
+    category: 'oracle',
+    description: 'Body nasbírané za přesné tipy v předzápasové tipovačce',
+    unit: 'bodů',
+    iconName: 'Sparkles',
+    milestoneIds: ['oracle-5', 'oracle-15', 'oracle-30', 'oracle-60', 'oracle-100'],
   },
 ];
 
@@ -305,6 +347,37 @@ export const MILESTONE_RARITY_SCORES: Record<string, number> = {
   'a-10': 45,                   // 10 asistencí
   'gp-25': 40,                  // 25 zápasů
   'star-10': 35,                // 10 bodů v Hvězdách
+
+  // 6. NOVÉ SÉRIE: DEFENZIVNÍ TVRZ, ŽELEZNÝ MUŽ & VĚŠTEC KABINY
+  'lock-75': 1250,
+  'lock-50': 640,
+  'lock-30': 340,
+  'lock-15': 160,
+  'lock-5': 55,
+
+  'iron-50': 1300,
+  'iron-35': 680,
+  'iron-20': 360,
+  'iron-10': 170,
+  'iron-5': 60,
+
+  'oracle-100': 1200,
+  'oracle-60': 600,
+  'oracle-30': 320,
+  'oracle-15': 150,
+  'oracle-5': 50,
+
+  // 7. DEFENZIVNÍ, POSTOVÉ & TÝMOVÉ SPECIÁLNÍ VÝKONY
+  'feat-unsung-hero': 440,      // Dělník ledu (Hvězda zápasu s 0+0)
+  'feat-skater-shutout': 410,   // Spolustrůjce nuly (hráč v poli při SO)
+  'feat-win-talisman': 390,     // Talisman kabiny (Win-rate >= 65 %)
+  'feat-defense-qb': 380,       // Generál modré čáry (2+ A obránce v zápase)
+  'feat-exact-oracle': 360,     // Jasnovidec (Přesný tip na výsledek)
+  'feat-shot-suppressor': 210,  // Svěrací kazajka (<= 20 střel soupeře)
+  'feat-clutch-closer': 210,    // Strážce těsného vedení (výhra o 1 gól)
+  'feat-defense-scorer': 195,   // Kanonýr od modré (gól obránce)
+  'feat-center-playmaker': 185, // Mozek lajny (2+ A centra v zápase)
+  'feat-wing-sniper': 185,      // Křídelní vítr (2+ G křídla v zápase)
 };
 
 /**
@@ -985,6 +1058,264 @@ const RAW_MILESTONE_DEFINITIONS: MilestoneDefinition[] = [
     unit: 'zápas',
     iconName: 'Sparkles',
   },
+
+  // 10. DEFENZIVNÍ TVRZ (5, 15, 30, 50, 75)
+  {
+    id: 'lock-5',
+    title: 'Zavřené pásmo',
+    description: '5 odehraných zápasů v poli s max. 2 inkasovanými góly HC Aces',
+    category: 'defense',
+    tier: 'bronze',
+    target: 5,
+    unit: 'zápasů',
+    iconName: 'ShieldCheck',
+  },
+  {
+    id: 'lock-15',
+    title: 'Obranný val',
+    description: '15 odehraných zápasů v poli s max. 2 inkasovanými góly',
+    category: 'defense',
+    tier: 'silver',
+    target: 15,
+    unit: 'zápasů',
+    iconName: 'ShieldCheck',
+  },
+  {
+    id: 'lock-30',
+    title: 'Defenzivní tvrz',
+    description: '30 zápasů v poli, ve kterých Aces udrželi soupeře na max. 2 gólech',
+    category: 'defense',
+    tier: 'gold',
+    target: 30,
+    unit: 'zápasů',
+    iconName: 'ShieldCheck',
+  },
+  {
+    id: 'lock-50',
+    title: 'Neprůstřelný štít Aces',
+    description: '50 defenzivně zvládnutých zápasů (max. 2 obdržené branky)',
+    category: 'defense',
+    tier: 'diamond',
+    target: 50,
+    unit: 'zápasů',
+    iconName: 'ShieldCheck',
+  },
+  {
+    id: 'lock-75',
+    title: 'Ministr obrany',
+    description: '75 odehraných zápasů v poli s max. 2 obdrženými góly. Defenzivní legenda.',
+    category: 'defense',
+    tier: 'legend',
+    target: 75,
+    unit: 'zápasů',
+    iconName: 'Crown',
+  },
+
+  // 11. ŽELEZNÝ MUŽ – ŠŇŮRA BEZ ABSENCE (5, 10, 20, 35, 50)
+  {
+    id: 'iron-5',
+    title: 'Spolehlivý parťák',
+    description: 'Šňůra 5 odehraných zápasů týmu v řadě bez jediné absence',
+    category: 'ironman',
+    tier: 'bronze',
+    target: 5,
+    unit: 'zápasů v řadě',
+    iconName: 'Zap',
+  },
+  {
+    id: 'iron-10',
+    title: 'Desítka v kuse',
+    description: '10 po sobě jdoucích zápasů HC Aces v sestavě bez přestávky',
+    category: 'ironman',
+    tier: 'silver',
+    target: 10,
+    unit: 'zápasů v řadě',
+    iconName: 'Zap',
+  },
+  {
+    id: 'iron-20',
+    title: 'Železný muž Aces',
+    description: '20 odehraných zápasů týmu v řadě bez absence',
+    category: 'ironman',
+    tier: 'gold',
+    target: 20,
+    unit: 'zápasů v řadě',
+    iconName: 'Zap',
+  },
+  {
+    id: 'iron-35',
+    title: 'Ocelové zdraví',
+    description: '35 po sobě jdoucích zápasů týmu bez jediné absence',
+    category: 'ironman',
+    tier: 'diamond',
+    target: 35,
+    unit: 'zápasů v řadě',
+    iconName: 'Zap',
+  },
+  {
+    id: 'iron-50',
+    title: 'Nerozbitný Ironman',
+    description: '50 zápasů HC Aces v řadě! Absolutní oddanost týmu.',
+    category: 'ironman',
+    tier: 'legend',
+    target: 50,
+    unit: 'zápasů v řadě',
+    iconName: 'Crown',
+  },
+
+  // 12. VĚŠTEC KABINY – TIPOVAČKA (5, 15, 30, 60, 100)
+  {
+    id: 'oracle-5',
+    title: 'Učeň tipovačky',
+    description: 'Zisk prvních 5 bodů v předzápasové tipovačce kabiny',
+    category: 'oracle',
+    tier: 'bronze',
+    target: 5,
+    unit: 'bodů',
+    iconName: 'Sparkles',
+  },
+  {
+    id: 'oracle-15',
+    title: 'Znalec ligy',
+    description: '15 bodů v předzápasové tipovačce',
+    category: 'oracle',
+    tier: 'silver',
+    target: 15,
+    unit: 'bodů',
+    iconName: 'Sparkles',
+  },
+  {
+    id: 'oracle-30',
+    title: 'Věštec kabiny',
+    description: '30 bodů za přesné odhady výsledků a střelců',
+    category: 'oracle',
+    tier: 'gold',
+    target: 30,
+    unit: 'bodů',
+    iconName: 'Sparkles',
+  },
+  {
+    id: 'oracle-60',
+    title: 'Hokejový prorok',
+    description: '60 bodů v tipovačce HC Aces',
+    category: 'oracle',
+    tier: 'diamond',
+    target: 60,
+    unit: 'bodů',
+    iconName: 'Sparkles',
+  },
+  {
+    id: 'oracle-100',
+    title: 'Nostradamus šatny',
+    description: '100 bodů v předzápasové tipovačce. Vidí do budoucnosti.',
+    category: 'oracle',
+    tier: 'legend',
+    target: 100,
+    unit: 'bodů',
+    iconName: 'Crown',
+  },
+
+  // 13. DEFENZIVNÍ PILÍŘE, POSTOVÉ KLENOTY & ČERNÁ PRÁCE
+  {
+    id: 'feat-unsung-hero',
+    title: 'Dělník ledu (Černá práce)',
+    description: 'Zvolen mezi 3 Hvězdy zápasu (nebo MVP) v utkání s 0 kanadskými body (čistě za defenzivu a bojovnost)',
+    category: 'defense',
+    tier: 'gold',
+    target: 1,
+    unit: 'ocenění',
+    iconName: 'HeartHandshake',
+  },
+  {
+    id: 'feat-skater-shutout',
+    title: 'Spolustrůjce nuly',
+    description: 'Hráč v poli u vítězného zápasu HC Aces s čistým kontem (0 inkasovaných gólů)',
+    category: 'defense',
+    tier: 'gold',
+    target: 1,
+    unit: 'čisté konto',
+    iconName: 'ShieldCheck',
+  },
+  {
+    id: 'feat-shot-suppressor',
+    title: 'Svěrací kazajka (≤ 20 střel)',
+    description: 'Vítězný zápas v poli, ve kterém obrana Aces povolila soupeři max. 20 střel na branku',
+    category: 'defense',
+    tier: 'silver',
+    target: 1,
+    unit: 'zápas',
+    iconName: 'Shield',
+  },
+  {
+    id: 'feat-clutch-closer',
+    title: 'Strážce těsného vedení',
+    description: 'Ubráněné vítězství o 1 gól bez inkasované branky v závěrečných 10 minutách',
+    category: 'defense',
+    tier: 'silver',
+    target: 1,
+    unit: 'zápas',
+    iconName: 'Timer',
+  },
+  {
+    id: 'feat-win-talisman',
+    title: 'Talisman kabiny (Win-Rate 65%+)',
+    description: 'Týmová úspěšnost výher alespoň 65 % při účasti hráče v sestavě (min. 8 odehraných zápasů)',
+    category: 'defense',
+    tier: 'gold',
+    target: 65,
+    unit: '% výher',
+    iconName: 'TrendingUp',
+  },
+  {
+    id: 'feat-defense-scorer',
+    title: 'Kanonýr od modré',
+    description: 'Vstřelený gól v zápase z postu obránce (LO / PO)',
+    category: 'defense',
+    tier: 'silver',
+    target: 1,
+    unit: 'gól obránce',
+    iconName: 'Target',
+  },
+  {
+    id: 'feat-defense-qb',
+    title: 'Generál modré čáry (Quarterback)',
+    description: 'Zisk 2 a více asistencí v jednom zápase na postu obránce',
+    category: 'defense',
+    tier: 'gold',
+    target: 1,
+    unit: 'zápas',
+    iconName: 'Award',
+  },
+  {
+    id: 'feat-center-playmaker',
+    title: 'Mozek lajny (Centr)',
+    description: 'Zisk 2 a více asistencí v jednom zápase na postu středního útočníka (C)',
+    category: 'assists',
+    tier: 'silver',
+    target: 1,
+    unit: 'zápas',
+    iconName: 'Sparkles',
+  },
+  {
+    id: 'feat-wing-sniper',
+    title: 'Křídelní vítr',
+    description: 'Vstřelení 2 a více gólů v jednom zápase na postu křídla (LK / PK)',
+    category: 'goals',
+    tier: 'silver',
+    target: 1,
+    unit: 'zápas',
+    iconName: 'Flame',
+  },
+  {
+    id: 'feat-exact-oracle',
+    title: 'Jasnovidec (Přesný tip)',
+    description: 'Trefený přesný výsledek utkání v předzápasové tipovačce',
+    category: 'oracle',
+    tier: 'gold',
+    target: 1,
+    unit: 'přesný tip',
+    iconName: 'Sparkles',
+  },
 ];
 
 export const MILESTONE_DEFINITIONS: MilestoneDefinition[] = RAW_MILESTONE_DEFINITIONS.map((def) => ({
@@ -1006,6 +1337,20 @@ export interface PlayerSingleGameFeats {
   matchShutouts: number;
   playoffShutouts: number;
   thirtySaveGames: number;
+  lockdownGames: number;
+  skaterShutouts: number;
+  shotSuppressorGames: number;
+  clutchCloserGames: number;
+  unsungHeroAwards: number;
+  defenseScorerGames: number;
+  defenseQbGames: number;
+  centerPlaymakerGames: number;
+  wingSniperGames: number;
+  maxIronmanStreak: number;
+  currentIronmanStreak: number;
+  gamesAppeared: number;
+  winsAppeared: number;
+  winRatePct: number;
   featMatches?: Record<string, { context: string; dateStr: string }>;
 }
 
@@ -1015,7 +1360,9 @@ export interface PlayerSingleGameFeats {
 export function countPlayerSingleGameFeats(
   playerId: string,
   playerName: string,
-  allMatches: Match[] = []
+  allMatches: Match[] = [],
+  userProfile?: UserProfile | null,
+  attendancesByMatch?: Map<string, Array<{ userId: string; status?: string }>>
 ): PlayerSingleGameFeats {
   let hattricks = 0;
   let twoGoalGames = 0;
@@ -1029,6 +1376,19 @@ export function countPlayerSingleGameFeats(
   let matchShutouts = 0;
   let playoffShutouts = 0;
   let thirtySaveGames = 0;
+  let lockdownGames = 0;
+  let skaterShutouts = 0;
+  let shotSuppressorGames = 0;
+  let clutchCloserGames = 0;
+  let unsungHeroAwards = 0;
+  let defenseScorerGames = 0;
+  let defenseQbGames = 0;
+  let centerPlaymakerGames = 0;
+  let wingSniperGames = 0;
+  let maxIronmanStreak = 0;
+  let currentIronmanStreak = 0;
+  let gamesAppeared = 0;
+  let winsAppeared = 0;
 
   const featMatches: Record<string, { context: string; dateStr: string; count: number }> = {};
 
@@ -1049,6 +1409,11 @@ export function countPlayerSingleGameFeats(
     if (surname && surname.length >= 3 && norm.includes(surname)) return true;
     return false;
   };
+
+  const posInfo = resolvePlayerPosition(
+    userProfile || { id: playerId, name: playerName },
+    allMatches
+  );
 
   // Sort matches chronologically
   const sortedMatches = [...allMatches].filter((m) => m && m.isPlayed).sort((a, b) => {
@@ -1090,7 +1455,7 @@ export function countPlayerSingleGameFeats(
 
     // Did player participate in the match?
     let playerPlayedInMatch = false;
-    if (Array.isArray(m.gameRoster) && m.gameRoster.includes(playerId)) {
+    if (Array.isArray(m.gameRoster) && m.gameRoster.some((r) => matchesPlayer(r))) {
       playerPlayedInMatch = true;
     } else if (m.goalieId === playerId || matchesPlayer(m.goalieName)) {
       playerPlayedInMatch = true;
@@ -1107,14 +1472,27 @@ export function countPlayerSingleGameFeats(
       }
     }
 
+    if (!playerPlayedInMatch && attendancesByMatch) {
+      const hasExplicitRoster =
+        (Array.isArray(m.gameRoster) && m.gameRoster.length > 0) ||
+        (m.lineup && Object.values(m.lineup).some((v) => v !== null));
+      if (!hasExplicitRoster) {
+        const atts = attendancesByMatch.get(m.id) || [];
+        if (atts.some((a) => a.userId === playerId && a.status === 'going')) {
+          playerPlayedInMatch = true;
+        }
+      }
+    }
+
     // Goalie check for this match
     const isGoalieThisMatch = 
       m.goalieId === playerId || 
       m.lineup?.B1?.id === playerId || 
       matchesPlayer(m.goalieName) || 
-      matchesPlayer(m.lineup?.B1?.name);
+      matchesPlayer(m.lineup?.B1?.name) ||
+      (userProfile && isGoaliePlayer(userProfile));
 
-    if (isGoalieThisMatch) {
+    if (isGoalieThisMatch && (m.goalieId === playerId || matchesPlayer(m.goalieName) || m.lineup?.B1?.id === playerId)) {
       playerPlayedInMatch = true;
       const saves = m.goalieSaves ?? (m.shotsOpponent != null ? Math.max(0, m.shotsOpponent - oppScore) : 0);
       if (isAcesWin && oppScore === 0) {
@@ -1200,6 +1578,95 @@ export function countPlayerSingleGameFeats(
       });
     }
 
+    // Ironman streak tracking
+    if (playerPlayedInMatch) {
+      currentIronmanStreak += 1;
+      if (currentIronmanStreak > maxIronmanStreak) {
+        maxIronmanStreak = currentIronmanStreak;
+      }
+      gamesAppeared += 1;
+      if (isAcesWin) {
+        winsAppeared += 1;
+      }
+    } else {
+      currentIronmanStreak = 0;
+    }
+
+    // Skater defensive & positional feats
+    if (playerPlayedInMatch && !isGoalieThisMatch) {
+      if (oppScore <= 2) {
+        lockdownGames += 1;
+        recordFeat('lock-5', `inkasováno jen ${oppScore} G`);
+      }
+      if (isAcesWin && oppScore === 0) {
+        skaterShutouts += 1;
+        recordFeat('feat-skater-shutout', `čisté konto v poli (${acesScore}:0)`);
+      }
+
+      const shotsOpp =
+        m.shotsOpponent !== undefined
+          ? Number(m.shotsOpponent)
+          : isT1
+          ? Number(m.shotsTeam2 ?? 0)
+          : Number(m.shotsTeam1 ?? 0);
+      if (isAcesWin && shotsOpp > 0 && shotsOpp <= 20) {
+        shotSuppressorGames += 1;
+        recordFeat('feat-shot-suppressor', `soupeř udržel jen na ${shotsOpp} střelách`);
+      }
+
+      if (isAcesWin && acesScore - oppScore === 1) {
+        let oppScoredLate = false;
+        if (Array.isArray(m.detailedScorers) && m.detailedScorers.length > 0) {
+          oppScoredLate = m.detailedScorers.some((ds) => {
+            const isAcesGoal =
+              (isT1 && ds.team === 'team1') ||
+              (!isT2 && ds.team === 'team2') ||
+              /aces/i.test(ds.team || '');
+            return !isAcesGoal && Number(ds.minute || 0) >= 50;
+          });
+        }
+        if (!oppScoredLate) {
+          clutchCloserGames += 1;
+          recordFeat('feat-clutch-closer', `ubráněná těsná výhra ${acesScore}:${oppScore}`);
+        }
+      }
+
+      // Unsung hero: Top 3 star or MVP in a match with 0G and 0A
+      if (matchGoals === 0 && matchAssists === 0) {
+        const starsRes = calculateMatchStarsResults(m);
+        const onPodium =
+          starsRes.totalVoters > 0 &&
+          starsRes.standings.some((s) => s.candidateId === playerId && s.rank <= 3 && s.points > 0);
+        if (onPodium) {
+          unsungHeroAwards += 1;
+          recordFeat('feat-unsung-hero', 'Hvězda zápasu za černou práci (0+0)');
+        }
+      }
+
+      // Positional feats
+      const pObj = { id: playerId, name: playerName, fieldPosition: userProfile?.fieldPosition };
+      const playedDef = didPlayerPlayDefenseInMatch(pObj, m, posInfo.resolvedPosition);
+      const playedCen = didPlayerPlayCenterInMatch(pObj, m, posInfo.resolvedPosition);
+      const playedWing = didPlayerPlayWingInMatch(pObj, m, posInfo.resolvedPosition);
+
+      if (playedDef && matchGoals >= 1) {
+        defenseScorerGames += matchGoals;
+        recordFeat('feat-defense-scorer', `${matchGoals} G z postu obránce`);
+      }
+      if (playedDef && matchAssists >= 2) {
+        defenseQbGames += 1;
+        recordFeat('feat-defense-qb', `${matchAssists} A z postu obránce`);
+      }
+      if (playedCen && matchAssists >= 2) {
+        centerPlaymakerGames += 1;
+        recordFeat('feat-center-playmaker', `${matchAssists} A na postu centra`);
+      }
+      if (playedWing && matchGoals >= 2) {
+        wingSniperGames += 1;
+        recordFeat('feat-wing-sniper', `${matchGoals} G na postu křídla`);
+      }
+    }
+
     if (gwgScored) {
       gameWinningGoals += 1;
       recordFeat('feat-gwg', 'vítězný gól utkání (GWG)');
@@ -1238,6 +1705,8 @@ export function countPlayerSingleGameFeats(
     }
   });
 
+  const winRatePct = gamesAppeared > 0 ? Math.round((winsAppeared / gamesAppeared) * 100) : 0;
+
   const cleanedFeatMatches: Record<string, { context: string; dateStr: string }> = {};
   Object.keys(featMatches).forEach((k) => {
     cleanedFeatMatches[k] = {
@@ -1259,6 +1728,20 @@ export function countPlayerSingleGameFeats(
     matchShutouts,
     playoffShutouts,
     thirtySaveGames,
+    lockdownGames,
+    skaterShutouts,
+    shotSuppressorGames,
+    clutchCloserGames,
+    unsungHeroAwards,
+    defenseScorerGames,
+    defenseQbGames,
+    centerPlaymakerGames,
+    wingSniperGames,
+    maxIronmanStreak,
+    currentIronmanStreak,
+    gamesAppeared,
+    winsAppeared,
+    winRatePct,
     featMatches: cleanedFeatMatches,
   };
 }
@@ -1271,7 +1754,10 @@ export function getPlayerRawStatsForMilestones(
   playerName: string,
   teamScoring: any[],
   goalieLeaderboard: any[],
-  allMatches: Match[] = []
+  allMatches: Match[] = [],
+  userProfile?: UserProfile | null,
+  attendancesByMatch?: Map<string, Array<{ userId: string; status?: string }>>,
+  oracleEntry?: OracleLeaderboardEntry | null
 ): Record<MilestoneCategory, number> {
   const skater = teamScoring.find((p) => p.id === playerId);
   const goalie = goalieLeaderboard.find((g) => g.id === playerId);
@@ -1290,7 +1776,13 @@ export function getPlayerRawStatsForMilestones(
   const stars = countPlayerCareerStars(playerId, allMatches);
   const mvp = countPlayerCareerMvpAwards(playerId, allMatches);
 
-  const feats = countPlayerSingleGameFeats(playerId, playerName, allMatches);
+  const feats = countPlayerSingleGameFeats(
+    playerId,
+    playerName,
+    allMatches,
+    userProfile,
+    attendancesByMatch
+  );
 
   return {
     games,
@@ -1301,6 +1793,9 @@ export function getPlayerRawStatsForMilestones(
     goalie_so: goalieSo,
     stars: stars.totalPoints,
     mvp,
+    defense: feats.lockdownGames,
+    ironman: feats.maxIronmanStreak,
+    oracle: oracleEntry?.totalPoints || 0,
     special: feats.hattricks + feats.fourPointGames + feats.fivePointGames + feats.quickGoals + feats.penaltyShotGoals,
   };
 }
@@ -1313,12 +1808,29 @@ export function calculatePlayerMilestones(
   playerName: string,
   teamScoring: any[],
   goalieLeaderboard: any[],
-  allMatches: Match[] = []
+  allMatches: Match[] = [],
+  userProfile?: UserProfile | null,
+  attendancesByMatch?: Map<string, Array<{ userId: string; status?: string }>>,
+  oracleEntry?: OracleLeaderboardEntry | null
 ): PlayerMilestoneProgress[] {
-  const rawStats = getPlayerRawStatsForMilestones(playerId, playerName, teamScoring, goalieLeaderboard, allMatches);
-  const feats = countPlayerSingleGameFeats(playerId, playerName, allMatches);
+  const rawStats = getPlayerRawStatsForMilestones(
+    playerId,
+    playerName,
+    teamScoring,
+    goalieLeaderboard,
+    allMatches,
+    userProfile,
+    attendancesByMatch,
+    oracleEntry
+  );
+  const feats = countPlayerSingleGameFeats(
+    playerId,
+    playerName,
+    allMatches,
+    userProfile,
+    attendancesByMatch
+  );
   const starsStats = countPlayerCareerStars(playerId, allMatches);
-  const goalie = goalieLeaderboard.find((g) => g.id === playerId);
 
   return MILESTONE_DEFINITIONS.map((def) => {
     let current = 0;
@@ -1335,6 +1847,18 @@ export function calculatePlayerMilestones(
         isUnlocked = skaterGames >= 10 && ppg >= 1.0;
         progressPct = Math.min(100, Math.round((ppg / 1.0) * 100));
         remaining = isUnlocked ? 0 : Math.max(0, Math.round((1.0 - ppg) * 100) / 100);
+        break;
+      }
+      case 'feat-win-talisman': {
+        const minGames = 8;
+        const wr = feats.gamesAppeared >= minGames ? feats.winRatePct : 0;
+        current = wr;
+        isUnlocked = feats.gamesAppeared >= minGames && wr >= 65;
+        progressPct =
+          feats.gamesAppeared >= minGames
+            ? Math.min(100, Math.round((wr / 65) * 100))
+            : Math.min(90, Math.round((feats.gamesAppeared / minGames) * 80));
+        remaining = isUnlocked ? 0 : Math.max(1, 65 - wr);
         break;
       }
       case 'feat-5pts':
@@ -1381,9 +1905,36 @@ export function calculatePlayerMilestones(
         current = starsStats.firstStars;
         break;
 
-      // Speciální
+      // Speciální & Defenzivní & Postové
       case 'feat-penalty-shot':
         current = feats.penaltyShotGoals;
+        break;
+      case 'feat-unsung-hero':
+        current = feats.unsungHeroAwards;
+        break;
+      case 'feat-skater-shutout':
+        current = feats.skaterShutouts;
+        break;
+      case 'feat-shot-suppressor':
+        current = feats.shotSuppressorGames;
+        break;
+      case 'feat-clutch-closer':
+        current = feats.clutchCloserGames;
+        break;
+      case 'feat-defense-scorer':
+        current = feats.defenseScorerGames;
+        break;
+      case 'feat-defense-qb':
+        current = feats.defenseQbGames;
+        break;
+      case 'feat-center-playmaker':
+        current = feats.centerPlaymakerGames;
+        break;
+      case 'feat-wing-sniper':
+        current = feats.wingSniperGames;
+        break;
+      case 'feat-exact-oracle':
+        current = oracleEntry?.exactScoreHits || 0;
         break;
 
       // Standardní kategorie
@@ -1392,7 +1943,7 @@ export function calculatePlayerMilestones(
         break;
     }
 
-    if (def.id !== 'feat-ppg') {
+    if (def.id !== 'feat-ppg' && def.id !== 'feat-win-talisman') {
       isUnlocked = current >= def.target;
       progressPct = Math.min(100, Math.round((current / def.target) * 100));
       remaining = Math.max(0, def.target - current);
@@ -1422,7 +1973,8 @@ export function calculateTeamMilestonesOverview(
   teamScoring: any[] = [],
   goalieLeaderboard: any[] = [],
   allMatches: Match[] = [],
-  currentUserId?: string | null
+  currentUserId?: string | null,
+  attendancesByMatch?: Map<string, Array<{ userId: string; status?: string; prediction?: any }>>
 ): TeamMilestonesData {
   const holdersMap = new Map<string, MilestoneHolder[]>();
   const candidatesMap = new Map<string, MilestoneCandidate[]>();
@@ -1431,13 +1983,38 @@ export function calculateTeamMilestonesOverview(
     candidatesMap.set(d.id, []);
   });
 
+  const teamChemistry = calculateTeamChemistry(allMatches, allUsers);
+  const oracleLeaderboard = calculateOracleLeaderboard(allMatches, attendancesByMatch, allUsers);
+  const oracleByUserMap = new Map(oracleLeaderboard.map((o) => [o.userId, o]));
+  const playerFormMap = calculateAllPlayersFormAndDefense(
+    allUsers,
+    allMatches,
+    attendancesByMatch as any
+  );
+
   const upcomingList: UpcomingMilestone[] = [];
   const trophyLeadersList: TrophyLeader[] = [];
   let myUnlockedCount = 0;
 
   allUsers.forEach((user) => {
-    const progressList = calculatePlayerMilestones(user.id, user.name, teamScoring, goalieLeaderboard, allMatches);
-    const feats = countPlayerSingleGameFeats(user.id, user.name, allMatches);
+    const oracleEntry = oracleByUserMap.get(user.id) || null;
+    const progressList = calculatePlayerMilestones(
+      user.id,
+      user.name,
+      teamScoring,
+      goalieLeaderboard,
+      allMatches,
+      user,
+      attendancesByMatch,
+      oracleEntry
+    );
+    const feats = countPlayerSingleGameFeats(
+      user.id,
+      user.name,
+      allMatches,
+      user,
+      attendancesByMatch
+    );
     const resolvedPlayerType = isGoaliePlayer(user) ? 'goalie' : user.playerType;
 
     const userLeadersRecord: TrophyLeader = {
@@ -1524,6 +2101,9 @@ export function calculateTeamMilestonesOverview(
           (prog.milestone.category === 'goalie_so' && prog.milestone.target > 1 && prog.remaining <= 1 && prog.current > 0) ||
           (prog.milestone.category === 'stars' && prog.remaining <= 3 && prog.current > 0) ||
           (prog.milestone.category === 'mvp' && prog.milestone.target > 1 && prog.remaining <= 1 && prog.current > 0) ||
+          (prog.milestone.category === 'defense' && prog.milestone.target >= 5 && prog.remaining <= 2 && prog.current > 0) ||
+          (prog.milestone.category === 'ironman' && prog.milestone.target >= 5 && prog.remaining <= 2 && prog.current > 0) ||
+          (prog.milestone.category === 'oracle' && prog.milestone.target >= 5 && prog.remaining <= 3 && prog.current > 0) ||
           (prog.milestone.id === 'feat-star-hattrick' && prog.remaining === 1 && prog.current > 0) ||
           (prog.milestone.id === 'feat-podium-stars' && prog.remaining === 1 && prog.current > 0);
 
@@ -1590,6 +2170,9 @@ export function calculateTeamMilestonesOverview(
     myUnlockedCount,
     totalMilestonesCount: MILESTONE_DEFINITIONS.length,
     trophyLeaders: trophyLeadersList,
+    teamChemistry,
+    oracleLeaderboard,
+    playerFormMap,
   };
 }
 

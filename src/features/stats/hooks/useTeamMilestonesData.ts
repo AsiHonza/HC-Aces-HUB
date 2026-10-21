@@ -43,6 +43,23 @@ export function useTeamMilestonesData(explicitUserId?: string | null) {
   );
   const { data: allGoalieStats, isLoading: areGoalieStatsLoading } = useCollection<any>(allGoalieStatsRef);
 
+  const allAttendancesRef = useMemoFirebase(
+    () => (firestore && user ? collectionGroup(firestore, 'attendees') : null),
+    [firestore, user]
+  );
+  const { data: allAttendances } = useCollection<any>(allAttendancesRef);
+
+  const attendancesByMatch = useMemo(() => {
+    const map = new Map<string, any[]>();
+    if (!allAttendances) return map;
+    allAttendances.forEach((att) => {
+      if (!att.matchId) return;
+      if (!map.has(att.matchId)) map.set(att.matchId, []);
+      map.get(att.matchId)!.push(att);
+    });
+    return map;
+  }, [allAttendances]);
+
   const isLoading = areUsersLoading || areMatchesLoading || areSkaterStatsLoading || areGoalieStatsLoading;
 
   const { teamScoring, goalieLeaderboard } = useMemo(() => {
@@ -71,9 +88,10 @@ export function useTeamMilestonesData(explicitUserId?: string | null) {
       teamScoring,
       goalieLeaderboard,
       allMatches || [],
-      currentUserId
+      currentUserId,
+      attendancesByMatch
     );
-  }, [allUsers, teamScoring, goalieLeaderboard, allMatches, currentUserId]);
+  }, [allUsers, teamScoring, goalieLeaderboard, allMatches, currentUserId, attendancesByMatch]);
 
   const totalHoldersCount = useMemo(() => {
     return getTotalHoldersCount(teamMilestonesData.allMilestones);

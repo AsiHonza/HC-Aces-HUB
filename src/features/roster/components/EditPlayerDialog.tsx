@@ -48,6 +48,14 @@ export function EditPlayerDialog({
     const jerseyNumber = jerseyStr ? Number(jerseyStr) : null;
     const dob = (fd.get('dob') as string) || null;
     const playerType = (fd.get('playerType') as any) || user.playerType;
+    const rawFieldPos = fd.get('fieldPosition') as string;
+    const fieldPosition =
+      playerType === 'player' && rawFieldPos && rawFieldPos !== 'auto'
+        ? (rawFieldPos as 'defense' | 'wing' | 'center')
+        : rawFieldPos === 'auto'
+        ? null
+        : user.fieldPosition ?? null;
+    const positionLocked = playerType === 'player' && rawFieldPos !== 'auto' && Boolean(rawFieldPos);
 
     await onSave({
       name,
@@ -55,6 +63,8 @@ export function EditPlayerDialog({
       jerseyNumber,
       dob,
       playerType,
+      fieldPosition,
+      positionLocked,
     });
   };
 
@@ -101,18 +111,38 @@ export function EditPlayerDialog({
             </div>
           </div>
 
-          <div className="grid gap-2">
-            <Label htmlFor="edit-player-type">Pozice</Label>
-            <Select name="playerType" defaultValue={user.playerType}>
-              <SelectTrigger id="edit-player-type">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="player">Hráč v poli</SelectItem>
-                <SelectItem value="goalie">Brankář</SelectItem>
-                <SelectItem value="member">Člen týmu / nehrající</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="edit-player-type">Typ člena</Label>
+              <Select name="playerType" defaultValue={user.playerType}>
+                <SelectTrigger id="edit-player-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="player">Hráč v poli</SelectItem>
+                  <SelectItem value="goalie">Brankář</SelectItem>
+                  <SelectItem value="member">Člen týmu / nehrající</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="edit-field-position">Post v poli (pro hráče)</Label>
+              <Select
+                name="fieldPosition"
+                defaultValue={user.fieldPosition || 'auto'}
+              >
+                <SelectTrigger id="edit-field-position">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">⚡ Automaticky (podle sestavy)</SelectItem>
+                  <SelectItem value="defense">🛡️ Obránce (LO / PO)</SelectItem>
+                  <SelectItem value="center">🎯 Centr (C)</SelectItem>
+                  <SelectItem value="wing">⚡ Křídlo (LK / PK)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="grid gap-2">

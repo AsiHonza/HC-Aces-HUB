@@ -46,7 +46,10 @@ import { QuickRsvpButtons } from '@/features/attendance';
 import { getMatchDetails, MatchLike } from '../utils/match-details';
 import { downloadMatchIcs } from '../utils/calendarIcs';
 import { HeadToHeadSection } from './HeadToHeadSection';
-import type { Match, UserProfile } from '@/types';
+import { MatchPredictionWidget } from './MatchPredictionWidget';
+import { resolvePlayerPosition, POSITION_METADATA } from '@/features/roster/utils/positions';
+import type { PlayerFormSummary } from '@/features/stats/utils/playerForm';
+import type { Match, UserProfile, MatchPrediction } from '@/types';
 
 export interface UpcomingMatchAttendee {
   userId: string;
@@ -54,6 +57,7 @@ export interface UpcomingMatchAttendee {
   status: 'going' | 'not-going' | 'unknown';
   note?: string;
   isGoalie?: boolean;
+  prediction?: MatchPrediction | null;
 }
 
 export interface UpcomingMatchItem extends MatchLike {
@@ -75,11 +79,17 @@ export interface UpcomingMatchCardProps {
   attendanceNote?: string;
   attendees?: UpcomingMatchAttendee[];
   usersMap?: Map<string, UserProfile>;
+  currentUserId?: string;
+  playerFormMap?: Map<string, PlayerFormSummary>;
   isAdmin?: boolean;
   isCardHighlighted?: boolean;
   isLineupHighlighted?: boolean;
   onRsvp: (status: 'going' | 'not-going') => void;
   onOpenNoteDialog: () => void;
+  onSavePrediction?: (
+    matchId: string,
+    prediction: { acesScore: number; opponentScore: number; firstScorerId?: string | null }
+  ) => Promise<void> | void;
   onShareMatch?: (matchId: string) => void;
   onOpenLineupView?: (match: UpcomingMatchItem) => void;
   onOpenLineupBuilder?: (match: UpcomingMatchItem) => void;
@@ -98,11 +108,14 @@ export function UpcomingMatchCard({
   attendanceNote,
   attendees = [],
   usersMap,
+  currentUserId,
+  playerFormMap,
   isAdmin = false,
   isCardHighlighted = false,
   isLineupHighlighted = false,
   onRsvp,
   onOpenNoteDialog,
+  onSavePrediction,
   onShareMatch,
   onOpenLineupView,
   onOpenLineupBuilder,
@@ -117,6 +130,22 @@ export function UpcomingMatchCard({
     const p = usersMap?.get(a.userId);
     return Boolean(a.isGoalie || isGoaliePlayer(p));
   });
+
+  const goingPositionsSummary = React.useMemo(() => {
+    let defense = 0;
+    let center = 0;
+    let wing = 0;
+    for (const att of goingAttendees) {
+      const p = usersMap?.get(att.userId);
+      if (!p) continue;
+      if (att.isGoalie || isGoaliePlayer(p)) continue;
+      const posInfo = resolvePlayerPosition(p, allMatches);
+      if (posInfo.resolvedPosition === 'defense') defense++;
+      else if (posInfo.resolvedPosition === 'center') center++;
+      else if (posInfo.resolvedPosition === 'wing') wing++;
+    }
+    return { defense, center, wing };
+  }, [goingAttendees, usersMap, allMatches]);
 
   const sortedAttendees = [...attendees].sort((a, b) => {
     const pA = usersMap?.get(a.userId);
@@ -239,6 +268,19 @@ export function UpcomingMatchCard({
           usersMap={usersMap}
           leagueSkaters={leagueSkaters}
         />
+
+        {onSavePrediction && (
+          <MatchPredictionWidget
+            match={match as Match}
+            opponentName={opponent}
+            attendees={attendees as any}
+            usersMap={usersMap}
+            currentUserId={currentUserId}
+            onSavePrediction={async (pred) => {
+              await onSavePrediction(match.id, pred);
+            }}
+          />
+        )}
       </CardContent>
 
       <CardFooter className="flex-col items-start gap-3 pt-2 pb-4 px-4 sm:px-6">
@@ -280,7 +322,7 @@ export function UpcomingMatchCard({
                 </Button>
               </DialogTrigger>
               <DialogContent className="p-0 sm:max-w-md">
-                <DialogHeader className="p-5 pb-2 pr-12 text-left">
+                <DialogHeader className="p-5 pb-2 pr-12 text-left space-y-2">
                   <DialogTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
                     <span>Soupis přihlášených</span>
                     <Badge variant="outline" className="text-xs font-semibold shrink-0">
@@ -292,6 +334,22 @@ export function UpcomingMatchCard({
                       )}
                     </Badge>
                   </DialogTitle>
+                  {goingAttendees.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-semibold">
+                      <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-500 border border-amber-500/30">
+                        🥅 Brankáři: {goingGoalies.length}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-500 border border-blue-500/30">
+                        🛡️ Obránci: {goingPositionsSummary.defense}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-500 border border-purple-500/30">
+                        🎯 Centři: {goingPositionsSummary.center}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-500 border border-emerald-500/30">
+                        ⚡ Křídla: {goingPositionsSummary.wing}
+                      </span>
+                    </div>
+                  )}
                 </DialogHeader>
                 <div className="max-h-[55vh] overflow-y-auto space-y-2 p-5 pt-2 text-left">
                   {sortedAttendees.length === 0 ? (
@@ -304,6 +362,12 @@ export function UpcomingMatchCard({
                       if (!p) return null;
                       const isG = Boolean(att.isGoalie || isGoaliePlayer(p));
                       const isGoing = att.status === 'going';
+                      const posInfo = !isG ? resolvePlayerPosition(p, allMatches) : null;
+                      const posMeta =
+                        posInfo && posInfo.resolvedPosition !== 'player' && posInfo.resolvedPosition !== 'member' && posInfo.resolvedPosition !== 'goalie'
+                          ? posInfo.meta
+                          : null;
+                      const topBadges = playerFormMap?.get(p.id)?.badges.slice(0, 2) || [];
 
                       return (
                         <div
@@ -336,7 +400,7 @@ export function UpcomingMatchCard({
                                   #{p.jerseyNumber}
                                 </span>
                               )}
-                              {isG && (
+                              {isG ? (
                                 <Badge
                                   variant="secondary"
                                   className={cn(
@@ -349,6 +413,29 @@ export function UpcomingMatchCard({
                                   <Shield className="h-2.5 w-2.5 text-amber-500" />
                                   Brankář
                                 </Badge>
+                              ) : posMeta ? (
+                                <Badge
+                                  variant="outline"
+                                  className={cn(
+                                    "text-[9px] font-bold px-1.5 py-0 shrink-0",
+                                    posMeta.badgeClass
+                                  )}
+                                >
+                                  {posMeta.label}
+                                </Badge>
+                              ) : null}
+                              {topBadges.length > 0 && (
+                                <span className="inline-flex items-center gap-0.5 shrink-0">
+                                  {topBadges.map((b) => (
+                                    <span
+                                      key={b.type}
+                                      className="text-xs leading-none"
+                                      title={`${b.title}: ${b.description}`}
+                                    >
+                                      {b.emoji}
+                                    </span>
+                                  ))}
+                                </span>
                               )}
                             </div>
                             {att.note && (

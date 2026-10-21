@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Table,
   TableBody,
@@ -9,10 +9,14 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { View, ChevronDown, ChevronUp } from 'lucide-react';
+import { View, ChevronDown, ChevronUp, Shield, Crosshair, Zap, Users } from 'lucide-react';
 import { cn, formatName } from '@/lib/utils';
 import { StatAdjuster } from './StatAdjuster';
 import type { EditableSkaterStatItem } from '../services/statsService';
+import type { Player } from '@/types/player';
+import type { Match } from '@/types/match';
+import type { PlayerFormSummary } from '../utils/playerForm';
+import { resolvePlayerPosition, POSITION_METADATA } from '@/features/roster/utils/positions';
 
 export interface ScorerItem {
   id: string;
@@ -37,8 +41,13 @@ export interface PlayerScoringTableProps {
   onUpdateEditableSkaterStat?: (
     updater: (prev: EditableSkaterStatItem[]) => EditableSkaterStatItem[]
   ) => void;
+  allUsers?: Player[];
+  allMatches?: Match[];
+  playerFormMap?: Map<string, PlayerFormSummary>;
   className?: string;
 }
+
+type PositionFilterType = 'all' | 'forwards' | 'defense' | 'center' | 'wing';
 
 export function PlayerScoringTable({
   scorers,
@@ -50,13 +59,75 @@ export function PlayerScoringTable({
   expandedStatId,
   onToggleExpandStat,
   onUpdateEditableSkaterStat,
+  allUsers = [],
+  allMatches = [],
+  playerFormMap,
   className,
 }: PlayerScoringTableProps) {
+  const [posFilter, setPosFilter] = useState<PositionFilterType>('all');
+
+  const positionByPlayerId = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof resolvePlayerPosition>>();
+    for (const u of allUsers) {
+      map.set(u.id, resolvePlayerPosition(u, allMatches));
+    }
+    return map;
+  }, [allUsers, allMatches]);
+
+  const filteredScorers = useMemo(() => {
+    if (posFilter === 'all' || isStatEditMode || allUsers.length === 0) {
+      return scorers;
+    }
+    const filtered = scorers.filter((s) => {
+      const pos = positionByPlayerId.get(s.id)?.resolvedPosition || 'player';
+      if (posFilter === 'defense') return pos === 'defense';
+      if (posFilter === 'forwards') return pos === 'center' || pos === 'wing' || pos === 'player';
+      if (posFilter === 'center') return pos === 'center';
+      if (posFilter === 'wing') return pos === 'wing';
+      return true;
+    });
+    return filtered.map((item, idx) => ({
+      ...item,
+      rank: idx + 1,
+    }));
+  }, [scorers, posFilter, isStatEditMode, allUsers.length, positionByPlayerId]);
+
   const displayedScorers =
-    showAll || isStatEditMode ? scorers : scorers.slice(0, 10);
+    showAll || isStatEditMode ? filteredScorers : filteredScorers.slice(0, 10);
 
   return (
-    <div className={cn('space-y-4 w-full min-w-0 max-w-full', className)}>
+    <div className={cn('space-y-3 w-full min-w-0 max-w-full', className)}>
+      {!isStatEditMode && allUsers.length > 0 && (
+        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar pb-0.5">
+          {[
+            { id: 'all' as const, label: 'Všichni', icon: Users },
+            { id: 'forwards' as const, label: 'Útočníci', icon: Zap },
+            { id: 'defense' as const, label: 'Obránci', icon: Shield },
+            { id: 'center' as const, label: 'Centři', icon: Crosshair },
+            { id: 'wing' as const, label: 'Křídla', icon: Zap },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const active = posFilter === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setPosFilter(tab.id)}
+                className={cn(
+                  'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold transition-all shrink-0 border',
+                  active
+                    ? 'bg-primary text-primary-foreground border-primary shadow-xs'
+                    : 'bg-muted/40 text-muted-foreground border-border/60 hover:text-foreground hover:bg-muted/70'
+                )}
+              >
+                <Icon className="h-3 w-3 shrink-0" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <div className="rounded-md border overflow-x-auto w-full min-w-0 max-w-full">
         <Table className="w-full min-w-[280px]">
           <TableHeader>
@@ -73,6 +144,13 @@ export function PlayerScoringTable({
           <TableBody>
             {displayedScorers.map((p) => {
               const isMe = p.id === currentUserId;
+              const posInfo = positionByPlayerId.get(p.id);
+              const posMeta =
+                posInfo && posInfo.resolvedPosition !== 'player' && posInfo.resolvedPosition !== 'member' && posInfo.resolvedPosition !== 'goalie'
+                  ? posInfo.meta
+                  : null;
+              const topBadges = playerFormMap?.get(p.id)?.badges.slice(0, 2) || [];
+
               return (
                 <React.Fragment key={p.id}>
                   <TableRow
@@ -91,6 +169,30 @@ export function PlayerScoringTable({
                     >
                       <div className="inline-flex items-center gap-1.5 group min-w-0">
                         <span className="truncate">{formatName(p.name)}</span>
+                        {posMeta && (
+                          <span
+                            className={cn(
+                              'inline-flex items-center justify-center rounded px-1 py-0 text-[9px] font-black uppercase border leading-tight shrink-0',
+                              posMeta.badgeClass
+                            )}
+                            title={`Post: ${posMeta.label}`}
+                          >
+                            {posMeta.tinyLabel}
+                          </span>
+                        )}
+                        {topBadges.length > 0 && (
+                          <span className="inline-flex items-center gap-0.5 shrink-0">
+                            {topBadges.map((b) => (
+                              <span
+                                key={b.type}
+                                className="text-xs leading-none select-none"
+                                title={`${b.title}: ${b.description}`}
+                              >
+                                {b.emoji}
+                              </span>
+                            ))}
+                          </span>
+                        )}
                         <View className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity text-primary shrink-0" />
                       </div>
                     </TableCell>
@@ -186,7 +288,7 @@ export function PlayerScoringTable({
                 </React.Fragment>
               );
             })}
-            {scorers.length === 0 && (
+            {filteredScorers.length === 0 && (
               <TableRow>
                 <TableCell
                   colSpan={isStatEditMode ? 7 : 6}
@@ -200,7 +302,7 @@ export function PlayerScoringTable({
         </Table>
       </div>
 
-      {!isStatEditMode && scorers.length > 10 && onToggleShowAll && (
+      {!isStatEditMode && filteredScorers.length > 10 && onToggleShowAll && (
         <div className="mt-4 text-center">
           <Button
             variant="outline"
@@ -215,7 +317,7 @@ export function PlayerScoringTable({
             ) : (
               <>
                 <ChevronDown className="mr-2 h-4 w-4" /> Zobrazit všechny hráče
-                ({scorers.length})
+                ({filteredScorers.length})
               </>
             )}
           </Button>

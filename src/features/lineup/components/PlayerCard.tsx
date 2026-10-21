@@ -66,17 +66,29 @@ export const PlayerCard = ({
       <p className={cn("font-bold text-xs sm:text-sm leading-tight truncate text-foreground", isSmall && "text-[11px]")}>
         {player.name || 'Neznámý'}
       </p>
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-1.5 flex-wrap">
         {positionBadge && (
           <span className="text-[9px] font-bold text-primary uppercase tracking-wider">
             {positionBadge}
           </span>
         )}
-        {player.playerType === 'goalie' && (
-          <Badge variant="outline" className="text-[8px] py-0 px-1 border-primary/40 text-primary bg-primary/10">
-            Brankář
+        {player.playerType === 'goalie' ? (
+          <Badge variant="outline" className="text-[8px] py-0 px-1 border-amber-500/40 text-amber-500 bg-amber-500/10 font-bold">
+            BRA
           </Badge>
-        )}
+        ) : player.fieldPosition === 'defense' ? (
+          <Badge variant="outline" className="text-[8px] py-0 px-1 border-blue-500/40 text-blue-500 bg-blue-500/10 font-bold">
+            OBR
+          </Badge>
+        ) : player.fieldPosition === 'center' ? (
+          <Badge variant="outline" className="text-[8px] py-0 px-1 border-purple-500/40 text-purple-500 bg-purple-500/10 font-bold">
+            CEN
+          </Badge>
+        ) : player.fieldPosition === 'wing' ? (
+          <Badge variant="outline" className="text-[8px] py-0 px-1 border-emerald-500/40 text-emerald-500 bg-emerald-500/10 font-bold">
+            KŘÍ
+          </Badge>
+        ) : null}
       </div>
     </div>
 

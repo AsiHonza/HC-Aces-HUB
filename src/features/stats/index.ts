@@ -11,5 +11,7 @@ export * from './components/HallOfFameTab';
 export * from './components/MilestoneDetailModal';
 export * from './hooks/useTeamMilestonesData';
 export * from './utils/milestones';
+export * from './utils/chemistry';
+export * from './utils/playerForm';
 export * from './services/statsService';
 export * from './services/historicalStatsBackupService';

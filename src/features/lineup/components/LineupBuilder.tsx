@@ -14,10 +14,12 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, Sparkles, RotateCcw, Search, UserCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import type { TeamChemistryData } from '@/features/stats/utils/chemistry';
 
 interface LineupBuilderProps {
   players: Player[];
   initialData?: Lineup | null;
+  teamChemistry?: TeamChemistryData | null;
   onSave: (lineup: Lineup) => void;
   onCancel: () => void;
 }
@@ -25,6 +27,7 @@ interface LineupBuilderProps {
 export function LineupBuilder({
   players,
   initialData,
+  teamChemistry,
   onSave,
   onCancel,
 }: LineupBuilderProps) {
@@ -56,7 +59,8 @@ export function LineupBuilder({
   /**
    * Smart Auto-fill:
    * Maps available players into remaining vacant positions on the ice.
-   * Prioritizes goalies for B1, then fills lines 1, 2, (3).
+   * Prioritizes goalies for B1, defensemen for LO/PO, centers for C, wings for LK/PK,
+   * and fills any remaining vacancies with remaining available players.
    */
   const handleAutoFill = () => {
     const unassigned = [...availablePlayers];
@@ -80,7 +84,42 @@ export function LineupBuilder({
       }
     }
 
-    // 2. Positions order
+    // 2. Specialized position passes
+    const defSlots: (keyof Lineup)[] = ['LO1', 'PO1', 'LO2', 'PO2'];
+    const centerSlots: (keyof Lineup)[] = formationCount === '3' ? ['C1', 'C2', 'C3'] : ['C1', 'C2'];
+    const wingSlots: (keyof Lineup)[] = formationCount === '3' ? ['LK1', 'PK1', 'LK2', 'PK2', 'LK3', 'PK3'] : ['LK1', 'PK1', 'LK2', 'PK2'];
+
+    for (const slot of defSlots) {
+      if (!newLineup[slot]) {
+        const idx = unassigned.findIndex(p => p.fieldPosition === 'defense');
+        if (idx !== -1) {
+          newLineup[slot] = unassigned.splice(idx, 1)[0];
+          placedCount++;
+        }
+      }
+    }
+
+    for (const slot of centerSlots) {
+      if (!newLineup[slot]) {
+        const idx = unassigned.findIndex(p => p.fieldPosition === 'center');
+        if (idx !== -1) {
+          newLineup[slot] = unassigned.splice(idx, 1)[0];
+          placedCount++;
+        }
+      }
+    }
+
+    for (const slot of wingSlots) {
+      if (!newLineup[slot]) {
+        const idx = unassigned.findIndex(p => p.fieldPosition === 'wing');
+        if (idx !== -1) {
+          newLineup[slot] = unassigned.splice(idx, 1)[0];
+          placedCount++;
+        }
+      }
+    }
+
+    // 3. Fallback pass for any remaining empty slots
     const posKeys: (keyof Lineup)[] = formationCount === '3'
       ? ['LK1', 'C1', 'PK1', 'LO1', 'PO1', 'LK2', 'C2', 'PK2', 'LO2', 'PO2', 'LK3', 'C3', 'PK3']
       : ['LK1', 'C1', 'PK1', 'LO1', 'PO1', 'LK2', 'C2', 'PK2', 'LO2', 'PO2'];
@@ -95,9 +134,25 @@ export function LineupBuilder({
     setLineup(newLineup);
     setAvailablePlayers(unassigned);
     toast({
-      title: 'Sestava předvyplněna',
-      description: `Automaticky bylo obsazeno ${placedCount} pozic na ledě.`,
+      title: 'Sestava předvyplněna podle postů',
+      description: `Automaticky bylo obsazeno ${placedCount} pozic (obránci, centři, křídla).`,
     });
+  };
+
+  const getLineChemistryGoals = (linePlayers: (Player | null)[]) => {
+    if (!teamChemistry) return 0;
+    const valid = linePlayers.filter((p): p is Player => Boolean(p));
+    let totalSharedGoals = 0;
+    for (let i = 0; i < valid.length; i++) {
+      for (let j = i + 1; j < valid.length; j++) {
+        const p1 = valid[i];
+        const p2 = valid[j];
+        const p1Chem = teamChemistry.byPlayerId.get(p1.id);
+        const shared = p1Chem?.duoGoalsByPartnerId?.[p2.id] || 0;
+        totalSharedGoals += shared;
+      }
+    }
+    return totalSharedGoals;
   };
 
   /**
@@ -275,11 +330,23 @@ export function LineupBuilder({
             <SelectItem value="empty">-- Volno --</SelectItem>
             {player && <SelectItem value={player.id} disabled>{player.name} (vybrán)</SelectItem>}
             <SelectSeparator />
-            {availablePlayers.map(p => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.jerseyNumber != null ? `#${p.jerseyNumber} ` : ''}{p.name}
-              </SelectItem>
-            ))}
+            {availablePlayers.map(p => {
+              const posTag =
+                p.playerType === 'goalie'
+                  ? ' [BRA]'
+                  : p.fieldPosition === 'defense'
+                  ? ' [OBR]'
+                  : p.fieldPosition === 'center'
+                  ? ' [CEN]'
+                  : p.fieldPosition === 'wing'
+                  ? ' [KŘÍ]'
+                  : '';
+              return (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.jerseyNumber != null ? `#${p.jerseyNumber} ` : ''}{p.name}{posTag}
+                </SelectItem>
+              );
+            })}
           </SelectContent>
         </Select>
       </div>
@@ -287,12 +354,16 @@ export function LineupBuilder({
   };
 
   const MobileBuilder = () => {
+    const line1Chem = getLineChemistryGoals([lineup.LK1, lineup.C1, lineup.PK1, lineup.LO1, lineup.PO1]);
+    const line2Chem = getLineChemistryGoals([lineup.LK2, lineup.C2, lineup.PK2, lineup.LO2, lineup.PO2]);
+    const line3Chem = getLineChemistryGoals([lineup.LK3, lineup.C3, lineup.PK3]);
+
     return (
       <div className="flex flex-col h-full overflow-y-auto p-3 space-y-4 pb-20">
         <div className="flex items-center justify-between gap-2">
           <Button variant="outline" size="sm" onClick={handleAutoFill} className="flex-1 text-xs">
             <Sparkles className="h-3.5 w-3.5 mr-1.5 text-primary" />
-            Předvyplnit z docházky
+            Předvyplnit podle postů
           </Button>
           <Button variant="ghost" size="sm" onClick={handleClear} className="text-xs text-muted-foreground">
             <RotateCcw className="h-3.5 w-3.5 mr-1" /> Vyčistit
@@ -300,8 +371,13 @@ export function LineupBuilder({
         </div>
 
         <Card>
-          <CardHeader className="py-3 px-4 bg-muted/20 border-b">
+          <CardHeader className="py-3 px-4 bg-muted/20 border-b flex-row items-center justify-between space-y-0">
             <CardTitle className="text-xs font-bold uppercase text-primary tracking-wider">1. Lajna (Útok & Obrana)</CardTitle>
+            {line1Chem > 0 && (
+              <Badge variant="outline" className="text-[10px] font-bold bg-orange-500/15 text-orange-500 border-orange-500/40">
+                🔥 Chemie +{line1Chem} G
+              </Badge>
+            )}
           </CardHeader>
           <CardContent className="p-3 space-y-2">
             <MobilePositionCard positionKey="LK1" />
@@ -313,8 +389,13 @@ export function LineupBuilder({
         </Card>
 
         <Card>
-          <CardHeader className="py-3 px-4 bg-muted/20 border-b">
+          <CardHeader className="py-3 px-4 bg-muted/20 border-b flex-row items-center justify-between space-y-0">
             <CardTitle className="text-xs font-bold uppercase text-primary tracking-wider">2. Lajna (Útok & Obrana)</CardTitle>
+            {line2Chem > 0 && (
+              <Badge variant="outline" className="text-[10px] font-bold bg-orange-500/15 text-orange-500 border-orange-500/40">
+                🔥 Chemie +{line2Chem} G
+              </Badge>
+            )}
           </CardHeader>
           <CardContent className="p-3 space-y-2">
             <MobilePositionCard positionKey="LK2" />
@@ -327,8 +408,13 @@ export function LineupBuilder({
 
         {formationCount === '3' && (
           <Card>
-            <CardHeader className="py-3 px-4 bg-muted/20 border-b">
+            <CardHeader className="py-3 px-4 bg-muted/20 border-b flex-row items-center justify-between space-y-0">
               <CardTitle className="text-xs font-bold uppercase text-primary tracking-wider">3. Útočná lajna</CardTitle>
+              {line3Chem > 0 && (
+                <Badge variant="outline" className="text-[10px] font-bold bg-orange-500/15 text-orange-500 border-orange-500/40">
+                  🔥 Chemie +{line3Chem} G
+                </Badge>
+              )}
             </CardHeader>
             <CardContent className="p-3 space-y-2">
               <MobilePositionCard positionKey="LK3" />
@@ -429,10 +515,15 @@ export function LineupBuilder({
             <div className={cn("relative z-10 h-full flex flex-col justify-between p-4 sm:p-6", isSmall && "p-2 sm:p-3")}>
               {/* 1. Attack Line */}
               <div className="space-y-1">
-                <div className="text-center">
+                <div className="flex items-center justify-center gap-2">
                   <span className="text-[10px] font-bold text-primary uppercase tracking-wider bg-card/90 px-3 py-0.5 rounded-full border border-primary/30 shadow-xs">
                     1. Útok
                   </span>
+                  {getLineChemistryGoals([lineup.LK1, lineup.C1, lineup.PK1]) > 0 && (
+                    <span className="text-[10px] font-bold text-orange-400 bg-slate-950/90 px-2.5 py-0.5 rounded-full border border-orange-500/40 shadow-xs">
+                      🔥 Chemie +{getLineChemistryGoals([lineup.LK1, lineup.C1, lineup.PK1])} G
+                    </span>
+                  )}
                 </div>
                 <div className="flex justify-around items-center">
                   <PositionDropzone positionKey="LK1" isSmall={isSmall} />
@@ -443,10 +534,15 @@ export function LineupBuilder({
 
               {/* 2. Attack Line */}
               <div className="space-y-1">
-                <div className="text-center">
+                <div className="flex items-center justify-center gap-2">
                   <span className="text-[10px] font-bold text-foreground/80 uppercase tracking-wider bg-card/90 px-3 py-0.5 rounded-full border border-border shadow-xs">
                     2. Útok
                   </span>
+                  {getLineChemistryGoals([lineup.LK2, lineup.C2, lineup.PK2]) > 0 && (
+                    <span className="text-[10px] font-bold text-orange-400 bg-slate-950/90 px-2.5 py-0.5 rounded-full border border-orange-500/40 shadow-xs">
+                      🔥 Chemie +{getLineChemistryGoals([lineup.LK2, lineup.C2, lineup.PK2])} G
+                    </span>
+                  )}
                 </div>
                 <div className="flex justify-around items-center">
                   <PositionDropzone positionKey="LK2" isSmall={isSmall} />
@@ -458,10 +554,15 @@ export function LineupBuilder({
               {/* Optional 3. Attack Line */}
               {formationCount === '3' && (
                 <div className="space-y-1">
-                  <div className="text-center">
+                  <div className="flex items-center justify-center gap-2">
                     <span className="text-[10px] font-bold text-foreground/80 uppercase tracking-wider bg-card/90 px-3 py-0.5 rounded-full border border-border shadow-xs">
                       3. Útok
                     </span>
+                    {getLineChemistryGoals([lineup.LK3, lineup.C3, lineup.PK3]) > 0 && (
+                      <span className="text-[10px] font-bold text-orange-400 bg-slate-950/90 px-2.5 py-0.5 rounded-full border border-orange-500/40 shadow-xs">
+                        🔥 Chemie +{getLineChemistryGoals([lineup.LK3, lineup.C3, lineup.PK3])} G
+                      </span>
+                    )}
                   </div>
                   <div className="flex justify-around items-center">
                     <PositionDropzone positionKey="LK3" isSmall={isSmall} />
@@ -506,6 +607,15 @@ export function LineupBuilder({
         </Tabs>
 
         <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleAutoFill}
+            className="text-xs hidden sm:inline-flex"
+          >
+            <Sparkles className="h-3.5 w-3.5 mr-1.5 text-primary" />
+            Předvyplnit podle postů
+          </Button>
           <Button
             variant="ghost"
             size="sm"

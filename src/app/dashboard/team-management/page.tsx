@@ -17,7 +17,7 @@ import {
   type UpdateUserData,
   type CreateUserData,
 } from '@/features/roster';
-import type { UserProfile } from '@/types';
+import type { UserProfile, Match } from '@/types';
 
 function TeamManagementContent() {
   const router = useRouter();
@@ -31,6 +31,12 @@ function TeamManagementContent() {
     [firestore]
   );
   const { data: users, isLoading: usersLoading } = useCollection<UserProfile>(usersCollectionRef);
+
+  const matchesCollectionRef = useMemoFirebase(
+    () => (firestore ? collection(firestore, 'matches') : null),
+    [firestore]
+  );
+  const { data: allMatches } = useCollection<Match>(matchesCollectionRef);
 
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -153,6 +159,7 @@ function TeamManagementContent() {
 
       <TeamMembersTable
         users={users || []}
+        allMatches={allMatches || []}
         onEditUser={(u) => {
           setSelectedUser(u);
           setIsEditDialogOpen(true);
