@@ -44,7 +44,8 @@ export function isGoaliePlayer(player?: { name?: string | null; playerType?: str
 }
 
 /**
- * Matches two Czech player names flexibly (case-insensitive, diacritics-insensitive, by surname).
+ * Matches two Czech player names flexibly (case-insensitive, diacritics-insensitive, by surname),
+ * while respecting first-name initials when present (e.g. "Borýsek A." vs "Borýsek I.").
  */
 export function areNamesMatching(nameA?: string | null, nameB?: string | null): boolean {
   if (!nameA || !nameB) return false;
@@ -54,5 +55,26 @@ export function areNamesMatching(nameA?: string | null, nameB?: string | null): 
   if (a === b) return true;
   const partsA = a.split(/\s+/).filter(Boolean);
   const partsB = b.split(/\s+/).filter(Boolean);
-  return partsA.some((p) => p.length >= 3 && partsB.includes(p));
+
+  // Find shared surname/long token (>= 3 chars, ignoring 'ml.' / 'st.')
+  const sharedTokens = partsA.filter(
+    (p) => p.length >= 3 && p !== 'ml.' && p !== 'st.' && partsB.includes(p)
+  );
+  if (sharedTokens.length === 0) return false;
+
+  const restA = partsA.filter((p) => !sharedTokens.includes(p) && p !== 'ml.' && p !== 'st.' && p !== 'ml' && p !== 'st');
+  const restB = partsB.filter((p) => !sharedTokens.includes(p) && p !== 'ml.' && p !== 'st.' && p !== 'ml' && p !== 'st');
+
+  if (restA.length > 0 && restB.length > 0) {
+    const tokenA = restA[0].replace(/\./g, '');
+    const tokenB = restB[0].replace(/\./g, '');
+    if (tokenA && tokenB) {
+      // If both have given-name or initial tokens, their first letters must match
+      if (tokenA[0] !== tokenB[0]) {
+        return false;
+      }
+    }
+  }
+
+  return true;
 }

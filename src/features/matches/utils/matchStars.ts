@@ -1,7 +1,8 @@
 import type { Match, UserProfile, MatchStarsVote } from '@/types';
 import { toSafeDate } from '@/lib/dates';
-import { formatName } from '@/lib/utils';
+import { areNamesMatching, formatName } from '@/lib/utils';
 import { MVP_OPEN_DELAY_MS, MVP_WINDOW_DURATION_MS, MvpCandidate } from './mvpVoting';
+import { hasMatchStatsRecorded } from './match-details';
 
 export interface MatchStarsStandingItem {
   candidateId: string;
@@ -121,39 +122,63 @@ export function calculateMatchStarsResults(
     totalPoints += v.points;
   });
 
+  const statsRecorded = hasMatchStatsRecorded(match);
+
+  // Build fallback name map from match.lineup in case usersMap is not provided
+  const lineupNameMap = new Map<string, { name: string; jerseyNumber?: number | null }>();
+  if (match.lineup && typeof match.lineup === 'object') {
+    Object.values(match.lineup).forEach((p: any) => {
+      if (p?.id && p?.name) {
+        lineupNameMap.set(String(p.id), { name: String(p.name), jerseyNumber: p.jerseyNumber ?? null });
+      }
+    });
+  }
+
   // Extract match performance for candidates for tie-breaking
   const getPlayerMatchStats = (candidateId: string, user?: UserProfile) => {
-    let goals = 0;
-    let assists = 0;
     let saves = 0;
     let isShutout = false;
 
-    const candidateName = (user?.name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-    const tokens = candidateName.split(/\s+/).filter(Boolean);
-    const surname = tokens[tokens.length - 1] || '';
+    const rawCandidateName = user?.name || lineupNameMap.get(candidateId)?.name || '';
 
     const matchesCandidate = (val?: string | null) => {
       if (!val) return false;
       if (val === candidateId) return true;
-      const n = val.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-      if (candidateName && n === candidateName) return true;
-      if (surname && surname.length >= 3 && n.includes(surname)) return true;
+      if (rawCandidateName && areNamesMatching(rawCandidateName, val)) return true;
       return false;
     };
 
+    const isT1 = /aces/i.test(match.team1 || '');
+    const isT2 = /aces/i.test(match.team2 || '');
+
+    let detailedGoals = 0;
+    let detailedAssists = 0;
     if (Array.isArray(match.detailedScorers) && match.detailedScorers.length > 0) {
       match.detailedScorers.forEach((ds) => {
         if (!ds) return;
-        if (matchesCandidate(ds.scorer)) goals++;
-        if (matchesCandidate(ds.assist)) assists++;
-      });
-    } else if (Array.isArray(match.scorers) && match.scorers.length > 0) {
-      match.scorers.forEach((s) => {
-        if (!s) return;
-        if (matchesCandidate(s.goal)) goals++;
-        if (matchesCandidate(s.assist)) assists++;
+        const isAces =
+          (isT1 && ds.team === 'team1') ||
+          (isT2 && ds.team === 'team2') ||
+          /aces/i.test(ds.team || '') ||
+          /aces/i.test((ds as any).teamName || '');
+        if (!isAces) return;
+        if (matchesCandidate(ds.scorer)) detailedGoals++;
+        if (ds.assist && matchesCandidate(ds.assist)) detailedAssists++;
       });
     }
+
+    let simpleGoals = 0;
+    let simpleAssists = 0;
+    if (Array.isArray(match.scorers) && match.scorers.length > 0) {
+      match.scorers.forEach((s) => {
+        if (!s) return;
+        if (matchesCandidate(s.goal)) simpleGoals++;
+        if (s.assist && matchesCandidate(s.assist)) simpleAssists++;
+      });
+    }
+
+    const goals = Math.max(detailedGoals, simpleGoals);
+    const assists = Math.max(detailedAssists, simpleAssists);
 
     const isGoalie =
       match.goalieId === candidateId ||
@@ -163,7 +188,6 @@ export function calculateMatchStarsResults(
       user?.playerType === 'goalie';
 
     if (isGoalie) {
-      const isT1 = /aces/i.test(match.team1 || '');
       const oppScore = isT1 ? (match.team2Score ?? 0) : (match.team1Score ?? 0);
       const acesScore = isT1 ? (match.team1Score ?? 0) : (match.team2Score ?? 0);
       if (oppScore === 0 && acesScore > 0) isShutout = true;
@@ -175,14 +199,15 @@ export function calculateMatchStarsResults(
 
   const initialStandings: MatchStarsStandingItem[] = Array.from(pointsMap.entries()).map(([candidateId, counts]) => {
     const user = usersMap?.get(candidateId);
+    const lineupFallback = lineupNameMap.get(candidateId);
     const percentage =
       totalPoints > 0 ? Math.round((counts.points / totalPoints) * 100) : 0;
     const matchStats = getPlayerMatchStats(candidateId, user);
 
     return {
       candidateId,
-      name: user ? formatName(user.name) : candidateId,
-      jerseyNumber: user?.jerseyNumber ?? null,
+      name: user ? formatName(user.name) : lineupFallback ? formatName(lineupFallback.name) : candidateId,
+      jerseyNumber: user?.jerseyNumber ?? lineupFallback?.jerseyNumber ?? null,
       photoURL: user?.photoURL ?? null,
       playerType: (user?.playerType ?? 'player') as 'player' | 'goalie' | 'member',
       points: counts.points,
@@ -208,15 +233,17 @@ export function calculateMatchStarsResults(
     if (b.star1Count !== a.star1Count) return b.star1Count - a.star1Count;
     if (b.star2Count !== a.star2Count) return b.star2Count - a.star2Count;
     if (b.star3Count !== a.star3Count) return b.star3Count - a.star3Count;
-    // 3. Match performance tie-breakers:
-    // Goalie shutout advantage
-    if (b.isShutout !== a.isShutout) return (b.isShutout ? 1 : 0) - (a.isShutout ? 1 : 0);
-    // Canadian points in the match
-    if (b.matchPoints !== a.matchPoints) return b.matchPoints - a.matchPoints;
-    // Goals scored in the match
-    if (b.matchGoals !== a.matchGoals) return b.matchGoals - a.matchGoals;
-    // Goalie saves in the match
-    if (b.matchSaves !== a.matchSaves) return b.matchSaves - a.matchSaves;
+    // 3. Match performance tie-breakers (only when match stats are already recorded):
+    if (statsRecorded) {
+      // Goalie shutout advantage
+      if (b.isShutout !== a.isShutout) return (b.isShutout ? 1 : 0) - (a.isShutout ? 1 : 0);
+      // Canadian points in the match
+      if (b.matchPoints !== a.matchPoints) return b.matchPoints - a.matchPoints;
+      // Goals scored in the match
+      if (b.matchGoals !== a.matchGoals) return b.matchGoals - a.matchGoals;
+      // Goalie saves in the match
+      if (b.matchSaves !== a.matchSaves) return b.matchSaves - a.matchSaves;
+    }
     // Deterministic fallback by Czech alphabet
     return a.name.localeCompare(b.name, 'cs');
   });
@@ -228,25 +255,31 @@ export function calculateMatchStarsResults(
       curr.rank = 1;
     } else {
       const prev = sortedStandings[i - 1];
-      const isExactTie =
+      const isVoteTie =
         curr.points === prev.points &&
         curr.star1Count === prev.star1Count &&
         curr.star2Count === prev.star2Count &&
-        curr.star3Count === prev.star3Count &&
-        curr.matchPoints === prev.matchPoints &&
-        curr.matchGoals === prev.matchGoals &&
-        curr.isShutout === prev.isShutout &&
-        curr.matchSaves === prev.matchSaves;
+        curr.star3Count === prev.star3Count;
+      const isStatsTie =
+        !statsRecorded ||
+        (curr.matchPoints === prev.matchPoints &&
+          curr.matchGoals === prev.matchGoals &&
+          curr.isShutout === prev.isShutout &&
+          curr.matchSaves === prev.matchSaves);
+      const isExactTie = isVoteTie && isStatsTie;
 
       if (isExactTie) {
         curr.rank = prev.rank;
         curr.isTied = true;
         prev.isTied = true;
-        curr.tieBreakerReason = 'Shoda hlasů i zápasových bodů (dělené pořadí)';
-        prev.tieBreakerReason = 'Shoda hlasů i zápasových bodů (dělené pořadí)';
+        const reason = statsRecorded
+          ? 'Shoda hlasů i zápasových bodů (dělené pořadí)'
+          : 'Shoda hlasů (čeká se na zápis statistik utkání z HobbyHokeje)';
+        curr.tieBreakerReason = reason;
+        prev.tieBreakerReason = reason;
       } else {
         curr.rank = i + 1;
-        if (curr.points === prev.points && curr.star1Count === prev.star1Count && curr.star2Count === prev.star2Count && curr.star3Count === prev.star3Count) {
+        if (isVoteTie && statsRecorded) {
           prev.tieBreakerReason = `Při rovnosti hlasů rozhodl výkon v zápase (${prev.matchGoals}+${prev.matchAssists})`;
         }
       }

@@ -1,5 +1,7 @@
 import type { Match, UserProfile } from '@/types';
 import { calculateMatchStarsResults } from '@/features/matches/utils/matchStars';
+import { getMvpVotingStatus } from '@/features/matches/utils/mvpVoting';
+import { hasMatchStatsRecorded } from '@/features/matches/utils/match-details';
 import { areNamesMatching, isGoaliePlayer } from '@/lib/utils';
 import { toJsDate } from '@/lib/dates';
 
@@ -104,36 +106,47 @@ function didPlayerAppearInMatch(
 }
 
 function getPlayerMatchGoalsAndAssists(player: UserProfile, match: Match): { goals: number; assists: number } {
-  let goals = 0;
-  let assists = 0;
+  let simpleGoals = 0;
+  let simpleAssists = 0;
+  let detailedGoals = 0;
+  let detailedAssists = 0;
   const isAcesTeam1 = /aces/i.test(match.team1 || '');
+  const isAcesTeam2 = /aces/i.test(match.team2 || '');
 
   if (Array.isArray(match.scorers) && match.scorers.length > 0) {
     for (const s of match.scorers) {
+      if (!s) continue;
       if (s.goal === player.id || (s.goal && areNamesMatching(player.name, s.goal))) {
-        goals++;
+        simpleGoals++;
       }
       if (s.assist === player.id || (s.assist && areNamesMatching(player.name, s.assist))) {
-        assists++;
-      }
-    }
-  } else if (Array.isArray(match.detailedScorers) && match.detailedScorers.length > 0) {
-    for (const ds of match.detailedScorers) {
-      const isAcesGoal =
-        (isAcesTeam1 && ds.team === 'team1') ||
-        (!isAcesTeam1 && ds.team === 'team2') ||
-        /aces/i.test(ds.team || '');
-      if (!isAcesGoal) continue;
-      if (ds.scorer === player.id || (ds.scorer && areNamesMatching(player.name, ds.scorer))) {
-        goals++;
-      }
-      if (ds.assist === player.id || (ds.assist && areNamesMatching(player.name, ds.assist))) {
-        assists++;
+        simpleAssists++;
       }
     }
   }
 
-  return { goals, assists };
+  if (Array.isArray(match.detailedScorers) && match.detailedScorers.length > 0) {
+    for (const ds of match.detailedScorers) {
+      if (!ds) continue;
+      const isAcesGoal =
+        (isAcesTeam1 && ds.team === 'team1') ||
+        (isAcesTeam2 && ds.team === 'team2') ||
+        /aces/i.test(ds.team || '') ||
+        /aces/i.test((ds as any).teamName || '');
+      if (!isAcesGoal) continue;
+      if (ds.scorer === player.id || (ds.scorer && areNamesMatching(player.name, ds.scorer))) {
+        detailedGoals++;
+      }
+      if (ds.assist === player.id || (ds.assist && areNamesMatching(player.name, ds.assist))) {
+        detailedAssists++;
+      }
+    }
+  }
+
+  return {
+    goals: Math.max(simpleGoals, detailedGoals),
+    assists: Math.max(simpleAssists, detailedAssists),
+  };
 }
 
 /**
@@ -204,6 +217,7 @@ export function calculateAllPlayersFormAndDefense(
       assists: number;
       oppScore: number;
       isWin: boolean;
+      statsRecorded: boolean;
     }> = [];
 
     for (const m of playedMatchesAsc) {
@@ -223,21 +237,23 @@ export function calculateAllPlayersFormAndDefense(
 
       gamesAppeared += 1;
       const isAcesTeam1 = /aces/i.test(m.team1 || '');
+      const isAcesTeam2 = /aces/i.test(m.team2 || '');
       const acesScore = isAcesTeam1 ? Number(m.team1Score ?? 0) : Number(m.team2Score ?? 0);
       const oppScore = isAcesTeam1 ? Number(m.team2Score ?? 0) : Number(m.team1Score ?? 0);
       const isWin = acesScore > oppScore;
+      const statsRecorded = hasMatchStatsRecorded(m);
 
       if (isWin) winsAppeared += 1;
 
       const { goals, assists } = getPlayerMatchGoalsAndAssists(user, m);
-      playerAppearancesAsc.push({ match: m, goals, assists, oppScore, isWin });
+      playerAppearancesAsc.push({ match: m, goals, assists, oppScore, isWin, statsRecorded });
 
       // Defensive checks for skaters
       if (!isGoalie) {
-        if (oppScore <= 2) {
+        if (statsRecorded && oppScore <= 2) {
           lockdownGamesCount += 1;
         }
-        if (oppScore === 0) {
+        if (statsRecorded && oppScore === 0) {
           shutoutSkaterCount += 1;
         }
 
@@ -252,25 +268,31 @@ export function calculateAllPlayersFormAndDefense(
         }
 
         // Clutch closer: 1-goal win and no opponent goals in last 10 mins (minute >= 50)
-        if (isWin && acesScore - oppScore === 1) {
-          let oppScoredLate = false;
-          if (Array.isArray(m.detailedScorers) && m.detailedScorers.length > 0) {
-            oppScoredLate = m.detailedScorers.some((ds) => {
-              const isAcesGoal =
-                (isAcesTeam1 && ds.team === 'team1') ||
-                (!isAcesTeam1 && ds.team === 'team2') ||
-                /aces/i.test(ds.team || '');
-              return !isAcesGoal && Number(ds.minute || 0) >= 50;
-            });
-          }
+        if (statsRecorded && isWin && acesScore - oppScore === 1 && Array.isArray(m.detailedScorers) && m.detailedScorers.length > 0) {
+          const oppScoredLate = m.detailedScorers.some((ds) => {
+            const isAcesGoal =
+              (isAcesTeam1 && ds.team === 'team1') ||
+              (isAcesTeam2 && ds.team === 'team2') ||
+              /aces/i.test(ds.team || '') ||
+              /aces/i.test((ds as any).teamName || '');
+            return !isAcesGoal && Number(ds.minute || 0) >= 50;
+          });
           if (!oppScoredLate) {
             clutchCloserCount += 1;
           }
         }
 
-        // Unsung hero: Top 3 star in match with 0G and 0A
+        // Unsung hero: Top 3 star in match with 0G and 0A (only once match stats are recorded & voting closed)
         const starsRes = starsByMatchId.get(m.id);
-        if (starsRes && starsRes.totalVoters > 0 && goals === 0 && assists === 0) {
+        const votingState = getMvpVotingStatus(m);
+        if (
+          statsRecorded &&
+          votingState.status === 'closed' &&
+          starsRes &&
+          starsRes.totalVoters > 0 &&
+          goals === 0 &&
+          assists === 0
+        ) {
           const onPodium = starsRes.standings.some(
             (s) => s.candidateId === user.id && s.rank <= 3 && s.points > 0
           );
@@ -281,9 +303,10 @@ export function calculateAllPlayersFormAndDefense(
       }
     }
 
-    // Calculate current streaks from most recent player appearances backwards
+    // Calculate current streaks from most recent player appearances with recorded stats backwards
     for (let i = playerAppearancesAsc.length - 1; i >= 0; i--) {
       const app = playerAppearancesAsc[i];
+      if (!app.statsRecorded) continue;
       if (app.goals + app.assists > 0) {
         currentPointStreak += 1;
         pointStreakGoals += app.goals;
@@ -295,6 +318,7 @@ export function calculateAllPlayersFormAndDefense(
 
     for (let i = playerAppearancesAsc.length - 1; i >= 0; i--) {
       const app = playerAppearancesAsc[i];
+      if (!app.statsRecorded) continue;
       if (app.oppScore <= 2) {
         lockdownStreak += 1;
       } else {
@@ -302,8 +326,9 @@ export function calculateAllPlayersFormAndDefense(
       }
     }
 
-    if (playerAppearancesAsc.length > 0) {
-      const latestApp = playerAppearancesAsc[playerAppearancesAsc.length - 1];
+    const appearancesWithStats = playerAppearancesAsc.filter((a) => a.statsRecorded);
+    if (appearancesWithStats.length > 0) {
+      const latestApp = appearancesWithStats[appearancesWithStats.length - 1];
       lastMatchGoals = latestApp.goals;
       if (isGoalie) {
         const m = latestApp.match;

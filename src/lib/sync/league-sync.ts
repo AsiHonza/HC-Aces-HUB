@@ -160,8 +160,24 @@ export async function syncLeagueToFirestore(
 
   function findUserBySurname(surname: string) {
     if (!surname) return undefined;
-    const cleanSurname = surname.replace(/\s*[A-Z]\.?$/g, ''); // strip " I." or " A."
+    const initialMatch = surname.trim().match(/\s+([a-zA-ZáčďéěíňóřšťúůýžÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ])\.?$/);
+    const initial = initialMatch
+      ? initialMatch[1].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      : null;
+    const cleanSurname = surname.replace(/\s*[a-zA-ZáčďéěíňóřšťúůýžÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ]\.?$/g, '');
     const norm = cleanSurname.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+
+    if (initial) {
+      const exactWithInitial = existingUsers.find((u) => {
+        if (!u.name) return false;
+        const tokens = u.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().split(/\s+/);
+        const hasSurname = tokens.some((t: string) => t === norm || t.startsWith(norm));
+        const hasInitial = tokens.some((t: string) => t !== norm && t.startsWith(initial));
+        return hasSurname && hasInitial;
+      });
+      if (exactWithInitial) return exactWithInitial;
+    }
+
     return existingUsers.find((u) => {
       if (!u.name) return false;
       const tokens = u.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().split(/\s+/);

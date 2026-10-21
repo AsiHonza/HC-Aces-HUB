@@ -123,7 +123,13 @@ export function useTeamMilestonesData(explicitUserId?: string | null) {
         setNewMilestoneIds(new Set());
       } else {
         const parsed: string[] = JSON.parse(stored) || [];
-        const seenSet = new Set(parsed);
+        const currentSet = new Set(allCurrentHolderKeys);
+        // Prune any stale keys that are no longer unlocked so future real unlocks trigger notifications
+        const cleanedSeen = parsed.filter((k) => currentSet.has(k));
+        if (cleanedSeen.length !== parsed.length) {
+          localStorage.setItem(SEEN_HOLDERS_STORAGE_KEY, JSON.stringify(cleanedSeen));
+        }
+        const seenSet = new Set(cleanedSeen);
         const freshMilestoneIds = new Set<string>();
 
         allCurrentHolderKeys.forEach((key) => {

@@ -1,6 +1,7 @@
 import type { Match, UserProfile } from '@/types';
 import { countPlayerCareerStars, calculateMatchStarsResults } from '@/features/matches/utils/matchStars';
-import { countPlayerCareerMvpAwards } from '@/features/matches/utils/mvpVoting';
+import { countPlayerCareerMvpAwards, getMvpVotingStatus } from '@/features/matches/utils/mvpVoting';
+import { hasMatchStatsRecorded } from '@/features/matches/utils/match-details';
 import { calculateOracleLeaderboard, type OracleLeaderboardEntry } from '@/features/matches/utils/predictions';
 import { calculateTeamChemistry, type TeamChemistryData } from './chemistry';
 import { calculateAllPlayersFormAndDefense, type PlayerFormSummary } from './playerForm';
@@ -11,7 +12,7 @@ import {
   didPlayerPlayWingInMatch,
   isMatchLineupArchived,
 } from '@/features/roster/utils/positions';
-import { formatName, isGoaliePlayer } from '@/lib/utils';
+import { areNamesMatching, formatName, isGoaliePlayer } from '@/lib/utils';
 import { toJsDate } from '@/lib/dates';
 
 export type MilestoneTier = 'bronze' | 'silver' | 'gold' | 'diamond' | 'legend';
@@ -1220,7 +1221,7 @@ const RAW_MILESTONE_DEFINITIONS: MilestoneDefinition[] = [
   {
     id: 'feat-unsung-hero',
     title: 'Dělník ledu (Černá práce)',
-    description: 'Zvolen mezi 3 Hvězdy zápasu (nebo MVP) v utkání s 0 kanadskými body (čistě za defenzivu a bojovnost)',
+    description: 'Zvolen mezi 3 Hvězdy zápasu (nebo MVP) v utkání s 0 kanadskými body – vyhodnocuje se až po zapsání statistik zápasu',
     category: 'defense',
     tier: 'gold',
     target: 1,
@@ -1393,22 +1394,10 @@ export function countPlayerSingleGameFeats(
 
   const featMatches: Record<string, { context: string; dateStr: string; count: number }> = {};
 
-  const normalizedName = (playerName || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim();
-
-  const tokens = normalizedName.split(/\s+/).filter(Boolean);
-  const surname = tokens[tokens.length - 1] || normalizedName;
-
   const matchesPlayer = (val: string | null | undefined): boolean => {
     if (!val) return false;
     if (val === playerId) return true;
-    const norm = val.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-    if (norm === normalizedName) return true;
-    if (surname && surname.length >= 3 && norm.includes(surname)) return true;
-    return false;
+    return areNamesMatching(playerName, val);
   };
 
   const posInfo = resolvePlayerPosition(
@@ -1512,31 +1501,37 @@ export function countPlayerSingleGameFeats(
       }
     }
 
-    let matchGoals = 0;
-    let matchAssists = 0;
+    let detailedGoals = 0;
+    let detailedAssists = 0;
+    let simpleGoals = 0;
+    let simpleAssists = 0;
     let penaltyShotGoalsInMatch = 0;
     let quickGoalsInMatch = 0;
     let gwgScored = false;
 
-    // Check detailed scorers
+    // 1. Check detailed scorers (from HobbyHokej report)
     if (Array.isArray(m.detailedScorers) && m.detailedScorers.length > 0) {
       const sortedScorers = [...m.detailedScorers].sort((a, b) => (a.minute || 0) - (b.minute || 0));
       let acesGoalIndex = 0;
 
       sortedScorers.forEach((ds) => {
         if (!ds) return;
-        const isAcesGoal = (isT1 && ds.team === 'team1') || (isT2 && ds.team === 'team2') || /aces/i.test(ds.team || '');
-        if (isAcesGoal) {
-          acesGoalIndex++;
-          if (isAcesWin && acesGoalIndex === oppScore + 1) {
-            if (matchesPlayer(ds.scorer)) {
-              gwgScored = true;
-            }
+        const isAcesGoal =
+          (isT1 && ds.team === 'team1') ||
+          (isT2 && ds.team === 'team2') ||
+          /aces/i.test(ds.team || '') ||
+          /aces/i.test((ds as any).teamName || '');
+        if (!isAcesGoal) return;
+
+        acesGoalIndex++;
+        if (isAcesWin && acesGoalIndex === oppScore + 1) {
+          if (matchesPlayer(ds.scorer)) {
+            gwgScored = true;
           }
         }
 
         if (matchesPlayer(ds.scorer)) {
-          matchGoals += 1;
+          detailedGoals += 1;
           playerPlayedInMatch = true;
           if (ds.isPenaltyShot) {
             penaltyShotGoals += 1;
@@ -1549,35 +1544,43 @@ export function countPlayerSingleGameFeats(
         }
 
         if (ds.assist && matchesPlayer(ds.assist)) {
-          matchAssists += 1;
+          detailedAssists += 1;
           playerPlayedInMatch = true;
         }
       });
-    } else if (Array.isArray(m.scorers) && m.scorers.length > 0) {
+    }
+
+    // 2. Also check simple scorers array (stores resolved user IDs)
+    if (Array.isArray(m.scorers) && m.scorers.length > 0) {
       let acesGoalIndex = 0;
+      const hasDetailed = Array.isArray(m.detailedScorers) && m.detailedScorers.length > 0;
       m.scorers.forEach((s) => {
         if (!s) return;
         acesGoalIndex++;
-        if (isAcesWin && acesGoalIndex === oppScore + 1) {
+        if (!hasDetailed && isAcesWin && acesGoalIndex === oppScore + 1) {
           if (matchesPlayer(s.goal)) {
             gwgScored = true;
           }
         }
 
         if (matchesPlayer(s.goal)) {
-          matchGoals += 1;
+          simpleGoals += 1;
           playerPlayedInMatch = true;
-          if ((s as any).isPenaltyShot || (s as any).penaltyShot) {
+          if (!hasDetailed && ((s as any).isPenaltyShot || (s as any).penaltyShot)) {
             penaltyShotGoals += 1;
             penaltyShotGoalsInMatch += 1;
           }
         }
         if (s.assist && matchesPlayer(s.assist)) {
-          matchAssists += 1;
+          simpleAssists += 1;
           playerPlayedInMatch = true;
         }
       });
     }
+
+    const matchGoals = Math.max(detailedGoals, simpleGoals);
+    const matchAssists = Math.max(detailedAssists, simpleAssists);
+    const statsRecorded = hasMatchStatsRecorded(m);
 
     // Ironman streak tracking
     if (playerPlayedInMatch) {
@@ -1595,11 +1598,11 @@ export function countPlayerSingleGameFeats(
 
     // Skater defensive & positional feats
     if (playerPlayedInMatch && !isGoalieThisMatch) {
-      if (oppScore <= 2) {
+      if (statsRecorded && oppScore <= 2) {
         lockdownGames += 1;
         recordFeat('lock-5', `inkasováno jen ${oppScore} G`);
       }
-      if (isAcesWin && oppScore === 0) {
+      if (statsRecorded && isAcesWin && oppScore === 0) {
         skaterShutouts += 1;
         recordFeat('feat-skater-shutout', `čisté konto v poli (${acesScore}:0)`);
       }
@@ -1615,17 +1618,15 @@ export function countPlayerSingleGameFeats(
         recordFeat('feat-shot-suppressor', `soupeř udržel jen na ${shotsOpp} střelách`);
       }
 
-      if (isAcesWin && acesScore - oppScore === 1) {
-        let oppScoredLate = false;
-        if (Array.isArray(m.detailedScorers) && m.detailedScorers.length > 0) {
-          oppScoredLate = m.detailedScorers.some((ds) => {
-            const isAcesGoal =
-              (isT1 && ds.team === 'team1') ||
-              (!isT2 && ds.team === 'team2') ||
-              /aces/i.test(ds.team || '');
-            return !isAcesGoal && Number(ds.minute || 0) >= 50;
-          });
-        }
+      if (statsRecorded && isAcesWin && acesScore - oppScore === 1 && Array.isArray(m.detailedScorers) && m.detailedScorers.length > 0) {
+        const oppScoredLate = m.detailedScorers.some((ds) => {
+          const isAcesGoal =
+            (isT1 && ds.team === 'team1') ||
+            (isT2 && ds.team === 'team2') ||
+            /aces/i.test(ds.team || '') ||
+            /aces/i.test((ds as any).teamName || '');
+          return !isAcesGoal && Number(ds.minute || 0) >= 50;
+        });
         if (!oppScoredLate) {
           clutchCloserGames += 1;
           recordFeat('feat-clutch-closer', `ubráněná těsná výhra ${acesScore}:${oppScore}`);
@@ -1633,7 +1634,10 @@ export function countPlayerSingleGameFeats(
       }
 
       // Unsung hero: Top 3 star or MVP in a match with 0G and 0A
-      if (matchGoals === 0 && matchAssists === 0) {
+      // Vyhodnocuje se VÝHRADNĚ tehdy, když už jsou u zápasu skutečně zapsány statistiky (střelci a nahrávky z HobbyHokeje)
+      // a hlasování o Hvězdy zápasu je uzavřeno, aby při zpoždění zápisu na HobbyHokeji nevznikaly falešné odznaky.
+      const votingState = getMvpVotingStatus(m);
+      if (statsRecorded && votingState.status === 'closed' && matchGoals === 0 && matchAssists === 0) {
         const starsRes = calculateMatchStarsResults(m);
         const onPodium =
           starsRes.totalVoters > 0 &&
