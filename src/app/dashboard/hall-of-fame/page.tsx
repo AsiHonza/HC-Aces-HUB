@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Trophy, Crown, Loader2, Sparkles, Shield, Flame } from 'lucide-react';
+import { Trophy, Loader2 } from 'lucide-react';
 import { useUser } from '@/firebase';
 import { 
   HallOfFameTab, 
@@ -18,8 +19,12 @@ import { countPlayerCareerMvpAwards } from '@/features/matches/utils/mvpVoting';
 import { resolvePlayerPosition } from '@/features/roster/utils/positions';
 import { cn } from '@/lib/utils';
 
-export default function HallOfFamePage() {
+function HallOfFameContent() {
   const { user } = useUser();
+  const searchParams = useSearchParams();
+  const queryTab = (searchParams?.get('tab') as 'overview' | 'badges' | 'leaderboards') || 'overview';
+  const queryPlayer = searchParams?.get('player') || 'all';
+
   const { 
     teamMilestonesData, 
     teamScoring, 
@@ -33,7 +38,8 @@ export default function HallOfFamePage() {
 
   const [selectedCareerPlayer, setSelectedCareerPlayer] = useState<PlayerCareerData | null>(null);
   const [isCareerModalOpen, setIsCareerModalOpen] = useState(false);
-  const [tabPlayerFilter, setTabPlayerFilter] = useState<string>('all');
+  const [tabPlayerFilter, setTabPlayerFilter] = useState<string>(queryPlayer);
+  const [activeTab, setActiveTab] = useState<'overview' | 'badges' | 'leaderboards'>(queryTab);
   const [pageMilestoneDetail, setPageMilestoneDetail] = useState<MilestoneWithHolders | null>(null);
 
   // Automatically mark milestones as seen when user visits this page
@@ -195,7 +201,10 @@ export default function HallOfFamePage() {
           {/* Rychlý status */}
           <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
             <div 
-              onClick={() => setTabPlayerFilter('all')}
+              onClick={() => {
+                setTabPlayerFilter('all');
+                setActiveTab('overview');
+              }}
               className={cn(
                 "rounded-xl border px-3 sm:px-3.5 py-2 text-center min-w-[85px] sm:min-w-[90px] cursor-pointer transition-all hover:scale-105 active:scale-95 shadow-sm",
                 tabPlayerFilter === 'all'
@@ -211,7 +220,10 @@ export default function HallOfFamePage() {
             </div>
             {user && (
               <div 
-                onClick={() => setTabPlayerFilter((prev) => (prev === 'me' ? 'all' : 'me'))}
+                onClick={() => {
+                  setTabPlayerFilter((prev) => (prev === 'me' ? 'all' : 'me'));
+                  setActiveTab('overview');
+                }}
                 className={cn(
                   "rounded-xl border px-3 sm:px-3.5 py-2 text-center min-w-[85px] sm:min-w-[90px] cursor-pointer transition-all hover:scale-105 active:scale-95 shadow-sm select-none",
                   tabPlayerFilter === 'me'
@@ -236,7 +248,6 @@ export default function HallOfFamePage() {
       <Card className="border-border/70 bg-card/95 shadow-sm">
         <CardContent className="p-2 sm:p-6">
           <HallOfFameTab
-            key={tabPlayerFilter}
             milestones={teamMilestonesData.allMilestones}
             upcomingMilestones={teamMilestonesData.upcomingMilestones}
             allUsers={allUsers || []}
@@ -245,6 +256,7 @@ export default function HallOfFamePage() {
             trophyLeaders={teamMilestonesData.trophyLeaders}
             newMilestoneIds={newMilestoneIds}
             initialPlayerId={tabPlayerFilter}
+            initialTab={activeTab}
             teamChemistry={teamMilestonesData.teamChemistry}
           />
         </CardContent>
@@ -270,5 +282,22 @@ export default function HallOfFamePage() {
         currentUserId={user?.uid}
       />
     </div>
+  );
+}
+
+export default function HallOfFamePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex flex-col items-center justify-center py-24 space-y-4">
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            Načítám Síň slávy HC Aces...
+          </p>
+        </div>
+      }
+    >
+      <HallOfFameContent />
+    </Suspense>
   );
 }
