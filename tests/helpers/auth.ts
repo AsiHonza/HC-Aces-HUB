@@ -14,7 +14,9 @@ export async function loginAs(page: Page, email: string, password = 'heslo123') 
 }
 
 export async function loginAsAdmin(page: Page) {
-  await loginAs(page, 'janmlcak6@gmail.com');
+  const email = process.env.ADMIN_EMAIL || 'qa-visual-tester@aces.test';
+  const password = process.env.ADMIN_PASSWORD || 'QaTest123456!';
+  await loginAs(page, email, password);
 }
 
 export async function loginAsPlayer(page: Page) {

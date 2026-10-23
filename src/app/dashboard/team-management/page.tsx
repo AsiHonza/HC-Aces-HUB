@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, Suspense, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useFirestore, useCollection, useMemoFirebase, useAuth } from '@/firebase';
-import { collection } from 'firebase/firestore';
+import { useRouter } from 'next/navigation';
+import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser, useDoc } from '@/firebase';
+import { collection, doc } from 'firebase/firestore';
 import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { LeagueSyncCard } from '@/features/stats';
@@ -21,10 +21,16 @@ import type { UserProfile, Match } from '@/types';
 
 function TeamManagementContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { toast } = useToast();
   const firestore = useFirestore();
   const auth = useAuth();
+  const { user, isUserLoading } = useUser();
+
+  const currentUserRef = useMemoFirebase(
+    () => (user && firestore ? doc(firestore, 'users', user.uid) : null),
+    [user, firestore]
+  );
+  const { data: currentUserProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(currentUserRef);
 
   const usersCollectionRef = useMemoFirebase(
     () => (firestore ? collection(firestore, 'users') : null),
@@ -44,15 +50,42 @@ function TeamManagementContent() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isPurging, setIsPurging] = useState(false);
-
-  const role = searchParams.get('role');
+  const [hasStartedProfileLoad, setHasStartedProfileLoad] = useState(false);
 
   useEffect(() => {
-    if (role !== 'admin') {
-      toast({ variant: 'destructive', title: 'Přístup odepřen' });
+    if (isProfileLoading) {
+      setHasStartedProfileLoad(true);
+    }
+  }, [isProfileLoading]);
+
+  const isAdmin = currentUserProfile?.role === 'admin';
+  const isAuthChecking = isUserLoading || isProfileLoading || !currentUserProfile;
+
+  useEffect(() => {
+    if (isUserLoading) return;
+    if (!user) {
+      router.replace('/dashboard');
+      return;
+    }
+
+    if (currentUserProfile) {
+      if (currentUserProfile.role !== 'admin') {
+        toast({
+          variant: 'destructive',
+          title: 'Přístup odepřen',
+          description: 'Sekce Správa týmu je přístupná výhradně administrátorům týmu.',
+        });
+        router.replace('/dashboard');
+      }
+    } else if (hasStartedProfileLoad && !isProfileLoading) {
+      toast({
+        variant: 'destructive',
+        title: 'Přístup odepřen',
+        description: 'Uživatelský profil nebyl nalezen.',
+      });
       router.replace('/dashboard');
     }
-  }, [role, router, toast]);
+  }, [isUserLoading, user, currentUserProfile, hasStartedProfileLoad, isProfileLoading, router, toast]);
 
   const handleResetPassword = async (email: string) => {
     if (!auth) return;
@@ -98,7 +131,7 @@ function TeamManagementContent() {
             : 'V databázi Firestore nebyl pro tento e-mail nalezen žádný profil.',
       });
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Chyba', description: error.message });
+      toast({ variant: 'destructive', title: 'Chyba čištění', description: error.message });
     } finally {
       setIsPurging(false);
     }
@@ -145,10 +178,11 @@ function TeamManagementContent() {
     }
   };
 
-  if (usersLoading) {
+  if (isAuthChecking || !isAdmin || usersLoading) {
     return (
-      <div className="py-12 flex justify-center">
-        <Loader2 className="animate-spin text-primary h-12 w-12" />
+      <div className="py-16 flex flex-col items-center justify-center min-h-[350px] gap-3">
+        <Loader2 className="animate-spin text-primary h-10 w-10" />
+        <p className="text-xs text-muted-foreground font-medium">Ověřuji oprávnění správce...</p>
       </div>
     );
   }

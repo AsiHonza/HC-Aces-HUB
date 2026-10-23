@@ -63,7 +63,7 @@ function UserNav() {
         <DropdownMenuSeparator />
         {role === 'admin' && (
             <DropdownMenuItem asChild>
-                <Link href={{ pathname: '/dashboard/team-management', query: { role } }}>
+                <Link href="/dashboard/team-management">
                     <Users className="mr-2 h-4 w-4" />
                     <span>Správa týmu</span>
                 </Link>
