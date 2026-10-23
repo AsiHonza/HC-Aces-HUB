@@ -67,8 +67,11 @@ export interface PlayoffSeries {
 }
 
 export interface LeagueSettings {
-  isPlayoffEnabled: boolean;
-  isScoringInPlayoffMode: boolean;
+  seasonStartDate?: string;
+  /** @deprecated No longer used, playoff status is per-match */
+  isPlayoffEnabled?: boolean;
+  /** @deprecated No longer used, scoring is computed directly */
+  isScoringInPlayoffMode?: boolean;
   playoffSeries?: PlayoffSeriesItem[];
 }
 
@@ -85,8 +88,11 @@ export interface LeagueSkaterItem {
 export interface AppSettings {
   currentSeasonId?: string;
   currentSeasonName?: string;
-  isPlayoffEnabled: boolean;
-  isScoringInPlayoffMode: boolean;
+  seasonStartDate?: string;
+  /** @deprecated No longer used */
+  isPlayoffEnabled?: boolean;
+  /** @deprecated No longer used */
+  isScoringInPlayoffMode?: boolean;
   playoffSeries?: PlayoffSeries[];
   leagueStandings?: LeagueStanding[];
   leagueSkaters?: LeagueSkaterItem[];

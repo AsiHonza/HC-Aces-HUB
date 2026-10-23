@@ -2,7 +2,7 @@ export * from './components/LeagueStandingsTable';
 export * from './components/PlayerScoringTable';
 export * from './components/GoalieStatsTable';
 export * from './components/StatAdjuster';
-export * from './components/LeagueStandingsDialog';
+
 export * from './components/PlayoffSeriesDialog';
 export * from './components/ArchiveSeasonDialog';
 export * from './components/AdminStatsSettingsCard';
@@ -14,5 +14,6 @@ export * from './hooks/useTeamMilestonesData';
 export * from './utils/milestones';
 export * from './utils/chemistry';
 export * from './utils/playerForm';
+export * from './utils/season';
 export * from './services/statsService';
 export * from './services/historicalStatsBackupService';

@@ -13,6 +13,7 @@ import {
 } from '@/features/roster/utils/positions';
 import { areNamesMatching, formatName, isGoaliePlayer } from '@/lib/utils';
 import { toJsDate } from '@/lib/dates';
+import { DEFAULT_SEASON_START_MS } from './season';
 
 export type MilestoneTier = 'bronze' | 'silver' | 'gold' | 'diamond' | 'legend';
 
@@ -2154,7 +2155,7 @@ export function buildTeamScoringAndGoalieLeaderboard(
   allGoalieStats.forEach((stat) => {
     if (stat.userProfileId) goalieStatsMap.set(stat.userProfileId, stat);
   });
-  const seasonStartMs = new Date('2026-09-01T00:00:00').getTime();
+  const seasonStartMs = DEFAULT_SEASON_START_MS;
 
   const goalieLeaderboard = allUsers
     .filter((u) => u.playerType === 'goalie' || isGoaliePlayer(u))

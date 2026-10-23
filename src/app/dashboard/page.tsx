@@ -22,10 +22,10 @@ import {
   LeagueStandingsTable, 
   PlayerScoringTable, 
   GoalieStatsTable, 
-  LeagueStandingsDialog, 
+ 
   PlayoffSeriesDialog, 
   ArchiveSeasonDialog, 
-  HallOfFameTab,
+  getSeasonStartMs,
   PlayerFormBadgeItem,
   calculateTeamMilestonesOverview,
   calculatePlayerMilestones,
@@ -261,7 +261,7 @@ function DashboardPageContent() {
   const [editableSkaterStats, setEditableSkaterStats] = useState<any[]>([]);
   const [editableGoalieStats, setEditableGoalieStats] = useState<any[]>([]);
 
-  const [isLeagueDialogOpen, setIsLeagueDialogOpen] = useState(false);
+
   const [isPlayoffDialogOpen, setIsPlayoffDialogOpen] = useState(false);
   const [isArchiveSeasonDialogOpen, setIsArchiveSeasonDialogOpen] = useState(false);
   const [selectedSeasonId, setSelectedSeasonId] = useState<string>('current');
@@ -299,6 +299,7 @@ function DashboardPageContent() {
 
   const leagueSettingsRef = useMemoFirebase(() => firestore ? doc(firestore, 'settings', 'league') : null, [firestore]);
   const { data: leagueSettings, isLoading: leagueSettingsLoading } = useDoc<AppSettings>(leagueSettingsRef);
+  const seasonStartMs = useMemo(() => getSeasonStartMs(leagueSettings), [leagueSettings]);
 
   const seasonsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'seasons'), orderBy('archivedAt', 'desc')) : null, [firestore]);
   const { data: archivedSeasons, isLoading: seasonsLoading } = useCollection<SeasonArchive>(seasonsQuery);
@@ -309,16 +310,16 @@ function DashboardPageContent() {
       return allMatches
         .filter(match => {
           const mTime = toJsDate(match.dateTime).getTime();
-          if (mTime < new Date('2026-09-01T00:00:00').getTime()) return false;
+          if (mTime < seasonStartMs) return false;
           return !match.isPlayed && (mTime + 90 * 60 * 1000 > nowMs);
         })
         .sort((a, b) => toJsDate(a.dateTime).getTime() - toJsDate(b.dateTime).getTime());
-  }, [allMatches]);
+  }, [allMatches, seasonStartMs]);
 
   const matchesAwaitingResult = useMemo(() => {
       if (!allMatches) return [];
       const nowMs = Date.now();
-      const seasonStartMs = new Date('2026-09-01T00:00:00').getTime();
+
       const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
 
       // Bezpečnostní pojistka proti kolizi: zjistíme čísla kol zápasů, které již JSOU odehrané (isPlayed: true)
@@ -346,14 +347,14 @@ function DashboardPageContent() {
           return !match.isPlayed && isRecentlyEnded;
         })
         .sort((a, b) => toJsDate(b.dateTime).getTime() - toJsDate(a.dateTime).getTime());
-  }, [allMatches]);
+  }, [allMatches, seasonStartMs]);
 
   // Staré neuzavřené zápasy před začátkem aktuální sezóny (< 16. 9. 2026)
   const oldUnrecordedMatches = useMemo(() => {
       if (!allMatches) return [];
-      const seasonStartMs = new Date('2026-09-01T00:00:00').getTime();
+
       return allMatches.filter(m => !m.isPlayed && toJsDate(m.dateTime).getTime() < seasonStartMs);
-  }, [allMatches]);
+  }, [allMatches, seasonStartMs]);
 
   const nextMatch = upcomingMatches[0];
 
@@ -378,10 +379,10 @@ function DashboardPageContent() {
   const playedMatches = useMemo(() => {
       if (!allMatches) return [];
       return allMatches.filter(match => match.isPlayed).sort((a, b) => toJsDate(b.dateTime).getTime() - toJsDate(a.dateTime).getTime());
-  }, [allMatches]);
+  }, [allMatches, seasonStartMs]);
   
   const recentPlayedMatches = useMemo<MatchDisplayItem[]>(() => {
-      const seasonStartMs = new Date('2026-09-01T00:00:00').getTime();
+
       if (selectedSeasonId !== 'current') {
           const archived = archivedSeasons?.find(s => s.id === selectedSeasonId);
           if (archived?.matches && archived.matches.length > 0) {
@@ -430,7 +431,7 @@ function DashboardPageContent() {
       if (!allUsers || !allGoalieStats) return [];
       const statsMap = new Map<string, GoalieStats>();
       allGoalieStats.forEach(stat => { if (stat.userProfileId) statsMap.set(stat.userProfileId, stat); });
-      const seasonStartMs = new Date('2026-09-01T00:00:00').getTime();
+
 
       return allUsers.filter(u => u.playerType === 'goalie').map(u => {
           const stats = statsMap.get(u.id);
@@ -1007,20 +1008,6 @@ function DashboardPageContent() {
     }
   };
 
-  const handleSaveLeagueStandings = async (teams: LeagueStanding[]) => {
-    if (!firestore) return;
-    setIsSaving(true);
-    try {
-      await setDoc(doc(firestore, 'settings', 'league'), { leagueStandings: teams }, { merge: true });
-      toast({ title: "Tabulka uložena." });
-      setIsLeagueDialogOpen(false);
-    } catch (err: any) {
-      toast({ variant: 'destructive', title: "Chyba", description: "Nepodařilo se uložit tabulku." });
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   const handleSavePlayoffSeries = async (series: PlayoffSeries[]) => {
     if (!firestore) return;
     setIsSaving(true);
@@ -1040,141 +1027,24 @@ function DashboardPageContent() {
     setIsSaving(true);
 
     try {
-        const archivedSeasonId = leagueSettings.currentSeasonId || `season-${Date.now()}`;
+      await statsService.archiveSeason({
+        firestore,
+        seasonName,
+        year,
+        teamCount,
+        leagueSettings,
+        allSkaterStats,
+        allGoalieStats,
+        allMatches,
+        usersMap,
+      });
 
-        // Snapshot skater stats
-        const skaterSnapshot = (allSkaterStats || []).map((stat) => {
-            const u = usersMap.get(stat.userProfileId);
-            const regG = stat.seasonGoals || 0;
-            const regA = stat.seasonAssists || 0;
-            const poG = stat.playoffGoals || 0;
-            const poA = stat.playoffAssists || 0;
-            const regGP = stat.seasonGamesPlayed || 0;
-            const poGP = stat.playoffGamesPlayed || 0;
-            return {
-                userProfileId: stat.userProfileId,
-                name: u?.name || 'Hráč',
-                regularGoals: regG,
-                regularAssists: regA,
-                playoffGoals: poG,
-                playoffAssists: poA,
-                totalPoints: regG + regA + poG + poA,
-                regularGamesPlayed: regGP,
-                playoffGamesPlayed: poGP,
-            };
-        }).filter(s => s.regularGamesPlayed > 0 || s.totalPoints > 0)
-          .sort((a, b) => b.totalPoints - a.totalPoints || b.regularGoals - a.regularGoals)
-          .map((s, idx) => ({ ...s, rank: idx + 1 }));
-
-        // Snapshot goalie stats
-        const goalieSnapshot = (allGoalieStats || []).map(stat => {
-            const u = usersMap.get(stat.userProfileId);
-            const gp = (stat.seasonGamesPlayed || 0) + (stat.playoffGamesPlayed || 0);
-            const wins = (stat.seasonWins || 0) + (stat.playoffWins || 0);
-            const saves = (stat.seasonSaves || 0) + (stat.playoffSaves || 0);
-            const sa = (stat.seasonShotsAgainst || 0) + (stat.playoffShotsAgainst || 0);
-            const so = (stat.seasonSO || 0) + (stat.playoffSO || 0);
-            const pct = sa > 0 ? (saves / sa) * 100 : 0;
-            return {
-                userProfileId: stat.userProfileId,
-                name: u?.name || 'Brankář',
-                gamesPlayed: gp,
-                wins,
-                saves,
-                shotsAgainst: sa,
-                savePercentage: Math.round(pct * 10) / 10,
-                shutouts: so
-            };
-        }).filter(g => g.gamesPlayed > 0)
-          .sort((a, b) => (b.savePercentage || 0) - (a.savePercentage || 0) || b.wins - a.wins);
-
-        // Snapshot matches
-        const matchesSnapshot = (allMatches || [])
-            .filter(m => m.isPlayed && (!m.seasonId || m.seasonId === archivedSeasonId))
-            .map(m => ({
-                id: m.id,
-                round: m.round || 0,
-                team1: m.team1,
-                team2: m.team2,
-                team1Score: m.team1Score,
-                team2Score: m.team2Score,
-                location: m.location,
-                date: m.dateTime ? format(m.dateTime.toDate(), 'd. M. yyyy') : '',
-                scorers: m.scorers || []
-            }));
-
-        await setDoc(doc(firestore, 'seasons', archivedSeasonId), {
-            id: archivedSeasonId,
-            name: leagueSettings.currentSeasonName || 'Sezóna bez názvu',
-            year: year,
-            teamCount: teamCount,
-            archivedAt: Timestamp.now(),
-            standings: leagueSettings.leagueStandings || [],
-            playoffSeries: leagueSettings.playoffSeries || [],
-            skaterStats: skaterSnapshot,
-            goalieStats: goalieSnapshot,
-            matches: matchesSnapshot
-        });
-
-        const batch = writeBatch(firestore);
-        
-        if (allSkaterStats) {
-            allSkaterStats.forEach(stat => {
-                const statRef = doc(firestore, 'users', stat.userProfileId, 'skaterStats', stat.id);
-                batch.update(statRef, {
-                    historicalGoals: (stat.historicalGoals || 0) + (stat.seasonGoals || 0) + (stat.playoffGoals || 0),
-                    historicalAssists: (stat.historicalAssists || 0) + (stat.seasonAssists || 0) + (stat.playoffAssists || 0),
-                    historicalGamesPlayed: (stat.historicalGamesPlayed || 0) + (stat.seasonGamesPlayed || 0) + (stat.playoffGamesPlayed || 0),
-                    seasonGoals: 0,
-                    seasonAssists: 0,
-                    seasonGamesPlayed: 0,
-                    playoffGoals: 0,
-                    playoffAssists: 0,
-                    playoffGamesPlayed: 0,
-                });
-            });
-        }
-
-        if (allGoalieStats) {
-            allGoalieStats.forEach(stat => {
-                const statRef = doc(firestore, 'users', stat.userProfileId, 'goalieStats', stat.id);
-                batch.update(statRef, {
-                    historicalGamesPlayed: (stat.historicalGamesPlayed || 0) + (stat.seasonGamesPlayed || 0) + (stat.playoffGamesPlayed || 0),
-                    historicalWins: (stat.historicalWins || 0) + (stat.seasonWins || 0) + (stat.playoffWins || 0),
-                    historicalSaves: (stat.historicalSaves || 0) + (stat.seasonSaves || 0) + (stat.playoffSaves || 0),
-                    historicalShotsAgainst: (stat.historicalShotsAgainst || 0) + (stat.seasonShotsAgainst || 0) + (stat.playoffShotsAgainst || 0),
-                    historicalSO: (stat.historicalSO || 0) + (stat.seasonSO || 0) + (stat.playoffSO || 0),
-                    seasonGamesPlayed: 0,
-                    seasonWins: 0,
-                    seasonSaves: 0,
-                    seasonShotsAgainst: 0,
-                    seasonSO: 0,
-                    playoffGamesPlayed: 0,
-                    playoffWins: 0,
-                    playoffSaves: 0,
-                    playoffShotsAgainst: 0,
-                    playoffSO: 0,
-                });
-            });
-        }
-
-        const newSeasonId = `season-${Date.now()}`;
-        batch.update(doc(firestore, 'settings', 'league'), {
-            currentSeasonId: newSeasonId,
-            currentSeasonName: seasonName,
-            isScoringInPlayoffMode: false,
-            isPlayoffEnabled: false,
-            playoffSeries: [],
-            leagueStandings: []
-        });
-
-        await batch.commit();
-        toast({ title: 'Sezóna byla úspěšně archivována', description: `Nová sezóna ${seasonName} byla zahájena.` });
-        setIsArchiveSeasonDialogOpen(false);
+      toast({ title: 'Sezóna byla úspěšně archivována', description: `Nová sezóna ${seasonName} byla zahájena.` });
+      setIsArchiveSeasonDialogOpen(false);
     } catch (error: any) {
-        toast({ variant: 'destructive', title: 'Chyba archivace', description: error.message });
+      toast({ variant: 'destructive', title: 'Chyba archivace', description: error.message });
     } finally {
-        setIsSaving(false);
+      setIsSaving(false);
     }
   };
 
@@ -1333,7 +1203,7 @@ function DashboardPageContent() {
 
   const activeMvpMatch = useMemo(() => {
     if (!allMatches || allMatches.length === 0) return null;
-    const seasonStartMs = new Date('2026-09-01T00:00:00').getTime();
+
     const currentMatches = allMatches.filter((m) => toJsDate(m.dateTime).getTime() >= seasonStartMs);
 
     const openMatch = [...currentMatches]
@@ -1345,7 +1215,7 @@ function DashboardPageContent() {
       .filter((m) => (m.isPlayed || toJsDate(m.dateTime).getTime() + 90 * 60 * 1000 <= Date.now()) && ((m.mvpVotes && Object.keys(m.mvpVotes).length > 0) || (m.starsVotes && Object.keys(m.starsVotes).length > 0)))
       .sort((a, b) => toJsDate(b.dateTime).getTime() - toJsDate(a.dateTime).getTime())[0];
     return playedWithVotes || null;
-  }, [allMatches]);
+  }, [allMatches, seasonStartMs]);
 
   const postMatchData = useMemo(() => {
     if (!allMatches || allMatches.length === 0 || selectedSeasonId !== 'current') return null;
@@ -1424,7 +1294,7 @@ function DashboardPageContent() {
     if (!user?.uid || !allMatches || allMatches.length === 0) return;
 
     const nowMs = Date.now();
-    const seasonStartMs = new Date('2026-09-01T00:00:00').getTime();
+
 
     // Vybereme odehrané zápasy od začátku sezóny seřazené od nejnovějšího
     const sortedMatches = [...allMatches]
@@ -1688,7 +1558,7 @@ function DashboardPageContent() {
                            <RefreshCw className={cn("h-3 w-3 mr-1", isSyncingLeague && "animate-spin")} />
                            {isSyncingLeague ? 'Stahuji...' : 'Synchronizovat'}
                          </Button>
-                         <Button size="sm" variant="outline" onClick={() => setIsLeagueDialogOpen(true)} className="h-7 text-[10px] sm:text-xs"><Pencil className="h-3 w-3 mr-1" />Tabulka</Button>
+                         
                          <Button size="sm" variant="outline" onClick={() => setIsPlayoffDialogOpen(true)} className="h-7 text-[10px] sm:text-xs"><Pencil className="h-3 w-3 mr-1" />Play-off</Button>
                          <Button size="sm" variant="destructive" onClick={() => setIsArchiveSeasonDialogOpen(true)} className="h-7 text-[10px] sm:text-xs"><History className="h-3 w-3 mr-1" />Ukončit</Button>
                     </div>
@@ -2468,14 +2338,6 @@ function DashboardPageContent() {
         open={isAddDialogOpen}
         onOpenChange={setIsAddDialogOpen}
         onSave={handleCreateMatch}
-        isSaving={isSaving}
-      />
-
-      <LeagueStandingsDialog
-        isOpen={isLeagueDialogOpen}
-        onOpenChange={setIsLeagueDialogOpen}
-        standings={leagueSettings?.leagueStandings}
-        onSave={handleSaveLeagueStandings}
         isSaving={isSaving}
       />
 

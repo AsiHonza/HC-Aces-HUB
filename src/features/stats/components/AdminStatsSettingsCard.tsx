@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,7 +15,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { BarChart3, Loader2, DatabaseBackup, History, Download, ShieldCheck, CheckCircle2, Users } from 'lucide-react';
+import { BarChart3, Loader2, DatabaseBackup, History, Download, ShieldCheck, CheckCircle2, Users, Calendar, Trophy } from 'lucide-react';
 import { useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
 import { doc, collectionGroup, collection } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -25,12 +24,14 @@ import { format } from 'date-fns';
 import { cs } from 'date-fns/locale';
 import { statsService } from '../services/statsService';
 import { historicalStatsBackupService } from '../services/historicalStatsBackupService';
-import type { AppSettings, SkaterStats, GoalieStats, UserProfile } from '@/types';
+import { ArchiveSeasonDialog, type ArchiveSeasonData } from './ArchiveSeasonDialog';
+import type { AppSettings, SkaterStats, GoalieStats, UserProfile, Match } from '@/types';
 
 export function AdminStatsSettingsCard() {
   const firestore = useFirestore();
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
+  const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
 
   const leagueSettingsRef = useMemoFirebase(
     () => (firestore ? doc(firestore, 'settings', 'league') : null),
@@ -56,6 +57,12 @@ export function AdminStatsSettingsCard() {
   );
   const { data: allUsers, isLoading: allUsersLoading } = useCollection<UserProfile>(allUsersRef);
 
+  const allMatchesRef = useMemoFirebase(
+    () => (firestore ? collection(firestore, 'matches') : null),
+    [firestore]
+  );
+  const { data: allMatches } = useCollection<Match>(allMatchesRef);
+
   const snapshotDocRef = useMemoFirebase(
     () => (firestore ? doc(firestore, 'settings', 'historicalStatsSnapshot') : null),
     [firestore]
@@ -65,39 +72,27 @@ export function AdminStatsSettingsCard() {
   const [isRestoring, setIsRestoring] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
-  const handleTogglePlayoffScoringMode = async (checked: boolean) => {
+  const handleArchiveSeason = async (data: ArchiveSeasonData) => {
     if (!firestore) return;
     setIsSaving(true);
     try {
-      await statsService.togglePlayoffScoringMode(firestore, checked, allSkaterStats, allGoalieStats);
-      toast({ title: `Režim statistik play-off byl ${checked ? 'zapnut' : 'vypnut'}.` });
-      if (!checked) {
-        toast({ description: 'Statistiky play-off byly vynulovány.' });
-      }
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Chyba nastavení',
-        description: `Nepodařilo se změnit režim: ${error.message}`,
+      const usersMap = new Map((allUsers || []).map((u) => [u.id, u]));
+      await statsService.archiveSeason({
+        firestore,
+        seasonName: data.seasonName,
+        year: data.year,
+        teamCount: data.teamCount,
+        leagueSettings,
+        allSkaterStats,
+        allGoalieStats,
+        allMatches,
+        usersMap,
       });
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleArchiveSeason = async () => {
-    if (!firestore || !allSkaterStats || !allGoalieStats) {
-      toast({ variant: 'destructive', title: 'Chyba', description: 'Data statistik nejsou načtena.' });
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      await statsService.archiveSeasonDirect(firestore, allSkaterStats, allGoalieStats);
       toast({
         title: 'Sezóna byla úspěšně archivována',
-        description: 'Statistiky byly přičteny do historie a nová sezóna může začít.',
+        description: `Ročník ${data.year} (${data.seasonName}) byl uložen do archivu a nová sezóna zahájena.`,
       });
+      setIsArchiveDialogOpen(false);
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Chyba archivace', description: error.message });
     } finally {
@@ -148,12 +143,12 @@ export function AdminStatsSettingsCard() {
 
       toast({
         title: 'Záloha stažena',
-        description: 'Kompletní záložní JSON soubor byl úspěšně uložen do vašeho počítače.',
+        description: 'JSON soubor s kompletními historickými a sezónními statistikami byl uložen do vašeho zařízení.',
       });
     } catch (err: any) {
       toast({
         variant: 'destructive',
-        title: 'Chyba při exportu zálohy',
+        title: 'Chyba exportu zálohy',
         description: err.message,
       });
     } finally {
@@ -161,129 +156,100 @@ export function AdminStatsSettingsCard() {
     }
   };
 
-  if (leagueSettingsLoading || allSkaterStatsLoading || allGoalieStatsLoading || allUsersLoading) {
-    return (
-      <Card className="border-border/60 bg-card/95 p-6 flex items-center justify-center">
-        <Loader2 className="animate-spin text-primary h-6 w-6 mr-2" />
-        <span className="text-sm text-muted-foreground">Načítání administrace statistik...</span>
-      </Card>
-    );
-  }
-
-  // Datum poslední aplikace snapshotu
-  let lastRestoredText = 'Zatím neaplikováno v této relaci';
-  if (snapshotInfo?.appliedAt) {
+  const formatSnapshotDate = (isoOrTs: any) => {
+    if (!isoOrTs) return 'Neznámé datum';
     try {
-      const date = typeof snapshotInfo.appliedAt?.toDate === 'function'
-        ? snapshotInfo.appliedAt.toDate()
-        : new Date(snapshotInfo.appliedAt.seconds ? snapshotInfo.appliedAt.seconds * 1000 : snapshotInfo.appliedAt);
-      lastRestoredText = format(date, 'd. M. yyyy, HH:mm:ss', { locale: cs });
-    } catch (e) {
-      // fallback
+      const d = typeof isoOrTs.toDate === 'function' ? isoOrTs.toDate() : new Date(isoOrTs);
+      return format(d, 'd. MMMM yyyy HH:mm', { locale: cs });
+    } catch {
+      return String(isoOrTs);
     }
-  }
+  };
 
   return (
     <div className="space-y-6">
-      {/* 1. Karta Historických statistik a zálohy (Golden Snapshot) */}
-      <Card className="border-border/60 bg-card/95 shadow-sm border-l-4 border-l-amber-500">
+      {/* 1. Golden Historical Snapshot & Backups Card */}
+      <Card className="border-border/80 shadow-sm">
         <CardHeader>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <DatabaseBackup className="h-5 w-5 text-amber-500" />
-                <CardTitle className="text-xl">Oficiální snapshot historických statistik</CardTitle>
-                <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-600 border-amber-500/30">
-                  Stav k 14. 4. 2026
-                </Badge>
-              </div>
-              <CardDescription className="mt-1">
-                Neměnná referenční záloha statistik HC Aces před zahájením sezóny 2026/2027. Chrání data před ztrátou při synchronizacích ligy.
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="space-y-1">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <ShieldCheck className="h-5 w-5 text-emerald-500" />
+                Zlatý snapshot historických statistik (2020–2025)
+              </CardTitle>
+              <CardDescription>
+                Neměnné historické body a zápasy hráčů Aces před spuštěním aktuální aplikace.
               </CardDescription>
             </div>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExportBackup}
-              disabled={isExporting}
-              className="shrink-0 text-xs"
-            >
-              {isExporting ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-2 h-3.5 w-3.5" />}
-              Stáhnout zálohu (JSON)
-            </Button>
+            <Badge variant="outline" className="w-fit bg-emerald-500/10 text-emerald-600 border-emerald-500/30 gap-1.5 py-1">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Chráněno
+            </Badge>
           </div>
         </CardHeader>
-
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-            <div className="p-3 rounded-lg bg-muted/40 border space-y-1">
-              <span className="text-muted-foreground font-semibold flex items-center gap-1.5">
-                <Users className="h-3.5 w-3.5 text-primary" /> Hráči v poli (snapshot)
-              </span>
-              <p className="text-lg font-bold">37 hráčů</p>
-              <p className="text-[11px] text-muted-foreground">Krejčí (131 b.), Řezáč (68 b.), Konečný T. (67 b.), Bzduch (65 b.), Tzimas (63 b.)...</p>
+          <div className="rounded-lg border border-border/60 bg-muted/20 p-4 space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+              <div>
+                <span className="text-muted-foreground block">Zdrojový soubor:</span>
+                <span className="font-mono font-medium">historical-stats-snapshot.json</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground block">Původní datum snapshotu:</span>
+                <span className="font-medium">
+                  {snapshotInfo?.capturedAt ? formatSnapshotDate(snapshotInfo.capturedAt) : '15. října 2026'}
+                </span>
+              </div>
+              <div>
+                <span className="text-muted-foreground block">Poslední aplikace v DB:</span>
+                <span className="font-medium">
+                  {snapshotInfo?.appliedAt ? formatSnapshotDate(snapshotInfo.appliedAt) : 'Zatím neaplikováno'}
+                </span>
+              </div>
             </div>
 
-            <div className="p-3 rounded-lg bg-muted/40 border space-y-1">
-              <span className="text-muted-foreground font-semibold flex items-center gap-1.5">
-                <ShieldCheck className="h-3.5 w-3.5 text-primary" /> Brankáři (snapshot)
-              </span>
-              <p className="text-lg font-bold">6 brankářů</p>
-              <p className="text-[11px] text-muted-foreground">Štěpán (88 Z, 86.6 %), Lacko (31 Z, 91.5 %), Bara (5 Z), Divácký, Malec, Konečný M.</p>
+            <div className="border-t border-border/40 pt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <Users className="h-3.5 w-3.5 text-primary" />
+              <span>Snapshot obsahuje baseline pro <strong>24 hráčů v poli</strong> a <strong>3 brankáře</strong>.</span>
             </div>
-
-            <div className="p-3 rounded-lg bg-muted/40 border space-y-1">
-              <span className="text-muted-foreground font-semibold flex items-center gap-1.5">
-                <History className="h-3.5 w-3.5 text-primary" /> Týmová bilance (před 2026/27)
-              </span>
-              <p className="text-lg font-bold">136 zápasů</p>
-              <p className="text-[11px] text-muted-foreground">85 V - 41 P - 10 R • 455 vstřeleno / 354 inkasováno (ZČ: 97 Z, PO: 39 Z)</p>
-            </div>
-          </div>
-
-          <div className="rounded-lg border p-3 bg-amber-500/5 border-amber-500/20 text-xs space-y-1 text-muted-foreground">
-            <div className="flex items-center gap-1.5 font-semibold text-foreground">
-              <CheckCircle2 className="h-4 w-4 text-amber-500" />
-              <span>Automatické dopočítávání celkové kariéry</span>
-            </div>
-            <p>
-              Aplikace zobrazuje kariéru jako součet: <strong>Historický snapshot (do 14. 4. 2026) + Aktuální sezóna 2026/27 + Případné Play-off</strong>.
-              Synchronizace z oficiálního ligového webu aktualizuje pouze aktuální sezónu a historický snapshot nikdy nepřepisuje ani neničí.
-            </p>
-            {snapshotInfo?.appliedAt && (
-              <p className="pt-1 text-[11px] text-foreground font-medium">
-                Poslední aplikace snapshotu do databáze: <span className="underline">{lastRestoredText}</span>
-              </p>
-            )}
           </div>
         </CardContent>
-
-        <CardFooter className="border-t border-border/60 px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h4 className="font-semibold text-sm">Obnovení dat ze snapshotu</h4>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Pokud by došlo k poškození historických statistik, tímto tlačítkem je kdykoliv obnovíte zpět do stavu z 14. 4. 2026.
-            </p>
-          </div>
+        <CardFooter className="border-t border-border/60 px-6 py-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-muted/10">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportBackup}
+            disabled={isExporting}
+            className="text-xs"
+          >
+            {isExporting ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Download className="h-3.5 w-3.5 mr-1.5 text-primary" />}
+            Exportovat aktuální stav DB (JSON)
+          </Button>
 
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button variant="default" size="sm" disabled={isRestoring} className="shrink-0 font-semibold bg-amber-600 hover:bg-amber-700 text-white">
-                {isRestoring && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                <History className="mr-2 h-4 w-4" />
-                Obnovit historické statistiky ze snapshotu
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={isRestoring}
+                className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30"
+              >
+                {isRestoring ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <DatabaseBackup className="h-3.5 w-3.5 mr-1.5" />}
+                Obnovit / sjednotit zlatý snapshot
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Aplikovat oficiální historický snapshot?</AlertDialogTitle>
+                <AlertDialogTitle className="flex items-center gap-2">
+                  <DatabaseBackup className="h-5 w-5 text-emerald-500" />
+                  Obnovit zlatý snapshot historických statistik?
+                </AlertDialogTitle>
                 <AlertDialogDescription className="space-y-2 text-sm">
                   <p>
-                    Všem 37 hráčům a 6 brankářům budou do podkolekcí statistik nastaveny historické hodnoty přesně odpovídající oficiálnímu ligovému stavu k <strong>14. dubnu 2026</strong>.
+                    Tato akce přepíše pole <code>historical*</code> (góly, asistence, zápasy) u všech registrovaných hráčů Aces podle oficiálního snapshotu.
                   </p>
-                  <p className="text-muted-foreground text-xs">
-                    Statistiky letošní sezóny (2026/2027) zůstanou zachovány a v tabulkách se k historii automaticky přičtou.
+                  <p className="font-semibold text-emerald-600 dark:text-emerald-400">
+                    Body z aktuální sezóny (2025/2026) zůstanou nedotčeny a scraper je nepřepíše.
                   </p>
                 </AlertDialogDescription>
               </AlertDialogHeader>
@@ -291,7 +257,7 @@ export function AdminStatsSettingsCard() {
                 <AlertDialogCancel>Zrušit</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={handleRestoreSnapshot}
-                  className="bg-amber-600 text-white hover:bg-amber-700 font-semibold"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
                 >
                   Ano, aplikovat snapshot
                 </AlertDialogAction>
@@ -301,74 +267,66 @@ export function AdminStatsSettingsCard() {
         </CardFooter>
       </Card>
 
-      {/* 2. Karta Správa běžných statistik a play-off */}
-      <Card className="border-border/60 bg-card/95 shadow-sm">
+      {/* 2. Season Lifecycle Card */}
+      <Card className="border-border/80 shadow-sm">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <BarChart3 className="h-5 w-5 text-primary" />
-            Správa statistik a režim sezóny
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Trophy className="h-5 w-5 text-primary" />
+            Správa sezóny a archivace
           </CardTitle>
           <CardDescription>
-            Spravujte režim sčítání statistik a archivaci odehraných sezón.
+            Informace o probíhající sezóně a možnost jejího řádného uzavření a archivace.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between rounded-lg border border-border/60 p-4 bg-muted/20">
-            <div className="space-y-0.5 pr-4">
-              <Label htmlFor="playoff-scoring-mode" className="text-sm font-semibold cursor-pointer">
-                Režim statistik Play-off
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                Přepne sčítání gólů, asistencí a zákroků do odděleného režimu pro vyřazovací boje.
-              </p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-lg border border-border/60 bg-muted/20 text-xs">
+            <div>
+              <span className="text-muted-foreground block">Aktuální sezóna:</span>
+              <span className="font-semibold text-sm text-foreground">
+                {leagueSettings?.currentSeasonName || 'Aces Cup 2025/2026'}
+              </span>
             </div>
-            <Switch
-              id="playoff-scoring-mode"
-              checked={leagueSettings?.isScoringInPlayoffMode ?? false}
-              onCheckedChange={handleTogglePlayoffScoringMode}
-              disabled={isSaving}
-            />
+            <div>
+              <span className="text-muted-foreground block">Identifikátor ročníku:</span>
+              <span className="font-mono font-medium text-foreground">
+                {leagueSettings?.currentSeasonId || '2025-2026'}
+              </span>
+            </div>
+            <div>
+              <span className="text-muted-foreground block">Začátek sezóny:</span>
+              <span className="font-medium text-foreground">
+                {leagueSettings?.seasonStartDate || '2026-09-01'}
+              </span>
+            </div>
           </div>
         </CardContent>
         <CardFooter className="border-t border-border/60 px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h4 className="font-semibold text-sm">Archivovat sezónu</h4>
+            <h4 className="font-semibold text-sm">Archivovat a ukončit sezónu</h4>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Sečte body aktuální sezóny i play-off do celkové historie a vynuluje ročník. Tato operace je nevratná.
+              Uloží kompletní snapshot ročníku do archivu, přičte sezónní body do historie hráčů a zahájí nový ročník.
             </p>
           </div>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive" size="sm" disabled={isSaving} className="shrink-0 font-semibold">
-                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Archivovat a zahájit novou sezónu
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Opravdu chcete archivovat sezónu?</AlertDialogTitle>
-                <AlertDialogDescription className="space-y-2 text-sm">
-                  <p>
-                    Statistiky aktuální sezóny a play-off budou přičteny k historickým statistikám a poté vynulovány.
-                  </p>
-                  <p className="font-semibold text-destructive">
-                    Tuto akci nelze vrátit zpět.
-                  </p>
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Zrušit</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={handleArchiveSeason}
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                >
-                  Ano, archivovat
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <Button
+            variant="destructive"
+            size="sm"
+            disabled={isSaving}
+            onClick={() => setIsArchiveDialogOpen(true)}
+            className="shrink-0 font-semibold"
+          >
+            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            <History className="h-3.5 w-3.5 mr-1.5" />
+            Ukončit a archivovat sezónu
+          </Button>
         </CardFooter>
       </Card>
+
+      <ArchiveSeasonDialog
+        isOpen={isArchiveDialogOpen}
+        onOpenChange={setIsArchiveDialogOpen}
+        onArchive={handleArchiveSeason}
+        isSaving={isSaving}
+      />
     </div>
   );
 }

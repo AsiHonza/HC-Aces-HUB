@@ -110,6 +110,19 @@ export async function syncLeagueToAdminFirestore(
   let skatersUpdated = 0;
   let goaliesUpdated = 0;
 
+  let activeSeasonId = '2025-2026';
+  let seasonStartDateStr = '2026-09-01';
+  try {
+    const currentSettingsSnap = await adminDb.doc('settings/league').get();
+    if (currentSettingsSnap.exists) {
+      const sData = currentSettingsSnap.data();
+      if (sData?.currentSeasonId) activeSeasonId = sData.currentSeasonId;
+      if (sData?.seasonStartDate) seasonStartDateStr = sData.seasonStartDate;
+    }
+  } catch (e) {
+    // fallback to defaults
+  }
+
   console.log('   [1/5] Ukládám tabulku a statistiky do settings/league přes Admin SDK...');
   // 1. Sync Standings to settings/league
   try {
@@ -393,7 +406,7 @@ export async function syncLeagueToAdminFirestore(
         }
       } else {
         const newMatchId = `match-round-${scrapedMatch.round}-regular`;
-        await adminDb.doc(`matches/${newMatchId}`).set({ id: newMatchId, seasonId: '2025-2026', ...sanitizedPayload }, { merge: true });
+        await adminDb.doc(`matches/${newMatchId}`).set({ id: newMatchId, seasonId: activeSeasonId, ...sanitizedPayload }, { merge: true });
         matchesCreated++;
       }
     } catch (err: any) {
@@ -514,7 +527,7 @@ export async function syncLeagueToAdminFirestore(
       for (const em of existingMatches) {
         if (!em.isPlayed) continue;
         const matchDate = em.date || (em.dateTime?.toDate ? em.dateTime.toDate().toISOString() : String(em.dateTime || ''));
-        if (matchDate < '2026-09-01') continue;
+        if (matchDate < seasonStartDateStr) continue;
         const isT1 = /aces/i.test(em.team1 || '');
         const isT2 = /aces/i.test(em.team2 || '');
         if (!isT1 && !isT2) continue;

@@ -1,6 +1,7 @@
 import type { Match, UserProfile } from '@/types';
 import { toSafeDate, formatMatchDate } from '@/lib/dates';
 import { formatName } from '@/lib/utils';
+import { DEFAULT_SEASON_START_MS } from '@/features/stats/utils/season';
 
 export interface HeadToHeadMatchRecord {
   id: string;
@@ -95,7 +96,7 @@ export function calculateHeadToHead(
   const targetOpponentKey = normalizeTeamKey(opponentName);
 
   // Začátek aktuální sezóny (září 2026)
-  const seasonCutoffMs = new Date('2026-09-01T00:00:00').getTime();
+  const seasonCutoffMs = DEFAULT_SEASON_START_MS;
 
   let histWins = 0;
   let histDraws = 0;

@@ -4,6 +4,7 @@ import { getMvpVotingStatus } from '@/features/matches/utils/mvpVoting';
 import { hasMatchStatsRecorded } from '@/features/matches/utils/match-details';
 import { areNamesMatching, isGoaliePlayer } from '@/lib/utils';
 import { toJsDate, toSafeDate } from '@/lib/dates';
+import { getSeasonStartMs, DEFAULT_SEASON_START_MS } from './season';
 
 export type PlayerFormBadgeType =
   | 'reigning-mvp'
@@ -161,7 +162,7 @@ function getPlayerMatchGoalsAndAssists(player: UserProfile, match: Match): { goa
  * Začátek aktuální sezóny HC Aces (2026/2027) – 1. 9. 2026.
  * Zajišťuje zahrnutí všech ligových zápasů od 1. kola (15. 9. 2026) a vyloučení starých zápasů z minulé sezóny / historie.
  */
-export const CURRENT_SEASON_START_MS = new Date('2026-09-01T00:00:00').getTime();
+export const CURRENT_SEASON_START_MS = DEFAULT_SEASON_START_MS;
 
 export function getMatchTimestamp(match: Match): number {
   if (match.dateTime) {
