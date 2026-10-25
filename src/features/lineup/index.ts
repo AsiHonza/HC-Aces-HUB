@@ -1,5 +1,6 @@
 export * from './types';
 export * from './utils/lineup-config';
+export * from './utils/sanitize-lineup';
 export * from './components/TacticalRinkBoard';
 export * from './components/FormationPlayerCard';
 export * from './components/FormationSlideRow';

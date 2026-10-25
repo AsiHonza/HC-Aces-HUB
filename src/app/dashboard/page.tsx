@@ -73,7 +73,7 @@ import {
 } from 'firebase/firestore';
 import { startOfDay, addDays, parseISO, isValid, differenceInDays } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
-import { type Lineup } from '@/components/lineup-builder';
+import { type Lineup, sanitizeLineup, type Player } from '@/components/lineup-builder';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { type PlayerCareerData } from '@/components/player-career-modal';
@@ -1800,47 +1800,71 @@ function DashboardPageContent() {
                   ?.map((u) => ({
                     ...u,
                     playerType: isGoaliePlayer(u) ? ('goalie' as const) : u.playerType,
-                  }))
-                  .filter((u) => (attendancesByMatch.get(lineupMatch.id) || []).some((a) => a.userId === u.id && a.status === 'going')) || []
+                  })) || []
+              }
+              confirmedPlayerIds={
+                (attendancesByMatch.get(lineupMatch.id) || [])
+                  .filter((a) => a.status === 'going')
+                  .map((a) => a.userId)
               }
               initialData={lineupMatch.lineup}
               teamChemistry={teamMilestonesData.teamChemistry}
+              isSaving={isSaving}
               onSave={async (l) => {
                 if (!lineupMatch || !firestore) return;
                 setIsSaving(true);
                 try {
-                  await updateDoc(doc(firestore, 'matches', lineupMatch.id), { lineup: l });
+                  const sanitizedLineup = sanitizeLineup(l);
+                  await updateDoc(doc(firestore, 'matches', lineupMatch.id), { lineup: sanitizedLineup });
+
                   if (userProfile?.role === 'admin' && allUsers) {
-                    await rosterService.syncPositionsFromLineup(firestore, l, allUsers as any);
+                    try {
+                      await rosterService.syncPositionsFromLineup(firestore, sanitizedLineup, allUsers as any);
+                    } catch (syncErr) {
+                      console.warn('Nepodařilo se synchronizovat posty:', syncErr);
+                    }
                   }
 
-                  const batch = writeBatch(firestore);
-                  const opponent = getMatchDetails(lineupMatch).opponent;
-                  const playerIds = Object.values(l)
-                    .filter((p) => p !== null)
-                    .map((p) => p!.id);
-
-                  playerIds.forEach((pId) => {
-                    const notifRef = doc(collection(firestore, 'users', pId, 'notifications'));
-                    batch.set(notifRef, {
-                      title: 'Byl jsi nominován do sestavy!',
-                      message: `Máš místo v sestavě na zápas proti ${opponent}. Koukni na detaily!`,
-                      type: 'lineup_added',
-                      createdAt: Timestamp.now(),
-                      read: false,
-                      matchId: lineupMatch.id,
-                    });
-                  });
-
-                  await batch.commit();
                   setIsLineupBuilderOpen(false);
-                  toast({ title: 'Sestava uložena a hráči informováni.' });
-                } catch {
-                  const permissionError = new FirestorePermissionError({
-                    path: `matches/${lineupMatch.id}`,
-                    operation: 'update',
+                  toast({ title: 'Sestava úspěšně uložena!' });
+
+                  // Decoupled notification dispatch:
+                  // If sending notifications fails, the match lineup is ALREADY safely saved!
+                  try {
+                    const opponent = getMatchDetails(lineupMatch).opponent;
+                    const playerIds = Array.from(
+                      new Set(
+                        Object.values(sanitizedLineup)
+                          .filter((p): p is Player => p !== null && !String(p.id).startsWith('guest-'))
+                          .map((p) => p.id)
+                      )
+                    );
+
+                    if (playerIds.length > 0) {
+                      const batch = writeBatch(firestore);
+                      playerIds.forEach((pId) => {
+                        const notifRef = doc(collection(firestore, 'users', pId, 'notifications'));
+                        batch.set(notifRef, {
+                          title: 'Byl jsi nominován do sestavy!',
+                          message: `Máš místo v sestavě na zápas proti ${opponent}. Koukni na detaily!`,
+                          type: 'lineup_added',
+                          createdAt: Timestamp.now(),
+                          read: false,
+                          matchId: lineupMatch.id,
+                        });
+                      });
+                      await batch.commit();
+                    }
+                  } catch (notifErr) {
+                    console.warn('Nepodařilo se odeslat push/in-app notifikace o nominaci:', notifErr);
+                  }
+                } catch (err: any) {
+                  console.error('Chyba při ukládání sestavy:', err);
+                  toast({
+                    variant: 'destructive',
+                    title: 'Chyba při ukládání sestavy',
+                    description: err?.message || 'Nepodařilo se uložit sestavu do databáze.',
                   });
-                  errorEmitter.emit('permission-error', permissionError);
                 } finally {
                   setIsSaving(false);
                 }

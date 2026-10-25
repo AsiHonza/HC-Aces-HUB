@@ -18,7 +18,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from '@/hooks/use-toast'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { LineupBuilder, LineupDisplay, type Lineup } from '@/components/lineup-builder'
+import { LineupBuilder, LineupDisplay, type Lineup, sanitizeLineup } from '@/components/lineup-builder'
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
 import { cn, formatName, areNamesMatching, isGoaliePlayer } from '@/lib/utils'
@@ -161,20 +161,27 @@ function HistoryPageContent() {
         if (!lineupMatch || !firestore) return;
         setIsSaving(true);
         try {
-            await updateDoc(doc(firestore, 'matches', lineupMatch.id), { lineup });
+            const sanitized = sanitizeLineup(lineup);
+            await updateDoc(doc(firestore, 'matches', lineupMatch.id), { lineup: sanitized });
             if (userProfile?.role === 'admin' && users) {
-                await rosterService.syncPositionsFromLineup(firestore, lineup, users as any);
+                try {
+                    await rosterService.syncPositionsFromLineup(firestore, sanitized, users as any);
+                } catch (syncErr) {
+                    console.warn('Nepodařilo se synchronizovat posty:', syncErr);
+                }
             }
             toast({ title: "Sestava uložena (včetně aktualizace postů)." });
+            setIsLineupBuilderOpen(false);
+            setLineupMatch(null);
         } catch (error: any) { 
-            const permissionError = new FirestorePermissionError({
-                path: `matches/${lineupMatch.id}`,
-                operation: 'update',
-                requestResourceData: { lineup }
+            console.error('Chyba při ukládání sestavy:', error);
+            toast({
+                variant: 'destructive',
+                title: 'Chyba při ukládání sestavy',
+                description: error?.message || 'Nepodařilo se uložit sestavu do databáze.',
             });
-            errorEmitter.emit('permission-error', permissionError);
         } finally { 
-            setIsSaving(false); setIsLineupBuilderOpen(false); setLineupMatch(null); 
+            setIsSaving(false);
         }
     };
     
@@ -502,7 +509,7 @@ function HistoryPageContent() {
                         <DialogTitle>Editor sestavy</DialogTitle>
                     </DialogHeader>
                     {lineupMatch && users && (
-                        <LineupBuilder players={users} initialData={lineupMatch.lineup} onSave={handleSaveLineup} onCancel={() => setIsLineupBuilderOpen(false)} />
+                        <LineupBuilder players={users} initialData={lineupMatch.lineup} isSaving={isSaving} onSave={handleSaveLineup} onCancel={() => setIsLineupBuilderOpen(false)} />
                     )}
                 </DialogContent>
             </Dialog>

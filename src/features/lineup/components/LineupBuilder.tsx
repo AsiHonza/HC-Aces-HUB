@@ -18,16 +18,20 @@ import type { TeamChemistryData } from '@/features/stats/utils/chemistry';
 
 interface LineupBuilderProps {
   players: Player[];
+  confirmedPlayerIds?: string[];
   initialData?: Lineup | null;
   teamChemistry?: TeamChemistryData | null;
+  isSaving?: boolean;
   onSave: (lineup: Lineup) => void;
   onCancel: () => void;
 }
 
 export function LineupBuilder({
   players,
+  confirmedPlayerIds,
   initialData,
   teamChemistry,
+  isSaving = false,
   onSave,
   onCancel,
 }: LineupBuilderProps) {
@@ -37,6 +41,9 @@ export function LineupBuilder({
   const [searchQuery, setSearchQuery] = useState('');
   const [formationCount, setFormationCount] = useState<'2' | '3'>(() =>
     initialData?.LK3 || initialData?.C3 || initialData?.PK3 ? '3' : '2'
+  );
+  const [rosterFilter, setRosterFilter] = useState<'confirmed' | 'all'>(() =>
+    confirmedPlayerIds && confirmedPlayerIds.length > 0 ? 'confirmed' : 'all'
   );
 
   const [availablePlayers, setAvailablePlayers] = useState<Player[]>(() => {
@@ -67,6 +74,14 @@ export function LineupBuilder({
     if (unassigned.length === 0) {
       toast({ title: 'Žádní volní hráči', description: 'Všichni dostupní hráči už jsou v sestavě.' });
       return;
+    }
+
+    if (confirmedPlayerIds && confirmedPlayerIds.length > 0) {
+      unassigned.sort((a, b) => {
+        const confA = confirmedPlayerIds.includes(a.id) ? 1 : 0;
+        const confB = confirmedPlayerIds.includes(b.id) ? 1 : 0;
+        return confB - confA;
+      });
     }
 
     const newLineup = { ...lineup };
@@ -106,6 +121,11 @@ export function LineupBuilder({
       if (matchingIndices.length === 0) return null;
 
       matchingIndices.sort((a, b) => {
+        if (confirmedPlayerIds && confirmedPlayerIds.length > 0) {
+          const confA = confirmedPlayerIds.includes(a.p.id) ? 1 : 0;
+          const confB = confirmedPlayerIds.includes(b.p.id) ? 1 : 0;
+          if (confB !== confA) return confB - confA;
+        }
         const chemA = getChemistryWithUnit(a.p.id, unitPlayers);
         const chemB = getChemistryWithUnit(b.p.id, unitPlayers);
         if (chemB !== chemA) return chemB - chemA;
@@ -292,13 +312,17 @@ export function LineupBuilder({
   };
 
   const filteredAvailablePlayers = useMemo(() => {
-    if (!searchQuery.trim()) return availablePlayers;
+    let list = availablePlayers;
+    if (rosterFilter === 'confirmed' && confirmedPlayerIds && confirmedPlayerIds.length > 0) {
+      list = list.filter((p) => confirmedPlayerIds.includes(p.id));
+    }
+    if (!searchQuery.trim()) return list;
     const q = searchQuery.toLowerCase().trim();
-    return availablePlayers.filter(p =>
+    return list.filter((p) =>
       p.name.toLowerCase().includes(q) ||
       (p.jerseyNumber && String(p.jerseyNumber).includes(q))
     );
-  }, [availablePlayers, searchQuery]);
+  }, [availablePlayers, rosterFilter, confirmedPlayerIds, searchQuery]);
 
   const assignedCount = Object.values(lineup).filter(Boolean).length;
 
@@ -339,6 +363,7 @@ export function LineupBuilder({
                       isDragging={dragSnapshot.isDragging}
                       isSmall={isSmall}
                       positionBadge={posMeta.short}
+                      isConfirmed={confirmedPlayerIds?.includes(player.id)}
                       onRemove={() => handleRemoveFromPosition(positionKey)}
                     />
                   </div>
@@ -405,6 +430,7 @@ export function LineupBuilder({
             {player && <SelectItem value={player.id} disabled>{player.name} (vybrán)</SelectItem>}
             <SelectSeparator />
             {availablePlayers.map(p => {
+              const isConfirmed = Boolean(confirmedPlayerIds?.includes(p.id));
               const posTag =
                 p.playerType === 'goalie'
                   ? ' [BRA]'
@@ -417,7 +443,7 @@ export function LineupBuilder({
                   : '';
               return (
                 <SelectItem key={p.id} value={p.id}>
-                  {p.jerseyNumber != null ? `#${p.jerseyNumber} ` : ''}{p.name}{posTag}
+                  {p.jerseyNumber != null ? `#${p.jerseyNumber} ` : ''}{p.name}{posTag}{isConfirmed ? ' ✓' : ''}
                 </SelectItem>
               );
             })}
@@ -443,6 +469,13 @@ export function LineupBuilder({
             <RotateCcw className="h-3.5 w-3.5 mr-1" /> Vyčistit
           </Button>
         </div>
+
+        {confirmedPlayerIds && confirmedPlayerIds.length > 0 && (
+          <div className="flex items-center justify-between px-1 text-xs text-muted-foreground">
+            <span>Potvrzená účast: <strong className="text-foreground">{confirmedPlayerIds.length}</strong> hráčů</span>
+            <span className="text-[11px] text-emerald-500 font-semibold">✓ označeni v nabídce</span>
+          </div>
+        )}
 
         <Card>
           <CardHeader className="py-3 px-4 bg-muted/20 border-b flex-row items-center justify-between space-y-0">
@@ -531,6 +564,20 @@ export function LineupBuilder({
                   V sestavě: {assignedCount}
                 </Badge>
               </div>
+
+              {confirmedPlayerIds && confirmedPlayerIds.length > 0 && (
+                <Tabs value={rosterFilter} onValueChange={(v) => setRosterFilter(v as any)} className="w-full">
+                  <TabsList className="grid w-full grid-cols-2 h-7 p-0.5">
+                    <TabsTrigger value="confirmed" className="text-[11px] py-1">
+                      Potvrzení ({availablePlayers.filter(p => confirmedPlayerIds.includes(p.id)).length})
+                    </TabsTrigger>
+                    <TabsTrigger value="all" className="text-[11px] py-1">
+                      Celý tým ({availablePlayers.length})
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              )}
+
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
@@ -565,6 +612,7 @@ export function LineupBuilder({
                               player={player}
                               isDragging={dragSnapshot.isDragging}
                               isGhost={dragSnapshot.isDragging}
+                              isConfirmed={confirmedPlayerIds?.includes(player.id)}
                             />
                           </div>
                         )}
@@ -720,11 +768,22 @@ export function LineupBuilder({
           {lineup.B1 ? '1 brankář' : 'bez brankáře'}, {assignedCount - (lineup.B1 ? 1 : 0)} v poli)
         </div>
         <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-          <Button variant="outline" onClick={onCancel} className="flex-1 sm:flex-none">
+          <Button variant="outline" onClick={onCancel} disabled={isSaving} className="flex-1 sm:flex-none">
             Zrušit
           </Button>
-          <Button onClick={() => onSave(lineup)} className="flex-1 sm:flex-none font-bold">
-            Uložit sestavu
+          <Button
+            onClick={() => onSave(lineup)}
+            disabled={isSaving}
+            className="flex-1 sm:flex-none font-bold min-w-[130px]"
+          >
+            {isSaving ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Ukládám...
+              </>
+            ) : (
+              'Uložit sestavu'
+            )}
           </Button>
         </div>
       </div>

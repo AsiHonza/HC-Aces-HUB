@@ -10,6 +10,7 @@ interface PlayerCardProps {
   isDragging?: boolean;
   isGhost?: boolean;
   isSmall?: boolean;
+  isConfirmed?: boolean;
   stats?: PlayerStats;
   positionBadge?: string;
   onRemove?: () => void;
@@ -20,6 +21,7 @@ export const PlayerCard = ({
   isDragging,
   isGhost,
   isSmall,
+  isConfirmed,
   stats,
   positionBadge,
   onRemove,
@@ -76,6 +78,11 @@ export const PlayerCard = ({
           <span className="text-[9px] font-bold text-primary uppercase tracking-wider">
             {positionBadge}
           </span>
+        )}
+        {isConfirmed && (
+          <Badge variant="outline" className="text-[8px] py-0 px-1 border-emerald-500/50 text-emerald-500 bg-emerald-500/10 font-bold">
+            ✓ Účast
+          </Badge>
         )}
         {player.playerType === 'goalie' ? (
           <Badge variant="outline" className="text-[8px] py-0 px-1 border-amber-500/40 text-amber-500 bg-amber-500/10 font-bold">
