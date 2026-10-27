@@ -1,10 +1,26 @@
 'use client';
 
 import React from 'react';
-import { Trophy, Activity, RefreshCw, Calendar, Flame, Shield, Users } from 'lucide-react';
+import {
+  Trophy,
+  Activity,
+  RefreshCw,
+  Calendar,
+  Flame,
+  Shield,
+  History,
+  CalendarDays,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import type { LeagueAwardsLeadersData } from '../types';
 
@@ -14,6 +30,11 @@ interface LeagueHeaderProps {
   isAdmin?: boolean;
   isSyncing?: boolean;
   onSync?: () => void;
+  selectedSeasonId?: string;
+  onSelectSeasonId?: (seasonId: string) => void;
+  archivedSeasons?: Array<{ id: string; name: string; year: string }> | null;
+  onOpenArchiveDialog?: () => void;
+  currentSeasonName?: string;
 }
 
 export function LeagueHeader({
@@ -22,24 +43,54 @@ export function LeagueHeader({
   isAdmin,
   isSyncing = false,
   onSync,
+  selectedSeasonId = 'current',
+  onSelectSeasonId,
+  archivedSeasons,
+  onOpenArchiveDialog,
+  currentSeasonName,
 }: LeagueHeaderProps) {
   const syncDate = lastSyncAt?.toDate ? lastSyncAt.toDate() : (lastSyncAt ? new Date(lastSyncAt) : null);
   const syncFormatted = syncDate
     ? syncDate.toLocaleString('cs-CZ', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })
     : 'Neznámý';
 
+  const isCurrent = selectedSeasonId === 'current';
+  const isUpcoming = selectedSeasonId === 'upcoming';
+  const archived = archivedSeasons?.find((s) => s.id === selectedSeasonId);
+
   return (
     <div className="space-y-4">
       {/* Top Banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-card via-card/90 to-primary/5 border border-border/70 shadow-sm">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-card via-card/90 to-primary/5 border border-border/70 shadow-sm">
         <div className="space-y-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <Badge variant="outline" className="border-primary/40 bg-primary/10 text-primary font-bold text-[10px] sm:text-xs uppercase tracking-wider">
-              HobbyHokej Brno • 2025/2026
+            <Badge
+              variant="outline"
+              className={cn(
+                'font-bold text-[10px] sm:text-xs uppercase tracking-wider',
+                isCurrent && 'border-primary/40 bg-primary/10 text-primary',
+                isUpcoming && 'border-blue-500/40 bg-blue-500/10 text-blue-500',
+                archived && 'border-amber-500/40 bg-amber-500/10 text-amber-500'
+              )}
+            >
+              {isCurrent && (currentSeasonName || 'HobbyHokej Brno • 2025/2026')}
+              {isUpcoming && 'Nadcházející sezóna • 2026/2027'}
+              {archived && `Archivovaná sezóna • ${archived.name} (${archived.year})`}
             </Badge>
-            <span className="text-xs text-muted-foreground hidden sm:inline">•</span>
-            <span className="text-xs text-muted-foreground">Aktualizace: {syncFormatted}</span>
+
+            {isCurrent && (
+              <>
+                <span className="text-xs text-muted-foreground hidden sm:inline">•</span>
+                <span className="text-xs text-muted-foreground">Aktualizace: {syncFormatted}</span>
+              </>
+            )}
+            {archived && (
+              <Badge variant="secondary" className="text-[10px] uppercase font-bold tracking-wider">
+                Archivováno
+              </Badge>
+            )}
           </div>
+
           <h1 className="text-2xl sm:text-3xl font-black font-headline tracking-tight text-foreground flex items-center gap-2">
             <Trophy className="h-7 w-7 text-primary shrink-0" />
             Ligové centrum
@@ -49,8 +100,41 @@ export function LeagueHeader({
           </p>
         </div>
 
-        {isAdmin && onSync && (
-          <div className="flex items-center gap-2 shrink-0">
+        {/* Season Selector Dropdown & Action Buttons */}
+        <div className="flex flex-wrap items-center gap-2 shrink-0 self-start lg:self-center">
+          {onSelectSeasonId && (
+            <div className="flex items-center gap-1.5">
+              <CalendarDays className="h-4 w-4 text-muted-foreground shrink-0 hidden sm:inline" />
+              <Select value={selectedSeasonId} onValueChange={onSelectSeasonId}>
+                <SelectTrigger className="h-8 w-[190px] sm:w-[210px] text-xs font-semibold bg-card border-border/80 shadow-sm">
+                  <SelectValue placeholder="Výběr sezóny" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="current" className="font-bold">
+                    ★ Nynější sezóna (2025/2026)
+                  </SelectItem>
+                  <SelectItem value="upcoming">
+                    📅 Nadcházející sezóna (2026/2027)
+                  </SelectItem>
+                  {archivedSeasons && archivedSeasons.length > 0 && (
+                    <>
+                      <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                        Archivované ročníky
+                      </div>
+                      {archivedSeasons.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          🏆 {s.name} ({s.year})
+                        </SelectItem>
+                      ))}
+                    </>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* Sync Button (current season only) */}
+          {isAdmin && onSync && isCurrent && (
             <Button
               size="sm"
               variant="outline"
@@ -62,8 +146,22 @@ export function LeagueHeader({
               <RefreshCw className={cn('h-3.5 w-3.5 mr-1.5', isSyncing && 'animate-spin')} />
               {isSyncing ? 'Synchronizuji...' : 'Aktualizovat ligu'}
             </Button>
-          </div>
-        )}
+          )}
+
+          {/* Archive Season Button (Admin & current season only) */}
+          {isAdmin && onOpenArchiveDialog && isCurrent && (
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={onOpenArchiveDialog}
+              className="h-8 text-xs font-semibold"
+              title="Ukončit aktuální sezónu a uložit její kompletní data do archivu"
+            >
+              <History className="h-3.5 w-3.5 mr-1.5" />
+              Ukončit & Archivovat
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Quick KPI Strip */}

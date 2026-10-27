@@ -202,6 +202,11 @@ export const statsService = {
         skaterStats: skaterSnapshot,
         goalieStats: goalieSnapshot,
         matches: matchesSnapshot,
+        leagueStandings: leagueSettings?.leagueStandings || [],
+        leagueSkaters: leagueSettings?.leagueSkaters || [],
+        leagueGoalies: leagueSettings?.leagueGoalies || [],
+        leagueMatches: leagueSettings?.leagueMatches || [],
+        leagueFairPlay: leagueSettings?.leagueFairPlay || [],
       });
 
       // 5. Batch update user stats (add to historical, reset season)
@@ -257,6 +262,9 @@ export const statsService = {
         playoffSeries: [],
         leagueStandings: [],
         leagueSkaters: [],
+        leagueGoalies: [],
+        leagueMatches: [],
+        leagueFairPlay: [],
       });
 
       await batch.commit();

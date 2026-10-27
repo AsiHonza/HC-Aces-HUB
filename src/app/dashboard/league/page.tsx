@@ -1,16 +1,25 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
+import { doc, query, collection, orderBy } from 'firebase/firestore';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, ListOrdered, CalendarDays, Trophy, Shield, RefreshCw } from 'lucide-react';
+import { Loader2, ListOrdered, CalendarDays, Trophy, Shield, RefreshCw, History, Sparkles } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { syncLeagueToFirestore, buildEnrichedLeagueMatches } from '@/lib/sync/league-sync';
-import type { AppSettings, UserProfile, LeagueMatchItem, LeagueSkaterItem, LeagueGoalieItem, LeagueFairPlayItem, LeagueStanding } from '@/types';
+import { ArchiveSeasonDialog, statsService } from '@/features/stats';
+import type {
+  AppSettings,
+  UserProfile,
+  LeagueMatchItem,
+  LeagueSkaterItem,
+  LeagueGoalieItem,
+  LeagueFairPlayItem,
+  LeagueStanding,
+} from '@/types';
 import type { ScrapedLeagueData } from '@/lib/sync/league-scraper';
 import {
   LeagueHeader,
@@ -25,15 +34,31 @@ import {
   TeamAnalyticsSummary,
 } from '@/features/league';
 
+interface SeasonArchiveDoc {
+  id: string;
+  name: string;
+  year: string;
+  teamCount?: number;
+  standings?: LeagueStanding[];
+  leagueStandings?: LeagueStanding[];
+  leagueMatches?: LeagueMatchItem[];
+  matches?: any[];
+  leagueSkaters?: LeagueSkaterItem[];
+  leagueGoalies?: LeagueGoalieItem[];
+  leagueFairPlay?: LeagueFairPlayItem[];
+}
+
 export default function LeagueDashboardPage() {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
 
+  const [selectedSeasonId, setSelectedSeasonId] = useState<string>('current');
   const [activeTab, setActiveTab] = useState<'standings' | 'matches' | 'scorers' | 'goalies'>('standings');
   const [selectedTeam, setSelectedTeam] = useState<TeamAnalyticsSummary | null>(null);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState<boolean>(false);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState<boolean>(false);
   const [scrapedFallback, setScrapedFallback] = useState<ScrapedLeagueData | null>(null);
   const [isAutoLoading, setIsAutoLoading] = useState<boolean>(false);
 
@@ -44,6 +69,13 @@ export default function LeagueDashboardPage() {
   );
   const { data: leagueSettings, isLoading: isLeagueLoading } = useDoc<AppSettings>(leagueDocRef);
 
+  // Fetch archived seasons from collection 'seasons'
+  const seasonsQuery = useMemoFirebase(
+    () => (firestore ? query(collection(firestore, 'seasons'), orderBy('archivedAt', 'desc')) : null),
+    [firestore]
+  );
+  const { data: archivedSeasons } = useCollection<SeasonArchiveDoc>(seasonsQuery);
+
   // Fetch user profile to check admin status
   const userDocRef = useMemoFirebase(
     () => (firestore && user ? doc(firestore, 'users', user.uid) : null),
@@ -52,8 +84,10 @@ export default function LeagueDashboardPage() {
   const { data: userProfile } = useDoc<UserProfile>(userDocRef);
   const isAdmin = userProfile?.role === 'admin';
 
-  // Auto-fetch live scraper data if leagueMatches or Fair Play is not yet present in Firestore
+  // Auto-fetch live scraper data if leagueMatches or Fair Play is not yet present in Firestore for current season
   useEffect(() => {
+    if (selectedSeasonId !== 'current') return;
+
     const hasFullMatches =
       Boolean(leagueSettings?.leagueMatches && leagueSettings.leagueMatches.length > 0);
     const hasFairPlay =
@@ -78,10 +112,22 @@ export default function LeagueDashboardPage() {
         .catch((e) => console.warn('Auto-fetch scrape error:', e))
         .finally(() => setIsAutoLoading(false));
     }
-  }, [isLeagueLoading, leagueSettings, scrapedFallback, isAutoLoading, firestore, isAdmin]);
+  }, [selectedSeasonId, isLeagueLoading, leagueSettings, scrapedFallback, isAutoLoading, firestore, isAdmin]);
 
-  // Raw datasets: either from Firestore or live fallback
+  // Selected archived season reference if not current or upcoming
+  const selectedArchivedSeason = useMemo(() => {
+    if (selectedSeasonId === 'current' || selectedSeasonId === 'upcoming') return null;
+    return archivedSeasons?.find((s) => s.id === selectedSeasonId) || null;
+  }, [selectedSeasonId, archivedSeasons]);
+
+  // Standings data
   const standings: LeagueStanding[] = useMemo(() => {
+    if (selectedSeasonId === 'upcoming') {
+      return [];
+    }
+    if (selectedArchivedSeason) {
+      return selectedArchivedSeason.leagueStandings || selectedArchivedSeason.standings || [];
+    }
     if (leagueSettings?.leagueStandings && leagueSettings.leagueStandings.length > 0) {
       return leagueSettings.leagueStandings;
     }
@@ -101,9 +147,16 @@ export default function LeagueDashboardPage() {
       }));
     }
     return [];
-  }, [leagueSettings?.leagueStandings, scrapedFallback]);
+  }, [selectedSeasonId, selectedArchivedSeason, leagueSettings?.leagueStandings, scrapedFallback]);
 
+  // Matches data
   const matches: LeagueMatchItem[] = useMemo(() => {
+    if (selectedSeasonId === 'upcoming') {
+      return [];
+    }
+    if (selectedArchivedSeason) {
+      return selectedArchivedSeason.leagueMatches || (selectedArchivedSeason.matches as any) || [];
+    }
     if (leagueSettings?.leagueMatches && leagueSettings.leagueMatches.length > 0) {
       return leagueSettings.leagueMatches;
     }
@@ -111,9 +164,16 @@ export default function LeagueDashboardPage() {
       return buildEnrichedLeagueMatches(scrapedFallback.allMatches, scrapedFallback.matchReports);
     }
     return [];
-  }, [leagueSettings?.leagueMatches, scrapedFallback]);
+  }, [selectedSeasonId, selectedArchivedSeason, leagueSettings?.leagueMatches, scrapedFallback]);
 
+  // Skaters data
   const skaters: LeagueSkaterItem[] = useMemo(() => {
+    if (selectedSeasonId === 'upcoming') {
+      return [];
+    }
+    if (selectedArchivedSeason) {
+      return selectedArchivedSeason.leagueSkaters || [];
+    }
     if (leagueSettings?.leagueSkaters && leagueSettings.leagueSkaters.length > 0) {
       return leagueSettings.leagueSkaters;
     }
@@ -121,9 +181,16 @@ export default function LeagueDashboardPage() {
       return scrapedFallback.allSkaters;
     }
     return [];
-  }, [leagueSettings?.leagueSkaters, scrapedFallback]);
+  }, [selectedSeasonId, selectedArchivedSeason, leagueSettings?.leagueSkaters, scrapedFallback]);
 
+  // Goalies data
   const goalies: LeagueGoalieItem[] = useMemo(() => {
+    if (selectedSeasonId === 'upcoming') {
+      return [];
+    }
+    if (selectedArchivedSeason) {
+      return selectedArchivedSeason.leagueGoalies || [];
+    }
     if (leagueSettings?.leagueGoalies && leagueSettings.leagueGoalies.length > 0) {
       return leagueSettings.leagueGoalies;
     }
@@ -131,9 +198,16 @@ export default function LeagueDashboardPage() {
       return scrapedFallback.allGoalies;
     }
     return [];
-  }, [leagueSettings?.leagueGoalies, scrapedFallback]);
+  }, [selectedSeasonId, selectedArchivedSeason, leagueSettings?.leagueGoalies, scrapedFallback]);
 
+  // Fair Play data
   const fairPlay: LeagueFairPlayItem[] = useMemo(() => {
+    if (selectedSeasonId === 'upcoming') {
+      return [];
+    }
+    if (selectedArchivedSeason) {
+      return selectedArchivedSeason.leagueFairPlay || [];
+    }
     if (leagueSettings?.leagueFairPlay && leagueSettings.leagueFairPlay.length > 0) {
       return leagueSettings.leagueFairPlay;
     }
@@ -141,7 +215,7 @@ export default function LeagueDashboardPage() {
       return scrapedFallback.fairPlay;
     }
     return [];
-  }, [leagueSettings?.leagueFairPlay, scrapedFallback]);
+  }, [selectedSeasonId, selectedArchivedSeason, leagueSettings?.leagueFairPlay, scrapedFallback]);
 
   // Derived Analytics using full data & Fair Play
   const teamSummaries = useMemo(() => {
@@ -168,7 +242,7 @@ export default function LeagueDashboardPage() {
     setIsDetailDialogOpen(true);
   };
 
-  // Sync handler for admins
+  // Sync handler for admins (current season only)
   const handleSyncLeague = async () => {
     if (!firestore || !isAdmin) return;
     setIsSyncing(true);
@@ -213,6 +287,47 @@ export default function LeagueDashboardPage() {
     }
   };
 
+  // Archive Season Handler for Admins
+  const handleArchiveSeason = async ({
+    seasonName,
+    year,
+    teamCount,
+  }: {
+    seasonName: string;
+    year: string;
+    teamCount: number;
+  }) => {
+    if (!firestore || !leagueSettings || !isAdmin) return;
+    setIsSyncing(true);
+    try {
+      await statsService.archiveSeason({
+        firestore,
+        seasonName,
+        year,
+        teamCount,
+        leagueSettings,
+        allSkaterStats: [],
+        allGoalieStats: [],
+        allMatches: matches,
+      });
+
+      toast({
+        title: 'Sezóna byla úspěšně archivována!',
+        description: `Ročník ${year} byl uložen do archivu a byla zahájena nová sezóna ${seasonName}.`,
+      });
+      setIsArchiveDialogOpen(false);
+      setSelectedSeasonId('current');
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Chyba archivace sezóny',
+        description: err.message || 'Nepodařilo se archivovat sezónu.',
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   if (isLeagueLoading) {
     return (
       <div className="py-24 flex flex-col items-center justify-center gap-3 text-muted-foreground">
@@ -226,140 +341,185 @@ export default function LeagueDashboardPage() {
 
   return (
     <div className="space-y-6 py-4 sm:py-6">
-      {/* Header with quick KPI banner */}
+      {/* Header with season selector & KPI strip */}
       <LeagueHeader
         overview={leagueOverview}
         lastSyncAt={leagueSettings?.leagueLastSyncAt || (scrapedFallback ? new Date() : null)}
         isAdmin={isAdmin}
         isSyncing={isSyncing}
         onSync={handleSyncLeague}
+        selectedSeasonId={selectedSeasonId}
+        onSelectSeasonId={setSelectedSeasonId}
+        archivedSeasons={archivedSeasons}
+        onOpenArchiveDialog={() => setIsArchiveDialogOpen(true)}
+        currentSeasonName={leagueSettings?.currentSeasonName}
       />
 
-      {!hasData ? (
+      {/* Archived Season Notice Banner */}
+      {selectedArchivedSeason && (
+        <div className="flex items-center gap-2.5 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-500 text-xs sm:text-sm font-semibold">
+          <History className="h-4 w-4 shrink-0" />
+          <span>
+            Prohlížíte uzavřený archiv ročníku {selectedArchivedSeason.name} ({selectedArchivedSeason.year}). Data jsou uložena v režimu pouze pro čtení.
+          </span>
+        </div>
+      )}
+
+      {/* Upcoming Season Notice Banner */}
+      {selectedSeasonId === 'upcoming' && (
         <Card className="p-8 sm:p-12 text-center border-dashed border-border/80 bg-card/60">
-          <CardContent className="space-y-4 max-w-md mx-auto">
-            <Trophy className="h-12 w-12 text-muted-foreground mx-auto opacity-50" />
+          <CardContent className="space-y-3 max-w-md mx-auto">
+            <div className="h-12 w-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary mx-auto">
+              <CalendarDays className="h-6 w-6" />
+            </div>
             <div className="space-y-1">
-              <h3 className="text-lg font-bold text-foreground">Ligová data se načítají...</h3>
+              <h3 className="text-lg font-bold text-foreground">Nadcházející sezóna (2026/2027)</h3>
               <p className="text-xs text-muted-foreground">
-                Stahuji aktuální rozpis, tabulku Fair Play a statistiky hráčů z ligového webu.
+                Příprava na nový ročník soutěže. Jakmile bude na webu HobbyHokej zveřejněn nový rozpis a soupisky, stačí spustit synchronizaci.
               </p>
             </div>
-            {isAdmin && (
-              <Button
-                onClick={handleSyncLeague}
-                disabled={isSyncing}
-                className="font-bold text-xs"
-              >
-                <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-                Spustit synchronizaci nyní
-              </Button>
-            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSelectedSeasonId('current')}
+              className="font-bold text-xs"
+            >
+              ← Zpět na nynější sezónu (2025/2026)
+            </Button>
           </CardContent>
         </Card>
-      ) : (
-        <Tabs
-          value={activeTab}
-          onValueChange={(val) => setActiveTab(val as any)}
-          className="space-y-5"
-        >
-          {/* Main Navigation Tabs */}
-          <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full h-auto p-1.5 bg-card/95 border-2 border-border/80 shadow-md rounded-2xl gap-1">
-            <TabsTrigger
-              value="standings"
-              className={cn(
-                "py-2.5 sm:py-3 text-xs sm:text-sm font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-2",
-                "text-muted-foreground hover:text-foreground hover:bg-muted/50",
-                "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=active]:shadow-primary/25 data-[state=active]:font-black"
-              )}
+      )}
+
+      {/* Main Content Area */}
+      {selectedSeasonId !== 'upcoming' && (
+        <>
+          {!hasData ? (
+            <Card className="p-8 sm:p-12 text-center border-dashed border-border/80 bg-card/60">
+              <CardContent className="space-y-4 max-w-md mx-auto">
+                <Trophy className="h-12 w-12 text-muted-foreground mx-auto opacity-50" />
+                <div className="space-y-1">
+                  <h3 className="text-lg font-bold text-foreground">Ligová data se načítají...</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Stahuji aktuální rozpis, tabulku Fair Play a statistiky hráčů z ligového webu.
+                  </p>
+                </div>
+                {isAdmin && selectedSeasonId === 'current' && (
+                  <Button
+                    onClick={handleSyncLeague}
+                    disabled={isSyncing}
+                    className="font-bold text-xs"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                    Spustit synchronizaci nyní
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            <Tabs
+              value={activeTab}
+              onValueChange={(val) => setActiveTab(val as any)}
+              className="space-y-5"
             >
-              <ListOrdered className="h-4 w-4 sm:h-4.5 sm:w-4.5 shrink-0" />
-              <span>Tabulka & Analytika</span>
-            </TabsTrigger>
+              {/* Main Navigation Tabs */}
+              <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full h-auto p-1.5 bg-card/95 border-2 border-border/80 shadow-md rounded-2xl gap-1">
+                <TabsTrigger
+                  value="standings"
+                  className={cn(
+                    "py-2.5 sm:py-3 text-xs sm:text-sm font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-2",
+                    "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+                    "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=active]:shadow-primary/25 data-[state=active]:font-black"
+                  )}
+                >
+                  <ListOrdered className="h-4 w-4 sm:h-4.5 sm:w-4.5 shrink-0" />
+                  <span>Tabulka & Analytika</span>
+                </TabsTrigger>
 
-            <TabsTrigger
-              value="matches"
-              className={cn(
-                "py-2.5 sm:py-3 text-xs sm:text-sm font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-2",
-                "text-muted-foreground hover:text-foreground hover:bg-muted/50",
-                "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=active]:shadow-primary/25 data-[state=active]:font-black"
-              )}
-            >
-              <CalendarDays className="h-4 w-4 sm:h-4.5 sm:w-4.5 shrink-0" />
-              <span>Zápasy & Výsledky</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-black bg-muted/60 data-[state=active]:bg-black/20 text-foreground data-[state=active]:text-primary-foreground tabular-nums">
-                {matches.length}
-              </span>
-            </TabsTrigger>
+                <TabsTrigger
+                  value="matches"
+                  className={cn(
+                    "py-2.5 sm:py-3 text-xs sm:text-sm font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-2",
+                    "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+                    "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=active]:shadow-primary/25 data-[state=active]:font-black"
+                  )}
+                >
+                  <CalendarDays className="h-4 w-4 sm:h-4.5 sm:w-4.5 shrink-0" />
+                  <span>Zápasy & Výsledky</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full font-black bg-muted/60 data-[state=active]:bg-black/20 text-foreground data-[state=active]:text-primary-foreground tabular-nums">
+                    {matches.length}
+                  </span>
+                </TabsTrigger>
 
-            <TabsTrigger
-              value="scorers"
-              className={cn(
-                "py-2.5 sm:py-3 text-xs sm:text-sm font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-2",
-                "text-muted-foreground hover:text-foreground hover:bg-muted/50",
-                "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=active]:shadow-primary/25 data-[state=active]:font-black"
-              )}
-            >
-              <Trophy className="h-4 w-4 sm:h-4.5 sm:w-4.5 shrink-0" />
-              <span>Statistika hráčů</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-black bg-muted/60 data-[state=active]:bg-black/20 text-foreground data-[state=active]:text-primary-foreground tabular-nums">
-                {skaters.length}
-              </span>
-            </TabsTrigger>
+                <TabsTrigger
+                  value="scorers"
+                  className={cn(
+                    "py-2.5 sm:py-3 text-xs sm:text-sm font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-2",
+                    "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+                    "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=active]:shadow-primary/25 data-[state=active]:font-black"
+                  )}
+                >
+                  <Trophy className="h-4 w-4 sm:h-4.5 sm:w-4.5 shrink-0" />
+                  <span>Statistika hráčů</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full font-black bg-muted/60 data-[state=active]:bg-black/20 text-foreground data-[state=active]:text-primary-foreground tabular-nums">
+                    {skaters.length}
+                  </span>
+                </TabsTrigger>
 
-            <TabsTrigger
-              value="goalies"
-              className={cn(
-                "py-2.5 sm:py-3 text-xs sm:text-sm font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-2",
-                "text-muted-foreground hover:text-foreground hover:bg-muted/50",
-                "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=active]:shadow-primary/25 data-[state=active]:font-black"
-              )}
-            >
-              <Shield className="h-4 w-4 sm:h-4.5 sm:w-4.5 shrink-0" />
-              <span>Brankáři</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-black bg-muted/60 data-[state=active]:bg-black/20 text-foreground data-[state=active]:text-primary-foreground tabular-nums">
-                {goalies.length}
-              </span>
-            </TabsTrigger>
-          </TabsList>
+                <TabsTrigger
+                  value="goalies"
+                  className={cn(
+                    "py-2.5 sm:py-3 text-xs sm:text-sm font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-2",
+                    "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+                    "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=active]:shadow-primary/25 data-[state=active]:font-black"
+                  )}
+                >
+                  <Shield className="h-4 w-4 sm:h-4.5 sm:w-4.5 shrink-0" />
+                  <span>Brankáři</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full font-black bg-muted/60 data-[state=active]:bg-black/20 text-foreground data-[state=active]:text-primary-foreground tabular-nums">
+                    {goalies.length}
+                  </span>
+                </TabsTrigger>
+              </TabsList>
 
-          {/* Standings & Analytics Tab */}
-          <TabsContent value="standings" className="space-y-6 focus-visible:outline-none">
-            <LeagueAwardsLeaders
-              overview={leagueOverview}
-              onSelectTeam={handleSelectTeamByName}
-            />
+              {/* Standings & Analytics Tab */}
+              <TabsContent value="standings" className="space-y-6 focus-visible:outline-none">
+                <LeagueAwardsLeaders
+                  overview={leagueOverview}
+                  onSelectTeam={handleSelectTeamByName}
+                />
 
-            <LeagueStandingsAnalyticsTable
-              teams={teamSummaries}
-              onSelectTeam={handleSelectTeam}
-            />
-          </TabsContent>
+                <LeagueStandingsAnalyticsTable
+                  teams={teamSummaries}
+                  onSelectTeam={handleSelectTeam}
+                />
+              </TabsContent>
 
-          {/* Matches & Schedule Tab */}
-          <TabsContent value="matches" className="focus-visible:outline-none">
-            <LeagueMatchesView
-              matches={matches}
-              onSelectTeam={handleSelectTeamByName}
-            />
-          </TabsContent>
+              {/* Matches & Schedule Tab */}
+              <TabsContent value="matches" className="focus-visible:outline-none">
+                <LeagueMatchesView
+                  matches={matches}
+                  onSelectTeam={handleSelectTeamByName}
+                />
+              </TabsContent>
 
-          {/* League Scorers Tab */}
-          <TabsContent value="scorers" className="focus-visible:outline-none">
-            <LeagueScorersTable
-              skaters={skaters}
-              onSelectTeam={handleSelectTeamByName}
-            />
-          </TabsContent>
+              {/* League Scorers Tab */}
+              <TabsContent value="scorers" className="focus-visible:outline-none">
+                <LeagueScorersTable
+                  skaters={skaters}
+                  onSelectTeam={handleSelectTeamByName}
+                />
+              </TabsContent>
 
-          {/* Goalies Tab */}
-          <TabsContent value="goalies" className="focus-visible:outline-none">
-            <LeagueGoaliesTable
-              goalies={goalies}
-              onSelectTeam={handleSelectTeamByName}
-            />
-          </TabsContent>
-        </Tabs>
+              {/* Goalies Tab */}
+              <TabsContent value="goalies" className="focus-visible:outline-none">
+                <LeagueGoaliesTable
+                  goalies={goalies}
+                  onSelectTeam={handleSelectTeamByName}
+                />
+              </TabsContent>
+            </Tabs>
+          )}
+        </>
       )}
 
       {/* Team Detail Modal */}
@@ -370,6 +530,14 @@ export default function LeagueDashboardPage() {
         allMatches={matches}
         allSkaters={skaters}
         allGoalies={goalies}
+      />
+
+      {/* Archive Season Confirmation Dialog */}
+      <ArchiveSeasonDialog
+        isOpen={isArchiveDialogOpen}
+        onOpenChange={setIsArchiveDialogOpen}
+        onArchive={handleArchiveSeason}
+        isSaving={isSyncing}
       />
     </div>
   );
