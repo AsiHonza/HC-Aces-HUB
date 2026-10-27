@@ -8,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, ListOrdered, CalendarDays, Trophy, Shield, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 import { syncLeagueToFirestore, buildEnrichedLeagueMatches } from '@/lib/sync/league-sync';
 import type { AppSettings, UserProfile, LeagueMatchItem, LeagueSkaterItem, LeagueGoalieItem, LeagueFairPlayItem, LeagueStanding } from '@/types';
 import type { ScrapedLeagueData } from '@/lib/sync/league-scraper';
@@ -263,37 +264,62 @@ export default function LeagueDashboardPage() {
           className="space-y-5"
         >
           {/* Main Navigation Tabs */}
-          <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full h-auto p-1 bg-muted/60 border border-border/60 rounded-xl">
+          <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full h-auto p-1.5 bg-card/95 border-2 border-border/80 shadow-md rounded-2xl gap-1">
             <TabsTrigger
               value="standings"
-              className="py-2 text-xs font-bold rounded-lg data-[state=active]:bg-card data-[state=active]:text-primary data-[state=active]:shadow-sm flex items-center justify-center gap-1.5"
+              className={cn(
+                "py-2.5 sm:py-3 text-xs sm:text-sm font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-2",
+                "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+                "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=active]:shadow-primary/25 data-[state=active]:font-black"
+              )}
             >
-              <ListOrdered className="h-4 w-4" />
+              <ListOrdered className="h-4 w-4 sm:h-4.5 sm:w-4.5 shrink-0" />
               <span>Tabulka & Analytika</span>
             </TabsTrigger>
 
             <TabsTrigger
               value="matches"
-              className="py-2 text-xs font-bold rounded-lg data-[state=active]:bg-card data-[state=active]:text-primary data-[state=active]:shadow-sm flex items-center justify-center gap-1.5"
+              className={cn(
+                "py-2.5 sm:py-3 text-xs sm:text-sm font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-2",
+                "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+                "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=active]:shadow-primary/25 data-[state=active]:font-black"
+              )}
             >
-              <CalendarDays className="h-4 w-4" />
-              <span>Zápasy & Výsledky ({matches.length})</span>
+              <CalendarDays className="h-4 w-4 sm:h-4.5 sm:w-4.5 shrink-0" />
+              <span>Zápasy & Výsledky</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-black bg-muted/60 data-[state=active]:bg-black/20 text-foreground data-[state=active]:text-primary-foreground tabular-nums">
+                {matches.length}
+              </span>
             </TabsTrigger>
 
             <TabsTrigger
               value="scorers"
-              className="py-2 text-xs font-bold rounded-lg data-[state=active]:bg-card data-[state=active]:text-primary data-[state=active]:shadow-sm flex items-center justify-center gap-1.5"
+              className={cn(
+                "py-2.5 sm:py-3 text-xs sm:text-sm font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-2",
+                "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+                "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=active]:shadow-primary/25 data-[state=active]:font-black"
+              )}
             >
-              <Trophy className="h-4 w-4" />
-              <span>Statistika hráčů ({skaters.length})</span>
+              <Trophy className="h-4 w-4 sm:h-4.5 sm:w-4.5 shrink-0" />
+              <span>Statistika hráčů</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-black bg-muted/60 data-[state=active]:bg-black/20 text-foreground data-[state=active]:text-primary-foreground tabular-nums">
+                {skaters.length}
+              </span>
             </TabsTrigger>
 
             <TabsTrigger
               value="goalies"
-              className="py-2 text-xs font-bold rounded-lg data-[state=active]:bg-card data-[state=active]:text-primary data-[state=active]:shadow-sm flex items-center justify-center gap-1.5"
+              className={cn(
+                "py-2.5 sm:py-3 text-xs sm:text-sm font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-2",
+                "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+                "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=active]:shadow-primary/25 data-[state=active]:font-black"
+              )}
             >
-              <Shield className="h-4 w-4" />
-              <span>Brankáři ({goalies.length})</span>
+              <Shield className="h-4 w-4 sm:h-4.5 sm:w-4.5 shrink-0" />
+              <span>Brankáři</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-black bg-muted/60 data-[state=active]:bg-black/20 text-foreground data-[state=active]:text-primary-foreground tabular-nums">
+                {goalies.length}
+              </span>
             </TabsTrigger>
           </TabsList>
 
