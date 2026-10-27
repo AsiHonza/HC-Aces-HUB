@@ -49,7 +49,6 @@ import { QuickRsvpButtons } from '@/features/attendance';
 import { getMatchDetails, MatchLike } from '../utils/match-details';
 import { downloadMatchIcs } from '../utils/calendarIcs';
 import { HeadToHeadSection } from './HeadToHeadSection';
-import { OpponentScoutingWidget } from './OpponentScoutingWidget';
 import { TeamBadge } from '@/features/league';
 import { resolvePlayerPosition, POSITION_METADATA } from '@/features/roster/utils/positions';
 import { getPlayerFormIcon } from '@/features/stats';
@@ -290,25 +289,16 @@ export function UpcomingMatchCard({
           <span>{match.location}</span>
         </div>
 
-        {/* Vizitka příštího soupeře (Scouting mini-widget) */}
-        {opponent && (
-          <OpponentScoutingWidget
-            opponentName={opponent}
-            allMatches={allMatches}
-            leagueStandings={leagueStandings}
-            leagueMatches={leagueMatches}
-            leagueSkaters={leagueSkaters}
-            leagueGoalies={leagueGoalies}
-            leagueFairPlay={leagueFairPlay}
-          />
-        )}
-
         <HeadToHeadSection
           match={match as Match}
           allMatches={allMatches}
           archivedSeasons={archivedSeasons}
           usersMap={usersMap}
+          leagueStandings={leagueStandings}
+          leagueMatches={leagueMatches}
           leagueSkaters={leagueSkaters}
+          leagueGoalies={leagueGoalies}
+          leagueFairPlay={leagueFairPlay}
         />
       </CardContent>
 

@@ -1,19 +1,43 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { Swords, Flame, ShieldAlert, ChevronDown } from 'lucide-react';
+import Link from 'next/link';
+import {
+  Swords,
+  Flame,
+  ShieldAlert,
+  Shield,
+  ChevronDown,
+  ArrowRight,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { calculateHeadToHead } from '../utils/headToHead';
-import { TeamBadge } from '@/features/league';
-import type { Match, UserProfile } from '@/types';
+import {
+  TeamBadge,
+  calculateTeamAnalytics,
+  areClubNamesMatching,
+} from '@/features/league';
+import type {
+  Match,
+  UserProfile,
+  LeagueStanding,
+  LeagueMatchItem,
+  LeagueSkaterItem,
+  LeagueGoalieItem,
+  LeagueFairPlayItem,
+} from '@/types';
 
 export interface HeadToHeadSectionProps {
   match: Match;
   allMatches?: Match[];
   archivedSeasons?: any[];
   usersMap?: Map<string, UserProfile>;
-  leagueSkaters?: Array<{ name: string; club: string; goals: number; assists: number; points: number; gamesPlayed?: number }>;
+  leagueStandings?: LeagueStanding[];
+  leagueMatches?: LeagueMatchItem[];
+  leagueSkaters?: LeagueSkaterItem[];
+  leagueGoalies?: LeagueGoalieItem[];
+  leagueFairPlay?: LeagueFairPlayItem[];
   defaultExpanded?: boolean;
 }
 
@@ -22,7 +46,11 @@ export function HeadToHeadSection({
   allMatches = [],
   archivedSeasons = [],
   usersMap,
+  leagueStandings = [],
+  leagueMatches = [],
   leagueSkaters = [],
+  leagueGoalies = [],
+  leagueFairPlay = [],
   defaultExpanded = false,
 }: HeadToHeadSectionProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
@@ -31,6 +59,18 @@ export function HeadToHeadSection({
     () => calculateHeadToHead(match, allMatches, archivedSeasons, usersMap, leagueSkaters),
     [match, allMatches, archivedSeasons, usersMap, leagueSkaters]
   );
+
+  const opponentSummary = useMemo(() => {
+    if (!leagueStandings.length || !h2h.opponentName) return null;
+    const summaries = calculateTeamAnalytics(
+      leagueStandings,
+      leagueMatches,
+      leagueSkaters,
+      leagueGoalies,
+      leagueFairPlay
+    );
+    return summaries.find((s) => areClubNamesMatching(s.name, h2h.opponentName)) || null;
+  }, [leagueStandings, leagueMatches, leagueSkaters, leagueGoalies, leagueFairPlay, h2h.opponentName]);
 
   return (
     <div className="rounded-lg border border-border/70 bg-muted/25 transition-all overflow-hidden">
@@ -44,12 +84,21 @@ export function HeadToHeadSection({
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-foreground">
             <Swords className="h-3.5 w-3.5 text-primary shrink-0" />
-            <span>Vzájemná bilance:</span>
+            <span>Vzájemná bilance & skauting:</span>
             <TeamBadge name={h2h.opponentName} size="xs" />
             <span>{h2h.opponentName}</span>
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5">
+            {opponentSummary && (
+              <Badge
+                variant="outline"
+                className="text-[10px] font-bold border-primary/30 text-primary bg-primary/10 px-1.5 py-0"
+              >
+                {opponentSummary.rank}. v tabulce • {opponentSummary.points} b.
+              </Badge>
+            )}
+
             {/* Pill: Aktuální sezóna */}
             {h2h.currentSeason.totalPlayed > 0 ? (
               <div
@@ -101,8 +150,84 @@ export function HeadToHeadSection({
 
       {/* Rozbalitelný obsah */}
       {isExpanded && (
-        <div className="p-3 pt-2 space-y-2.5 border-t border-border/40 animate-in fade-in-50 duration-200">
-          {/* 2 ŘÁDKY BILANCE: Aktuální sezóna + Historicky */}
+        <div className="p-3 pt-2 space-y-3 border-t border-border/40 animate-in fade-in-50 duration-200">
+          {/* 1. LIGOVÝ SKAUTING SOUPEŘE */}
+          {opponentSummary && (
+            <div className="p-2.5 sm:p-3 rounded-lg border border-border/70 bg-card/60 dark:bg-card/40 space-y-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <TeamBadge name={h2h.opponentName} size="md" />
+                  <div className="min-w-0 space-y-0.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="font-black text-sm sm:text-base text-foreground tracking-tight truncate">
+                        {h2h.opponentName}
+                      </h4>
+                      <Badge variant="outline" className="text-[10px] font-bold border-primary/30 text-primary bg-primary/10 px-1.5 py-0">
+                        {opponentSummary.rank}. v tabulce • {opponentSummary.points} bodů
+                      </Badge>
+                      <span className="text-xs text-muted-foreground font-semibold">
+                        ({opponentSummary.w}V - {opponentSummary.d}R - {opponentSummary.l}P)
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
+                      <span>
+                        Skóre:{' '}
+                        <strong className="text-foreground font-mono">
+                          {opponentSummary.gf}:{opponentSummary.ga}
+                        </strong>
+                      </span>
+                      <span>•</span>
+                      <span>
+                        Útok: <strong className="text-foreground">{opponentSummary.gfPerGame} G/Z</strong>
+                      </span>
+                      <span>•</span>
+                      <span>
+                        Obrana: <strong className="text-foreground">{opponentSummary.gaPerGame} OG/Z</strong>
+                      </span>
+                    </p>
+                  </div>
+                </div>
+
+                {/* Forma soupeře */}
+                {opponentSummary.form && opponentSummary.form.length > 0 && (
+                  <div className="flex items-center gap-1.5 self-start sm:self-center shrink-0">
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold mr-0.5">Forma:</span>
+                    {opponentSummary.form.slice(-3).map((f, i) => (
+                      <Badge
+                        key={i}
+                        className={cn(
+                          'text-[10px] font-bold px-1.5 py-0.5 border tabular-nums',
+                          f.result === 'W' && 'bg-emerald-500/15 text-emerald-500 border-emerald-500/30',
+                          f.result === 'D' && 'bg-amber-500/15 text-amber-500 border-amber-500/30',
+                          f.result === 'L' && 'bg-rose-500/15 text-rose-500 border-rose-500/30'
+                        )}
+                        title={`${f.result === 'W' ? 'Výhra' : f.result === 'D' ? 'Remíza' : 'Prohra'} ${f.score} vs ${f.opponent} (${f.round}. kolo)`}
+                      >
+                        {f.result === 'W' ? 'V' : f.result === 'D' ? 'R' : 'P'} {f.score}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Brankář soupeře */}
+              {opponentSummary.primaryGoalie && (
+                <div className="flex items-center justify-between p-2 rounded-md bg-background/60 border border-border/60 text-xs">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Shield className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                    <span className="text-[10px] text-muted-foreground uppercase font-semibold">Brankář soupeře:</span>
+                    <strong className="text-foreground truncate">{opponentSummary.primaryGoalie.name}</strong>
+                  </div>
+                  <Badge variant="outline" className="text-[11px] font-bold text-blue-500 border-blue-500/30 bg-blue-500/10 shrink-0 font-mono">
+                    {opponentSummary.primaryGoalie.savePercentage.toFixed(1)} % ({opponentSummary.primaryGoalie.gamesPlayed} Z)
+                  </Badge>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 2. VZÁJEMNÁ BILANCE: Aktuální sezóna + Historicky */}
           <div className="space-y-1.5">
             {/* Řádek 1: Bilance v aktuální sezóně */}
             <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-md bg-card/90 dark:bg-muted/40 border border-border/70 text-xs">
@@ -194,7 +319,7 @@ export function HeadToHeadSection({
                     >
                       {rm.outcome === 'W' ? 'V' : rm.outcome === 'L' ? 'P' : 'R'}
                     </span>
-                    <span className="font-bold">
+                    <span className="font-bold font-mono">
                       {rm.acesScore}:{rm.opponentScore}
                     </span>
                     {rm.dateLabel && (
@@ -215,7 +340,7 @@ export function HeadToHeadSection({
                   <Flame className="h-3 w-3 shrink-0" />
                   <span className="text-muted-foreground">Lídr na soupeře:</span>
                   <span className="font-bold text-foreground">{h2h.topPlayer.name}</span>
-                  <span className="font-semibold">
+                  <span className="font-semibold font-mono">
                     ({h2h.topPlayer.points}B: {h2h.topPlayer.goals}+{h2h.topPlayer.assists})
                   </span>
                 </div>
@@ -223,7 +348,7 @@ export function HeadToHeadSection({
             </div>
           )}
 
-          {/* Klíčoví hráči soupeře (Top 3 vypsaní pod sebou pro maximální čitelnost) */}
+          {/* 3. Klíčoví hráči soupeře (Top 3 vypsaní pod sebou pro maximální čitelnost) */}
           {h2h.keyOpponentPlayers.length > 0 && (
             <div className="pt-2 border-t border-border/40 space-y-1.5">
               <div className="flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
@@ -258,6 +383,17 @@ export function HeadToHeadSection({
               </div>
             </div>
           )}
+
+          {/* 4. Odkaz na kompletní ligové centrum */}
+          <div className="flex items-center justify-end pt-2 border-t border-border/40">
+            <Link
+              href="/dashboard/league?tab=standings"
+              className="inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline transition-all"
+            >
+              <span>Kompletní ligové centrum</span>
+              <ArrowRight className="h-3 w-3" />
+            </Link>
+          </div>
         </div>
       )}
     </div>
