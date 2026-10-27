@@ -90,6 +90,13 @@ export function LeagueMatchesView({ matches, onSelectTeam }: LeagueMatchesViewPr
     setExpandedMatchKey((prev) => (prev === key ? null : key));
   };
 
+  const handleTeamFilterChange = (teamName: string) => {
+    setSelectedTeamFilter(teamName);
+    if (teamName !== 'all') {
+      setSelectedRound('all');
+    }
+  };
+
   return (
     <Card className="border-border/70 bg-card/95 w-full min-w-0 overflow-hidden shadow-sm">
       <CardHeader className="py-3.5 px-4 sm:px-6 flex flex-col gap-3 border-b border-border/50">
@@ -106,7 +113,7 @@ export function LeagueMatchesView({ matches, onSelectTeam }: LeagueMatchesViewPr
 
           {/* Quick Team and Status Filters */}
           <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
-            <Select value={selectedTeamFilter} onValueChange={setSelectedTeamFilter}>
+            <Select value={selectedTeamFilter} onValueChange={handleTeamFilterChange}>
               <SelectTrigger className="h-8 text-xs w-[150px] bg-muted/30">
                 <SelectValue placeholder="Výběr týmu" />
               </SelectTrigger>

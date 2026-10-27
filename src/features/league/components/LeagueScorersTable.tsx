@@ -13,7 +13,18 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Trophy, Search, ChevronDown, Filter, Users, Flame, Award } from 'lucide-react';
+import {
+  Trophy,
+  Search,
+  ChevronDown,
+  Filter,
+  Users,
+  Flame,
+  Award,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { LeagueSkaterItem } from '../types';
 import { areClubNamesMatching, normalizeClubName } from '../utils/league-analytics';
@@ -23,13 +34,38 @@ interface LeagueScorersTableProps {
   onSelectTeam?: (teamName: string) => void;
 }
 
-type SkaterSort = 'points' | 'goals' | 'assists' | 'ppg' | 'gpg';
+type SkaterSort = 'rank' | 'points' | 'goals' | 'assists' | 'ppg' | 'gpg' | 'apg' | 'name' | 'club' | 'gamesPlayed';
 
 export function LeagueScorersTable({ skaters, onSelectTeam }: LeagueScorersTableProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClub, setSelectedClub] = useState<string>('all');
   const [sortBy, setSortBy] = useState<SkaterSort>('points');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [displayLimit, setDisplayLimit] = useState<number>(25);
+
+  const handleSort = (field: SkaterSort) => {
+    if (sortBy === field) {
+      setSortDir((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortBy(field);
+      if (field === 'rank' || field === 'name' || field === 'club') {
+        setSortDir('asc');
+      } else {
+        setSortDir('desc');
+      }
+    }
+  };
+
+  const renderSortIcon = (field: SkaterSort) => {
+    if (sortBy !== field) {
+      return <ArrowUpDown className="h-3 w-3 opacity-25 group-hover:opacity-70 transition-opacity ml-1 inline-block shrink-0" />;
+    }
+    return sortDir === 'asc' ? (
+      <ArrowUp className="h-3 w-3 text-primary ml-1 inline-block shrink-0" />
+    ) : (
+      <ArrowDown className="h-3 w-3 text-primary ml-1 inline-block shrink-0" />
+    );
+  };
 
   // Extract distinct clubs
   const clubs = useMemo(() => {
@@ -42,6 +78,8 @@ export function LeagueScorersTable({ skaters, onSelectTeam }: LeagueScorersTable
 
   // Filter and sort skaters
   const filteredSkaters = useMemo(() => {
+    const dir = sortDir === 'asc' ? 1 : -1;
+
     return skaters
       .filter((s) => {
         const matchesSearch = !searchTerm || s.name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -53,25 +91,50 @@ export function LeagueScorersTable({ skaters, onSelectTeam }: LeagueScorersTable
         const bPpg = b.gamesPlayed > 0 ? b.points / b.gamesPlayed : 0;
         const aGpg = a.gamesPlayed > 0 ? a.goals / a.gamesPlayed : 0;
         const bGpg = b.gamesPlayed > 0 ? b.goals / b.gamesPlayed : 0;
+        const aApg = a.gamesPlayed > 0 ? a.assists / a.gamesPlayed : 0;
+        const bApg = b.gamesPlayed > 0 ? b.assists / b.gamesPlayed : 0;
 
-        if (sortBy === 'points') {
-          return b.points - a.points || b.goals - a.goals || a.gamesPlayed - b.gamesPlayed;
+        let diff = 0;
+        switch (sortBy) {
+          case 'name':
+            diff = a.name.localeCompare(b.name);
+            break;
+          case 'club':
+            diff = a.club.localeCompare(b.club);
+            break;
+          case 'gamesPlayed':
+            diff = a.gamesPlayed - b.gamesPlayed;
+            break;
+          case 'goals':
+            diff = a.goals - b.goals || a.points - b.points;
+            break;
+          case 'assists':
+            diff = a.assists - b.assists || a.points - b.points;
+            break;
+          case 'gpg':
+            diff = aGpg - bGpg || a.goals - b.goals;
+            break;
+          case 'apg':
+            diff = aApg - bApg || a.assists - b.assists;
+            break;
+          case 'ppg':
+            diff = aPpg - bPpg || a.points - b.points;
+            break;
+          case 'rank':
+            diff = a.rank - b.rank;
+            break;
+          case 'points':
+          default:
+            diff = a.points - b.points || a.goals - b.goals || b.gamesPlayed - a.gamesPlayed;
+            break;
         }
-        if (sortBy === 'goals') {
-          return b.goals - a.goals || b.points - a.points || a.gamesPlayed - b.gamesPlayed;
+
+        if (diff !== 0) {
+          return diff * dir;
         }
-        if (sortBy === 'assists') {
-          return b.assists - a.assists || b.points - a.points || a.gamesPlayed - b.gamesPlayed;
-        }
-        if (sortBy === 'ppg') {
-          return bPpg - aPpg || b.points - a.points;
-        }
-        if (sortBy === 'gpg') {
-          return bGpg - aGpg || b.goals - a.goals;
-        }
-        return b.points - a.points;
+        return a.rank - b.rank;
       });
-  }, [skaters, searchTerm, selectedClub, sortBy]);
+  }, [skaters, searchTerm, selectedClub, sortBy, sortDir]);
 
   const visibleSkaters = useMemo(() => {
     if (displayLimit === 0) return filteredSkaters;
@@ -218,18 +281,98 @@ export function LeagueScorersTable({ skaters, onSelectTeam }: LeagueScorersTable
       <CardContent className="p-0">
         <div className="overflow-x-auto w-full">
           <Table className="w-full text-xs sm:text-sm">
-            <TableHeader className="bg-muted/40 text-[11px] uppercase tracking-wider font-semibold text-muted-foreground">
+            <TableHeader className="bg-muted/40 text-[11px] uppercase tracking-wider font-semibold text-muted-foreground select-none">
               <TableRow className="hover:bg-transparent">
-                <TableHead className="w-10 text-center">#</TableHead>
-                <TableHead className="min-w-[150px]">Hráč</TableHead>
-                <TableHead className="min-w-[120px]">Klub</TableHead>
-                <TableHead className="text-center font-bold">Z</TableHead>
-                <TableHead className="text-center font-bold text-rose-500">G</TableHead>
-                <TableHead className="text-center font-bold text-blue-500">A</TableHead>
-                <TableHead className="text-center font-black text-primary">B</TableHead>
-                <TableHead className="text-center hidden sm:table-cell">G / Z</TableHead>
-                <TableHead className="text-center hidden sm:table-cell">A / Z</TableHead>
-                <TableHead className="text-center font-semibold">B / Z</TableHead>
+                <TableHead
+                  onClick={() => handleSort('rank')}
+                  className="w-12 text-center cursor-pointer hover:text-foreground transition-colors group"
+                >
+                  <span className="inline-flex items-center justify-center">
+                    #
+                    {renderSortIcon('rank')}
+                  </span>
+                </TableHead>
+                <TableHead
+                  onClick={() => handleSort('name')}
+                  className="min-w-[150px] cursor-pointer hover:text-foreground transition-colors group"
+                >
+                  <span className="inline-flex items-center">
+                    Hráč
+                    {renderSortIcon('name')}
+                  </span>
+                </TableHead>
+                <TableHead
+                  onClick={() => handleSort('club')}
+                  className="min-w-[120px] cursor-pointer hover:text-foreground transition-colors group"
+                >
+                  <span className="inline-flex items-center">
+                    Klub
+                    {renderSortIcon('club')}
+                  </span>
+                </TableHead>
+                <TableHead
+                  onClick={() => handleSort('gamesPlayed')}
+                  className="text-center font-bold cursor-pointer hover:text-foreground transition-colors group"
+                >
+                  <span className="inline-flex items-center justify-center">
+                    Z
+                    {renderSortIcon('gamesPlayed')}
+                  </span>
+                </TableHead>
+                <TableHead
+                  onClick={() => handleSort('goals')}
+                  className="text-center font-bold text-rose-500 cursor-pointer hover:opacity-80 transition-colors group"
+                >
+                  <span className="inline-flex items-center justify-center">
+                    G
+                    {renderSortIcon('goals')}
+                  </span>
+                </TableHead>
+                <TableHead
+                  onClick={() => handleSort('assists')}
+                  className="text-center font-bold text-blue-500 cursor-pointer hover:opacity-80 transition-colors group"
+                >
+                  <span className="inline-flex items-center justify-center">
+                    A
+                    {renderSortIcon('assists')}
+                  </span>
+                </TableHead>
+                <TableHead
+                  onClick={() => handleSort('points')}
+                  className="text-center font-black text-primary cursor-pointer hover:opacity-80 transition-colors group"
+                >
+                  <span className="inline-flex items-center justify-center">
+                    B
+                    {renderSortIcon('points')}
+                  </span>
+                </TableHead>
+                <TableHead
+                  onClick={() => handleSort('gpg')}
+                  className="text-center hidden sm:table-cell cursor-pointer hover:text-foreground transition-colors group"
+                >
+                  <span className="inline-flex items-center justify-center">
+                    G / Z
+                    {renderSortIcon('gpg')}
+                  </span>
+                </TableHead>
+                <TableHead
+                  onClick={() => handleSort('apg')}
+                  className="text-center hidden sm:table-cell cursor-pointer hover:text-foreground transition-colors group"
+                >
+                  <span className="inline-flex items-center justify-center">
+                    A / Z
+                    {renderSortIcon('apg')}
+                  </span>
+                </TableHead>
+                <TableHead
+                  onClick={() => handleSort('ppg')}
+                  className="text-center font-semibold cursor-pointer hover:text-foreground transition-colors group"
+                >
+                  <span className="inline-flex items-center justify-center">
+                    B / Z
+                    {renderSortIcon('ppg')}
+                  </span>
+                </TableHead>
               </TableRow>
             </TableHeader>
 

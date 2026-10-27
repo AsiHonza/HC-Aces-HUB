@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, Suspense } from 'react';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, query, collection, orderBy } from 'firebase/firestore';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -49,19 +50,58 @@ interface SeasonArchiveDoc {
   leagueFairPlay?: LeagueFairPlayItem[];
 }
 
-export default function LeagueDashboardPage() {
+function LeagueDashboardContent() {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
 
-  const [selectedSeasonId, setSelectedSeasonId] = useState<string>('current');
-  const [activeTab, setActiveTab] = useState<'standings' | 'matches' | 'scorers' | 'goalies'>('standings');
+  const queryTab = (searchParams?.get('tab') as 'standings' | 'matches' | 'scorers' | 'goalies') || 'standings';
+  const querySeason = searchParams?.get('season') || 'current';
+
+  const [selectedSeasonId, setSelectedSeasonIdState] = useState<string>(querySeason);
+  const [activeTab, setActiveTabState] = useState<'standings' | 'matches' | 'scorers' | 'goalies'>(queryTab);
   const [selectedTeam, setSelectedTeam] = useState<TeamAnalyticsSummary | null>(null);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState<boolean>(false);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState<boolean>(false);
   const [scrapedFallback, setScrapedFallback] = useState<ScrapedLeagueData | null>(null);
   const [isAutoLoading, setIsAutoLoading] = useState<boolean>(false);
+
+  // Sync state if URL changes externally
+  useEffect(() => {
+    if (queryTab && queryTab !== activeTab) {
+      setActiveTabState(queryTab);
+    }
+  }, [queryTab, activeTab]);
+
+  useEffect(() => {
+    if (querySeason && querySeason !== selectedSeasonId) {
+      setSelectedSeasonIdState(querySeason);
+    }
+  }, [querySeason, selectedSeasonId]);
+
+  const setActiveTab = useCallback(
+    (newTab: 'standings' | 'matches' | 'scorers' | 'goalies') => {
+      setActiveTabState(newTab);
+      const params = new URLSearchParams(searchParams?.toString() || '');
+      params.set('tab', newTab);
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    },
+    [searchParams, router, pathname]
+  );
+
+  const setSelectedSeasonId = useCallback(
+    (newSeasonId: string) => {
+      setSelectedSeasonIdState(newSeasonId);
+      const params = new URLSearchParams(searchParams?.toString() || '');
+      params.set('season', newSeasonId);
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    },
+    [searchParams, router, pathname]
+  );
 
   // Fetch league settings from Firestore settings/league
   const leagueDocRef = useMemoFirebase(
@@ -580,5 +620,20 @@ export default function LeagueDashboardPage() {
         isSaving={isSyncing}
       />
     </div>
+  );
+}
+
+export default function LeagueDashboardPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="py-24 flex flex-col items-center justify-center gap-3 text-muted-foreground">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm font-medium">Načítám Ligové centrum...</p>
+        </div>
+      }
+    >
+      <LeagueDashboardContent />
+    </Suspense>
   );
 }

@@ -5,7 +5,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Shield, Sparkles } from 'lucide-react';
+import { Shield, Sparkles, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { LeagueGoalieItem } from '../types';
 import { areClubNamesMatching, normalizeClubName } from '../utils/league-analytics';
@@ -15,23 +15,84 @@ interface LeagueGoaliesTableProps {
   onSelectTeam?: (teamName: string) => void;
 }
 
+type GoalieSort = 'rank' | 'name' | 'club' | 'svPct' | 'gaa' | 'gp' | 'minutes' | 'saves' | 'ga' | 'so';
+
 export function LeagueGoaliesTable({ goalies, onSelectTeam }: LeagueGoaliesTableProps) {
-  const [sortBy, setSortBy] = useState<'svPct' | 'gaa' | 'gp'>('svPct');
+  const [sortBy, setSortBy] = useState<GoalieSort>('svPct');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
   const getGaa = (g: LeagueGoalieItem) =>
     g.gaa ?? (g.gamesPlayed > 0 ? g.goalsAgainst / g.gamesPlayed : 0);
 
+  const handleSort = (field: GoalieSort) => {
+    if (sortBy === field) {
+      setSortDir((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortBy(field);
+      if (field === 'rank' || field === 'name' || field === 'club' || field === 'gaa' || field === 'ga') {
+        setSortDir('asc');
+      } else {
+        setSortDir('desc');
+      }
+    }
+  };
+
+  const renderSortIcon = (field: GoalieSort) => {
+    if (sortBy !== field) {
+      return <ArrowUpDown className="h-3 w-3 opacity-25 group-hover:opacity-70 transition-opacity ml-1 inline-block shrink-0" />;
+    }
+    return sortDir === 'asc' ? (
+      <ArrowUp className="h-3 w-3 text-blue-500 ml-1 inline-block shrink-0" />
+    ) : (
+      <ArrowDown className="h-3 w-3 text-blue-500 ml-1 inline-block shrink-0" />
+    );
+  };
+
   const sortedGoalies = useMemo(() => {
+    const dir = sortDir === 'asc' ? 1 : -1;
+
     return [...goalies].sort((a, b) => {
-      if (sortBy === 'svPct') {
-        return b.savePercentage - a.savePercentage || b.gamesPlayed - a.gamesPlayed;
+      let diff = 0;
+      switch (sortBy) {
+        case 'name':
+          diff = a.name.localeCompare(b.name);
+          break;
+        case 'club':
+          diff = a.club.localeCompare(b.club);
+          break;
+        case 'gp':
+          diff = a.gamesPlayed - b.gamesPlayed;
+          break;
+        case 'minutes':
+          diff = a.minutes - b.minutes;
+          break;
+        case 'saves':
+          diff = a.saves - b.saves;
+          break;
+        case 'ga':
+          diff = a.goalsAgainst - b.goalsAgainst;
+          break;
+        case 'gaa':
+          diff = getGaa(a) - getGaa(b);
+          break;
+        case 'so':
+          diff = a.shutouts - b.shutouts;
+          break;
+        case 'rank':
+          diff = a.rank - b.rank;
+          break;
+        case 'svPct':
+        default:
+          diff = a.savePercentage - b.savePercentage || a.gamesPlayed - b.gamesPlayed;
+          break;
       }
-      if (sortBy === 'gaa') {
-        return getGaa(a) - getGaa(b) || b.savePercentage - a.savePercentage;
+
+      if (diff !== 0) {
+        return diff * dir;
       }
-      return b.gamesPlayed - a.gamesPlayed || b.savePercentage - a.savePercentage;
+      return a.rank - b.rank;
     });
-  }, [goalies, sortBy]);
+  }, [goalies, sortBy, sortDir]);
 
   return (
     <Card className="border-border/70 bg-card/95 w-full min-w-0 overflow-hidden shadow-sm">
@@ -90,18 +151,98 @@ export function LeagueGoaliesTable({ goalies, onSelectTeam }: LeagueGoaliesTable
       <CardContent className="p-0">
         <div className="overflow-x-auto w-full">
           <Table className="w-full text-xs sm:text-sm">
-            <TableHeader className="bg-muted/40 text-[11px] uppercase tracking-wider font-semibold text-muted-foreground">
+            <TableHeader className="bg-muted/40 text-[11px] uppercase tracking-wider font-semibold text-muted-foreground select-none">
               <TableRow className="hover:bg-transparent">
-                <TableHead className="w-10 text-center">#</TableHead>
-                <TableHead className="min-w-[150px]">Brankář</TableHead>
-                <TableHead className="min-w-[120px]">Klub</TableHead>
-                <TableHead className="text-center font-bold">Z</TableHead>
-                <TableHead className="text-center hidden sm:table-cell">MIN</TableHead>
-                <TableHead className="text-center">ZÁK</TableHead>
-                <TableHead className="text-center">OG</TableHead>
-                <TableHead className="text-center font-black text-blue-500">Úspěšnost %</TableHead>
-                <TableHead className="text-center">Průměr</TableHead>
-                <TableHead className="text-center hidden sm:table-cell">SO</TableHead>
+                <TableHead
+                  onClick={() => handleSort('rank')}
+                  className="w-12 text-center cursor-pointer hover:text-foreground transition-colors group"
+                >
+                  <span className="inline-flex items-center justify-center">
+                    #
+                    {renderSortIcon('rank')}
+                  </span>
+                </TableHead>
+                <TableHead
+                  onClick={() => handleSort('name')}
+                  className="min-w-[150px] cursor-pointer hover:text-foreground transition-colors group"
+                >
+                  <span className="inline-flex items-center">
+                    Brankář
+                    {renderSortIcon('name')}
+                  </span>
+                </TableHead>
+                <TableHead
+                  onClick={() => handleSort('club')}
+                  className="min-w-[120px] cursor-pointer hover:text-foreground transition-colors group"
+                >
+                  <span className="inline-flex items-center">
+                    Klub
+                    {renderSortIcon('club')}
+                  </span>
+                </TableHead>
+                <TableHead
+                  onClick={() => handleSort('gp')}
+                  className="text-center font-bold cursor-pointer hover:text-foreground transition-colors group"
+                >
+                  <span className="inline-flex items-center justify-center">
+                    Z
+                    {renderSortIcon('gp')}
+                  </span>
+                </TableHead>
+                <TableHead
+                  onClick={() => handleSort('minutes')}
+                  className="text-center hidden sm:table-cell cursor-pointer hover:text-foreground transition-colors group"
+                >
+                  <span className="inline-flex items-center justify-center">
+                    MIN
+                    {renderSortIcon('minutes')}
+                  </span>
+                </TableHead>
+                <TableHead
+                  onClick={() => handleSort('saves')}
+                  className="text-center cursor-pointer hover:text-foreground transition-colors group"
+                >
+                  <span className="inline-flex items-center justify-center">
+                    ZÁK
+                    {renderSortIcon('saves')}
+                  </span>
+                </TableHead>
+                <TableHead
+                  onClick={() => handleSort('ga')}
+                  className="text-center cursor-pointer hover:text-foreground transition-colors group"
+                >
+                  <span className="inline-flex items-center justify-center">
+                    OG
+                    {renderSortIcon('ga')}
+                  </span>
+                </TableHead>
+                <TableHead
+                  onClick={() => handleSort('svPct')}
+                  className="text-center font-black text-blue-500 cursor-pointer hover:opacity-80 transition-colors group"
+                >
+                  <span className="inline-flex items-center justify-center">
+                    Úspěšnost %
+                    {renderSortIcon('svPct')}
+                  </span>
+                </TableHead>
+                <TableHead
+                  onClick={() => handleSort('gaa')}
+                  className="text-center cursor-pointer hover:text-foreground transition-colors group"
+                >
+                  <span className="inline-flex items-center justify-center">
+                    Průměr
+                    {renderSortIcon('gaa')}
+                  </span>
+                </TableHead>
+                <TableHead
+                  onClick={() => handleSort('so')}
+                  className="text-center hidden sm:table-cell cursor-pointer hover:text-foreground transition-colors group"
+                >
+                  <span className="inline-flex items-center justify-center">
+                    SO
+                    {renderSortIcon('so')}
+                  </span>
+                </TableHead>
               </TableRow>
             </TableHeader>
 
