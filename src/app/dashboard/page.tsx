@@ -37,7 +37,7 @@ import {
   detectFinalsStatus,
 } from '@/features/stats';
 import { syncLeagueToFirestore } from '@/lib/sync/league-sync';
-import type { PlayoffSeries, LeagueStanding, Match, UserProfile } from '@/types';
+import type { PlayoffSeries, LeagueStanding, Match, UserProfile, AppSettings } from '@/types';
 
 interface Attendance {
   id: string;
@@ -192,19 +192,6 @@ interface SeasonArchive {
   skaterStats?: any[];
   goalieStats?: any[];
   matches?: any[];
-}
-
-interface AppSettings {
-  currentSeasonId?: string;
-  currentSeasonName?: string;
-  isPlayoffEnabled: boolean;
-  isScoringInPlayoffMode: boolean;
-  playoffSeries?: PlayoffSeries[];
-  leagueStandings?: LeagueStanding[];
-  leagueSkaters?: any[];
-  leagueGoalies?: any[];
-  leagueFairPlay?: any[];
-  leagueMatches?: any[];
 }
 
 export interface MatchDisplayItem {

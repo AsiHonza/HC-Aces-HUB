@@ -21,6 +21,7 @@ type GoalieSort = 'rank' | 'name' | 'club' | 'svPct' | 'gaa' | 'gp' | 'minutes' 
 export function LeagueGoaliesTable({ goalies, onSelectTeam }: LeagueGoaliesTableProps) {
   const [sortBy, setSortBy] = useState<GoalieSort>('svPct');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [onlyQualified, setOnlyQualified] = useState<boolean>(false);
 
   const getGaa = (g: LeagueGoalieItem) =>
     g.gaa ?? (g.gamesPlayed > 0 ? g.goalsAgainst / g.gamesPlayed : 0);
@@ -52,7 +53,9 @@ export function LeagueGoaliesTable({ goalies, onSelectTeam }: LeagueGoaliesTable
   const sortedGoalies = useMemo(() => {
     const dir = sortDir === 'asc' ? 1 : -1;
 
-    return [...goalies].sort((a, b) => {
+    const filtered = onlyQualified ? goalies.filter((g) => g.gamesPlayed >= 2) : goalies;
+
+    return [...filtered].sort((a, b) => {
       let diff = 0;
       switch (sortBy) {
         case 'name':
@@ -93,7 +96,7 @@ export function LeagueGoaliesTable({ goalies, onSelectTeam }: LeagueGoaliesTable
       }
       return a.rank - b.rank;
     });
-  }, [goalies, sortBy, sortDir]);
+  }, [goalies, sortBy, sortDir, onlyQualified]);
 
   return (
     <Card className="border-border/70 bg-card/95 w-full min-w-0 overflow-hidden shadow-sm">
@@ -108,44 +111,59 @@ export function LeagueGoaliesTable({ goalies, onSelectTeam }: LeagueGoaliesTable
           </p>
         </div>
 
-        {/* Sort selector */}
-        <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl shrink-0 border border-border/60">
+        {/* Controls: Qualification filter & Sort selector */}
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             type="button"
             size="sm"
-            variant={sortBy === 'svPct' ? 'default' : 'ghost'}
-            onClick={() => setSortBy('svPct')}
+            variant={onlyQualified ? 'default' : 'outline'}
+            onClick={() => setOnlyQualified((prev) => !prev)}
             className={cn(
               'h-7 px-2.5 text-xs font-semibold rounded-lg',
-              sortBy === 'svPct' && 'bg-blue-600 text-white hover:bg-blue-600/90'
+              onlyQualified && 'bg-blue-600 text-white hover:bg-blue-600/90'
             )}
           >
-            Úspěšnost %
+            {onlyQualified ? '✓ Pouze min. 2 zápasy' : 'Všichni brankáři'}
           </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={sortBy === 'gaa' ? 'default' : 'ghost'}
-            onClick={() => setSortBy('gaa')}
-            className={cn(
-              'h-7 px-2.5 text-xs font-semibold rounded-lg',
-              sortBy === 'gaa' && 'bg-blue-600 text-white hover:bg-blue-600/90'
-            )}
-          >
-            Průměr OG
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={sortBy === 'gp' ? 'default' : 'ghost'}
-            onClick={() => setSortBy('gp')}
-            className={cn(
-              'h-7 px-2.5 text-xs font-semibold rounded-lg',
-              sortBy === 'gp' && 'bg-blue-600 text-white hover:bg-blue-600/90'
-            )}
-          >
-            Zápasy
-          </Button>
+
+          <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl shrink-0 border border-border/60">
+            <Button
+              type="button"
+              size="sm"
+              variant={sortBy === 'svPct' ? 'default' : 'ghost'}
+              onClick={() => setSortBy('svPct')}
+              className={cn(
+                'h-7 px-2.5 text-xs font-semibold rounded-lg',
+                sortBy === 'svPct' && 'bg-blue-600 text-white hover:bg-blue-600/90'
+              )}
+            >
+              Úspěšnost %
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={sortBy === 'gaa' ? 'default' : 'ghost'}
+              onClick={() => setSortBy('gaa')}
+              className={cn(
+                'h-7 px-2.5 text-xs font-semibold rounded-lg',
+                sortBy === 'gaa' && 'bg-blue-600 text-white hover:bg-blue-600/90'
+              )}
+            >
+              Průměr OG
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={sortBy === 'gp' ? 'default' : 'ghost'}
+              onClick={() => setSortBy('gp')}
+              className={cn(
+                'h-7 px-2.5 text-xs font-semibold rounded-lg',
+                sortBy === 'gp' && 'bg-blue-600 text-white hover:bg-blue-600/90'
+              )}
+            >
+              Zápasy
+            </Button>
+          </div>
         </div>
       </CardHeader>
 

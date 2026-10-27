@@ -330,7 +330,7 @@ function LeagueDashboardContent() {
           description: `Aktualizováno ${syncResult.standingsCount} týmů, ${syncResult.matchesUpdated} zápasů a ${syncResult.skatersUpdated} hráčů.`,
         });
       } else {
-        const scrapeRes = await fetch('/api/sync/league?action=scrape');
+        const scrapeRes = await fetch('/api/sync/league?action=scrape&force=true');
         const scrapeJson = await scrapeRes.json();
         if (scrapeJson.success && scrapeJson.data) {
           const clientSync = await syncLeagueToFirestore(firestore, scrapeJson.data);
