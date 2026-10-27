@@ -29,6 +29,7 @@ import {
 import { cn } from '@/lib/utils';
 import type { TeamAnalyticsSummary } from '../types';
 import { areClubNamesMatching } from '../utils/league-analytics';
+import { TeamBadge } from './TeamBadge';
 
 interface LeagueStandingsAnalyticsTableProps {
   teams: TeamAnalyticsSummary[];
@@ -149,6 +150,31 @@ export function LeagueStandingsAnalyticsTable({
       });
   }, [teams, searchFilter, sortBy, sortDir]);
 
+  const renderRankBadge = (rank: number) => {
+    if (rank === 1) {
+      return (
+        <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-amber-500/20 text-amber-500 font-black text-xs border border-amber-500/40 shadow-sm" title="1. místo">
+          1.
+        </span>
+      );
+    }
+    if (rank === 2) {
+      return (
+        <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-slate-300/20 text-slate-300 font-black text-xs border border-slate-300/40" title="2. místo">
+          2.
+        </span>
+      );
+    }
+    if (rank === 3) {
+      return (
+        <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-amber-700/20 text-amber-600 font-black text-xs border border-amber-700/40" title="3. místo">
+          3.
+        </span>
+      );
+    }
+    return <span className="font-bold text-muted-foreground">{rank}.</span>;
+  };
+
   const renderSortIcon = (field: SortField) => {
     if (sortBy !== field) {
       return <ArrowUpDown className="h-3 w-3 opacity-25 group-hover:opacity-70 transition-opacity ml-1 inline-block shrink-0" />;
@@ -254,7 +280,7 @@ export function LeagueStandingsAnalyticsTable({
                 <TableRow className="hover:bg-transparent">
                   <TableHead
                     onClick={() => handleSort('rank')}
-                    className="w-12 text-center cursor-pointer hover:text-foreground transition-colors group"
+                    className="w-12 text-center cursor-pointer hover:text-foreground transition-colors group sticky left-0 z-20 bg-muted/95 backdrop-blur-sm"
                   >
                     <span className="inline-flex items-center justify-center">
                       #
@@ -263,7 +289,7 @@ export function LeagueStandingsAnalyticsTable({
                   </TableHead>
                   <TableHead
                     onClick={() => handleSort('name')}
-                    className="min-w-[140px] cursor-pointer hover:text-foreground transition-colors group"
+                    className="min-w-[150px] cursor-pointer hover:text-foreground transition-colors group sticky left-12 z-20 bg-muted/95 backdrop-blur-sm border-r border-border/40 sm:border-r-0"
                   >
                     <span className="inline-flex items-center">
                       Tým
@@ -331,7 +357,7 @@ export function LeagueStandingsAnalyticsTable({
                 <TableRow className="hover:bg-transparent">
                   <TableHead
                     onClick={() => handleSort('rank')}
-                    className="w-12 text-center cursor-pointer hover:text-foreground transition-colors group"
+                    className="w-12 text-center cursor-pointer hover:text-foreground transition-colors group sticky left-0 z-20 bg-muted/95 backdrop-blur-sm"
                   >
                     <span className="inline-flex items-center justify-center">
                       #
@@ -340,7 +366,7 @@ export function LeagueStandingsAnalyticsTable({
                   </TableHead>
                   <TableHead
                     onClick={() => handleSort('name')}
-                    className="min-w-[140px] cursor-pointer hover:text-foreground transition-colors group"
+                    className="min-w-[150px] cursor-pointer hover:text-foreground transition-colors group sticky left-12 z-20 bg-muted/95 backdrop-blur-sm border-r border-border/40 sm:border-r-0"
                   >
                     <span className="inline-flex items-center">
                       Tým
@@ -441,20 +467,21 @@ export function LeagueStandingsAnalyticsTable({
                         key={team.id}
                         onClick={() => onSelectTeam(team)}
                         className={cn(
-                          'cursor-pointer transition-colors',
+                          'cursor-pointer transition-colors group',
                           isAces
                             ? 'bg-primary/10 hover:bg-primary/15 font-semibold text-foreground border-l-4 border-l-primary'
                             : 'hover:bg-muted/40'
                         )}
                       >
-                        <TableCell className="text-center font-bold text-muted-foreground">
-                          {team.rank}.
+                        <TableCell className="text-center font-bold text-muted-foreground sticky left-0 z-10 bg-card/95 backdrop-blur-sm">
+                          {renderRankBadge(team.rank)}
                         </TableCell>
-                        <TableCell className="font-semibold text-foreground">
-                          <div className="flex items-center gap-1.5">
-                            <span>{team.name}</span>
+                        <TableCell className="font-semibold text-foreground sticky left-12 z-10 bg-card/95 backdrop-blur-sm border-r border-border/40 sm:border-r-0">
+                          <div className="flex items-center gap-2">
+                            <TeamBadge name={team.name} size="xs" />
+                            <span className="truncate">{team.name}</span>
                             {isAces && (
-                              <Badge variant="outline" className="text-[10px] h-4 px-1 border-primary/40 text-primary font-bold">
+                              <Badge variant="outline" className="text-[10px] h-4 px-1 border-primary/40 text-primary font-bold shrink-0">
                                 ACES
                               </Badge>
                             )}
@@ -510,20 +537,21 @@ export function LeagueStandingsAnalyticsTable({
                       key={team.id}
                       onClick={() => onSelectTeam(team)}
                       className={cn(
-                        'cursor-pointer transition-colors',
+                        'cursor-pointer transition-colors group',
                         isAces
                           ? 'bg-primary/10 hover:bg-primary/15 font-semibold text-foreground border-l-4 border-l-primary'
                           : 'hover:bg-muted/40'
                       )}
                     >
-                      <TableCell className="text-center font-bold text-muted-foreground">
-                        {sortBy === 'rank' ? `${team.rank}.` : `${idx + 1}.`}
+                      <TableCell className="text-center font-bold text-muted-foreground sticky left-0 z-10 bg-card/95 backdrop-blur-sm">
+                        {renderRankBadge(sortBy === 'rank' ? team.rank : idx + 1)}
                       </TableCell>
-                      <TableCell className="font-semibold text-foreground">
-                        <div className="flex items-center gap-1.5">
-                          <span>{team.name}</span>
+                      <TableCell className="font-semibold text-foreground sticky left-12 z-10 bg-card/95 backdrop-blur-sm border-r border-border/40 sm:border-r-0">
+                        <div className="flex items-center gap-2">
+                          <TeamBadge name={team.name} size="xs" />
+                          <span className="truncate">{team.name}</span>
                           {isAces && (
-                            <Badge variant="outline" className="text-[10px] h-4 px-1 border-primary/40 text-primary font-bold">
+                            <Badge variant="outline" className="text-[10px] h-4 px-1 border-primary/40 text-primary font-bold shrink-0">
                               ACES
                             </Badge>
                           )}
@@ -536,10 +564,34 @@ export function LeagueStandingsAnalyticsTable({
                         {team.totalShots > 0 ? team.totalShots : '—'}
                       </TableCell>
                       <TableCell className="text-center tabular-nums font-bold text-amber-500">
-                        {team.shootingPercentage > 0 ? `${team.shootingPercentage} %` : '—'}
+                        {team.shootingPercentage > 0 ? (
+                          <div className="flex flex-col items-center gap-1">
+                            <span>{team.shootingPercentage} %</span>
+                            <div className="w-12 h-1 bg-muted/60 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-amber-500 rounded-full transition-all duration-300"
+                                style={{ width: `${Math.min(100, (team.shootingPercentage / 25) * 100)}%` }}
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          '—'
+                        )}
                       </TableCell>
                       <TableCell className="text-center tabular-nums font-bold text-blue-500">
-                        {team.savePercentage > 0 ? `${team.savePercentage} %` : '—'}
+                        {team.savePercentage > 0 ? (
+                          <div className="flex flex-col items-center gap-1">
+                            <span>{team.savePercentage} %</span>
+                            <div className="w-12 h-1 bg-muted/60 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                                style={{ width: `${Math.max(10, Math.min(100, ((team.savePercentage - 70) / 28) * 100))}%` }}
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          '—'
+                        )}
                       </TableCell>
                       <TableCell className="text-center tabular-nums font-black text-purple-500">
                         <Badge variant="outline" className="font-black text-xs px-2 py-0.5 border-purple-500/40 text-purple-400 bg-purple-500/10">

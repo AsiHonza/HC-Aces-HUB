@@ -9,6 +9,7 @@ import { Shield, Sparkles, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { cn } from '@/lib/utils';
 import type { LeagueGoalieItem } from '../types';
 import { areClubNamesMatching, normalizeClubName } from '../utils/league-analytics';
+import { TeamBadge } from './TeamBadge';
 
 interface LeagueGoaliesTableProps {
   goalies: LeagueGoalieItem[];
@@ -155,7 +156,7 @@ export function LeagueGoaliesTable({ goalies, onSelectTeam }: LeagueGoaliesTable
               <TableRow className="hover:bg-transparent">
                 <TableHead
                   onClick={() => handleSort('rank')}
-                  className="w-12 text-center cursor-pointer hover:text-foreground transition-colors group"
+                  className="w-12 text-center cursor-pointer hover:text-foreground transition-colors group sticky left-0 z-20 bg-muted/95 backdrop-blur-sm"
                 >
                   <span className="inline-flex items-center justify-center">
                     #
@@ -164,7 +165,7 @@ export function LeagueGoaliesTable({ goalies, onSelectTeam }: LeagueGoaliesTable
                 </TableHead>
                 <TableHead
                   onClick={() => handleSort('name')}
-                  className="min-w-[150px] cursor-pointer hover:text-foreground transition-colors group"
+                  className="min-w-[150px] cursor-pointer hover:text-foreground transition-colors group sticky left-12 z-20 bg-muted/95 backdrop-blur-sm border-r border-border/40 sm:border-r-0"
                 >
                   <span className="inline-flex items-center">
                     Brankář
@@ -268,27 +269,30 @@ export function LeagueGoaliesTable({ goalies, onSelectTeam }: LeagueGoaliesTable
                           : 'hover:bg-muted/40'
                       )}
                     >
-                      <TableCell className="text-center font-bold text-muted-foreground">
+                      <TableCell className="text-center font-bold text-muted-foreground sticky left-0 z-10 bg-card/95 backdrop-blur-sm">
                         {index + 1}.
                       </TableCell>
-                      <TableCell className="font-semibold text-foreground">
+                      <TableCell className="font-semibold text-foreground sticky left-12 z-10 bg-card/95 backdrop-blur-sm border-r border-border/40 sm:border-r-0">
                         <div className="flex items-center gap-1.5">
-                          <span>{g.name}</span>
+                          <span className="truncate">{g.name}</span>
                           {isAces && (
-                            <Badge variant="outline" className="text-[9px] h-4 px-1 border-primary/40 text-primary font-bold">
+                            <Badge variant="outline" className="text-[9px] h-4 px-1 border-primary/40 text-primary font-bold shrink-0">
                               ACES
                             </Badge>
                           )}
                         </div>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        <button
-                          type="button"
-                          onClick={() => onSelectTeam?.(clubNorm)}
-                          className="hover:underline hover:text-primary transition-colors text-left"
-                        >
-                          {clubNorm}
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <TeamBadge name={clubNorm} size="xs" />
+                          <button
+                            type="button"
+                            onClick={() => onSelectTeam?.(clubNorm)}
+                            className="hover:underline hover:text-primary transition-colors text-left truncate"
+                          >
+                            {clubNorm}
+                          </button>
+                        </div>
                       </TableCell>
                       <TableCell className="text-center tabular-nums text-muted-foreground">
                         {g.gamesPlayed}

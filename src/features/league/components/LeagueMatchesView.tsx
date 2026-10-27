@@ -24,6 +24,7 @@ import {
 import { cn } from '@/lib/utils';
 import type { LeagueMatchItem } from '../types';
 import { areClubNamesMatching, normalizeClubName } from '../utils/league-analytics';
+import { TeamBadge } from './TeamBadge';
 
 interface LeagueMatchesViewProps {
   matches: LeagueMatchItem[];
@@ -243,18 +244,21 @@ export function LeagueMatchesView({ matches, onSelectTeam }: LeagueMatchesViewPr
                     <div className="flex items-center justify-between gap-3">
                       {/* Team 1 (Home) */}
                       <div className="flex-1 min-w-0">
-                        <button
-                          type="button"
-                          onClick={() => onSelectTeam?.(t1Norm)}
-                          className={cn(
-                            'font-bold text-sm sm:text-base truncate block text-left hover:text-primary transition-colors',
-                            areClubNamesMatching(t1Norm, 'HC Aces') ? 'text-primary font-black' : 'text-foreground'
-                          )}
-                          title={t1Norm}
-                        >
-                          {t1Norm}
-                        </button>
-                        <span className="text-[10px] text-muted-foreground uppercase font-medium">Domácí</span>
+                        <div className="flex items-center gap-2">
+                          <TeamBadge name={t1Norm} size="xs" />
+                          <button
+                            type="button"
+                            onClick={() => onSelectTeam?.(t1Norm)}
+                            className={cn(
+                              'font-bold text-sm sm:text-base truncate block text-left hover:text-primary transition-colors',
+                              areClubNamesMatching(t1Norm, 'HC Aces') ? 'text-primary font-black' : 'text-foreground'
+                            )}
+                            title={t1Norm}
+                          >
+                            {t1Norm}
+                          </button>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground uppercase font-medium pl-7 sm:pl-8 block">Domácí</span>
                       </div>
 
                       {/* Score */}
@@ -279,18 +283,21 @@ export function LeagueMatchesView({ matches, onSelectTeam }: LeagueMatchesViewPr
 
                       {/* Team 2 (Away) */}
                       <div className="flex-1 min-w-0 text-right">
-                        <button
-                          type="button"
-                          onClick={() => onSelectTeam?.(t2Norm)}
-                          className={cn(
-                            'font-bold text-sm sm:text-base truncate block text-right hover:text-primary transition-colors',
-                            areClubNamesMatching(t2Norm, 'HC Aces') ? 'text-primary font-black' : 'text-foreground'
-                          )}
-                          title={t2Norm}
-                        >
-                          {t2Norm}
-                        </button>
-                        <span className="text-[10px] text-muted-foreground uppercase font-medium">Hosté</span>
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => onSelectTeam?.(t2Norm)}
+                            className={cn(
+                              'font-bold text-sm sm:text-base truncate block text-right hover:text-primary transition-colors',
+                              areClubNamesMatching(t2Norm, 'HC Aces') ? 'text-primary font-black' : 'text-foreground'
+                            )}
+                            title={t2Norm}
+                          >
+                            {t2Norm}
+                          </button>
+                          <TeamBadge name={t2Norm} size="xs" />
+                        </div>
+                        <span className="text-[10px] text-muted-foreground uppercase font-medium pr-7 sm:pr-8 block">Hosté</span>
                       </div>
                     </div>
 

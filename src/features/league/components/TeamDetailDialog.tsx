@@ -19,6 +19,7 @@ import type {
   LeagueGoalieItem,
 } from '../types';
 import { areClubNamesMatching } from '../utils/league-analytics';
+import { TeamBadge } from './TeamBadge';
 
 interface TeamDetailDialogProps {
   team: TeamAnalyticsSummary | null;
@@ -93,7 +94,8 @@ export function TeamDetailDialog({
               </Badge>
             )}
           </div>
-          <DialogTitle className="text-xl sm:text-2xl font-black font-headline tracking-tight flex items-center justify-between">
+          <DialogTitle className="text-xl sm:text-2xl font-black font-headline tracking-tight flex items-center gap-2.5">
+            <TeamBadge name={team.name} size="md" />
             <span>{team.name}</span>
           </DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">

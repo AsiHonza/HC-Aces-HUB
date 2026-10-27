@@ -7,6 +7,7 @@ import { Trophy, Target, Shield, Flame, Sparkles, Award } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { LeagueAwardsLeadersData } from '../types';
 import { areClubNamesMatching } from '../utils/league-analytics';
+import { TeamBadge } from './TeamBadge';
 
 interface LeagueAwardsLeadersProps {
   overview: LeagueAwardsLeadersData;
@@ -59,17 +60,20 @@ export function LeagueAwardsLeaders({ overview, onSelectTeam }: LeagueAwardsLead
                 </span>
               </div>
               <div className="flex items-center justify-between text-[11px] text-muted-foreground mt-0.5">
-                <button
-                  type="button"
-                  onClick={() => onSelectTeam?.(artRossLeader.club)}
-                  className="hover:underline hover:text-primary transition-colors text-left truncate"
-                >
-                  {artRossLeader.club}
-                  {areClubNamesMatching(artRossLeader.club, 'HC Aces') && (
-                    <span className="ml-1 text-primary font-bold">(Aces)</span>
-                  )}
-                </button>
-                <span>{artRossLeader.goals}G + {artRossLeader.assists}A ({artRossLeader.gp}Z)</span>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <TeamBadge name={artRossLeader.club} size="xs" />
+                  <button
+                    type="button"
+                    onClick={() => onSelectTeam?.(artRossLeader.club)}
+                    className="hover:underline hover:text-primary transition-colors text-left truncate"
+                  >
+                    {artRossLeader.club}
+                    {areClubNamesMatching(artRossLeader.club, 'HC Aces') && (
+                      <span className="ml-1 text-primary font-bold">(Aces)</span>
+                    )}
+                  </button>
+                </div>
+                <span className="shrink-0">{artRossLeader.goals}G + {artRossLeader.assists}A ({artRossLeader.gp}Z)</span>
               </div>
             </div>
           ) : (
@@ -102,17 +106,20 @@ export function LeagueAwardsLeaders({ overview, onSelectTeam }: LeagueAwardsLead
                 </span>
               </div>
               <div className="flex items-center justify-between text-[11px] text-muted-foreground mt-0.5">
-                <button
-                  type="button"
-                  onClick={() => onSelectTeam?.(rocketRichardLeader.club)}
-                  className="hover:underline hover:text-primary transition-colors text-left truncate"
-                >
-                  {rocketRichardLeader.club}
-                  {areClubNamesMatching(rocketRichardLeader.club, 'HC Aces') && (
-                    <span className="ml-1 text-primary font-bold">(Aces)</span>
-                  )}
-                </button>
-                <span>v {rocketRichardLeader.gp} zápasech</span>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <TeamBadge name={rocketRichardLeader.club} size="xs" />
+                  <button
+                    type="button"
+                    onClick={() => onSelectTeam?.(rocketRichardLeader.club)}
+                    className="hover:underline hover:text-primary transition-colors text-left truncate"
+                  >
+                    {rocketRichardLeader.club}
+                    {areClubNamesMatching(rocketRichardLeader.club, 'HC Aces') && (
+                      <span className="ml-1 text-primary font-bold">(Aces)</span>
+                    )}
+                  </button>
+                </div>
+                <span className="shrink-0">v {rocketRichardLeader.gp} zápasech</span>
               </div>
             </div>
           ) : (
@@ -145,17 +152,20 @@ export function LeagueAwardsLeaders({ overview, onSelectTeam }: LeagueAwardsLead
                 </span>
               </div>
               <div className="flex items-center justify-between text-[11px] text-muted-foreground mt-0.5">
-                <button
-                  type="button"
-                  onClick={() => onSelectTeam?.(vezinaLeader.club)}
-                  className="hover:underline hover:text-primary transition-colors text-left truncate"
-                >
-                  {vezinaLeader.club}
-                  {areClubNamesMatching(vezinaLeader.club, 'HC Aces') && (
-                    <span className="ml-1 text-primary font-bold">(Aces)</span>
-                  )}
-                </button>
-                <span>{vezinaLeader.saves} zákroků / {vezinaLeader.ga} OG</span>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <TeamBadge name={vezinaLeader.club} size="xs" />
+                  <button
+                    type="button"
+                    onClick={() => onSelectTeam?.(vezinaLeader.club)}
+                    className="hover:underline hover:text-primary transition-colors text-left truncate"
+                  >
+                    {vezinaLeader.club}
+                    {areClubNamesMatching(vezinaLeader.club, 'HC Aces') && (
+                      <span className="ml-1 text-primary font-bold">(Aces)</span>
+                    )}
+                  </button>
+                </div>
+                <span className="shrink-0">{vezinaLeader.saves} zákroků / {vezinaLeader.ga} OG</span>
               </div>
             </div>
           ) : (
@@ -180,16 +190,19 @@ export function LeagueAwardsLeaders({ overview, onSelectTeam }: LeagueAwardsLead
           {bestShootingTeam ? (
             <div className="mt-3">
               <div className="flex items-baseline justify-between">
-                <button
-                  type="button"
-                  onClick={() => onSelectTeam?.(bestShootingTeam.name)}
-                  className="font-black text-sm text-foreground truncate max-w-[150px] hover:underline hover:text-primary text-left"
-                >
-                  {bestShootingTeam.name}
-                  {areClubNamesMatching(bestShootingTeam.name, 'HC Aces') && (
-                    <span className="ml-1 text-primary font-bold">(Aces)</span>
-                  )}
-                </button>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <TeamBadge name={bestShootingTeam.name} size="xs" />
+                  <button
+                    type="button"
+                    onClick={() => onSelectTeam?.(bestShootingTeam.name)}
+                    className="font-black text-sm text-foreground truncate max-w-[150px] hover:underline hover:text-primary text-left"
+                  >
+                    {bestShootingTeam.name}
+                    {areClubNamesMatching(bestShootingTeam.name, 'HC Aces') && (
+                      <span className="ml-1 text-primary font-bold">(Aces)</span>
+                    )}
+                  </button>
+                </div>
                 <span className="text-lg font-black text-emerald-500 tabular-nums">
                   {bestShootingTeam.percentage} <span className="text-xs font-normal text-muted-foreground">%</span>
                 </span>
@@ -212,9 +225,12 @@ export function LeagueAwardsLeaders({ overview, onSelectTeam }: LeagueAwardsLead
         <div className="p-2.5 rounded-xl bg-card/60 border border-border/60 flex items-center justify-between text-xs">
           <div className="space-y-0.5 min-w-0">
             <span className="text-[10px] text-muted-foreground font-semibold uppercase">Nejlepší útok</span>
-            <p className="font-bold text-foreground truncate">
-              {bestOffenseTeam ? bestOffenseTeam.name : '—'}
-            </p>
+            <div className="flex items-center gap-1.5 min-w-0">
+              {bestOffenseTeam && <TeamBadge name={bestOffenseTeam.name} size="xs" />}
+              <p className="font-bold text-foreground truncate">
+                {bestOffenseTeam ? bestOffenseTeam.name : '—'}
+              </p>
+            </div>
           </div>
           <Badge variant="secondary" className="font-black tabular-nums text-primary shrink-0">
             {bestOffenseTeam ? `${bestOffenseTeam.gfPerGame} gólů / Z` : '—'}
@@ -224,9 +240,12 @@ export function LeagueAwardsLeaders({ overview, onSelectTeam }: LeagueAwardsLead
         <div className="p-2.5 rounded-xl bg-card/60 border border-border/60 flex items-center justify-between text-xs">
           <div className="space-y-0.5 min-w-0">
             <span className="text-[10px] text-muted-foreground font-semibold uppercase">Nejpevnější obrana</span>
-            <p className="font-bold text-foreground truncate">
-              {bestDefenseTeam ? bestDefenseTeam.name : '—'}
-            </p>
+            <div className="flex items-center gap-1.5 min-w-0">
+              {bestDefenseTeam && <TeamBadge name={bestDefenseTeam.name} size="xs" />}
+              <p className="font-bold text-foreground truncate">
+                {bestDefenseTeam ? bestDefenseTeam.name : '—'}
+              </p>
+            </div>
           </div>
           <Badge variant="secondary" className="font-black tabular-nums text-blue-500 shrink-0">
             {bestDefenseTeam ? `${bestDefenseTeam.gaPerGame} OG / Z` : '—'}
@@ -236,9 +255,12 @@ export function LeagueAwardsLeaders({ overview, onSelectTeam }: LeagueAwardsLead
         <div className="p-2.5 rounded-xl bg-card/60 border border-border/60 flex items-center justify-between text-xs">
           <div className="space-y-0.5 min-w-0">
             <span className="text-[10px] text-muted-foreground font-semibold uppercase">Nejslušnější tým</span>
-            <p className="font-bold text-foreground truncate">
-              {mostDisciplinedTeam ? mostDisciplinedTeam.name : '—'}
-            </p>
+            <div className="flex items-center gap-1.5 min-w-0">
+              {mostDisciplinedTeam && <TeamBadge name={mostDisciplinedTeam.name} size="xs" />}
+              <p className="font-bold text-foreground truncate">
+                {mostDisciplinedTeam ? mostDisciplinedTeam.name : '—'}
+              </p>
+            </div>
           </div>
           <Badge variant="secondary" className="font-black tabular-nums text-purple-500 shrink-0">
             {mostDisciplinedTeam ? `${mostDisciplinedTeam.penaltiesPerGame} TM / Z` : '—'}
