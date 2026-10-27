@@ -137,6 +137,8 @@ export async function syncLeagueToAdminFirestore(
       w: s.wins,
       d: s.draws,
       l: s.losses,
+      rank: s.rank,
+      penaltyMinutes: s.penaltyMinutes ?? 0,
     }));
 
     const leagueMatches = buildEnrichedLeagueMatches(data.allMatches || [], data.matchReports || []);
@@ -145,7 +147,9 @@ export async function syncLeagueToAdminFirestore(
       leagueSkaters: data.allSkaters || [],
       leagueGoalies: data.allGoalies || [],
       leagueMatches,
+      leagueFairPlay: data.fairPlay || [],
       lastSyncAt: admin.firestore.Timestamp.now(),
+      leagueLastSyncAt: admin.firestore.Timestamp.now(),
       lastSyncSummary: {
         timestamp: new Date().toISOString(),
         standingsCount: formattedStandings.length,

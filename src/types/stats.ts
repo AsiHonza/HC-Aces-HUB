@@ -24,6 +24,14 @@ export interface LeagueStanding {
   wins?: number;
   draws?: number;
   losses?: number;
+  penaltyMinutes?: number;
+}
+
+export interface LeagueFairPlayItem {
+  rank: number;
+  team: string;
+  gamesPlayed: number;
+  penaltyMinutes: number;
 }
 
 export interface PlayerScoringRow {
@@ -152,5 +160,6 @@ export interface AppSettings {
   leagueSkaters?: LeagueSkaterItem[];
   leagueGoalies?: LeagueGoalieItem[];
   leagueMatches?: LeagueMatchItem[];
+  leagueFairPlay?: LeagueFairPlayItem[];
   leagueLastSyncAt?: any;
 }

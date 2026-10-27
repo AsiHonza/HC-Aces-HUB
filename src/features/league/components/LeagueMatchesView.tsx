@@ -5,6 +5,13 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   CalendarDays,
   Target,
   AlertTriangle,
@@ -33,6 +40,16 @@ export function LeagueMatchesView({ matches, onSelectTeam }: LeagueMatchesViewPr
     return Array.from(set).sort((a, b) => a - b);
   }, [matches]);
 
+  // Extract all distinct teams for filter
+  const allTeams = useMemo(() => {
+    const set = new Set<string>();
+    for (const m of matches) {
+      if (m.team1) set.add(normalizeClubName(m.team1));
+      if (m.team2) set.add(normalizeClubName(m.team2));
+    }
+    return Array.from(set).sort();
+  }, [matches]);
+
   // Determine default round: latest round with played matches, or round 1
   const defaultRound = useMemo(() => {
     const played = matches.filter((m) => m.isPlayed && m.round > 0).sort((a, b) => b.round - a.round);
@@ -40,20 +57,34 @@ export function LeagueMatchesView({ matches, onSelectTeam }: LeagueMatchesViewPr
     return rounds[0] || 1;
   }, [matches, rounds]);
 
-  const [selectedRound, setSelectedRound] = useState<number>(defaultRound);
-  const [acesOnly, setAcesOnly] = useState<boolean>(false);
+  const [selectedRound, setSelectedRound] = useState<number | 'all'>(defaultRound);
+  const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'played' | 'upcoming'>('all');
   const [expandedMatchKey, setExpandedMatchKey] = useState<string | null>(null);
 
-  // Filter matches for selected round
-  const roundMatches = useMemo(() => {
+  // Filter matches
+  const filteredMatches = useMemo(() => {
     return matches.filter((m) => {
-      if (m.round !== selectedRound) return false;
-      if (acesOnly) {
-        return areClubNamesMatching(m.team1, 'HC Aces') || areClubNamesMatching(m.team2, 'HC Aces');
+      // Round filter
+      if (selectedRound !== 'all' && m.round !== selectedRound) {
+        return false;
       }
+
+      // Team filter
+      if (selectedTeamFilter !== 'all') {
+        const matchesTeam =
+          areClubNamesMatching(m.team1, selectedTeamFilter) ||
+          areClubNamesMatching(m.team2, selectedTeamFilter);
+        if (!matchesTeam) return false;
+      }
+
+      // Status filter
+      if (statusFilter === 'played' && !m.isPlayed) return false;
+      if (statusFilter === 'upcoming' && m.isPlayed) return false;
+
       return true;
     });
-  }, [matches, selectedRound, acesOnly]);
+  }, [matches, selectedRound, selectedTeamFilter, statusFilter]);
 
   const toggleExpand = (key: string) => {
     setExpandedMatchKey((prev) => (prev === key ? null : key));
@@ -73,29 +104,60 @@ export function LeagueMatchesView({ matches, onSelectTeam }: LeagueMatchesViewPr
             </p>
           </div>
 
-          <div className="flex items-center gap-2 self-start sm:self-center">
-            <Button
-              type="button"
-              size="sm"
-              variant={acesOnly ? 'default' : 'outline'}
-              onClick={() => setAcesOnly(!acesOnly)}
-              className={cn(
-                'h-7 text-xs font-semibold rounded-lg',
-                acesOnly && 'bg-primary text-primary-foreground'
-              )}
-            >
-              <Filter className="h-3 w-3 mr-1" />
-              {acesOnly ? 'Pouze HC Aces' : 'Všechny zápasy'}
-            </Button>
+          {/* Quick Team and Status Filters */}
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
+            <Select value={selectedTeamFilter} onValueChange={setSelectedTeamFilter}>
+              <SelectTrigger className="h-8 text-xs w-[150px] bg-muted/30">
+                <SelectValue placeholder="Výběr týmu" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Všechny týmy</SelectItem>
+                <SelectItem value="HC Aces" className="font-bold text-primary">
+                  ★ HC Aces (Pouze náš tým)
+                </SelectItem>
+                {allTeams
+                  .filter((t) => !areClubNamesMatching(t, 'HC Aces'))
+                  .map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={statusFilter} onValueChange={(val) => setStatusFilter(val as any)}>
+              <SelectTrigger className="h-8 text-xs w-[130px] bg-muted/30">
+                <SelectValue placeholder="Stav" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Všechny zápasy</SelectItem>
+                <SelectItem value="played">Pouze odehrané</SelectItem>
+                <SelectItem value="upcoming">Pouze nadcházející</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
         {/* Round selector scrollable strip */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-1 no-scrollbar">
+          <Button
+            type="button"
+            size="sm"
+            variant={selectedRound === 'all' ? 'default' : 'outline'}
+            onClick={() => setSelectedRound('all')}
+            className={cn(
+              'h-7 px-3 text-xs font-semibold shrink-0 rounded-lg',
+              selectedRound === 'all' && 'bg-primary text-primary-foreground shadow-sm'
+            )}
+          >
+            Všechna kola ({matches.length})
+          </Button>
+
           {rounds.map((r) => {
             const isCurrent = r === selectedRound;
             const roundMatchesCount = matches.filter((m) => m.round === r && m.isPlayed).length;
-            const isFullyPlayed = roundMatchesCount > 0 && matches.filter((m) => m.round === r && !m.isPlayed).length === 0;
+            const isFullyPlayed =
+              roundMatchesCount > 0 && matches.filter((m) => m.round === r && !m.isPlayed).length === 0;
 
             return (
               <Button
@@ -118,13 +180,13 @@ export function LeagueMatchesView({ matches, onSelectTeam }: LeagueMatchesViewPr
       </CardHeader>
 
       <CardContent className="p-4 sm:p-6">
-        {roundMatches.length === 0 ? (
+        {filteredMatches.length === 0 ? (
           <div className="py-12 text-center text-muted-foreground italic text-xs">
-            Pro {selectedRound}. kolo nebyly nalezeny žádné zápasy.
+            Pro zvolené filtry nebyly nalezeny žádné zápasy.
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-            {roundMatches.map((m, index) => {
+            {filteredMatches.map((m, index) => {
               const matchKey = `${m.round}-${m.team1}-${m.team2}-${index}`;
               const isExpanded = expandedMatchKey === matchKey;
               const isAcesGame =
@@ -156,8 +218,10 @@ export function LeagueMatchesView({ matches, onSelectTeam }: LeagueMatchesViewPr
                   <div className="flex items-center justify-between px-3.5 py-2 bg-muted/30 border-b border-border/40 text-[11px] text-muted-foreground">
                     <div className="flex items-center gap-1.5 truncate">
                       <Clock className="h-3 w-3 shrink-0 text-primary" />
-                      <span className="font-semibold text-foreground">{m.dateStr || 'Datum neznámé'}</span>
-                      {m.timeStr && <span>• {m.timeStr}</span>}
+                      <span className="font-bold text-foreground">{m.round}. kolo</span>
+                      <span>•</span>
+                      <span className="font-medium text-foreground">{m.dateStr || 'Datum neznámé'}</span>
+                      {m.timeStr && <span>({m.timeStr})</span>}
                     </div>
                     {arenaName && (
                       <div className="flex items-center gap-1 shrink-0 truncate max-w-[140px]" title={arenaName}>

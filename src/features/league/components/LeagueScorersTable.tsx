@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Trophy, Search, ChevronDown } from 'lucide-react';
+import { Trophy, Search, ChevronDown, Filter, Users, Flame, Award } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { LeagueSkaterItem } from '../types';
 import { areClubNamesMatching, normalizeClubName } from '../utils/league-analytics';
@@ -23,11 +23,13 @@ interface LeagueScorersTableProps {
   onSelectTeam?: (teamName: string) => void;
 }
 
+type SkaterSort = 'points' | 'goals' | 'assists' | 'ppg' | 'gpg';
+
 export function LeagueScorersTable({ skaters, onSelectTeam }: LeagueScorersTableProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClub, setSelectedClub] = useState<string>('all');
-  const [sortBy, setSortBy] = useState<'points' | 'goals' | 'assists'>('points');
-  const [displayLimit, setDisplayLimit] = useState(25);
+  const [sortBy, setSortBy] = useState<SkaterSort>('points');
+  const [displayLimit, setDisplayLimit] = useState<number>(25);
 
   // Extract distinct clubs
   const clubs = useMemo(() => {
@@ -47,17 +49,32 @@ export function LeagueScorersTable({ skaters, onSelectTeam }: LeagueScorersTable
         return matchesSearch && matchesClub;
       })
       .sort((a, b) => {
+        const aPpg = a.gamesPlayed > 0 ? a.points / a.gamesPlayed : 0;
+        const bPpg = b.gamesPlayed > 0 ? b.points / b.gamesPlayed : 0;
+        const aGpg = a.gamesPlayed > 0 ? a.goals / a.gamesPlayed : 0;
+        const bGpg = b.gamesPlayed > 0 ? b.goals / b.gamesPlayed : 0;
+
         if (sortBy === 'points') {
           return b.points - a.points || b.goals - a.goals || a.gamesPlayed - b.gamesPlayed;
         }
         if (sortBy === 'goals') {
           return b.goals - a.goals || b.points - a.points || a.gamesPlayed - b.gamesPlayed;
         }
-        return b.assists - a.assists || b.points - a.points || a.gamesPlayed - b.gamesPlayed;
+        if (sortBy === 'assists') {
+          return b.assists - a.assists || b.points - a.points || a.gamesPlayed - b.gamesPlayed;
+        }
+        if (sortBy === 'ppg') {
+          return bPpg - aPpg || b.points - a.points;
+        }
+        if (sortBy === 'gpg') {
+          return bGpg - aGpg || b.goals - a.goals;
+        }
+        return b.points - a.points;
       });
   }, [skaters, searchTerm, selectedClub, sortBy]);
 
   const visibleSkaters = useMemo(() => {
+    if (displayLimit === 0) return filteredSkaters;
     return filteredSkaters.slice(0, displayLimit);
   }, [filteredSkaters, displayLimit]);
 
@@ -68,14 +85,14 @@ export function LeagueScorersTable({ skaters, onSelectTeam }: LeagueScorersTable
           <div className="space-y-0.5">
             <CardTitle className="text-base sm:text-lg flex items-center gap-2 font-headline">
               <Trophy className="h-5 w-5 text-primary" />
-              <span>Kanadské bodování ligy</span>
+              <span>Statistika všech hráčů ligy</span>
             </CardTitle>
             <p className="text-xs text-muted-foreground">
-              Kompletní statistiky všech {skaters.length} registrovaných hráčů v soutěži.
+              Kompletní statistiky všech {skaters.length} hráčů soutěže HobbyHokej Brno (kanadské body, góly, asistence a průměry na zápas).
             </p>
           </div>
 
-          {/* Quick sort buttons */}
+          {/* Quick sort pill strip */}
           <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl shrink-0 self-start sm:self-center border border-border/60">
             <Button
               type="button"
@@ -87,7 +104,8 @@ export function LeagueScorersTable({ skaters, onSelectTeam }: LeagueScorersTable
                 sortBy === 'points' && 'bg-primary text-primary-foreground'
               )}
             >
-              Dle bodů
+              <Trophy className="h-3 w-3 mr-1" />
+              Body
             </Button>
             <Button
               type="button"
@@ -99,7 +117,8 @@ export function LeagueScorersTable({ skaters, onSelectTeam }: LeagueScorersTable
                 sortBy === 'goals' && 'bg-primary text-primary-foreground'
               )}
             >
-              Dle gólů
+              <Flame className="h-3 w-3 mr-1" />
+              Střelci
             </Button>
             <Button
               type="button"
@@ -111,37 +130,88 @@ export function LeagueScorersTable({ skaters, onSelectTeam }: LeagueScorersTable
                 sortBy === 'assists' && 'bg-primary text-primary-foreground'
               )}
             >
-              Dle asistencí
+              Asistence
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={sortBy === 'ppg' ? 'default' : 'ghost'}
+              onClick={() => setSortBy('ppg')}
+              className={cn(
+                'h-7 px-2.5 text-xs font-semibold rounded-lg',
+                sortBy === 'ppg' && 'bg-primary text-primary-foreground'
+              )}
+            >
+              B / Z
             </Button>
           </div>
         </div>
 
         {/* Filter controls */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
-          <div className="relative flex-1">
-            <Search className="h-4 w-4 absolute left-2.5 top-2.5 text-muted-foreground" />
-            <Input
-              type="text"
-              placeholder="Hledat hráče podle jména..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8 h-8 text-xs bg-muted/30"
-            />
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-1">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1">
+            <div className="relative flex-1 sm:max-w-xs">
+              <Search className="h-4 w-4 absolute left-2.5 top-2.5 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Hledat hráče podle jména..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-8 h-8 text-xs bg-muted/30"
+              />
+            </div>
+
+            <Select value={selectedClub} onValueChange={setSelectedClub}>
+              <SelectTrigger className="h-8 text-xs sm:w-[190px] bg-muted/30">
+                <SelectValue placeholder="Všechny týmy" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Všechny kluby ({skaters.length} hráčů)</SelectItem>
+                <SelectItem value="HC Aces" className="font-bold text-primary">
+                  ★ HC Aces (Pouze náš tým)
+                </SelectItem>
+                {clubs
+                  .filter((c) => !areClubNamesMatching(c, 'HC Aces'))
+                  .map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
           </div>
 
-          <Select value={selectedClub} onValueChange={setSelectedClub}>
-            <SelectTrigger className="h-8 text-xs sm:w-[190px] bg-muted/30">
-              <SelectValue placeholder="Všechny týmy" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Všechny týmy ligy</SelectItem>
-              {clubs.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {/* Display limit switcher */}
+          <div className="flex items-center gap-1 text-xs self-start sm:self-center">
+            <span className="text-muted-foreground mr-1 text-[11px]">Zobrazit:</span>
+            <Button
+              type="button"
+              size="sm"
+              variant={displayLimit === 25 ? 'secondary' : 'ghost'}
+              onClick={() => setDisplayLimit(25)}
+              className="h-6 px-2 text-[10px] font-semibold"
+            >
+              Top 25
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={displayLimit === 50 ? 'secondary' : 'ghost'}
+              onClick={() => setDisplayLimit(50)}
+              className="h-6 px-2 text-[10px] font-semibold"
+            >
+              Top 50
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={displayLimit === 0 ? 'secondary' : 'ghost'}
+              onClick={() => setDisplayLimit(0)}
+              className="h-6 px-2 text-[10px] font-semibold"
+            >
+              Všech {filteredSkaters.length}
+            </Button>
+          </div>
         </div>
       </CardHeader>
 
@@ -157,14 +227,16 @@ export function LeagueScorersTable({ skaters, onSelectTeam }: LeagueScorersTable
                 <TableHead className="text-center font-bold text-rose-500">G</TableHead>
                 <TableHead className="text-center font-bold text-blue-500">A</TableHead>
                 <TableHead className="text-center font-black text-primary">B</TableHead>
-                <TableHead className="text-center hidden sm:table-cell">B / Z</TableHead>
+                <TableHead className="text-center hidden sm:table-cell">G / Z</TableHead>
+                <TableHead className="text-center hidden sm:table-cell">A / Z</TableHead>
+                <TableHead className="text-center font-semibold">B / Z</TableHead>
               </TableRow>
             </TableHeader>
 
             <TableBody>
               {visibleSkaters.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-8 text-center text-muted-foreground italic text-xs">
+                  <TableCell colSpan={10} className="py-8 text-center text-muted-foreground italic text-xs">
                     Nenalezen žádný hráč odpovídající filtrům.
                   </TableCell>
                 </TableRow>
@@ -172,6 +244,8 @@ export function LeagueScorersTable({ skaters, onSelectTeam }: LeagueScorersTable
                 visibleSkaters.map((sk, index) => {
                   const isAces = areClubNamesMatching(sk.club, 'HC Aces');
                   const pPerGame = sk.gamesPlayed > 0 ? (sk.points / sk.gamesPlayed).toFixed(2) : '0.00';
+                  const gPerGame = sk.gamesPlayed > 0 ? (sk.goals / sk.gamesPlayed).toFixed(2) : '0.00';
+                  const aPerGame = sk.gamesPlayed > 0 ? (sk.assists / sk.gamesPlayed).toFixed(2) : '0.00';
                   const clubNorm = normalizeClubName(sk.club);
 
                   return (
@@ -217,6 +291,12 @@ export function LeagueScorersTable({ skaters, onSelectTeam }: LeagueScorersTable
                         {sk.points}
                       </TableCell>
                       <TableCell className="text-center tabular-nums text-muted-foreground hidden sm:table-cell">
+                        {gPerGame}
+                      </TableCell>
+                      <TableCell className="text-center tabular-nums text-muted-foreground hidden sm:table-cell">
+                        {aPerGame}
+                      </TableCell>
+                      <TableCell className="text-center tabular-nums font-semibold text-foreground">
                         {pPerGame}
                       </TableCell>
                     </TableRow>
@@ -227,19 +307,33 @@ export function LeagueScorersTable({ skaters, onSelectTeam }: LeagueScorersTable
           </Table>
         </div>
 
-        {/* Load more button */}
-        {filteredSkaters.length > displayLimit && (
-          <div className="p-3 border-t border-border/50 text-center bg-muted/20">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setDisplayLimit((prev) => prev + 25)}
-              className="h-8 text-xs font-semibold text-primary hover:text-primary"
-            >
-              <span>Zobrazit dalších 25 hráčů (zobrazeno {displayLimit} z {filteredSkaters.length})</span>
-              <ChevronDown className="h-3.5 w-3.5 ml-1" />
-            </Button>
+        {/* Load more / count footer */}
+        {displayLimit > 0 && filteredSkaters.length > displayLimit && (
+          <div className="p-3 border-t border-border/50 text-center bg-muted/20 flex flex-col sm:flex-row items-center justify-between px-4 gap-2">
+            <span className="text-xs text-muted-foreground">
+              Zobrazeno {visibleSkaters.length} z celkem {filteredSkaters.length} hráčů
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setDisplayLimit((prev) => prev + 25)}
+                className="h-7 text-xs font-semibold"
+              >
+                <span>Dalších 25 hráčů</span>
+                <ChevronDown className="h-3.5 w-3.5 ml-1" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setDisplayLimit(0)}
+                className="h-7 text-xs font-semibold text-primary"
+              >
+                Zobrazit všechny ({filteredSkaters.length})
+              </Button>
+            </div>
           </div>
         )}
       </CardContent>

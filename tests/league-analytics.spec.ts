@@ -136,6 +136,23 @@ test.describe('Ligové centrum - Analytika a metriky', () => {
     expect(aces.primaryGoalie?.name).toBe('Petr Brankář');
   });
 
+  test('calculateTeamAnalytics preferuje oficiální tabulku Fair Play pro trestné minuty', () => {
+    const mockStandings: LeagueStanding[] = [
+      { id: 'divo', name: 'Divočáci', points: 10, gf: 27, ga: 8, gp: 5, w: 5, d: 0, l: 0, rank: 1 },
+      { id: 'aces', name: 'HC Aces', points: 8, gf: 19, ga: 12, gp: 5, w: 4, d: 0, l: 1, rank: 2 },
+    ];
+    const mockFairPlay = [
+      { rank: 8, team: 'Divočáci', gamesPlayed: 5, penaltyMinutes: 8 },
+      { rank: 6, team: 'Aces', gamesPlayed: 5, penaltyMinutes: 6 },
+    ];
+
+    const analytics = calculateTeamAnalytics(mockStandings, [], [], [], mockFairPlay);
+    expect(analytics[0].totalPenalties).toBe(8);
+    expect(analytics[0].penaltiesPerGame).toBe(1.6);
+    expect(analytics[1].totalPenalties).toBe(6);
+    expect(analytics[1].penaltiesPerGame).toBe(1.2);
+  });
+
   test('calculateLeagueOverview správně určuje ligové lídry a trofeje', () => {
     const mockStandings: LeagueStanding[] = [
       { id: '1', name: 'HC Aces', points: 6, gf: 15, ga: 5, gp: 3, w: 3, d: 0, l: 0, rank: 1 },

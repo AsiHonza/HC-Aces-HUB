@@ -178,6 +178,8 @@ export async function syncLeagueToFirestore(
       w: s.wins,
       d: s.draws,
       l: s.losses,
+      rank: s.rank,
+      penaltyMinutes: s.penaltyMinutes ?? 0,
     }));
 
     const leagueSettingsRef = doc(firestore, 'settings', 'league');
@@ -188,7 +190,9 @@ export async function syncLeagueToFirestore(
       leagueSkaters: data.allSkaters || [],
       leagueGoalies: data.allGoalies || [],
       leagueMatches,
+      leagueFairPlay: data.fairPlay || [],
       lastSyncAt: Timestamp.now(),
+      leagueLastSyncAt: Timestamp.now(),
       lastSyncSummary: {
         timestamp: new Date().toISOString(),
         standingsCount: formattedStandings.length,

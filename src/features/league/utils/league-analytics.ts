@@ -3,6 +3,7 @@ import {
   LeagueMatchItem,
   LeagueSkaterItem,
   LeagueGoalieItem,
+  LeagueFairPlayItem,
   TeamAnalyticsSummary,
   TeamFormMatch,
   LeagueAwardsLeadersData,
@@ -34,7 +35,8 @@ export function calculateTeamAnalytics(
   standings: LeagueStanding[] = [],
   matches: LeagueMatchItem[] = [],
   skaters: LeagueSkaterItem[] = [],
-  goalies: LeagueGoalieItem[] = []
+  goalies: LeagueGoalieItem[] = [],
+  fairPlay: LeagueFairPlayItem[] = []
 ): TeamAnalyticsSummary[] {
   return standings.map((s, index) => {
     const teamNorm = normalizeClubName(s.name);
@@ -63,11 +65,11 @@ export function calculateTeamAnalytics(
       };
     });
 
-    // Shots tracking
+    // Shots tracking from matches
     let totalShots = 0;
     let totalShotsAgainst = 0;
     let trackedShotsMatches = 0;
-    let totalPenalties = 0;
+    let penaltiesFromMatches = 0;
 
     for (const m of playedTeamMatches) {
       const isHome = areClubNamesMatching(m.team1, teamNorm);
@@ -83,19 +85,46 @@ export function calculateTeamAnalytics(
         totalShotsAgainst += oppShots;
       }
       if (teamPen != null && teamPen >= 0) {
-        totalPenalties += teamPen;
+        penaltiesFromMatches += teamPen;
       }
+    }
+
+    // 1. Official Fair Play penalty minutes (Table 1 on HobbyHokej) takes precedence
+    const fpItem = fairPlay.find((f) => areClubNamesMatching(f.team, teamNorm));
+    let totalPenalties = 0;
+    if (fpItem && fpItem.penaltyMinutes !== undefined && fpItem.penaltyMinutes >= 0) {
+      totalPenalties = fpItem.penaltyMinutes;
+    } else if (s.penaltyMinutes !== undefined && s.penaltyMinutes > 0) {
+      totalPenalties = s.penaltyMinutes;
+    } else {
+      totalPenalties = penaltiesFromMatches;
     }
 
     const gp = s.gp ?? s.gamesPlayed ?? (s.w ?? 0) + (s.d ?? 0) + (s.l ?? 0);
     const gf = s.gf ?? 0;
     const ga = s.ga ?? 0;
 
+    // 2. Fallback to goalie stats for shots faced if not tracked in match reports
+    const teamGoaliesList = goalies
+      .filter((g) => areClubNamesMatching(g.club, teamNorm))
+      .sort((a, b) => b.gamesPlayed - a.gamesPlayed || b.savePercentage - a.savePercentage);
+
+    const goalieSavesTotal = teamGoaliesList.reduce((acc, g) => acc + (g.saves || 0), 0);
+    const goalieGATotal = teamGoaliesList.reduce((acc, g) => acc + (g.goalsAgainst || 0), 0);
+
+    if (totalShotsAgainst === 0 && (goalieSavesTotal + goalieGATotal) > 0) {
+      totalShotsAgainst = goalieSavesTotal + goalieGATotal;
+    }
+
     const shootingPercentage = totalShots > 0 ? Number(((gf / totalShots) * 100).toFixed(1)) : 0;
-    const savePercentage =
+    let savePercentage =
       totalShotsAgainst > 0
         ? Number((((totalShotsAgainst - ga) / totalShotsAgainst) * 100).toFixed(1))
         : 0;
+
+    if (savePercentage === 0 && teamGoaliesList.length > 0 && teamGoaliesList[0].savePercentage > 0) {
+      savePercentage = Number(teamGoaliesList[0].savePercentage.toFixed(1));
+    }
 
     const penaltiesPerGame = gp > 0 ? Number((totalPenalties / gp).toFixed(1)) : 0;
 

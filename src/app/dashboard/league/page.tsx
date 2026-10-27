@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -8,8 +8,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, ListOrdered, CalendarDays, Trophy, Shield, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { syncLeagueToFirestore } from '@/lib/sync/league-sync';
-import type { AppSettings, UserProfile } from '@/types';
+import { syncLeagueToFirestore, buildEnrichedLeagueMatches } from '@/lib/sync/league-sync';
+import type { AppSettings, UserProfile, LeagueMatchItem, LeagueSkaterItem, LeagueGoalieItem, LeagueFairPlayItem, LeagueStanding } from '@/types';
+import type { ScrapedLeagueData } from '@/lib/sync/league-scraper';
 import {
   LeagueHeader,
   LeagueAwardsLeaders,
@@ -32,6 +33,8 @@ export default function LeagueDashboardPage() {
   const [selectedTeam, setSelectedTeam] = useState<TeamAnalyticsSummary | null>(null);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState<boolean>(false);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [scrapedFallback, setScrapedFallback] = useState<ScrapedLeagueData | null>(null);
+  const [isAutoLoading, setIsAutoLoading] = useState<boolean>(false);
 
   // Fetch league settings from Firestore settings/league
   const leagueDocRef = useMemoFirebase(
@@ -48,16 +51,101 @@ export default function LeagueDashboardPage() {
   const { data: userProfile } = useDoc<UserProfile>(userDocRef);
   const isAdmin = userProfile?.role === 'admin';
 
-  // Raw datasets
-  const standings = useMemo(() => leagueSettings?.leagueStandings || [], [leagueSettings]);
-  const matches = useMemo(() => leagueSettings?.leagueMatches || [], [leagueSettings]);
-  const skaters = useMemo(() => leagueSettings?.leagueSkaters || [], [leagueSettings]);
-  const goalies = useMemo(() => leagueSettings?.leagueGoalies || [], [leagueSettings]);
+  // Auto-fetch live scraper data if leagueMatches or Fair Play is not yet present in Firestore
+  useEffect(() => {
+    const hasFullMatches =
+      Boolean(leagueSettings?.leagueMatches && leagueSettings.leagueMatches.length > 0);
+    const hasFairPlay =
+      Boolean(leagueSettings?.leagueFairPlay && leagueSettings.leagueFairPlay.length > 0);
 
-  // Derived Analytics
+    if (!isLeagueLoading && (!hasFullMatches || !hasFairPlay) && !scrapedFallback && !isAutoLoading) {
+      setIsAutoLoading(true);
+      fetch('/api/sync/league?action=scrape')
+        .then((res) => res.json())
+        .then((json) => {
+          if (json.success && json.data) {
+            setScrapedFallback(json.data);
+
+            // If user is admin, auto-persist to Firestore in background
+            if (firestore && isAdmin) {
+              syncLeagueToFirestore(firestore, json.data).catch((e) =>
+                console.warn('Auto-save to Firestore in background failed:', e)
+              );
+            }
+          }
+        })
+        .catch((e) => console.warn('Auto-fetch scrape error:', e))
+        .finally(() => setIsAutoLoading(false));
+    }
+  }, [isLeagueLoading, leagueSettings, scrapedFallback, isAutoLoading, firestore, isAdmin]);
+
+  // Raw datasets: either from Firestore or live fallback
+  const standings: LeagueStanding[] = useMemo(() => {
+    if (leagueSettings?.leagueStandings && leagueSettings.leagueStandings.length > 0) {
+      return leagueSettings.leagueStandings;
+    }
+    if (scrapedFallback?.standings) {
+      return scrapedFallback.standings.map((s) => ({
+        id: s.name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+        name: s.name === 'Aces' ? 'HC Aces' : s.name,
+        points: s.points,
+        gf: s.gf,
+        ga: s.ga,
+        gp: s.gamesPlayed,
+        w: s.wins,
+        d: s.draws,
+        l: s.losses,
+        rank: s.rank,
+        penaltyMinutes: s.penaltyMinutes ?? 0,
+      }));
+    }
+    return [];
+  }, [leagueSettings?.leagueStandings, scrapedFallback]);
+
+  const matches: LeagueMatchItem[] = useMemo(() => {
+    if (leagueSettings?.leagueMatches && leagueSettings.leagueMatches.length > 0) {
+      return leagueSettings.leagueMatches;
+    }
+    if (scrapedFallback?.allMatches) {
+      return buildEnrichedLeagueMatches(scrapedFallback.allMatches, scrapedFallback.matchReports);
+    }
+    return [];
+  }, [leagueSettings?.leagueMatches, scrapedFallback]);
+
+  const skaters: LeagueSkaterItem[] = useMemo(() => {
+    if (leagueSettings?.leagueSkaters && leagueSettings.leagueSkaters.length > 0) {
+      return leagueSettings.leagueSkaters;
+    }
+    if (scrapedFallback?.allSkaters) {
+      return scrapedFallback.allSkaters;
+    }
+    return [];
+  }, [leagueSettings?.leagueSkaters, scrapedFallback]);
+
+  const goalies: LeagueGoalieItem[] = useMemo(() => {
+    if (leagueSettings?.leagueGoalies && leagueSettings.leagueGoalies.length > 0) {
+      return leagueSettings.leagueGoalies;
+    }
+    if (scrapedFallback?.allGoalies) {
+      return scrapedFallback.allGoalies;
+    }
+    return [];
+  }, [leagueSettings?.leagueGoalies, scrapedFallback]);
+
+  const fairPlay: LeagueFairPlayItem[] = useMemo(() => {
+    if (leagueSettings?.leagueFairPlay && leagueSettings.leagueFairPlay.length > 0) {
+      return leagueSettings.leagueFairPlay;
+    }
+    if (scrapedFallback?.fairPlay) {
+      return scrapedFallback.fairPlay;
+    }
+    return [];
+  }, [leagueSettings?.leagueFairPlay, scrapedFallback]);
+
+  // Derived Analytics using full data & Fair Play
   const teamSummaries = useMemo(() => {
-    return calculateTeamAnalytics(standings, matches, skaters, goalies);
-  }, [standings, matches, skaters, goalies]);
+    return calculateTeamAnalytics(standings, matches, skaters, goalies, fairPlay);
+  }, [standings, matches, skaters, goalies, fairPlay]);
 
   const leagueOverview = useMemo(() => {
     return calculateLeagueOverview(teamSummaries, matches, skaters, goalies);
@@ -86,7 +174,7 @@ export default function LeagueDashboardPage() {
     try {
       toast({
         title: 'Synchronizuji s webem HobbyHokej...',
-        description: 'Stahuji rozpis, výsledky kol, střelce a statistiky brankářů.',
+        description: 'Stahuji rozpis, výsledky kol, střelce, tresty a statistiky brankářů.',
       });
 
       const res = await fetch('/api/sync/league', { method: 'POST' });
@@ -98,12 +186,12 @@ export default function LeagueDashboardPage() {
           description: `Aktualizováno ${syncResult.standingsCount} týmů, ${syncResult.matchesUpdated} zápasů a ${syncResult.skatersUpdated} hráčů.`,
         });
       } else {
-        // Fallback to client-side write if server admin permissions hit edge-case
         const scrapeRes = await fetch('/api/sync/league?action=scrape');
         const scrapeJson = await scrapeRes.json();
         if (scrapeJson.success && scrapeJson.data) {
           const clientSync = await syncLeagueToFirestore(firestore, scrapeJson.data);
           if (clientSync.success) {
+            setScrapedFallback(scrapeJson.data);
             toast({
               title: 'Statistiky ligy úspěšně synchronizovány!',
               description: `Aktualizováno ${clientSync.standingsCount} týmů, ${clientSync.matchesUpdated} zápasů a ${clientSync.skatersUpdated} hráčů.`,
@@ -140,7 +228,7 @@ export default function LeagueDashboardPage() {
       {/* Header with quick KPI banner */}
       <LeagueHeader
         overview={leagueOverview}
-        lastSyncAt={leagueSettings?.leagueLastSyncAt}
+        lastSyncAt={leagueSettings?.leagueLastSyncAt || (scrapedFallback ? new Date() : null)}
         isAdmin={isAdmin}
         isSyncing={isSyncing}
         onSync={handleSyncLeague}
@@ -151,9 +239,9 @@ export default function LeagueDashboardPage() {
           <CardContent className="space-y-4 max-w-md mx-auto">
             <Trophy className="h-12 w-12 text-muted-foreground mx-auto opacity-50" />
             <div className="space-y-1">
-              <h3 className="text-lg font-bold text-foreground">Ligová data zatím nejsou synchronizována</h3>
+              <h3 className="text-lg font-bold text-foreground">Ligová data se načítají...</h3>
               <p className="text-xs text-muted-foreground">
-                V databázi zatím nejsou uloženy výsledky ani tabulka ligy HobbyHokej Brno.
+                Stahuji aktuální rozpis, tabulku Fair Play a statistiky hráčů z ligového webu.
               </p>
             </div>
             {isAdmin && (
@@ -163,7 +251,7 @@ export default function LeagueDashboardPage() {
                 className="font-bold text-xs"
               >
                 <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-                Spustit prvotní synchronizaci
+                Spustit synchronizaci nyní
               </Button>
             )}
           </CardContent>
@@ -197,7 +285,7 @@ export default function LeagueDashboardPage() {
               className="py-2 text-xs font-bold rounded-lg data-[state=active]:bg-card data-[state=active]:text-primary data-[state=active]:shadow-sm flex items-center justify-center gap-1.5"
             >
               <Trophy className="h-4 w-4" />
-              <span>Kanadské bodování ({skaters.length})</span>
+              <span>Statistika hráčů ({skaters.length})</span>
             </TabsTrigger>
 
             <TabsTrigger

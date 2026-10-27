@@ -10,6 +10,14 @@ export interface ScrapedStanding {
   gf: number;
   ga: number;
   points: number;
+  penaltyMinutes?: number;
+}
+
+export interface ScrapedFairPlayTeam {
+  rank: number;
+  team: string;
+  gamesPlayed: number;
+  penaltyMinutes: number;
 }
 
 export interface ScrapedMatch {
@@ -88,6 +96,7 @@ export interface ScrapedLeagueData {
   allSkaters: ScrapedSkater[];
   acesGoalies: ScrapedGoalie[];
   allGoalies: ScrapedGoalie[];
+  fairPlay: ScrapedFairPlayTeam[];
   matchReports: ScrapedMatchReport[];
   acesMatchReports: ScrapedMatchReport[];
 }
@@ -353,6 +362,44 @@ export function parseLeagueHtml(html: string, sourceUrl = 'https://hobbyhokejbrn
       });
   }
 
+  // Table 2: Fair Play (index 1)
+  const fairPlay: ScrapedFairPlayTeam[] = [];
+  if (tables.length > 1) {
+    $(tables[1])
+      .find('tr')
+      .each((_, tr) => {
+        const cells = $(tr)
+          .find('td, th')
+          .map((__, td) => $(td).text().replace(/\s+/g, ' ').trim())
+          .get()
+          .filter(Boolean);
+        // Typical row: ["1.", "Raci", "3", "2"]
+        if (cells.length >= 4 && /^\d+\.?$/.test(cells[0])) {
+          const rank = parseInt(cells[0].replace('.', ''), 10);
+          const team = cells[1];
+          const gamesPlayed = parseInt(cells[2], 10) || 0;
+          const penaltyMinutes = parseInt(cells[3], 10) || 0;
+          if (team) {
+            fairPlay.push({ rank, team, gamesPlayed, penaltyMinutes });
+          }
+        }
+      });
+
+    // Enrich standings with official Fair Play penalty minutes
+    for (const s of standings) {
+      const sNorm = s.name.trim().toLowerCase();
+      const fp = fairPlay.find(
+        (f) =>
+          f.team.trim().toLowerCase() === sNorm ||
+          sNorm.includes(f.team.trim().toLowerCase()) ||
+          f.team.trim().toLowerCase().includes(sNorm)
+      );
+      if (fp) {
+        s.penaltyMinutes = fp.penaltyMinutes;
+      }
+    }
+  }
+
   // Table 3: Matches (index 2)
   const allMatches: ScrapedMatch[] = [];
   if (tables.length > 2) {
@@ -529,6 +576,7 @@ export function parseLeagueHtml(html: string, sourceUrl = 'https://hobbyhokejbrn
     allSkaters,
     acesGoalies,
     allGoalies,
+    fairPlay,
     matchReports: [],
     acesMatchReports: [],
   };

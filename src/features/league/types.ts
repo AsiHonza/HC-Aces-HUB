@@ -4,6 +4,7 @@ import type {
   LeagueGoalieItem,
   LeagueMatchItem,
   LeagueGoalDetail,
+  LeagueFairPlayItem,
 } from '@/types';
 
 export type {
@@ -12,6 +13,7 @@ export type {
   LeagueGoalieItem,
   LeagueMatchItem,
   LeagueGoalDetail,
+  LeagueFairPlayItem,
 };
 
 export interface TeamFormMatch {
