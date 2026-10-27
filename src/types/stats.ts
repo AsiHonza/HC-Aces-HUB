@@ -19,6 +19,11 @@ export interface LeagueStanding {
   w?: number;
   d?: number;
   l?: number;
+  rank?: number;
+  gamesPlayed?: number;
+  wins?: number;
+  draws?: number;
+  losses?: number;
 }
 
 export interface PlayerScoringRow {
@@ -85,6 +90,55 @@ export interface LeagueSkaterItem {
   points: number;
 }
 
+export interface LeagueGoalieItem {
+  rank: number;
+  name: string;
+  club: string;
+  gamesPlayed: number;
+  minutes: number;
+  saves: number;
+  goalsAgainst: number;
+  savePercentage: number;
+  shutouts: number;
+  gaa?: number;
+}
+
+export interface LeagueGoalDetail {
+  minute: number;
+  time?: string;
+  team: 'team1' | 'team2';
+  teamName: string;
+  scorer: string;
+  assist: string | null;
+  assists?: string[];
+  isPenaltyShot?: boolean;
+}
+
+export interface LeagueMatchItem {
+  round: number;
+  dateStr: string;
+  dayOfWeek: string;
+  timeStr: string;
+  location: string;
+  arena?: string;
+  team1: string;
+  team2: string;
+  referee?: string;
+  isPlayed: boolean;
+  score1?: number;
+  score2?: number;
+  periods?: string | string[];
+  shots1?: number | null;
+  shots2?: number | null;
+  penalties1?: number | null;
+  penalties2?: number | null;
+  goals?: LeagueGoalDetail[];
+  lineup1?: string[];
+  lineup2?: string[];
+  team1Lineup?: { goalie?: string; skaters: string[] };
+  team2Lineup?: { goalie?: string; skaters: string[] };
+}
+
 export interface AppSettings {
   currentSeasonId?: string;
   currentSeasonName?: string;
@@ -96,4 +150,7 @@ export interface AppSettings {
   playoffSeries?: PlayoffSeries[];
   leagueStandings?: LeagueStanding[];
   leagueSkaters?: LeagueSkaterItem[];
+  leagueGoalies?: LeagueGoalieItem[];
+  leagueMatches?: LeagueMatchItem[];
+  leagueLastSyncAt?: any;
 }

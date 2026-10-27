@@ -1,0 +1,248 @@
+'use client';
+
+import React, { useState, useMemo } from 'react';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Trophy, Search, ChevronDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import type { LeagueSkaterItem } from '../types';
+import { areClubNamesMatching, normalizeClubName } from '../utils/league-analytics';
+
+interface LeagueScorersTableProps {
+  skaters: LeagueSkaterItem[];
+  onSelectTeam?: (teamName: string) => void;
+}
+
+export function LeagueScorersTable({ skaters, onSelectTeam }: LeagueScorersTableProps) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedClub, setSelectedClub] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<'points' | 'goals' | 'assists'>('points');
+  const [displayLimit, setDisplayLimit] = useState(25);
+
+  // Extract distinct clubs
+  const clubs = useMemo(() => {
+    const set = new Set<string>();
+    for (const s of skaters) {
+      if (s.club) set.add(normalizeClubName(s.club));
+    }
+    return Array.from(set).sort();
+  }, [skaters]);
+
+  // Filter and sort skaters
+  const filteredSkaters = useMemo(() => {
+    return skaters
+      .filter((s) => {
+        const matchesSearch = !searchTerm || s.name.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesClub = selectedClub === 'all' || areClubNamesMatching(s.club, selectedClub);
+        return matchesSearch && matchesClub;
+      })
+      .sort((a, b) => {
+        if (sortBy === 'points') {
+          return b.points - a.points || b.goals - a.goals || a.gamesPlayed - b.gamesPlayed;
+        }
+        if (sortBy === 'goals') {
+          return b.goals - a.goals || b.points - a.points || a.gamesPlayed - b.gamesPlayed;
+        }
+        return b.assists - a.assists || b.points - a.points || a.gamesPlayed - b.gamesPlayed;
+      });
+  }, [skaters, searchTerm, selectedClub, sortBy]);
+
+  const visibleSkaters = useMemo(() => {
+    return filteredSkaters.slice(0, displayLimit);
+  }, [filteredSkaters, displayLimit]);
+
+  return (
+    <Card className="border-border/70 bg-card/95 w-full min-w-0 overflow-hidden shadow-sm">
+      <CardHeader className="py-3.5 px-4 sm:px-6 flex flex-col gap-3 border-b border-border/50">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="space-y-0.5">
+            <CardTitle className="text-base sm:text-lg flex items-center gap-2 font-headline">
+              <Trophy className="h-5 w-5 text-primary" />
+              <span>Kanadské bodování ligy</span>
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Kompletní statistiky všech {skaters.length} registrovaných hráčů v soutěži.
+            </p>
+          </div>
+
+          {/* Quick sort buttons */}
+          <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl shrink-0 self-start sm:self-center border border-border/60">
+            <Button
+              type="button"
+              size="sm"
+              variant={sortBy === 'points' ? 'default' : 'ghost'}
+              onClick={() => setSortBy('points')}
+              className={cn(
+                'h-7 px-2.5 text-xs font-semibold rounded-lg',
+                sortBy === 'points' && 'bg-primary text-primary-foreground'
+              )}
+            >
+              Dle bodů
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={sortBy === 'goals' ? 'default' : 'ghost'}
+              onClick={() => setSortBy('goals')}
+              className={cn(
+                'h-7 px-2.5 text-xs font-semibold rounded-lg',
+                sortBy === 'goals' && 'bg-primary text-primary-foreground'
+              )}
+            >
+              Dle gólů
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={sortBy === 'assists' ? 'default' : 'ghost'}
+              onClick={() => setSortBy('assists')}
+              className={cn(
+                'h-7 px-2.5 text-xs font-semibold rounded-lg',
+                sortBy === 'assists' && 'bg-primary text-primary-foreground'
+              )}
+            >
+              Dle asistencí
+            </Button>
+          </div>
+        </div>
+
+        {/* Filter controls */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
+          <div className="relative flex-1">
+            <Search className="h-4 w-4 absolute left-2.5 top-2.5 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Hledat hráče podle jména..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-8 h-8 text-xs bg-muted/30"
+            />
+          </div>
+
+          <Select value={selectedClub} onValueChange={setSelectedClub}>
+            <SelectTrigger className="h-8 text-xs sm:w-[190px] bg-muted/30">
+              <SelectValue placeholder="Všechny týmy" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Všechny týmy ligy</SelectItem>
+              {clubs.map((c) => (
+                <SelectItem key={c} value={c}>
+                  {c}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </CardHeader>
+
+      <CardContent className="p-0">
+        <div className="overflow-x-auto w-full">
+          <Table className="w-full text-xs sm:text-sm">
+            <TableHeader className="bg-muted/40 text-[11px] uppercase tracking-wider font-semibold text-muted-foreground">
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="w-10 text-center">#</TableHead>
+                <TableHead className="min-w-[150px]">Hráč</TableHead>
+                <TableHead className="min-w-[120px]">Klub</TableHead>
+                <TableHead className="text-center font-bold">Z</TableHead>
+                <TableHead className="text-center font-bold text-rose-500">G</TableHead>
+                <TableHead className="text-center font-bold text-blue-500">A</TableHead>
+                <TableHead className="text-center font-black text-primary">B</TableHead>
+                <TableHead className="text-center hidden sm:table-cell">B / Z</TableHead>
+              </TableRow>
+            </TableHeader>
+
+            <TableBody>
+              {visibleSkaters.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="py-8 text-center text-muted-foreground italic text-xs">
+                    Nenalezen žádný hráč odpovídající filtrům.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                visibleSkaters.map((sk, index) => {
+                  const isAces = areClubNamesMatching(sk.club, 'HC Aces');
+                  const pPerGame = sk.gamesPlayed > 0 ? (sk.points / sk.gamesPlayed).toFixed(2) : '0.00';
+                  const clubNorm = normalizeClubName(sk.club);
+
+                  return (
+                    <TableRow
+                      key={`${sk.name}-${sk.club}-${index}`}
+                      className={cn(
+                        'transition-colors',
+                        isAces ? 'bg-primary/10 hover:bg-primary/15 font-semibold text-foreground' : 'hover:bg-muted/40'
+                      )}
+                    >
+                      <TableCell className="text-center font-bold text-muted-foreground">
+                        {index + 1}.
+                      </TableCell>
+                      <TableCell className="font-semibold text-foreground">
+                        <div className="flex items-center gap-1.5">
+                          <span>{sk.name}</span>
+                          {isAces && (
+                            <Badge variant="outline" className="text-[9px] h-4 px-1 border-primary/40 text-primary font-bold">
+                              ACES
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        <button
+                          type="button"
+                          onClick={() => onSelectTeam?.(clubNorm)}
+                          className="hover:underline hover:text-primary transition-colors text-left"
+                        >
+                          {clubNorm}
+                        </button>
+                      </TableCell>
+                      <TableCell className="text-center tabular-nums text-muted-foreground">
+                        {sk.gamesPlayed}
+                      </TableCell>
+                      <TableCell className="text-center tabular-nums font-bold text-rose-500">
+                        {sk.goals}
+                      </TableCell>
+                      <TableCell className="text-center tabular-nums font-bold text-blue-500">
+                        {sk.assists}
+                      </TableCell>
+                      <TableCell className="text-center tabular-nums font-black text-primary text-sm">
+                        {sk.points}
+                      </TableCell>
+                      <TableCell className="text-center tabular-nums text-muted-foreground hidden sm:table-cell">
+                        {pPerGame}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+        </div>
+
+        {/* Load more button */}
+        {filteredSkaters.length > displayLimit && (
+          <div className="p-3 border-t border-border/50 text-center bg-muted/20">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setDisplayLimit((prev) => prev + 25)}
+              className="h-8 text-xs font-semibold text-primary hover:text-primary"
+            >
+              <span>Zobrazit dalších 25 hráčů (zobrazeno {displayLimit} z {filteredSkaters.length})</span>
+              <ChevronDown className="h-3.5 w-3.5 ml-1" />
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}

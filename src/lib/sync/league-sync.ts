@@ -1,6 +1,49 @@
 import { Firestore, doc, setDoc, getDoc, getDocs, collection, query, Timestamp, deleteDoc } from 'firebase/firestore';
-import { ScrapedLeagueData, ScrapedMatch, ScrapedSkater, ScrapedGoalie } from './league-scraper';
+import { ScrapedLeagueData, ScrapedMatch, ScrapedSkater, ScrapedGoalie, ScrapedMatchReport } from './league-scraper';
 import { getCanonicalPlayerName } from '../utils';
+import type { LeagueMatchItem } from '@/types';
+
+export function buildEnrichedLeagueMatches(
+  allMatches: ScrapedMatch[] = [],
+  matchReports: ScrapedMatchReport[] = []
+): LeagueMatchItem[] {
+  return allMatches.map((m) => {
+    const report = matchReports.find((r) => {
+      if (r.round !== m.round) return false;
+      const t1Match =
+        areNamesMatching(r.team1, m.team1) ||
+        r.team1.toLowerCase().includes(m.team1.toLowerCase()) ||
+        m.team1.toLowerCase().includes(r.team1.toLowerCase());
+      const t2Match =
+        areNamesMatching(r.team2, m.team2) ||
+        r.team2.toLowerCase().includes(m.team2.toLowerCase()) ||
+        m.team2.toLowerCase().includes(r.team2.toLowerCase());
+      return t1Match && t2Match;
+    });
+
+    return {
+      round: m.round,
+      dateStr: m.dateStr,
+      dayOfWeek: m.dayOfWeek,
+      timeStr: m.timeStr,
+      location: m.location,
+      team1: m.team1 === 'Aces' ? 'HC Aces' : m.team1,
+      team2: m.team2 === 'Aces' ? 'HC Aces' : m.team2,
+      referee: m.referee || '',
+      isPlayed: m.isPlayed || Boolean(report),
+      score1: m.score1 !== undefined ? m.score1 : (report ? report.score1 : undefined),
+      score2: m.score2 !== undefined ? m.score2 : (report ? report.score2 : undefined),
+      periods: report?.periods || '',
+      shots1: report?.shots1 ?? null,
+      shots2: report?.shots2 ?? null,
+      penalties1: report?.penalties1 ?? null,
+      penalties2: report?.penalties2 ?? null,
+      goals: report?.goals || [],
+      team1Lineup: report?.team1Lineup || { skaters: [] },
+      team2Lineup: report?.team2Lineup || { skaters: [] },
+    };
+  });
+}
 
 export interface SyncResult {
   success: boolean;
@@ -139,14 +182,19 @@ export async function syncLeagueToFirestore(
 
     const leagueSettingsRef = doc(firestore, 'settings', 'league');
     console.log('   [1/5] Volám setDoc(settings/league)...');
+    const leagueMatches = buildEnrichedLeagueMatches(data.allMatches || [], data.matchReports || []);
     const leagueSettingsPayload = sanitizeForFirestore({
       leagueStandings: formattedStandings,
       leagueSkaters: data.allSkaters || [],
+      leagueGoalies: data.allGoalies || [],
+      leagueMatches,
       lastSyncAt: Timestamp.now(),
       lastSyncSummary: {
         timestamp: new Date().toISOString(),
         standingsCount: formattedStandings.length,
         leagueSkatersCount: (data.allSkaters || []).length,
+        leagueGoaliesCount: (data.allGoalies || []).length,
+        leagueMatchesCount: leagueMatches.length,
         acesMatchesCount: data.acesMatches.length,
         acesSkatersCount: data.acesSkaters.length,
         acesGoaliesCount: data.acesGoalies.length,

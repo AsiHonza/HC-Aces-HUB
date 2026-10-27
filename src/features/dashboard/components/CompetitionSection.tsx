@@ -1,9 +1,10 @@
 import React from 'react';
+import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { ListOrdered, CalendarDays, RefreshCw, Pencil, History } from 'lucide-react';
+import { ListOrdered, CalendarDays, RefreshCw, Pencil, History, Shield, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { LeagueStandingsTable } from '@/features/stats';
 import type { LeagueStanding, PlayoffSeries } from '@/types';
@@ -135,6 +136,26 @@ export const CompetitionSection = React.memo(function CompetitionSection({
             </div>
           </TabsContent>
         </Tabs>
+
+        {selectedSeasonId === 'current' && (
+          <div className="mt-3 pt-3 border-t border-border/50 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground min-w-0">
+              <Shield className="h-3.5 w-3.5 text-primary shrink-0" />
+              <span className="truncate">Statistiky ligy, střely a výsledky všech kol</span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              asChild
+              className="h-7 text-xs font-semibold text-primary hover:text-primary hover:bg-primary/10 shrink-0"
+            >
+              <Link href="/dashboard/league" className="flex items-center gap-1">
+                Ligové centrum
+                <ArrowRight className="h-3 w-3" />
+              </Link>
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

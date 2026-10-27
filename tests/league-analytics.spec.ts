@@ -1,0 +1,190 @@
+import { test, expect } from '@playwright/test';
+import {
+  normalizeClubName,
+  areClubNamesMatching,
+  calculateTeamAnalytics,
+  calculateLeagueOverview,
+} from '../src/features/league/utils/league-analytics';
+import type {
+  LeagueStanding,
+  LeagueMatchItem,
+  LeagueSkaterItem,
+  LeagueGoalieItem,
+} from '../src/types';
+
+test.describe('Ligové centrum - Analytika a metriky', () => {
+  test('normalizeClubName a areClubNamesMatching správně rozpoznávají názvy klubů', () => {
+    expect(normalizeClubName('HC Aces')).toBe('HC Aces');
+    expect(normalizeClubName('aces')).toBe('HC Aces');
+    expect(normalizeClubName('HH OLDIES')).toBe('HH Oldies');
+    expect(normalizeClubName('Divočáci Brno')).toBe('Divočáci');
+    expect(normalizeClubName('Sjetý gumy')).toBe('Sjetý gumy');
+
+    expect(areClubNamesMatching('HC Aces', 'Aces')).toBe(true);
+    expect(areClubNamesMatching('aces', 'HC ACES')).toBe(true);
+    expect(areClubNamesMatching('HC Aces', 'Predators')).toBe(false);
+  });
+
+  test('calculateTeamAnalytics správně počítá formu, střeleckou úspěšnost a tresty', () => {
+    const mockStandings: LeagueStanding[] = [
+      {
+        id: 'aces',
+        name: 'HC Aces',
+        points: 8,
+        gf: 20,
+        ga: 10,
+        gp: 4,
+        w: 4,
+        d: 0,
+        l: 0,
+        rank: 1,
+      },
+    ];
+
+    const mockMatches: LeagueMatchItem[] = [
+      {
+        round: 1,
+        dateStr: '10.10.2025',
+        dayOfWeek: 'Pá',
+        timeStr: '20:00',
+        location: 'Lužánky',
+        team1: 'HC Aces',
+        team2: 'Predators',
+        isPlayed: true,
+        score1: 5,
+        score2: 2,
+        shots1: 30,
+        shots2: 15,
+        penalties1: 2,
+        penalties2: 4,
+      },
+      {
+        round: 2,
+        dateStr: '17.10.2025',
+        dayOfWeek: 'Pá',
+        timeStr: '20:00',
+        location: 'Lužánky',
+        team1: 'HH Oldies',
+        team2: 'HC Aces',
+        isPlayed: true,
+        score1: 1,
+        score2: 4,
+        shots1: 20,
+        shots2: 25,
+        penalties1: 1,
+        penalties2: 3,
+      },
+    ];
+
+    const mockSkaters: LeagueSkaterItem[] = [
+      {
+        rank: 1,
+        name: 'Denis Krejčí',
+        club: 'HC Aces',
+        gamesPlayed: 2,
+        goals: 4,
+        assists: 2,
+        points: 6,
+      },
+    ];
+
+    const mockGoalies: LeagueGoalieItem[] = [
+      {
+        rank: 1,
+        name: 'Petr Brankář',
+        club: 'HC Aces',
+        gamesPlayed: 2,
+        minutes: 90,
+        saves: 32,
+        goalsAgainst: 3,
+        savePercentage: 91.4,
+        shutouts: 0,
+      },
+    ];
+
+    const analytics = calculateTeamAnalytics(mockStandings, mockMatches, mockSkaters, mockGoalies);
+
+    expect(analytics).toHaveLength(1);
+    const aces = analytics[0];
+
+    expect(aces.name).toBe('HC Aces');
+    expect(aces.gp).toBe(4);
+    expect(aces.points).toBe(8);
+    expect(aces.diff).toBe(10);
+    expect(aces.gfPerGame).toBe(5);
+    expect(aces.gaPerGame).toBe(2.5);
+
+    // Střely: 30 + 25 = 55 střel, 20 gólů v tabulce -> (20 / 55) * 100 = 36.4%
+    expect(aces.totalShots).toBe(55);
+    expect(aces.hasShotsTracked).toBe(true);
+    expect(aces.shootingPercentage).toBe(36.4);
+
+    // Tresty: 2 + 3 = 5 trestů, gp = 4 -> 5 / 4 = 1.3 TM / Z
+    expect(aces.totalPenalties).toBe(5);
+    expect(aces.penaltiesPerGame).toBe(1.3);
+
+    // Forma
+    expect(aces.form).toHaveLength(2);
+    expect(aces.form[0].result).toBe('W');
+    expect(aces.form[0].score).toBe('5:2');
+    expect(aces.form[1].result).toBe('W');
+    expect(aces.form[1].score).toBe('4:1');
+
+    // Lídři týmu
+    expect(aces.topScorer?.name).toBe('Denis Krejčí');
+    expect(aces.topScorer?.points).toBe(6);
+    expect(aces.primaryGoalie?.name).toBe('Petr Brankář');
+  });
+
+  test('calculateLeagueOverview správně určuje ligové lídry a trofeje', () => {
+    const mockStandings: LeagueStanding[] = [
+      { id: '1', name: 'HC Aces', points: 6, gf: 15, ga: 5, gp: 3, w: 3, d: 0, l: 0, rank: 1 },
+      { id: '2', name: 'Predators', points: 2, gf: 6, ga: 12, gp: 3, w: 1, d: 0, l: 2, rank: 2 },
+    ];
+
+    const mockMatches: LeagueMatchItem[] = [
+      {
+        round: 1,
+        dateStr: '10.10.2025',
+        dayOfWeek: 'Pá',
+        timeStr: '20:00',
+        location: 'Lužánky',
+        team1: 'HC Aces',
+        team2: 'Predators',
+        isPlayed: true,
+        score1: 5,
+        score2: 2,
+        shots1: 25,
+        shots2: 18,
+        penalties1: 1,
+        penalties2: 3,
+      },
+    ];
+
+    const mockSkaters: LeagueSkaterItem[] = [
+      { rank: 1, name: 'Hráč A', club: 'HC Aces', gamesPlayed: 3, goals: 7, assists: 3, points: 10 },
+      { rank: 2, name: 'Hráč B', club: 'Predators', gamesPlayed: 3, goals: 4, assists: 5, points: 9 },
+    ];
+
+    const mockGoalies: LeagueGoalieItem[] = [
+      { rank: 1, name: 'Brankář A', club: 'HC Aces', gamesPlayed: 3, minutes: 135, saves: 45, goalsAgainst: 5, savePercentage: 90.0, shutouts: 1 },
+    ];
+
+    const teamSummaries = calculateTeamAnalytics(mockStandings, mockMatches, mockSkaters, mockGoalies);
+    const overview = calculateLeagueOverview(teamSummaries, mockMatches, mockSkaters, mockGoalies);
+
+    expect(overview.totalMatchesPlayed).toBe(1);
+    expect(overview.totalGoalsScored).toBe(7);
+    expect(overview.averageGoalsPerGame).toBe(7);
+
+    // Ocenění
+    expect(overview.bestOffenseTeam?.name).toBe('HC Aces');
+    expect(overview.bestDefenseTeam?.name).toBe('HC Aces');
+    expect(overview.artRossLeader?.name).toBe('Hráč A');
+    expect(overview.artRossLeader?.points).toBe(10);
+    expect(overview.rocketRichardLeader?.name).toBe('Hráč A');
+    expect(overview.rocketRichardLeader?.goals).toBe(7);
+    expect(overview.vezinaLeader?.name).toBe('Brankář A');
+    expect(overview.vezinaLeader?.savePercentage).toBe(90.0);
+  });
+});

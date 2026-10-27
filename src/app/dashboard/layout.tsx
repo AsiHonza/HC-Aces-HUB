@@ -6,7 +6,7 @@ import Link from "next/link"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Power, User, Users, Loader2, LayoutDashboard, History, Calendar as CalendarIcon, Trophy } from "lucide-react"
+import { Power, User, Users, Loader2, LayoutDashboard, History, Calendar as CalendarIcon, Trophy, Shield } from "lucide-react"
 import { useUser, useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase'
 import { signOut } from 'firebase/auth'
 import { useRouter, usePathname } from 'next/navigation'
@@ -115,6 +115,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
 
     const navLinks = [
         { href: '/dashboard', label: 'Nástěnka', icon: LayoutDashboard },
+        { href: '/dashboard/league', label: 'Liga', icon: Shield },
         { href: '/dashboard/calendar', label: 'Kalendář', icon: CalendarIcon },
         { href: '/dashboard/history', label: 'Historie', icon: History },
         { href: '/dashboard/hall-of-fame', label: 'Síň slávy', icon: Trophy, isMilestones: true },

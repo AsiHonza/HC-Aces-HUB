@@ -2,6 +2,7 @@ import * as admin from 'firebase-admin';
 import { ScrapedLeagueData } from './league-scraper';
 import { sendPushToAll } from '../server/web-push';
 import { getCanonicalPlayerName } from '../utils';
+import { buildEnrichedLeagueMatches } from './league-sync';
 
 export interface AdminSyncResult {
   success: boolean;
@@ -138,14 +139,19 @@ export async function syncLeagueToAdminFirestore(
       l: s.losses,
     }));
 
+    const leagueMatches = buildEnrichedLeagueMatches(data.allMatches || [], data.matchReports || []);
     const leagueSettingsPayload = sanitizeForFirestore({
       leagueStandings: formattedStandings,
       leagueSkaters: data.allSkaters || [],
+      leagueGoalies: data.allGoalies || [],
+      leagueMatches,
       lastSyncAt: admin.firestore.Timestamp.now(),
       lastSyncSummary: {
         timestamp: new Date().toISOString(),
         standingsCount: formattedStandings.length,
         leagueSkatersCount: (data.allSkaters || []).length,
+        leagueGoaliesCount: (data.allGoalies || []).length,
+        leagueMatchesCount: leagueMatches.length,
         acesMatchesCount: data.acesMatches.length,
         acesSkatersCount: data.acesSkaters.length,
         acesGoaliesCount: data.acesGoalies.length,
