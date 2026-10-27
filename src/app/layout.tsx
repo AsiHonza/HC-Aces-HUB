@@ -61,6 +61,23 @@ export default function RootLayout({
               } catch (e) {}
 
               try {
+                // Ignore uncaught errors thrown by third-party browser extensions (e.g. Urban VPN, password managers)
+                if (typeof window !== 'undefined') {
+                  window.addEventListener('error', function(event) {
+                    if (event.filename && (event.filename.indexOf('chrome-extension://') !== -1 || event.filename.indexOf('moz-extension://') !== -1)) {
+                      event.stopImmediatePropagation();
+                    }
+                  }, true);
+                  window.addEventListener('unhandledrejection', function(event) {
+                    var reason = event.reason;
+                    if (reason && reason.stack && (reason.stack.indexOf('chrome-extension://') !== -1 || reason.stack.indexOf('moz-extension://') !== -1)) {
+                      event.stopImmediatePropagation();
+                    }
+                  }, true);
+                }
+              } catch (e) {}
+
+              try {
                 if (typeof MutationObserver !== 'undefined') {
                   var obs = new MutationObserver(function(mutations) {
                     for (var i = 0; i < mutations.length; i++) {

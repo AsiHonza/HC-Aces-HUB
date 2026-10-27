@@ -477,12 +477,12 @@ test.describe('Ligové centrum - Analytika a metriky', () => {
     ];
 
     const skaters: LeagueSkaterItem[] = [
-      { name: 'Karel Lovec', club: 'Predators', goals: 6, assists: 3, points: 9, gamesPlayed: 5 },
-      { name: 'Jan Rychlý', club: 'Predators', goals: 2, assists: 4, points: 6, gamesPlayed: 5 },
+      { rank: 1, name: 'Karel Lovec', club: 'Predators', goals: 6, assists: 3, points: 9, gamesPlayed: 5 },
+      { rank: 2, name: 'Jan Rychlý', club: 'Predators', goals: 2, assists: 4, points: 6, gamesPlayed: 5 },
     ];
 
     const goalies: LeagueGoalieItem[] = [
-      { name: 'Petr Zedník', club: 'Predators', gamesPlayed: 5, goalsAgainst: 12, saves: 108, savePercentage: 90.0 },
+      { rank: 1, name: 'Petr Zedník', club: 'Predators', gamesPlayed: 5, goalsAgainst: 12, saves: 108, savePercentage: 90.0, minutes: 225, shutouts: 0 },
     ];
 
     const summaries = calculateTeamAnalytics(standings, matches, skaters, goalies);
