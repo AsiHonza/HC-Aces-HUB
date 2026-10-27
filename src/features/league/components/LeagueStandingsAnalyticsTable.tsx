@@ -478,7 +478,7 @@ export function LeagueStandingsAnalyticsTable({
                         </TableCell>
                         <TableCell className="font-semibold text-foreground sticky left-12 z-10 bg-card/95 backdrop-blur-sm border-r border-border/40 sm:border-r-0">
                           <div className="flex items-center gap-2">
-                            <TeamBadge name={team.name} size="xs" />
+                            <TeamBadge name={team.name} size="sm" />
                             <span className="truncate">{team.name}</span>
                             {isAces && (
                               <Badge variant="outline" className="text-[10px] h-4 px-1 border-primary/40 text-primary font-bold shrink-0">
@@ -548,7 +548,7 @@ export function LeagueStandingsAnalyticsTable({
                       </TableCell>
                       <TableCell className="font-semibold text-foreground sticky left-12 z-10 bg-card/95 backdrop-blur-sm border-r border-border/40 sm:border-r-0">
                         <div className="flex items-center gap-2">
-                          <TeamBadge name={team.name} size="xs" />
+                          <TeamBadge name={team.name} size="sm" />
                           <span className="truncate">{team.name}</span>
                           {isAces && (
                             <Badge variant="outline" className="text-[10px] h-4 px-1 border-primary/40 text-primary font-bold shrink-0">

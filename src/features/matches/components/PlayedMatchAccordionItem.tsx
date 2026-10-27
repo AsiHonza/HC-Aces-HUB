@@ -30,6 +30,7 @@ import { cs } from 'date-fns/locale';
 import { GoalTimeline } from './GoalTimeline';
 import { getMatchDetails, MatchLike } from '../utils/match-details';
 import { calculateMvpResults, getMvpVotingStatus } from '../utils/mvpVoting';
+import { TeamBadge } from '@/features/league';
 import type { UserProfile } from '@/types';
 
 export interface PlayedMatchData extends MatchLike {
@@ -197,23 +198,25 @@ export function PlayedMatchAccordionItem({
                 {/* Tým 1 (Domácí) */}
                 <div
                   className={cn(
-                    'text-sm sm:text-base font-bold truncate tracking-tight',
+                    'text-sm sm:text-base font-bold truncate tracking-tight flex items-center gap-2',
                     isAcesHome ? 'text-primary font-extrabold' : 'text-foreground'
                   )}
                   title={match.team1}
                 >
-                  {match.team1}
+                  <TeamBadge name={match.team1} size="sm" />
+                  <span className="truncate">{match.team1}</span>
                 </div>
 
                 {/* Tým 2 (Hosté) */}
                 <div
                   className={cn(
-                    'text-sm sm:text-base font-bold truncate tracking-tight',
+                    'text-sm sm:text-base font-bold truncate tracking-tight flex items-center gap-2',
                     !isAcesHome ? 'text-primary font-extrabold' : 'text-foreground'
                   )}
                   title={match.team2}
                 >
-                  {match.team2}
+                  <TeamBadge name={match.team2} size="sm" />
+                  <span className="truncate">{match.team2}</span>
                 </div>
               </div>
 

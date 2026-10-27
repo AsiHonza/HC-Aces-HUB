@@ -49,6 +49,7 @@ import { QuickRsvpButtons } from '@/features/attendance';
 import { getMatchDetails, MatchLike } from '../utils/match-details';
 import { downloadMatchIcs } from '../utils/calendarIcs';
 import { HeadToHeadSection } from './HeadToHeadSection';
+import { TeamBadge } from '@/features/league';
 import { resolvePlayerPosition, POSITION_METADATA } from '@/features/roster/utils/positions';
 import { getPlayerFormIcon } from '@/features/stats';
 import type { PlayerFormSummary } from '@/features/stats/utils/playerForm';
@@ -185,24 +186,26 @@ export function UpcomingMatchCard({
               {format(toJsDate(match.dateTime), 'EEEE d. M. yyyy, HH:mm', { locale: cs })}
             </span>
           </div>
-          <div className="space-y-0.5 pt-0.5">
+          <div className="space-y-1.5 pt-1">
             <div
               className={cn(
-                'text-lg sm:text-2xl font-bold font-headline tracking-tight truncate',
+                'text-lg sm:text-2xl font-bold font-headline tracking-tight truncate flex items-center gap-2.5',
                 isAcesHome ? 'text-primary font-black' : 'text-foreground'
               )}
               title={homeTeam}
             >
-              {homeTeam}
+              <TeamBadge name={homeTeam} size="md" />
+              <span className="truncate">{homeTeam}</span>
             </div>
             <div
               className={cn(
-                'text-lg sm:text-2xl font-bold font-headline tracking-tight truncate',
+                'text-lg sm:text-2xl font-bold font-headline tracking-tight truncate flex items-center gap-2.5',
                 !isAcesHome ? 'text-primary font-black' : 'text-foreground'
               )}
               title={awayTeam}
             >
-              {awayTeam}
+              <TeamBadge name={awayTeam} size="md" />
+              <span className="truncate">{awayTeam}</span>
             </div>
           </div>
         </div>

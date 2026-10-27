@@ -8,6 +8,7 @@ import { Clock, MapPin, CheckSquare, ShieldAlert } from 'lucide-react';
 import { formatMatchDate } from '@/lib/dates';
 import { cn } from '@/lib/utils';
 import { getMatchOpponentName } from '../utils/headToHead';
+import { TeamBadge } from '@/features/league';
 import type { Match } from '@/types';
 
 export interface AwaitingResultCardProps {
@@ -41,12 +42,14 @@ export function AwaitingResultCard({
             )}
           </div>
 
-          <div className="space-y-0.5">
-            <div className={cn("text-base sm:text-lg font-bold font-headline truncate", isAcesHome ? "text-primary font-black" : "text-foreground")}>
-              {match.team1 || 'HC Aces'}
+          <div className="space-y-1">
+            <div className={cn("text-base sm:text-lg font-bold font-headline truncate flex items-center gap-2", isAcesHome ? "text-primary font-black" : "text-foreground")}>
+              <TeamBadge name={match.team1 || 'HC Aces'} size="sm" />
+              <span className="truncate">{match.team1 || 'HC Aces'}</span>
             </div>
-            <div className={cn("text-base sm:text-lg font-bold font-headline truncate", !isAcesHome ? "text-primary font-black" : "text-foreground")}>
-              {match.team2 || opponentName}
+            <div className={cn("text-base sm:text-lg font-bold font-headline truncate flex items-center gap-2", !isAcesHome ? "text-primary font-black" : "text-foreground")}>
+              <TeamBadge name={match.team2 || opponentName} size="sm" />
+              <span className="truncate">{match.team2 || opponentName}</span>
             </div>
           </div>
 

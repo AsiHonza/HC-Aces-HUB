@@ -245,7 +245,7 @@ export function LeagueMatchesView({ matches, onSelectTeam }: LeagueMatchesViewPr
                       {/* Team 1 (Home) */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <TeamBadge name={t1Norm} size="xs" />
+                          <TeamBadge name={t1Norm} size="md" />
                           <button
                             type="button"
                             onClick={() => onSelectTeam?.(t1Norm)}
@@ -295,7 +295,7 @@ export function LeagueMatchesView({ matches, onSelectTeam }: LeagueMatchesViewPr
                           >
                             {t2Norm}
                           </button>
-                          <TeamBadge name={t2Norm} size="xs" />
+                          <TeamBadge name={t2Norm} size="md" />
                         </div>
                         <span className="text-[10px] text-muted-foreground uppercase font-medium pr-7 sm:pr-8 block">Hosté</span>
                       </div>

@@ -6,7 +6,7 @@ import { areClubNamesMatching, normalizeClubName } from '../utils/league-analyti
 
 export interface TeamBadgeProps {
   name: string;
-  size?: 'xs' | 'sm' | 'md' | 'lg';
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   className?: string;
   showName?: boolean;
 }
@@ -29,6 +29,18 @@ export const TEAM_LOGOS: Record<string, string> = {
   'Sjetý gumy': '/teams/sjety-gumy.png',
   'Raci': '/teams/raci.jpg',
   'Embedit': '/teams/embedit.png',
+};
+
+export const TEAM_LOGO_BG: Record<string, string> = {
+  'HC Aces': 'bg-black border-amber-500/40',
+  'Divočáci': 'bg-black border-zinc-700',
+  'Predators': 'bg-white border-zinc-200 dark:border-zinc-700',
+  'ALL IN': 'bg-white border-zinc-200 dark:border-zinc-700',
+  'HH Oldies': 'bg-white border-zinc-200 dark:border-zinc-700',
+  'HH Machines': 'bg-black border-zinc-700',
+  'Sjetý gumy': 'bg-white border-zinc-200 dark:border-zinc-700',
+  'Raci': 'bg-white border-zinc-200 dark:border-zinc-700',
+  'Embedit': 'bg-white border-zinc-200 dark:border-zinc-700',
 };
 
 const TEAM_STYLES: Record<string, TeamStyle> = {
@@ -107,6 +119,16 @@ export function getTeamLogo(teamName: string): string | null {
   return null;
 }
 
+export function getTeamLogoBg(teamName: string): string {
+  const norm = normalizeClubName(teamName);
+  for (const [key, bg] of Object.entries(TEAM_LOGO_BG)) {
+    if (areClubNamesMatching(norm, key)) {
+      return bg;
+    }
+  }
+  return 'bg-white dark:bg-zinc-900 border-border';
+}
+
 export function getTeamStyle(teamName: string): TeamStyle {
   const norm = normalizeClubName(teamName);
   for (const [key, style] of Object.entries(TEAM_STYLES)) {
@@ -136,12 +158,15 @@ export function TeamBadge({
   const norm = normalizeClubName(name);
   const style = getTeamStyle(norm);
   const logoSrc = getTeamLogo(norm);
+  const logoBg = getTeamLogoBg(norm);
 
+  // Significantly enlarged and optimized sizes for high legibility
   const sizeClasses = {
-    xs: 'h-5 w-5 rounded-md text-[9px]',
-    sm: 'h-6 w-6 rounded-lg text-[10px]',
-    md: 'h-8 w-8 rounded-xl text-xs',
-    lg: 'h-10 w-10 rounded-2xl text-sm',
+    xs: 'h-6 w-6 rounded-md text-[10px]',
+    sm: 'h-8 w-8 rounded-lg text-xs',
+    md: 'h-10 w-10 rounded-xl text-sm',
+    lg: 'h-14 w-14 rounded-2xl text-base',
+    xl: 'h-20 w-20 rounded-3xl text-xl',
   }[size];
 
   return (
@@ -149,7 +174,8 @@ export function TeamBadge({
       {logoSrc && !imgError ? (
         <div
           className={cn(
-            'relative flex items-center justify-center shrink-0 overflow-hidden bg-white/95 border border-border/80 shadow-sm p-0.5',
+            'relative flex items-center justify-center shrink-0 overflow-hidden shadow-sm p-0.5 border',
+            logoBg,
             sizeClasses
           )}
           title={norm}

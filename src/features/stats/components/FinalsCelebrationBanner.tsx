@@ -5,6 +5,7 @@ import { Trophy, History, Sparkles, Award } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { TeamBadge } from '@/features/league';
 import type { FinalsSeriesStatus } from '../utils/season';
 
 export interface FinalsCelebrationBannerProps {
@@ -77,7 +78,8 @@ export function FinalsCelebrationBanner({
               </span>
             </div>
 
-            <h3 className="text-base sm:text-lg font-black font-headline tracking-tight text-foreground">
+            <h3 className="text-base sm:text-lg font-black font-headline tracking-tight text-foreground flex items-center gap-2 flex-wrap">
+              <TeamBadge name={status.winnerTeam || 'HC Aces'} size="sm" />
               {isAces ? (
                 <span>
                   🏆 HC Aces vítězí ve finále{' '}
