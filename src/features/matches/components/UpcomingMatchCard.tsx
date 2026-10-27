@@ -49,11 +49,20 @@ import { QuickRsvpButtons } from '@/features/attendance';
 import { getMatchDetails, MatchLike } from '../utils/match-details';
 import { downloadMatchIcs } from '../utils/calendarIcs';
 import { HeadToHeadSection } from './HeadToHeadSection';
+import { OpponentScoutingWidget } from './OpponentScoutingWidget';
 import { TeamBadge } from '@/features/league';
 import { resolvePlayerPosition, POSITION_METADATA } from '@/features/roster/utils/positions';
 import { getPlayerFormIcon } from '@/features/stats';
 import type { PlayerFormSummary } from '@/features/stats/utils/playerForm';
-import type { Match, UserProfile } from '@/types';
+import type {
+  Match,
+  UserProfile,
+  LeagueStanding,
+  LeagueMatchItem,
+  LeagueSkaterItem,
+  LeagueGoalieItem,
+  LeagueFairPlayItem,
+} from '@/types';
 
 export interface UpcomingMatchAttendee {
   userId: string;
@@ -77,7 +86,11 @@ export interface UpcomingMatchCardProps {
   match: UpcomingMatchItem;
   allMatches?: Match[];
   archivedSeasons?: any[];
-  leagueSkaters?: Array<{ name: string; club: string; goals: number; assists: number; points: number; gamesPlayed?: number }>;
+  leagueStandings?: LeagueStanding[];
+  leagueMatches?: LeagueMatchItem[];
+  leagueSkaters?: LeagueSkaterItem[];
+  leagueGoalies?: LeagueGoalieItem[];
+  leagueFairPlay?: LeagueFairPlayItem[];
   attendanceStatus?: 'going' | 'not-going' | null;
   attendanceNote?: string;
   attendees?: UpcomingMatchAttendee[];
@@ -102,7 +115,11 @@ export function UpcomingMatchCard({
   match,
   allMatches = [],
   archivedSeasons = [],
+  leagueStandings = [],
+  leagueMatches = [],
   leagueSkaters = [],
+  leagueGoalies = [],
+  leagueFairPlay = [],
   attendanceStatus,
   attendanceNote,
   attendees = [],
@@ -272,6 +289,19 @@ export function UpcomingMatchCard({
           <MapPin className="h-3.5 w-3.5 text-primary shrink-0" />
           <span>{match.location}</span>
         </div>
+
+        {/* Vizitka příštího soupeře (Scouting mini-widget) */}
+        {opponent && (
+          <OpponentScoutingWidget
+            opponentName={opponent}
+            allMatches={allMatches}
+            leagueStandings={leagueStandings}
+            leagueMatches={leagueMatches}
+            leagueSkaters={leagueSkaters}
+            leagueGoalies={leagueGoalies}
+            leagueFairPlay={leagueFairPlay}
+          />
+        )}
 
         <HeadToHeadSection
           match={match as Match}

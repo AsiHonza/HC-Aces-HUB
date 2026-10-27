@@ -1444,7 +1444,11 @@ function DashboardPageContent() {
       usersMap={usersMap}
       currentUserId={user?.uid}
       playerFormMap={teamMilestonesData.playerFormMap}
+      leagueStandings={leagueSettings?.leagueStandings}
+      leagueMatches={leagueSettings?.leagueMatches}
       leagueSkaters={leagueSettings?.leagueSkaters}
+      leagueGoalies={leagueSettings?.leagueGoalies}
+      leagueFairPlay={leagueSettings?.leagueFairPlay}
       highlightedMatchId={highlightedMatchId}
       highlightReason={highlightReason}
       openAccordionValue={openAccordionValue}

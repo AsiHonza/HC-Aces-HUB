@@ -438,4 +438,66 @@ test.describe('Ligové centrum - Analytika a metriky', () => {
     expect(h2h.penaltiesA).toBe(10); // 4 + 6
     expect(h2h.penaltiesB).toBe(10); // 8 + 2
   });
+
+  test('Opponent Scouting Widget spolehlivě extrahuje vizitku soupeře, klíčové hráče a formu', () => {
+    const standings: LeagueStanding[] = [
+      { id: '1', rank: 1, name: 'HC Aces', gamesPlayed: 5, wins: 4, draws: 0, losses: 1, gf: 25, ga: 10, points: 8 },
+      { id: '2', rank: 2, name: 'Predators', gamesPlayed: 5, wins: 3, draws: 1, losses: 1, gf: 18, ga: 12, points: 7 },
+    ];
+
+    const matches: LeagueMatchItem[] = [
+      {
+        round: 1,
+        dateStr: '1. 10. 2025',
+        dayOfWeek: 'středa',
+        timeStr: '20:00',
+        location: 'Moutnice',
+        team1: 'HC Aces',
+        team2: 'Predators',
+        isPlayed: true,
+        score1: 4,
+        score2: 2,
+        shots1: 30,
+        shots2: 20,
+      },
+      {
+        round: 2,
+        dateStr: '8. 10. 2025',
+        dayOfWeek: 'středa',
+        timeStr: '20:00',
+        location: 'Moutnice',
+        team1: 'Predators',
+        team2: 'HH Oldies',
+        isPlayed: true,
+        score1: 5,
+        score2: 1,
+        shots1: 28,
+        shots2: 14,
+      },
+    ];
+
+    const skaters: LeagueSkaterItem[] = [
+      { name: 'Karel Lovec', club: 'Predators', goals: 6, assists: 3, points: 9, gamesPlayed: 5 },
+      { name: 'Jan Rychlý', club: 'Predators', goals: 2, assists: 4, points: 6, gamesPlayed: 5 },
+    ];
+
+    const goalies: LeagueGoalieItem[] = [
+      { name: 'Petr Zedník', club: 'Predators', gamesPlayed: 5, goalsAgainst: 12, saves: 108, savePercentage: 90.0 },
+    ];
+
+    const summaries = calculateTeamAnalytics(standings, matches, skaters, goalies);
+    const predSummary = summaries.find((s) => areClubNamesMatching(s.name, 'Predators'));
+
+    expect(predSummary).toBeDefined();
+    expect(predSummary?.rank).toBe(2);
+    expect(predSummary?.points).toBe(7);
+    expect(predSummary?.w).toBe(3);
+    expect(predSummary?.d).toBe(1);
+    expect(predSummary?.l).toBe(1);
+    expect(predSummary?.topScorer?.name).toBe('Karel Lovec');
+    expect(predSummary?.topScorer?.points).toBe(9);
+    expect(predSummary?.primaryGoalie?.name).toBe('Petr Zedník');
+    expect(predSummary?.primaryGoalie?.savePercentage).toBe(90.0);
+    expect(predSummary?.form.length).toBeGreaterThanOrEqual(2);
+  });
 });

@@ -16,4 +16,5 @@ export * from './components/MatchStarsModal';
 export * from './components/AwaitingResultCard';
 export * from './components/PostMatchSection';
 export * from './components/MatchAwardCelebrationModal';
+export * from './components/OpponentScoutingWidget';
 export * from './services/matchesService';

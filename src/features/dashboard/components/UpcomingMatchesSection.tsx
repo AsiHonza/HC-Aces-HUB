@@ -3,7 +3,15 @@ import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Trophy, Plus, History } from 'lucide-react';
 import { UpcomingMatchCard, type UpcomingMatchItem } from '@/features/matches';
-import type { Match, UserProfile } from '@/types';
+import type {
+  Match,
+  UserProfile,
+  LeagueStanding,
+  LeagueMatchItem,
+  LeagueSkaterItem,
+  LeagueGoalieItem,
+  LeagueFairPlayItem,
+} from '@/types';
 
 interface UpcomingMatchesSectionProps {
   selectedSeasonId: string;
@@ -18,7 +26,11 @@ interface UpcomingMatchesSectionProps {
   usersMap: Map<string, UserProfile>;
   currentUserId?: string;
   playerFormMap?: Map<string, any>;
-  leagueSkaters?: any[];
+  leagueStandings?: LeagueStanding[];
+  leagueMatches?: LeagueMatchItem[];
+  leagueSkaters?: LeagueSkaterItem[];
+  leagueGoalies?: LeagueGoalieItem[];
+  leagueFairPlay?: LeagueFairPlayItem[];
   highlightedMatchId: string | null;
   highlightReason: string | null;
   openAccordionValue: string;
@@ -47,7 +59,11 @@ export const UpcomingMatchesSection = React.memo(function UpcomingMatchesSection
   usersMap,
   currentUserId,
   playerFormMap,
+  leagueStandings,
+  leagueMatches,
   leagueSkaters,
+  leagueGoalies,
+  leagueFairPlay,
   highlightedMatchId,
   highlightReason,
   openAccordionValue,
@@ -92,13 +108,17 @@ export const UpcomingMatchesSection = React.memo(function UpcomingMatchesSection
         match={m as any}
         allMatches={allMatches}
         archivedSeasons={archivedSeasons}
+        leagueStandings={leagueStandings}
+        leagueMatches={leagueMatches}
+        leagueSkaters={leagueSkaters}
+        leagueGoalies={leagueGoalies}
+        leagueFairPlay={leagueFairPlay}
         attendanceStatus={attStatus as any}
         attendanceNote={userAttendances.get(m.id)?.note}
         attendees={matchAttendees as any}
         usersMap={usersMap}
         currentUserId={currentUserId}
         playerFormMap={playerFormMap}
-        leagueSkaters={leagueSkaters}
         isAdmin={isAdmin}
         isCardHighlighted={highlightedMatchId === m.id}
         isLineupHighlighted={isLineupHighlighted}
