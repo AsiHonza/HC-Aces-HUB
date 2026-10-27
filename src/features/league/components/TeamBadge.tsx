@@ -1,9 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { areClubNamesMatching, normalizeClubName } from '../utils/league-analytics';
-import { Shield } from 'lucide-react';
 
 export interface TeamBadgeProps {
   name: string;
@@ -19,6 +18,18 @@ interface TeamStyle {
   borderColor: string;
   iconBg: string;
 }
+
+export const TEAM_LOGOS: Record<string, string> = {
+  'HC Aces': '/teams/aces.png',
+  'Divočáci': '/teams/divocaci.png',
+  'Predators': '/teams/predators.png',
+  'ALL IN': '/teams/all-in.jpg',
+  'HH Oldies': '/teams/hh-oldies.jpg',
+  'HH Machines': '/teams/hh-machines.png',
+  'Sjetý gumy': '/teams/sjety-gumy.png',
+  'Raci': '/teams/raci.jpg',
+  'Embedit': '/teams/embedit.png',
+};
 
 const TEAM_STYLES: Record<string, TeamStyle> = {
   'HC Aces': {
@@ -86,6 +97,16 @@ const TEAM_STYLES: Record<string, TeamStyle> = {
   },
 };
 
+export function getTeamLogo(teamName: string): string | null {
+  const norm = normalizeClubName(teamName);
+  for (const [key, src] of Object.entries(TEAM_LOGOS)) {
+    if (areClubNamesMatching(norm, key)) {
+      return src;
+    }
+  }
+  return null;
+}
+
 export function getTeamStyle(teamName: string): TeamStyle {
   const norm = normalizeClubName(teamName);
   for (const [key, style] of Object.entries(TEAM_STYLES)) {
@@ -111,30 +132,51 @@ export function TeamBadge({
   className,
   showName = false,
 }: TeamBadgeProps) {
+  const [imgError, setImgError] = useState(false);
   const norm = normalizeClubName(name);
   const style = getTeamStyle(norm);
+  const logoSrc = getTeamLogo(norm);
 
   const sizeClasses = {
-    xs: 'h-5 w-5 text-[9px] rounded-md border',
-    sm: 'h-6 w-6 text-[10px] rounded-lg border',
-    md: 'h-8 w-8 text-xs rounded-xl border-2',
-    lg: 'h-10 w-10 text-sm rounded-2xl border-2',
+    xs: 'h-5 w-5 rounded-md text-[9px]',
+    sm: 'h-6 w-6 rounded-lg text-[10px]',
+    md: 'h-8 w-8 rounded-xl text-xs',
+    lg: 'h-10 w-10 rounded-2xl text-sm',
   }[size];
 
   return (
     <div className={cn('inline-flex items-center gap-2 shrink-0 select-none', className)}>
-      <div
-        className={cn(
-          'flex items-center justify-center font-black tracking-tighter shadow-sm bg-gradient-to-br',
-          style.bgGradient,
-          style.textColor,
-          style.borderColor,
-          sizeClasses
-        )}
-        title={norm}
-      >
-        <span>{style.initials}</span>
-      </div>
+      {logoSrc && !imgError ? (
+        <div
+          className={cn(
+            'relative flex items-center justify-center shrink-0 overflow-hidden bg-white/95 border border-border/80 shadow-sm p-0.5',
+            sizeClasses
+          )}
+          title={norm}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={logoSrc}
+            alt={norm}
+            className="h-full w-full object-contain"
+            onError={() => setImgError(true)}
+            loading="lazy"
+          />
+        </div>
+      ) : (
+        <div
+          className={cn(
+            'flex items-center justify-center font-black tracking-tighter shadow-sm bg-gradient-to-br border',
+            style.bgGradient,
+            style.textColor,
+            style.borderColor,
+            sizeClasses
+          )}
+          title={norm}
+        >
+          <span>{style.initials}</span>
+        </div>
+      )}
       {showName && <span className="font-semibold text-foreground truncate">{norm}</span>}
     </div>
   );
