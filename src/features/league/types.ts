@@ -75,3 +75,56 @@ export interface LeagueAwardsLeadersData {
 }
 
 export type LeagueOverviewData = LeagueAwardsLeadersData;
+
+export interface PlayerMatchLogItem {
+  round: number;
+  dateStr: string;
+  opponent: string;
+  teamScore: number;
+  oppScore: number;
+  result: 'W' | 'D' | 'L';
+  goalsScored: { minute: number; assist: string | null }[];
+  assistsGiven: { minute: number; scorer: string }[];
+  pointsInMatch: number;
+}
+
+export interface PlayerDetailedAnalytics {
+  skater: LeagueSkaterItem;
+  rankInLeague: number;
+  rankInClub: number;
+  clubSkatersCount: number;
+  teamGf: number;
+  goalShare: number; // % z týmových gólů
+  pointShare: number; // % zapojení do týmových gólů
+  ppg: number;
+  gpg: number;
+  apg: number;
+  isAcesPlayer: boolean;
+  acesRecord: {
+    gamesPlayedAgainstAces: number;
+    goalsAgainstAces: number;
+    assistsAgainstAces: number;
+    pointsAgainstAces: number;
+  };
+  matchLogs: PlayerMatchLogItem[];
+}
+
+export interface HeadToHeadComparison {
+  teamA: TeamAnalyticsSummary;
+  teamB: TeamAnalyticsSummary;
+  matches: LeagueMatchItem[];
+  winsA: number;
+  draws: number;
+  winsB: number;
+  goalsA: number;
+  goalsB: number;
+  shotsA: number;
+  shotsB: number;
+  shootingPercentA: number;
+  shootingPercentB: number;
+  savePercentA: number;
+  savePercentB: number;
+  penaltiesA: number;
+  penaltiesB: number;
+}
+

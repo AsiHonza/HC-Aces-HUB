@@ -8,3 +8,4 @@ export * from './components/LeagueScorersTable';
 export * from './components/LeagueGoaliesTable';
 export * from './components/TeamDetailDialog';
 export * from './components/TeamBadge';
+export * from './components/LeaguePlayerDetailDialog';

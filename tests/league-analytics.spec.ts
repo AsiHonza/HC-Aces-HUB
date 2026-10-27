@@ -2,8 +2,11 @@ import { test, expect } from '@playwright/test';
 import {
   normalizeClubName,
   areClubNamesMatching,
+  arePlayerNamesMatching,
   calculateTeamAnalytics,
   calculateLeagueOverview,
+  calculatePlayerDetailedAnalytics,
+  calculateHeadToHeadComparison,
 } from '../src/features/league/utils/league-analytics';
 import { detectFinalsStatus } from '../src/features/stats/utils/season';
 import type {
@@ -262,5 +265,177 @@ test.describe('Ligové centrum - Analytika a metriky', () => {
     expect(leagueStatus.winnerTeam).toBe('Embedit');
     expect(leagueStatus.loserTeam).toBe('Divočáci');
     expect(leagueStatus.seriesScore).toBe('3 : 0');
+  });
+
+  test('arePlayerNamesMatching spolehlivě páruje jména a příjmení hráčů', () => {
+    // 1. Prohozené pořadí jména a příjmení
+    expect(arePlayerNamesMatching('Jan Mlčák', 'Mlčák Jan')).toBe(true);
+    expect(arePlayerNamesMatching('Denis Krejčí', 'Krejčí Denis')).toBe(true);
+
+    // 2. Diakritika a velká/malá písmena
+    expect(arePlayerNamesMatching('MIROSLAV LACKO', 'lacko miroslav')).toBe(true);
+    expect(arePlayerNamesMatching('bednar antonin', 'Bednář Antonín')).toBe(true);
+
+    // 3. Shoda pouze na příjmení (pokud je v zápise jen příjmení)
+    expect(arePlayerNamesMatching('Krejčí', 'Krejčí Denis')).toBe(true);
+    expect(arePlayerNamesMatching('Mlčák Jan', 'Mlčák')).toBe(true);
+
+    // 4. Shoda s iniciálou
+    expect(arePlayerNamesMatching('D. Krejčí', 'Denis Krejčí')).toBe(true);
+    expect(arePlayerNamesMatching('J. Mlčák', 'Mlčák Jan')).toBe(true);
+
+    // 5. Různí hráči nesmí projít
+    expect(arePlayerNamesMatching('Jan Mlčák', 'Denis Krejčí')).toBe(false);
+    expect(arePlayerNamesMatching('Petr Novák', 'Karel Novák')).toBe(false);
+  });
+
+  test('calculatePlayerDetailedAnalytics správně počítá podíl na gólech, bilanci proti Aces a zápasovou historii', () => {
+    const skater: LeagueSkaterItem = {
+      rank: 1,
+      name: 'Krejčí Denis',
+      club: 'Predators',
+      gamesPlayed: 3,
+      goals: 5,
+      assists: 3,
+      points: 8,
+    };
+
+    const allSkaters: LeagueSkaterItem[] = [
+      skater,
+      { rank: 2, name: 'Hráč B', club: 'Predators', gamesPlayed: 3, goals: 3, assists: 2, points: 5 },
+      { rank: 3, name: 'Hráč C', club: 'HC Aces', gamesPlayed: 3, goals: 4, assists: 0, points: 4 },
+    ];
+
+    const standings: LeagueStanding[] = [
+      { id: 't1', rank: 1, name: 'Predators', gamesPlayed: 3, wins: 2, draws: 0, losses: 1, gf: 10, ga: 5, points: 4 },
+      { id: 't2', rank: 2, name: 'HC Aces', gamesPlayed: 3, wins: 1, draws: 0, losses: 2, gf: 5, ga: 10, points: 2 },
+    ];
+
+    const matches: LeagueMatchItem[] = [
+      // Kolo 1: Predators vs HC Aces (Predators vyhráli 4:2, Krejčí dal 2 góly + 1 asistenci)
+      {
+        round: 1,
+        dateStr: '10. 10. 2025',
+        dayOfWeek: 'pátek',
+        timeStr: '20:00',
+        location: 'Haly Vodova',
+        team1: 'Predators',
+        team2: 'HC Aces',
+        isPlayed: true,
+        score1: 4,
+        score2: 2,
+        goals: [
+          { minute: 12, team: 'team1', teamName: 'Predators', scorer: 'Krejčí Denis', assist: 'Hráč B' },
+          { minute: 25, team: 'team1', teamName: 'Predators', scorer: 'Hráč B', assist: 'Krejčí' },
+          { minute: 38, team: 'team1', teamName: 'Predators', scorer: 'Krejčí', assist: null },
+        ],
+      },
+      // Kolo 2: Predators vs Divočáci (Predators vyhráli 6:3, Krejčí dal 3 góly + 2 asistence)
+      {
+        round: 2,
+        dateStr: '17. 10. 2025',
+        dayOfWeek: 'pátek',
+        timeStr: '20:00',
+        location: 'Haly Vodova',
+        team1: 'Predators',
+        team2: 'Divočáci',
+        isPlayed: true,
+        score1: 6,
+        score2: 3,
+        goals: [
+          { minute: 5, team: 'team1', teamName: 'Predators', scorer: 'Krejčí Denis', assist: null },
+        ],
+      },
+    ];
+
+    const analytics = calculatePlayerDetailedAnalytics(skater, matches, standings, allSkaters);
+
+    expect(analytics.rankInLeague).toBe(1);
+    expect(analytics.rankInClub).toBe(1);
+    expect(analytics.clubSkatersCount).toBe(2);
+    expect(analytics.teamGf).toBe(10);
+    // Krejčí dal 5 z 10 gólů týmu -> 50.0%
+    expect(analytics.goalShare).toBe(50.0);
+    // Krejčí měl 8 z 10 bodů týmu -> 80.0%
+    expect(analytics.pointShare).toBe(80.0);
+    expect(analytics.ppg).toBe(2.67);
+
+    // Bilance proti HC Aces
+    expect(analytics.isAcesPlayer).toBe(false);
+    expect(analytics.acesRecord.gamesPlayedAgainstAces).toBe(1);
+    expect(analytics.acesRecord.goalsAgainstAces).toBe(2);
+    expect(analytics.acesRecord.assistsAgainstAces).toBe(1);
+    expect(analytics.acesRecord.pointsAgainstAces).toBe(3);
+
+    // Zápasový log
+    expect(analytics.matchLogs.length).toBe(2);
+    expect(analytics.matchLogs[0].opponent).toBe('HC Aces');
+    expect(analytics.matchLogs[0].pointsInMatch).toBe(3);
+    expect(analytics.matchLogs[0].goalsScored.length).toBe(2);
+    expect(analytics.matchLogs[0].assistsGiven.length).toBe(1);
+  });
+
+  test('calculateHeadToHeadComparison správně porovnává dva týmy', () => {
+    const teamA = calculateTeamAnalytics(
+      [{ id: 't1', rank: 1, name: 'HC Aces', gamesPlayed: 2, wins: 1, draws: 0, losses: 1, gf: 6, ga: 5, points: 2 }],
+      [],
+      [],
+      []
+    )[0];
+
+    const teamB = calculateTeamAnalytics(
+      [{ id: 't2', rank: 2, name: 'HH Oldies', gamesPlayed: 2, wins: 1, draws: 0, losses: 1, gf: 5, ga: 6, points: 2 }],
+      [],
+      [],
+      []
+    )[0];
+
+    const h2hMatches: LeagueMatchItem[] = [
+      {
+        round: 1,
+        dateStr: '1. 10. 2025',
+        dayOfWeek: 'středa',
+        timeStr: '20:00',
+        location: 'Moutnice',
+        team1: 'HC Aces',
+        team2: 'HH Oldies',
+        isPlayed: true,
+        score1: 4,
+        score2: 2,
+        shots1: 30,
+        shots2: 20,
+        penalties1: 4,
+        penalties2: 8,
+      },
+      {
+        round: 8,
+        dateStr: '20. 11. 2025',
+        dayOfWeek: 'středa',
+        timeStr: '20:00',
+        location: 'Moutnice',
+        team1: 'HH Oldies',
+        team2: 'HC Aces',
+        isPlayed: true,
+        score1: 3,
+        score2: 2,
+        shots1: 25,
+        shots2: 25,
+        penalties1: 2,
+        penalties2: 6,
+      },
+    ];
+
+    const h2h = calculateHeadToHeadComparison(teamA, teamB, h2hMatches);
+
+    expect(h2h.matches.length).toBe(2);
+    expect(h2h.winsA).toBe(1);
+    expect(h2h.winsB).toBe(1);
+    expect(h2h.draws).toBe(0);
+    expect(h2h.goalsA).toBe(6);
+    expect(h2h.goalsB).toBe(5);
+    expect(h2h.shotsA).toBe(55); // 30 + 25
+    expect(h2h.shotsB).toBe(45); // 20 + 25
+    expect(h2h.penaltiesA).toBe(10); // 4 + 6
+    expect(h2h.penaltiesB).toBe(10); // 8 + 2
   });
 });

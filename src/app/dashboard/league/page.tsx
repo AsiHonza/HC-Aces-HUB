@@ -587,6 +587,8 @@ function LeagueDashboardContent() {
                 <LeagueScorersTable
                   skaters={skaters}
                   onSelectTeam={handleSelectTeamByName}
+                  allMatches={matches}
+                  allStandings={standings}
                 />
               </TabsContent>
 
@@ -610,6 +612,8 @@ function LeagueDashboardContent() {
         allMatches={matches}
         allSkaters={skaters}
         allGoalies={goalies}
+        allTeams={teamSummaries}
+        allStandings={standings}
       />
 
       {/* Archive Season Confirmation Dialog */}

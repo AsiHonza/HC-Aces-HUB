@@ -26,23 +26,33 @@ import {
   ArrowDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { LeagueSkaterItem } from '../types';
+import type { LeagueSkaterItem, LeagueMatchItem, LeagueStanding } from '../types';
 import { areClubNamesMatching, normalizeClubName } from '../utils/league-analytics';
 import { TeamBadge } from './TeamBadge';
+import { LeaguePlayerDetailDialog } from './LeaguePlayerDetailDialog';
 
 interface LeagueScorersTableProps {
   skaters: LeagueSkaterItem[];
   onSelectTeam?: (teamName: string) => void;
+  allMatches?: LeagueMatchItem[];
+  allStandings?: LeagueStanding[];
 }
 
 type SkaterSort = 'rank' | 'points' | 'goals' | 'assists' | 'ppg' | 'gpg' | 'apg' | 'name' | 'club' | 'gamesPlayed';
 
-export function LeagueScorersTable({ skaters, onSelectTeam }: LeagueScorersTableProps) {
+export function LeagueScorersTable({
+  skaters,
+  onSelectTeam,
+  allMatches = [],
+  allStandings = [],
+}: LeagueScorersTableProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClub, setSelectedClub] = useState<string>('all');
   const [sortBy, setSortBy] = useState<SkaterSort>('points');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [displayLimit, setDisplayLimit] = useState<number>(25);
+  const [selectedPlayer, setSelectedPlayer] = useState<LeagueSkaterItem | null>(null);
+  const [isPlayerDialogOpen, setIsPlayerDialogOpen] = useState(false);
 
   const handleSort = (field: SkaterSort) => {
     if (sortBy === field) {
@@ -395,15 +405,19 @@ export function LeagueScorersTable({ skaters, onSelectTeam }: LeagueScorersTable
                   return (
                     <TableRow
                       key={`${sk.name}-${sk.club}-${index}`}
+                      onClick={() => {
+                        setSelectedPlayer(sk);
+                        setIsPlayerDialogOpen(true);
+                      }}
                       className={cn(
-                        'transition-colors',
-                        isAces ? 'bg-primary/10 hover:bg-primary/15 font-semibold text-foreground' : 'hover:bg-muted/40'
+                        'cursor-pointer transition-colors group',
+                        isAces ? 'bg-primary/10 hover:bg-primary/20 font-semibold text-foreground' : 'hover:bg-muted/50'
                       )}
                     >
                       <TableCell className="text-center font-bold text-muted-foreground sticky left-0 z-10 bg-card/95 backdrop-blur-sm">
                         {index + 1}.
                       </TableCell>
-                      <TableCell className="font-semibold text-foreground sticky left-12 z-10 bg-card/95 backdrop-blur-sm border-r border-border/40 sm:border-r-0">
+                      <TableCell className="font-semibold text-foreground sticky left-12 z-10 bg-card/95 backdrop-blur-sm border-r border-border/40 sm:border-r-0 group-hover:text-primary transition-colors">
                         <div className="flex items-center gap-1.5">
                           <span className="truncate">{sk.name}</span>
                           {isAces && (
@@ -418,7 +432,10 @@ export function LeagueScorersTable({ skaters, onSelectTeam }: LeagueScorersTable
                           <TeamBadge name={clubNorm} size="xs" />
                           <button
                             type="button"
-                            onClick={() => onSelectTeam?.(clubNorm)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelectTeam?.(clubNorm);
+                            }}
                             className="hover:underline hover:text-primary transition-colors text-left truncate"
                           >
                             {clubNorm}
@@ -484,6 +501,17 @@ export function LeagueScorersTable({ skaters, onSelectTeam }: LeagueScorersTable
           </div>
         )}
       </CardContent>
+
+      {/* Player Detail Dialog */}
+      <LeaguePlayerDetailDialog
+        skater={selectedPlayer}
+        open={isPlayerDialogOpen}
+        onOpenChange={setIsPlayerDialogOpen}
+        allMatches={allMatches}
+        allStandings={allStandings}
+        allSkaters={skaters}
+        onSelectTeam={onSelectTeam}
+      />
     </Card>
   );
 }
