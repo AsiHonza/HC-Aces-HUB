@@ -5,6 +5,7 @@ export * from './components/StatAdjuster';
 
 export * from './components/PlayoffSeriesDialog';
 export * from './components/ArchiveSeasonDialog';
+export * from './components/FinalsCelebrationBanner';
 export * from './components/AdminStatsSettingsCard';
 export * from './components/LeagueSyncCard';
 export * from './components/HallOfFameTab';

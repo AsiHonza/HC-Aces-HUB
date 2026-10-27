@@ -5,11 +5,14 @@ import {
   calculateTeamAnalytics,
   calculateLeagueOverview,
 } from '../src/features/league/utils/league-analytics';
+import { detectFinalsStatus } from '../src/features/stats/utils/season';
 import type {
   LeagueStanding,
   LeagueMatchItem,
   LeagueSkaterItem,
   LeagueGoalieItem,
+  Match,
+  PlayoffSeries,
 } from '../src/types';
 
 test.describe('Ligové centrum - Analytika a metriky', () => {
@@ -203,5 +206,61 @@ test.describe('Ligové centrum - Analytika a metriky', () => {
     expect(overview.rocketRichardLeader?.goals).toBe(7);
     expect(overview.vezinaLeader?.name).toBe('Brankář A');
     expect(overview.vezinaLeader?.savePercentage).toBe(90.0);
+  });
+
+  test('detectFinalsStatus správně detekuje konec série na 3 vítězné zápasy a vítěze', () => {
+    // 1. Stav série 2:1 -> ještě není dohráno
+    const ongoingMatches: Partial<Match>[] = [
+      { id: 'm1', isPlayed: true, type: 'playoff', playoffStage: 'finále', team1: 'HC Aces', team2: 'Predators', team1Score: 4, team2Score: 2 },
+      { id: 'm2', isPlayed: true, type: 'playoff', playoffStage: 'finále', team1: 'Predators', team2: 'HC Aces', team1Score: 3, team2Score: 1 },
+      { id: 'm3', isPlayed: true, type: 'playoff', playoffStage: 'finále', team1: 'HC Aces', team2: 'Predators', team1Score: 5, team2Score: 2 },
+    ];
+
+    const ongoingStatus = detectFinalsStatus({ matches: ongoingMatches as Match[] });
+    expect(ongoingStatus.isFinished).toBe(false);
+
+    // 2. HC Aces vyhrávají 4. zápas -> stav 3:1 -> finále ukončeno!
+    const finishedMatches: Partial<Match>[] = [
+      ...ongoingMatches,
+      { id: 'm4', isPlayed: true, type: 'playoff', playoffStage: 'finále', team1: 'Predators', team2: 'HC Aces', team1Score: 2, team2Score: 4 },
+    ];
+
+    const finishedStatus = detectFinalsStatus({ matches: finishedMatches as Match[] });
+    expect(finishedStatus.isFinished).toBe(true);
+    expect(finishedStatus.winnerTeam).toBe('HC Aces');
+    expect(finishedStatus.loserTeam).toBe('Predators');
+    expect(finishedStatus.seriesScore).toBe('3 : 1');
+    expect(finishedStatus.isAcesWinner).toBe(true);
+    expect(finishedStatus.isAcesInvolved).toBe(true);
+
+    // 3. Detekce z konfigurace playoffSeries v nastavení
+    const mockSeries: PlayoffSeries[] = [
+      {
+        round: 'Finále',
+        opponent: 'HH Machines',
+        wins: 3,
+        losses: 2,
+        isFinished: true,
+      },
+    ];
+
+    const seriesStatus = detectFinalsStatus({ playoffSeries: mockSeries });
+    expect(seriesStatus.isFinished).toBe(true);
+    expect(seriesStatus.winnerTeam).toBe('HC Aces');
+    expect(seriesStatus.loserTeam).toBe('HH Machines');
+    expect(seriesStatus.seriesScore).toBe('3 : 2');
+
+    // 4. Detekce celoligového finále ze scraped leagueMatches (např. Embedit vs Divočáci 3:0)
+    const mockLeagueMatches: Partial<LeagueMatchItem>[] = [
+      { round: 15, isPlayed: true, team1: 'Embedit', team2: 'Divočáci', score1: 4, score2: 1 },
+      { round: 16, isPlayed: true, team1: 'Divočáci', team2: 'Embedit', score1: 2, score2: 3 },
+      { round: 17, isPlayed: true, team1: 'Embedit', team2: 'Divočáci', score1: 5, score2: 0 },
+    ];
+
+    const leagueStatus = detectFinalsStatus({ leagueMatches: mockLeagueMatches as LeagueMatchItem[] });
+    expect(leagueStatus.isFinished).toBe(true);
+    expect(leagueStatus.winnerTeam).toBe('Embedit');
+    expect(leagueStatus.loserTeam).toBe('Divočáci');
+    expect(leagueStatus.seriesScore).toBe('3 : 0');
   });
 });

@@ -10,7 +10,7 @@ import { Loader2, ListOrdered, CalendarDays, Trophy, Shield, RefreshCw, History,
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { syncLeagueToFirestore, buildEnrichedLeagueMatches } from '@/lib/sync/league-sync';
-import { ArchiveSeasonDialog, statsService } from '@/features/stats';
+import { ArchiveSeasonDialog, statsService, FinalsCelebrationBanner, detectFinalsStatus } from '@/features/stats';
 import type {
   AppSettings,
   UserProfile,
@@ -19,6 +19,7 @@ import type {
   LeagueGoalieItem,
   LeagueFairPlayItem,
   LeagueStanding,
+  Match,
 } from '@/types';
 import type { ScrapedLeagueData } from '@/lib/sync/league-scraper';
 import {
@@ -83,6 +84,13 @@ export default function LeagueDashboardPage() {
   );
   const { data: userProfile } = useDoc<UserProfile>(userDocRef);
   const isAdmin = userProfile?.role === 'admin';
+
+  // Fetch Aces matches to track playoff / finals
+  const acesMatchesQuery = useMemoFirebase(
+    () => (firestore ? collection(firestore, 'matches') : null),
+    [firestore]
+  );
+  const { data: acesMatches } = useCollection<Match>(acesMatchesQuery);
 
   // Auto-fetch live scraper data if leagueMatches or Fair Play is not yet present in Firestore for current season
   useEffect(() => {
@@ -226,6 +234,27 @@ export default function LeagueDashboardPage() {
     return calculateLeagueOverview(teamSummaries, matches, skaters, goalies);
   }, [teamSummaries, matches, skaters, goalies]);
 
+  // Detect if Finals (Best-of-5 on 3 wins) has finished for auto-archive prompt
+  const finalsStatus = useMemo(() => {
+    if (selectedSeasonId !== 'current') {
+      return {
+        isFinished: false,
+        winnerWins: 0,
+        loserWins: 0,
+        seriesScore: '0 : 0',
+        isAcesInvolved: false,
+        isAcesWinner: false,
+        source: 'none' as const,
+        finalGamesCount: 0,
+      };
+    }
+    return detectFinalsStatus({
+      matches: acesMatches,
+      playoffSeries: leagueSettings?.playoffSeries,
+      leagueMatches: matches,
+    });
+  }, [selectedSeasonId, acesMatches, leagueSettings?.playoffSeries, matches]);
+
   // Handle Team Selection (open detail dialog)
   const handleSelectTeamByName = (teamName: string) => {
     const found = teamSummaries.find(
@@ -354,6 +383,17 @@ export default function LeagueDashboardPage() {
         onOpenArchiveDialog={() => setIsArchiveDialogOpen(true)}
         currentSeasonName={leagueSettings?.currentSeasonName}
       />
+
+      {/* Finals Celebration / 1-Click Auto-Archive Banner */}
+      {selectedSeasonId === 'current' && finalsStatus.isFinished && (
+        <FinalsCelebrationBanner
+          status={finalsStatus}
+          seasonName={leagueSettings?.currentSeasonName || 'Sezóna 2025/2026'}
+          seasonYear={leagueSettings?.currentSeasonName?.match(/\d{4}\/\d{4}/)?.[0] || '2025/2026'}
+          isAdmin={isAdmin}
+          onArchiveClick={() => setIsArchiveDialogOpen(true)}
+        />
+      )}
 
       {/* Archived Season Notice Banner */}
       {selectedArchivedSeason && (

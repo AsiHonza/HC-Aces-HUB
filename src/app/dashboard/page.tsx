@@ -34,6 +34,7 @@ import {
   calculatePlayerMilestones,
   statsService,
   historicalStatsBackupService,
+  detectFinalsStatus,
 } from '@/features/stats';
 import { syncLeagueToFirestore } from '@/lib/sync/league-sync';
 import type { PlayoffSeries, LeagueStanding, Match, UserProfile } from '@/types';
@@ -141,6 +142,11 @@ const ArchiveSeasonDialog = dynamic(
   { ssr: false }
 );
 
+const FinalsCelebrationBanner = dynamic(
+  () => import('@/features/stats').then((mod) => mod.FinalsCelebrationBanner),
+  { ssr: false }
+);
+
 interface SkaterStats {
   id: string;
   userProfileId: string;
@@ -196,6 +202,9 @@ interface AppSettings {
   playoffSeries?: PlayoffSeries[];
   leagueStandings?: LeagueStanding[];
   leagueSkaters?: any[];
+  leagueGoalies?: any[];
+  leagueFairPlay?: any[];
+  leagueMatches?: any[];
 }
 
 export interface MatchDisplayItem {
@@ -767,6 +776,27 @@ function DashboardPageContent() {
       name: archived?.name || 'Archiv',
     };
   }, [selectedSeasonId, leagueSettings, archivedSeasons]);
+
+  // Detect if Finals (Best-of-5 on 3 wins) has finished for auto-archive prompt
+  const finalsStatus = useMemo(() => {
+    if (selectedSeasonId !== 'current') {
+      return {
+        isFinished: false,
+        winnerWins: 0,
+        loserWins: 0,
+        seriesScore: '0 : 0',
+        isAcesInvolved: false,
+        isAcesWinner: false,
+        source: 'none' as const,
+        finalGamesCount: 0,
+      };
+    }
+    return detectFinalsStatus({
+      matches: allMatches,
+      playoffSeries: leagueSettings?.playoffSeries,
+      leagueMatches: leagueSettings?.leagueMatches,
+    });
+  }, [selectedSeasonId, allMatches, leagueSettings?.playoffSeries, leagueSettings?.leagueMatches]);
 
   // Optimalizace: seasonsLoading záměrně neblokuje kritické načtení stránky
   const isLoading =
@@ -1652,6 +1682,17 @@ function DashboardPageContent() {
             Zpět na aktuální sezónu
           </Button>
         </div>
+      )}
+
+      {/* FINALS DECIDED CELEBRATION / AUTO-ARCHIVE 1-CLICK BANNER */}
+      {selectedSeasonId === 'current' && finalsStatus.isFinished && (
+        <FinalsCelebrationBanner
+          status={finalsStatus}
+          seasonName={leagueSettings?.currentSeasonName || 'Sezóna 2025/2026'}
+          seasonYear={leagueSettings?.currentSeasonName?.match(/\d{4}\/\d{4}/)?.[0] || '2025/2026'}
+          isAdmin={userProfile?.role === 'admin'}
+          onArchiveClick={() => setIsArchiveSeasonDialogOpen(true)}
+        />
       )}
 
       <BirthdaysCard birthdays={upcomingBirthdays} />
