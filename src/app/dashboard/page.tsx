@@ -385,21 +385,6 @@ function DashboardPageContent() {
       .sort((a, b) => toJsDate(b.dateTime).getTime() - toJsDate(a.dateTime).getTime());
   }, [allMatches]);
 
-  const recentPlayedMatches = useMemo<MatchDisplayItem[]>(() => {
-    if (selectedSeasonId !== 'current') {
-      const archived = archivedSeasons?.find((s) => s.id === selectedSeasonId);
-      if (archived?.matches && archived.matches.length > 0) {
-        return archived.matches;
-      }
-      return playedMatches.filter(
-        (m) => m.seasonId === selectedSeasonId || toJsDate(m.dateTime).getTime() < seasonStartMs
-      );
-    }
-    return playedMatches
-      .filter((m) => toJsDate(m.dateTime).getTime() >= seasonStartMs)
-      .slice(0, 5);
-  }, [selectedSeasonId, archivedSeasons, playedMatches, seasonStartMs]);
-
   const teamScoring = useMemo(() => {
     if (!allUsers || !allSkaterStats) return [];
     const statsMap = new Map<string, SkaterStats>();
@@ -782,8 +767,17 @@ function DashboardPageContent() {
       matches: allMatches,
       playoffSeries: leagueSettings?.playoffSeries,
       leagueMatches: leagueSettings?.leagueMatches,
+      seasonStartDate: leagueSettings?.seasonStartDate,
+      currentSeasonId: leagueSettings?.currentSeasonId || 'current',
     });
-  }, [selectedSeasonId, allMatches, leagueSettings?.playoffSeries, leagueSettings?.leagueMatches]);
+  }, [
+    selectedSeasonId,
+    allMatches,
+    leagueSettings?.playoffSeries,
+    leagueSettings?.leagueMatches,
+    leagueSettings?.seasonStartDate,
+    leagueSettings?.currentSeasonId,
+  ]);
 
   // Optimalizace: seasonsLoading záměrně neblokuje kritické načtení stránky
   const isLoading =
@@ -1308,6 +1302,27 @@ function DashboardPageContent() {
 
     return null;
   }, [allMatches, selectedSeasonId, matchesAwaitingResult, activeMvpMatch]);
+
+  const recentPlayedMatches = useMemo<MatchDisplayItem[]>(() => {
+    if (selectedSeasonId !== 'current') {
+      const archived = archivedSeasons?.find((s) => s.id === selectedSeasonId);
+      if (archived?.matches && archived.matches.length > 0) {
+        return archived.matches;
+      }
+      return playedMatches.filter(
+        (m) => m.seasonId === selectedSeasonId || toJsDate(m.dateTime).getTime() < seasonStartMs
+      );
+    }
+    const currentSeasonPlayed = playedMatches.filter(
+      (m) => toJsDate(m.dateTime).getTime() >= seasonStartMs
+    );
+    // Pokud je nejnovější odehraný zápas již prominentně zobrazen v sekci posledního zápasu (PostMatchSection),
+    // v tomto seznamu ho přeskočíme, aby na nástěnce nebyl duplicitně zobrazen 2x hned pod sebou
+    if (postMatchData?.match?.id) {
+      return currentSeasonPlayed.filter((m) => m.id !== postMatchData.match.id).slice(0, 5);
+    }
+    return currentSeasonPlayed.slice(0, 5);
+  }, [selectedSeasonId, archivedSeasons, playedMatches, seasonStartMs, postMatchData?.match?.id]);
 
   // Automatické vyskočení modalu pro volbu 3 hvězd
   useEffect(() => {

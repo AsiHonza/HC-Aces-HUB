@@ -292,8 +292,17 @@ function LeagueDashboardContent() {
       matches: acesMatches,
       playoffSeries: leagueSettings?.playoffSeries,
       leagueMatches: matches,
+      seasonStartDate: leagueSettings?.seasonStartDate,
+      currentSeasonId: leagueSettings?.currentSeasonId || 'current',
     });
-  }, [selectedSeasonId, acesMatches, leagueSettings?.playoffSeries, matches]);
+  }, [
+    selectedSeasonId,
+    acesMatches,
+    leagueSettings?.playoffSeries,
+    matches,
+    leagueSettings?.seasonStartDate,
+    leagueSettings?.currentSeasonId,
+  ]);
 
   // Handle Team Selection (open detail dialog)
   const handleSelectTeamByName = (teamName: string) => {

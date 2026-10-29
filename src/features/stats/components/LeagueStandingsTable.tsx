@@ -1,6 +1,7 @@
 import React from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+import { TeamBadge } from '@/features/league';
 
 export interface StandingsTeam {
   id?: string;
@@ -53,7 +54,10 @@ export function LeagueStandingsTable({ standings, className }: LeagueStandingsTa
               >
                 <TableCell className="px-2 text-center tabular-nums">{idx + 1}.</TableCell>
                 <TableCell className="px-2">
-                  <span className={cn(isAces && 'text-primary')}>{team.name}</span>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <TeamBadge name={team.name} size="xs" />
+                    <span className={cn('truncate', isAces && 'text-primary font-bold')}>{team.name}</span>
+                  </div>
                 </TableCell>
                 <TableCell className="text-center px-1 tabular-nums font-semibold text-foreground/80">
                   {gamesPlayed !== null ? gamesPlayed : '-'}

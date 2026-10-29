@@ -27,6 +27,7 @@ import { formatMatchDate } from '@/lib/dates';
 import { getMvpVotingStatus, getMatchMvpCandidates } from '../utils/mvpVoting';
 import { calculateMatchStarsResults } from '../utils/matchStars';
 import { getMatchOpponentName } from '../utils/headToHead';
+import { TeamBadge } from '@/features/league';
 import type { Match, UserProfile } from '@/types';
 
 export interface PostMatchSectionProps {
@@ -49,61 +50,40 @@ interface StarCountsStackProps {
 }
 
 function StarCountsStack({ star1Count, star2Count, star3Count }: StarCountsStackProps) {
+  const hasAny = star1Count > 0 || star2Count > 0 || star3Count > 0;
+  if (!hasAny) return null;
+
   return (
     <div className="mt-2 flex flex-wrap items-center justify-center gap-1.5 w-full max-w-full min-w-0 text-xs">
-      <span
-        title="1. hvězda (zlatá, 3b)"
-        className={cn(
-          'inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold border tabular-nums',
-          star1Count > 0
-            ? 'bg-amber-500/20 border-amber-500/50 text-amber-600 dark:text-amber-400 shadow-xs'
-            : 'bg-muted/40 border-border/60 text-muted-foreground/60'
-        )}
-      >
-        <Star
-          className={cn(
-            'h-3 w-3',
-            star1Count > 0 ? 'fill-amber-500 text-amber-500' : 'text-muted-foreground/40'
-          )}
-        />
-        {star1Count}x
-      </span>
+      {star1Count > 0 && (
+        <span
+          title="1. hvězda (zlatá, 3b)"
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold border tabular-nums bg-amber-500/20 border-amber-500/50 text-amber-600 dark:text-amber-400 shadow-xs"
+        >
+          <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
+          {star1Count}x
+        </span>
+      )}
 
-      <span
-        title="2. hvězda (stříbrná, 2b)"
-        className={cn(
-          'inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold border tabular-nums',
-          star2Count > 0
-            ? 'bg-slate-400/20 border-slate-400/50 text-slate-700 dark:text-slate-200 shadow-xs'
-            : 'bg-muted/40 border-border/60 text-muted-foreground/60'
-        )}
-      >
-        <Star
-          className={cn(
-            'h-3 w-3',
-            star2Count > 0 ? 'fill-slate-400 text-slate-400' : 'text-muted-foreground/40'
-          )}
-        />
-        {star2Count}x
-      </span>
+      {star2Count > 0 && (
+        <span
+          title="2. hvězda (stříbrná, 2b)"
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold border tabular-nums bg-slate-400/20 border-slate-400/50 text-slate-700 dark:text-slate-200 shadow-xs"
+        >
+          <Star className="h-3 w-3 fill-slate-400 text-slate-400" />
+          {star2Count}x
+        </span>
+      )}
 
-      <span
-        title="3. hvězda (bronzová, 1b)"
-        className={cn(
-          'inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold border tabular-nums',
-          star3Count > 0
-            ? 'bg-amber-700/20 border-amber-700/50 text-amber-700 dark:text-amber-300 shadow-xs'
-            : 'bg-muted/40 border-border/60 text-muted-foreground/60'
-        )}
-      >
-        <Star
-          className={cn(
-            'h-3 w-3',
-            star3Count > 0 ? 'fill-amber-600 text-amber-600' : 'text-muted-foreground/40'
-          )}
-        />
-        {star3Count}x
-      </span>
+      {star3Count > 0 && (
+        <span
+          title="3. hvězda (bronzová, 1b)"
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold border tabular-nums bg-amber-700/20 border-amber-700/50 text-amber-700 dark:text-amber-300 shadow-xs"
+        >
+          <Star className="h-3 w-3 fill-amber-600 text-amber-600" />
+          {star3Count}x
+        </span>
+      )}
     </div>
   );
 }
@@ -260,29 +240,31 @@ export function PostMatchSection({
               {/* Zápasový duel pod sebou se skóre (Livesport styl) */}
               <div className="rounded-xl bg-card/60 border border-border/70 p-3 sm:p-4 w-full shadow-xs space-y-2.5 max-w-xl">
                 <div className="grid grid-cols-[1fr_auto] items-center gap-3">
-                  {/* Týmy pod sebou */}
+                  {/* Týmy pod sebou s logy */}
                   <div className="min-w-0 space-y-1.5">
                     <div
                       className={cn(
-                        'text-base sm:text-xl font-bold truncate tracking-tight',
+                        'text-base sm:text-xl font-bold truncate tracking-tight flex items-center gap-2',
                         Boolean(currentMatch.team1?.toLowerCase().includes('aces'))
                           ? 'text-primary font-black'
                           : 'text-foreground'
                       )}
                       title={currentMatch.team1 || 'HC Aces'}
                     >
-                      {currentMatch.team1 || 'HC Aces'}
+                      <TeamBadge name={currentMatch.team1 || 'HC Aces'} size="sm" />
+                      <span className="truncate">{currentMatch.team1 || 'HC Aces'}</span>
                     </div>
                     <div
                       className={cn(
-                        'text-base sm:text-xl font-bold truncate tracking-tight',
+                        'text-base sm:text-xl font-bold truncate tracking-tight flex items-center gap-2',
                         !Boolean(currentMatch.team1?.toLowerCase().includes('aces'))
                           ? 'text-primary font-black'
                           : 'text-foreground'
                       )}
                       title={currentMatch.team2 || opponentName}
                     >
-                      {currentMatch.team2 || opponentName}
+                      <TeamBadge name={currentMatch.team2 || opponentName} size="sm" />
+                      <span className="truncate">{currentMatch.team2 || opponentName}</span>
                     </div>
                   </div>
 

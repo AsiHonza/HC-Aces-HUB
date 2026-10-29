@@ -4,7 +4,14 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { ListOrdered, CalendarDays, RefreshCw, Pencil, History, Shield, ArrowRight } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { ListOrdered, CalendarDays, RefreshCw, Pencil, History, Shield, ArrowRight, Settings2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { LeagueStandingsTable } from '@/features/stats';
 import type { LeagueStanding, PlayoffSeries } from '@/types';
@@ -40,66 +47,71 @@ export const CompetitionSection = React.memo(function CompetitionSection({
 }: CompetitionSectionProps) {
   return (
     <Card className="h-fit border-border/70 bg-card/95 w-full min-w-0 overflow-hidden">
-      <CardHeader className="flex-col items-start gap-3 py-3.5 px-3.5 sm:px-6">
+      <CardHeader className="py-3 px-3.5 sm:px-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full gap-2">
           <CardTitle className="flex items-center gap-2 text-base sm:text-lg whitespace-nowrap">
             <ListOrdered className="text-primary" />
             Soutěž
           </CardTitle>
-          <div className="flex items-center gap-1.5">
-            <CalendarDays className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            <Select value={selectedSeasonId} onValueChange={onSelectSeasonId}>
-              <SelectTrigger className="h-7 w-[160px] text-xs">
-                <SelectValue placeholder="Vyberte sezónu" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="current">
-                  {currentSeasonName || 'Aktuální sezóna'}
-                </SelectItem>
-                {archivedSeasons?.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
-                    {s.name} ({s.year})
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <CalendarDays className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <Select value={selectedSeasonId} onValueChange={onSelectSeasonId}>
+                <SelectTrigger className="h-7 w-[150px] text-xs">
+                  <SelectValue placeholder="Vyberte sezónu" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="current">
+                    {currentSeasonName || 'Aktuální sezóna'}
                   </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                  {archivedSeasons?.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.name} ({s.year})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {isAdmin && selectedSeasonId === 'current' && (
+              <DropdownMenu modal={false}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs px-2 gap-1.5 border-dashed hover:border-primary/50"
+                    title="Správa soutěže a synchronizace"
+                  >
+                    <Settings2 className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-[11px] font-semibold">Správa</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52">
+                  <DropdownMenuItem
+                    onClick={onSyncLeague}
+                    disabled={isSyncingLeague}
+                    className="cursor-pointer text-xs"
+                  >
+                    <RefreshCw className={cn('h-3.5 w-3.5 mr-2', isSyncingLeague && 'animate-spin')} />
+                    {isSyncingLeague ? 'Stahuji ligu...' : 'Synchronizovat ligu'}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={onOpenPlayoffDialog} className="cursor-pointer text-xs">
+                    <Pencil className="h-3.5 w-3.5 mr-2" />
+                    Upravit Play-off sérii
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={onOpenArchiveSeasonDialog}
+                    className="cursor-pointer text-xs text-destructive focus:text-destructive"
+                  >
+                    <History className="h-3.5 w-3.5 mr-2" />
+                    Ukončit & Archivovat ročník
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         </div>
-
-        {isAdmin && selectedSeasonId === 'current' && (
-          <div className="flex flex-wrap items-center gap-1.5 w-full pt-2 border-t border-border/40">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={onSyncLeague}
-              disabled={isSyncingLeague}
-              className="h-7 text-[10px] sm:text-xs font-semibold border-primary/50 text-primary hover:bg-primary/10"
-              title="Stáhnout a propsat aktuální ligovou tabulku, odehrané zápasy a statistiky hráčů z hobbyhokejbrno.cz"
-            >
-              <RefreshCw className={cn('h-3 w-3 mr-1', isSyncingLeague && 'animate-spin')} />
-              {isSyncingLeague ? 'Stahuji...' : 'Synchronizovat'}
-            </Button>
-
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={onOpenPlayoffDialog}
-              className="h-7 text-[10px] sm:text-xs"
-            >
-              <Pencil className="h-3 w-3 mr-1" />
-              Play-off
-            </Button>
-            <Button
-              size="sm"
-              variant="destructive"
-              onClick={onOpenArchiveSeasonDialog}
-              className="h-7 text-[10px] sm:text-xs"
-            >
-              <History className="h-3 w-3 mr-1" />
-              Ukončit
-            </Button>
-          </div>
-        )}
       </CardHeader>
       <CardContent className="px-2 sm:px-4 pb-4">
         <Tabs defaultValue="standings">

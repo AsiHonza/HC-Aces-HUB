@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Star, DatabaseBackup, History, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { PlayerScoringTable, GoalieStatsTable } from '@/features/stats';
+import { PlayerScoringTable, GoalieStatsTable, type PositionFilterType } from '@/features/stats';
 import type { Match, UserProfile } from '@/types';
 
 export type ScoringPeriod = 'regular' | 'playoff' | 'season' | 'history';
@@ -65,6 +65,7 @@ export const TeamScoringSection = React.memo(function TeamScoringSection({
 }: TeamScoringSectionProps) {
   const [statsCategory, setStatsCategory] = useState<'skaters' | 'goalies'>('skaters');
   const [activeStatsTab, setActiveStatsTab] = useState<'stats' | 'stars'>('stats');
+  const [posFilter, setPosFilter] = useState<PositionFilterType>('all');
   const [showAllScoring, setShowAllScoring] = useState(false);
   const [showAllGoalies, setShowAllGoalies] = useState(false);
   const [showAllStars, setShowAllStars] = useState(false);
@@ -258,12 +259,45 @@ export const TeamScoringSection = React.memo(function TeamScoringSection({
               }}
             >
               {selectedSeasonId === 'current' ? (
-                <TabsList className="grid w-full grid-cols-4 mb-4">
-                  <TabsTrigger value="regular" className="text-[10px] px-1">ZČ</TabsTrigger>
-                  <TabsTrigger value="playoff" className="text-[10px] px-1">Play-off</TabsTrigger>
-                  <TabsTrigger value="season" className="text-[10px] px-1">Sezona</TabsTrigger>
-                  <TabsTrigger value="history" className="text-[10px] px-1">Historie</TabsTrigger>
-                </TabsList>
+                <div className="flex flex-wrap items-center justify-between gap-2.5 mb-3">
+                  {/* Kompaktní výběr období */}
+                  <TabsList className="grid grid-cols-4 h-8 w-full sm:w-[260px] shrink-0">
+                    <TabsTrigger value="regular" className="text-[11px] px-1.5 h-7 font-bold">ZČ</TabsTrigger>
+                    <TabsTrigger value="playoff" className="text-[11px] px-1.5 h-7 font-bold">Play-off</TabsTrigger>
+                    <TabsTrigger value="season" className="text-[11px] px-1.5 h-7 font-bold">Sezona</TabsTrigger>
+                    <TabsTrigger value="history" className="text-[11px] px-1.5 h-7 font-bold">Historie</TabsTrigger>
+                  </TabsList>
+
+                  {/* Výběr pozic (pouze pro hráče v poli a mimo edit režim) */}
+                  {statsCategory === 'skaters' && !isStatEditMode && (
+                    <div className="flex items-center gap-1 overflow-x-auto no-scrollbar w-full sm:w-auto">
+                      {[
+                        { id: 'all' as const, label: 'Všichni' },
+                        { id: 'forwards' as const, label: 'Útočníci' },
+                        { id: 'defense' as const, label: 'Obránci' },
+                        { id: 'center' as const, label: 'Centři' },
+                        { id: 'wing' as const, label: 'Křídla' },
+                      ].map((tab) => {
+                        const active = posFilter === tab.id;
+                        return (
+                          <button
+                            key={tab.id}
+                            type="button"
+                            onClick={() => setPosFilter(tab.id)}
+                            className={cn(
+                              'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold transition-all shrink-0 border cursor-pointer',
+                              active
+                                ? 'bg-primary text-primary-foreground border-primary shadow-xs'
+                                : 'bg-muted/40 text-muted-foreground border-border/60 hover:text-foreground hover:bg-muted/70'
+                            )}
+                          >
+                            {tab.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               ) : (
                 <div className="mb-3 px-1 text-xs text-muted-foreground flex items-center justify-between">
                   <span>
@@ -340,6 +374,9 @@ export const TeamScoringSection = React.memo(function TeamScoringSection({
                   allUsers={allUsers}
                   allMatches={allMatches}
                   playerFormMap={playerFormMap}
+                  posFilter={posFilter}
+                  onPosFilterChange={setPosFilter}
+                  hidePositionFilter={selectedSeasonId === 'current'}
                 />
               ) : (
                 <GoalieStatsTable

@@ -41,6 +41,8 @@ export interface ScorerItem {
   points?: number;
 }
 
+export type PositionFilterType = 'all' | 'forwards' | 'defense' | 'center' | 'wing';
+
 export interface PlayerScoringTableProps {
   scorers: ScorerItem[];
   currentUserId?: string;
@@ -57,9 +59,10 @@ export interface PlayerScoringTableProps {
   allMatches?: Match[];
   playerFormMap?: Map<string, PlayerFormSummary>;
   className?: string;
+  posFilter?: PositionFilterType;
+  onPosFilterChange?: (pos: PositionFilterType) => void;
+  hidePositionFilter?: boolean;
 }
-
-type PositionFilterType = 'all' | 'forwards' | 'defense' | 'center' | 'wing';
 
 export function PlayerScoringTable({
   scorers,
@@ -75,8 +78,13 @@ export function PlayerScoringTable({
   allMatches = [],
   playerFormMap,
   className,
+  posFilter: controlledPosFilter,
+  onPosFilterChange,
+  hidePositionFilter = false,
 }: PlayerScoringTableProps) {
-  const [posFilter, setPosFilter] = useState<PositionFilterType>('all');
+  const [internalPosFilter, setInternalPosFilter] = useState<PositionFilterType>('all');
+  const posFilter = controlledPosFilter !== undefined ? controlledPosFilter : internalPosFilter;
+  const setPosFilter = onPosFilterChange ?? setInternalPosFilter;
   const [isLegendOpen, setIsLegendOpen] = useState(false);
 
   const positionByPlayerId = useMemo(() => {
@@ -110,7 +118,7 @@ export function PlayerScoringTable({
 
   return (
     <div className={cn('space-y-3 w-full min-w-0 max-w-full', className)}>
-      {!isStatEditMode && allUsers.length > 0 && (
+      {!isStatEditMode && !hidePositionFilter && allUsers.length > 0 && (
         <div className="flex items-center gap-1 overflow-x-auto no-scrollbar pb-0.5">
           {[
             { id: 'all' as const, label: 'Všichni', icon: Users },

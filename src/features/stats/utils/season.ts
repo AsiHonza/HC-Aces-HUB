@@ -1,5 +1,6 @@
 import type { AppSettings, Match, PlayoffSeries, LeagueMatchItem } from '@/types';
 import { normalizeClubName, areClubNamesMatching } from '@/features/league/utils/league-analytics';
+import { toSafeDate } from '@/lib/dates';
 
 export const DEFAULT_SEASON_START_DATE = '2026-09-01';
 export const DEFAULT_SEASON_START_MS = new Date('2026-09-01T00:00:00').getTime();
@@ -50,20 +51,29 @@ export function detectFinalsStatus(params: {
   matches?: Match[] | null;
   playoffSeries?: PlayoffSeries[] | null;
   leagueMatches?: LeagueMatchItem[] | null;
+  seasonStartDate?: string | number | Date | null;
+  currentSeasonId?: string | null;
 }): FinalsSeriesStatus {
   const { matches = [], playoffSeries = [], leagueMatches = [] } = params;
+  const seasonStartMs = params.seasonStartDate
+    ? getSeasonStartMs({ seasonStartDate: String(params.seasonStartDate) })
+    : undefined;
 
-  // 1. Check Aces matches (from 'matches' collection)
+  // 1. Check Aces matches (from 'matches' collection) - ONLY for current season
   if (matches && matches.length > 0) {
-    const finalMatches = matches.filter(
-      (m) =>
-        m.isPlayed &&
-        (m.type === 'playoff' || m.matchType === 'playoff') &&
-        m.playoffStage &&
-        /fin[aá]l/i.test(m.playoffStage) &&
-        m.team1Score !== undefined &&
-        m.team2Score !== undefined
-    );
+    const finalMatches = matches.filter((m) => {
+      if (!m.isPlayed) return false;
+      if (m.type !== 'playoff' && m.matchType !== 'playoff') return false;
+      if (!m.playoffStage || !/fin[aá]l/i.test(m.playoffStage)) return false;
+      if (m.team1Score === undefined || m.team2Score === undefined) return false;
+      // Filter by season
+      if (params.currentSeasonId && m.seasonId && m.seasonId !== params.currentSeasonId) return false;
+      if (seasonStartMs && m.dateTime) {
+        const mTime = toSafeDate(m.dateTime)?.getTime() ?? 0;
+        if (mTime > 0 && mTime < seasonStartMs) return false;
+      }
+      return true;
+    });
 
     if (finalMatches.length > 0) {
       let teamAWins = 0;
@@ -89,8 +99,8 @@ export function detectFinalsStatus(params: {
 
       if (teamAWins >= 3 || teamBWins >= 3) {
         const isAcesWinner = teamAWins >= 3;
-        const winnerWins = Math.max(teamAWins, teamBWins);
-        const loserWins = Math.min(teamAWins, teamBWins);
+        const winnerWins = 3;
+        const loserWins = Math.min(3, Math.min(teamAWins, teamBWins));
         return {
           isFinished: true,
           winnerTeam: isAcesWinner ? 'HC Aces' : teamBName,
