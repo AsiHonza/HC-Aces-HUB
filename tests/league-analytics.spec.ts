@@ -265,6 +265,38 @@ test.describe('Ligové centrum - Analytika a metriky', () => {
     expect(leagueStatus.winnerTeam).toBe('Embedit');
     expect(leagueStatus.loserTeam).toBe('Divočáci');
     expect(leagueStatus.seriesScore).toBe('3 : 0');
+
+    // 5. Ochrana: V základní části (isPlayoffEnabled = false) se finále neuzavírá
+    const regularSeasonStatus = detectFinalsStatus({
+      matches: finishedMatches as Match[],
+      isPlayoffEnabled: false,
+    });
+    expect(regularSeasonStatus.isFinished).toBe(false);
+
+    // 6. Ochrana: Historické zápasy z loňska (před seasonStartDate) jsou ignorovány
+    const oldMatches: Partial<Match>[] = [
+      { id: 'old1', isPlayed: true, type: 'playoff', playoffStage: 'finále', team1: 'HC Aces', team2: 'Predators', team1Score: 4, team2Score: 2, dateTime: '2025-03-10T18:00:00' },
+      { id: 'old2', isPlayed: true, type: 'playoff', playoffStage: 'finále', team1: 'Predators', team2: 'HC Aces', team1Score: 2, team2Score: 5, dateTime: '2025-03-15T18:00:00' },
+      { id: 'old3', isPlayed: true, type: 'playoff', playoffStage: 'finále', team1: 'HC Aces', team2: 'Predators', team1Score: 3, team2Score: 1, dateTime: '2025-03-20T18:00:00' },
+    ];
+    const oldStatus = detectFinalsStatus({
+      matches: oldMatches as Match[],
+      seasonStartDate: '2026-09-01',
+    });
+    expect(oldStatus.isFinished).toBe(false);
+
+    // 7. Ochrana: Nemožný remízový stav 3:3 v sérii na 3 vítězné se odmítne
+    const impossibleTieSeries: PlayoffSeries[] = [
+      {
+        round: 'Finále',
+        opponent: 'HH Machines',
+        wins: 3,
+        losses: 3,
+        isFinished: false,
+      },
+    ];
+    const tieStatus = detectFinalsStatus({ playoffSeries: impossibleTieSeries });
+    expect(tieStatus.isFinished).toBe(false);
   });
 
   test('arePlayerNamesMatching spolehlivě páruje jména a příjmení hráčů', () => {

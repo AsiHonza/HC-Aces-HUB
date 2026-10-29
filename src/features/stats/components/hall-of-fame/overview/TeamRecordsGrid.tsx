@@ -29,7 +29,7 @@ export function TeamRecordsGrid({
   // Total unlocked across team
   const totalUnlockedAcrossTeam = milestones.reduce((sum, m) => sum + m.totalHolders, 0);
 
-  // Highest ironman / games holder across all games milestones or upcoming milestones
+  // Highest ironman / games holder across all games milestones, candidates, or upcoming milestones
   const ironmanLeader = React.useMemo(() => {
     // 1. Check all unlocked games milestone holders
     const allGamesHolders = milestones
@@ -41,13 +41,23 @@ export function TeamRecordsGrid({
       return { name: top.name, value: top.value };
     }
 
-    // 2. Fallback: Check upcoming games milestones for highest current games count
+    // 2. Check candidates of games milestones (e.g. gp-25 closest players)
+    const gamesMilestones = milestones.filter((m) => m.definition.category === 'games');
+    const allCandidates = gamesMilestones.flatMap((m) => m.candidates || []);
+    if (allCandidates.length > 0) {
+      const top = [...allCandidates].sort((a, b) => (b.current ?? 0) - (a.current ?? 0))[0];
+      if (top && (top.current ?? 0) > 0) {
+        return { name: top.name, value: top.current };
+      }
+    }
+
+    // 3. Fallback: Check upcoming games milestones for highest current games count
     if (upcomingMilestones && upcomingMilestones.length > 0) {
       const upcomingGames = upcomingMilestones
         .filter((u) => u.milestone.category === 'games')
         .sort((a, b) => b.current - a.current);
 
-      if (upcomingGames.length > 0) {
+      if (upcomingGames.length > 0 && upcomingGames[0].current > 0) {
         return { name: upcomingGames[0].playerName, value: upcomingGames[0].current };
       }
     }

@@ -294,6 +294,7 @@ function LeagueDashboardContent() {
       leagueMatches: matches,
       seasonStartDate: leagueSettings?.seasonStartDate,
       currentSeasonId: leagueSettings?.currentSeasonId || 'current',
+      isPlayoffEnabled: leagueSettings?.isPlayoffEnabled,
     });
   }, [
     selectedSeasonId,
@@ -302,6 +303,7 @@ function LeagueDashboardContent() {
     matches,
     leagueSettings?.seasonStartDate,
     leagueSettings?.currentSeasonId,
+    leagueSettings?.isPlayoffEnabled,
   ]);
 
   // Handle Team Selection (open detail dialog)

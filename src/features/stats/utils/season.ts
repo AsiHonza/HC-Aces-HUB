@@ -53,14 +53,15 @@ export function detectFinalsStatus(params: {
   leagueMatches?: LeagueMatchItem[] | null;
   seasonStartDate?: string | number | Date | null;
   currentSeasonId?: string | null;
+  isPlayoffEnabled?: boolean | null;
 }): FinalsSeriesStatus {
   const { matches = [], playoffSeries = [], leagueMatches = [] } = params;
-  const seasonStartMs = params.seasonStartDate
-    ? getSeasonStartMs({ seasonStartDate: String(params.seasonStartDate) })
-    : undefined;
+  const seasonStartMs = getSeasonStartMs(
+    params.seasonStartDate ? { seasonStartDate: String(params.seasonStartDate) } : undefined
+  );
 
   // 1. Check Aces matches (from 'matches' collection) - ONLY for current season
-  if (matches && matches.length > 0) {
+  if (matches && matches.length > 0 && params.isPlayoffEnabled !== false) {
     const finalMatches = matches.filter((m) => {
       if (!m.isPlayed) return false;
       if (m.type !== 'playoff' && m.matchType !== 'playoff') return false;
@@ -68,7 +69,7 @@ export function detectFinalsStatus(params: {
       if (m.team1Score === undefined || m.team2Score === undefined) return false;
       // Filter by season
       if (params.currentSeasonId && m.seasonId && m.seasonId !== params.currentSeasonId) return false;
-      if (seasonStartMs && m.dateTime) {
+      if (m.dateTime) {
         const mTime = toSafeDate(m.dateTime)?.getTime() ?? 0;
         if (mTime > 0 && mTime < seasonStartMs) return false;
       }
@@ -76,46 +77,55 @@ export function detectFinalsStatus(params: {
     });
 
     if (finalMatches.length > 0) {
-      let teamAWins = 0;
-      let teamBWins = 0;
-      let teamBName = '';
+      // Group by specific opponent pair - a final series is always against ONE opponent!
+      const oppSeriesMap = new Map<string, { oppName: string; acesWins: number; oppWins: number; games: number }>();
 
       finalMatches.forEach((m) => {
         const t1 = normalizeClubName(m.team1 || 'HC Aces');
-        const t2 = normalizeClubName(m.team2 || m.opponent || 'Soupeř');
-        if (!teamBName && !areClubNamesMatching(t2, 'Aces')) teamBName = t2;
-        if (!teamBName && !areClubNamesMatching(t1, 'Aces')) teamBName = t1;
+        const t2 = normalizeClubName(m.opponent || m.team2 || 'Soupeř');
+        const oppName = areClubNamesMatching(t1, 'Aces') ? t2 : t1;
 
-        if (m.team1Score! > m.team2Score!) {
-          if (areClubNamesMatching(t1, 'Aces')) teamAWins++;
-          else teamBWins++;
-        } else if (m.team2Score! > m.team1Score!) {
-          if (areClubNamesMatching(t2, 'Aces')) teamAWins++;
-          else teamBWins++;
+        if (!oppSeriesMap.has(oppName)) {
+          oppSeriesMap.set(oppName, { oppName, acesWins: 0, oppWins: 0, games: 0 });
+        }
+        const s = oppSeriesMap.get(oppName)!;
+        s.games++;
+
+        const acesScore = areClubNamesMatching(t1, 'Aces') ? m.team1Score! : m.team2Score!;
+        const oppScore = areClubNamesMatching(t1, 'Aces') ? m.team2Score! : m.team1Score!;
+
+        if (acesScore > oppScore) {
+          s.acesWins++;
+        } else if (oppScore > acesScore) {
+          s.oppWins++;
         }
       });
 
-      if (!teamBName) teamBName = 'Soupeř';
-
-      if (teamAWins >= 3 || teamBWins >= 3) {
-        const isAcesWinner = teamAWins >= 3;
-        const winnerWins = 3;
-        const loserWins = Math.min(3, Math.min(teamAWins, teamBWins));
-        return {
-          isFinished: true,
-          winnerTeam: isAcesWinner ? 'HC Aces' : teamBName,
-          loserTeam: isAcesWinner ? teamBName : 'HC Aces',
-          winnerWins,
-          loserWins,
-          seriesScore: `${winnerWins} : ${loserWins}`,
-          isAcesInvolved: true,
-          isAcesWinner,
-          source: 'aces_matches',
-          finalGamesCount: finalMatches.length,
-          message: isAcesWinner
-            ? `HC Aces vyhrál finálovou sérii ${winnerWins}:${loserWins} na zápasy!`
-            : `${teamBName} vyhrál finálovou sérii ${winnerWins}:${loserWins} na zápasy!`,
-        };
+      for (const s of oppSeriesMap.values()) {
+        // In a best-of-5 series, winner has 3 wins, loser has at most 2 wins (3:0, 3:1, 3:2).
+        // If both have 3+ wins (e.g. 3:3 or 6:3), data is mixed/corrupted across multiple years -> reject!
+        if ((s.acesWins >= 3 || s.oppWins >= 3) && !(s.acesWins >= 3 && s.oppWins >= 3)) {
+          const isAcesWinner = s.acesWins >= 3;
+          const winnerWins = 3;
+          const loserWins = isAcesWinner ? s.oppWins : s.acesWins;
+          if (loserWins <= 2) {
+            return {
+              isFinished: true,
+              winnerTeam: isAcesWinner ? 'HC Aces' : s.oppName,
+              loserTeam: isAcesWinner ? s.oppName : 'HC Aces',
+              winnerWins,
+              loserWins,
+              seriesScore: `${winnerWins} : ${loserWins}`,
+              isAcesInvolved: true,
+              isAcesWinner,
+              source: 'aces_matches',
+              finalGamesCount: s.games,
+              message: isAcesWinner
+                ? `HC Aces vyhrál finálovou sérii ${winnerWins}:${loserWins} na zápasy!`
+                : `${s.oppName} vyhrál finálovou sérii ${winnerWins}:${loserWins} na zápasy!`,
+            };
+          }
+        }
       }
     }
   }
@@ -134,31 +144,34 @@ export function detectFinalsStatus(params: {
       const oppWins = Number(finalSeries.opponentWins ?? finalSeries.losses ?? 0);
       const oppName = normalizeClubName(finalSeries.opponent || 'Soupeř');
 
-      if (acesWins >= 3 || oppWins >= 3 || finalSeries.isFinished) {
+      // Best-of-5 series: either team has 3 wins or explicitly marked finished, but NOT 3:3
+      if ((acesWins >= 3 || oppWins >= 3 || finalSeries.isFinished) && !(acesWins >= 3 && oppWins >= 3)) {
         const isAcesWinner = acesWins >= 3 || finalSeries.winner === 'aces';
-        const winnerWins = Math.max(acesWins, oppWins);
+        const winnerWins = Math.max(acesWins, oppWins) || 3;
         const loserWins = Math.min(acesWins, oppWins);
-        return {
-          isFinished: true,
-          winnerTeam: isAcesWinner ? 'HC Aces' : oppName,
-          loserTeam: isAcesWinner ? oppName : 'HC Aces',
-          winnerWins: winnerWins > 0 ? winnerWins : 3,
-          loserWins,
-          seriesScore: `${winnerWins > 0 ? winnerWins : 3} : ${loserWins}`,
-          isAcesInvolved: true,
-          isAcesWinner,
-          source: 'playoff_series',
-          finalGamesCount: acesWins + oppWins,
-          message: isAcesWinner
-            ? `HC Aces vyhrál finálovou sérii ${winnerWins > 0 ? winnerWins : 3}:${loserWins} na zápasy!`
-            : `${oppName} vyhrál finálovou sérii ${winnerWins > 0 ? winnerWins : 3}:${loserWins} na zápasy!`,
-        };
+        if (loserWins <= 2) {
+          return {
+            isFinished: true,
+            winnerTeam: isAcesWinner ? 'HC Aces' : oppName,
+            loserTeam: isAcesWinner ? oppName : 'HC Aces',
+            winnerWins: winnerWins > 0 ? winnerWins : 3,
+            loserWins,
+            seriesScore: `${winnerWins > 0 ? winnerWins : 3} : ${loserWins}`,
+            isAcesInvolved: true,
+            isAcesWinner,
+            source: 'playoff_series',
+            finalGamesCount: acesWins + oppWins,
+            message: isAcesWinner
+              ? `HC Aces vyhrál finálovou sérii ${winnerWins > 0 ? winnerWins : 3}:${loserWins} na zápasy!`
+              : `${oppName} vyhrál finálovou sérii ${winnerWins > 0 ? winnerWins : 3}:${loserWins} na zápasy!`,
+          };
+        }
       }
     }
   }
 
   // 3. Check Scraped League Matches
-  if (leagueMatches && leagueMatches.length > 0) {
+  if (leagueMatches && leagueMatches.length > 0 && params.isPlayoffEnabled !== false) {
     // Find played playoff/final matches (round >= 15 or notes matching final)
     const playoffMatches = leagueMatches.filter(
       (m) =>
@@ -193,26 +206,28 @@ export function detectFinalsStatus(params: {
       });
 
       for (const stat of pairStats.values()) {
-        if (stat.winsA >= 3 || stat.winsB >= 3) {
+        if ((stat.winsA >= 3 || stat.winsB >= 3) && !(stat.winsA >= 3 && stat.winsB >= 3)) {
           const winnerTeam = stat.winsA >= 3 ? stat.teamA : stat.teamB;
           const loserTeam = stat.winsA >= 3 ? stat.teamB : stat.teamA;
           const winnerWins = Math.max(stat.winsA, stat.winsB);
           const loserWins = Math.min(stat.winsA, stat.winsB);
-          const isAcesInvolved = areClubNamesMatching(stat.teamA, 'Aces') || areClubNamesMatching(stat.teamB, 'Aces');
-          const isAcesWinner = areClubNamesMatching(winnerTeam, 'Aces');
-          return {
-            isFinished: true,
-            winnerTeam,
-            loserTeam,
-            winnerWins,
-            loserWins,
-            seriesScore: `${winnerWins} : ${loserWins}`,
-            isAcesInvolved,
-            isAcesWinner,
-            source: 'league_matches',
-            finalGamesCount: stat.count,
-            message: `${winnerTeam} vyhrál finálovou sérii ${winnerWins}:${loserWins} na zápasy!`,
-          };
+          if (loserWins <= 2) {
+            const isAcesInvolved = areClubNamesMatching(stat.teamA, 'Aces') || areClubNamesMatching(stat.teamB, 'Aces');
+            const isAcesWinner = areClubNamesMatching(winnerTeam, 'Aces');
+            return {
+              isFinished: true,
+              winnerTeam,
+              loserTeam,
+              winnerWins,
+              loserWins,
+              seriesScore: `${winnerWins} : ${loserWins}`,
+              isAcesInvolved,
+              isAcesWinner,
+              source: 'league_matches',
+              finalGamesCount: stat.count,
+              message: `${winnerTeam} vyhrál finálovou sérii ${winnerWins}:${loserWins} na zápasy!`,
+            };
+          }
         }
       }
     }

@@ -769,6 +769,7 @@ function DashboardPageContent() {
       leagueMatches: leagueSettings?.leagueMatches,
       seasonStartDate: leagueSettings?.seasonStartDate,
       currentSeasonId: leagueSettings?.currentSeasonId || 'current',
+      isPlayoffEnabled: leagueSettings?.isPlayoffEnabled,
     });
   }, [
     selectedSeasonId,
@@ -777,6 +778,7 @@ function DashboardPageContent() {
     leagueSettings?.leagueMatches,
     leagueSettings?.seasonStartDate,
     leagueSettings?.currentSeasonId,
+    leagueSettings?.isPlayoffEnabled,
   ]);
 
   // Optimalizace: seasonsLoading záměrně neblokuje kritické načtení stránky
