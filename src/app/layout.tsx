@@ -63,15 +63,29 @@ export default function RootLayout({
               try {
                 // Ignore uncaught errors thrown by third-party browser extensions (e.g. Urban VPN, password managers)
                 if (typeof window !== 'undefined') {
+                  var isExtensionError = function(target) {
+                    if (!target) return false;
+                    var str = (target.filename || '') + ' ' + (target.message || '') + ' ' + (target.stack || '') + ' ' + (target.error && target.error.stack ? target.error.stack : '');
+                    return str.indexOf('chrome-extension://') !== -1 ||
+                           str.indexOf('moz-extension://') !== -1 ||
+                           str.indexOf('eppiocemhmnlbhjplcgkofciiegomcon') !== -1 ||
+                           str.indexOf('M_ID') !== -1;
+                  };
+
                   window.addEventListener('error', function(event) {
-                    if (event.filename && (event.filename.indexOf('chrome-extension://') !== -1 || event.filename.indexOf('moz-extension://') !== -1)) {
+                    if (isExtensionError(event) || isExtensionError(event.error)) {
+                      event.preventDefault();
                       event.stopImmediatePropagation();
+                      return true;
                     }
                   }, true);
+
                   window.addEventListener('unhandledrejection', function(event) {
                     var reason = event.reason;
-                    if (reason && reason.stack && (reason.stack.indexOf('chrome-extension://') !== -1 || reason.stack.indexOf('moz-extension://') !== -1)) {
+                    if (isExtensionError(reason)) {
+                      event.preventDefault();
                       event.stopImmediatePropagation();
+                      return true;
                     }
                   }, true);
                 }

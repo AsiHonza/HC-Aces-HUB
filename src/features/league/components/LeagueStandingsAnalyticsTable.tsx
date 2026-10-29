@@ -66,6 +66,7 @@ export function LeagueStandingsAnalyticsTable({
   const [viewMode, setViewMode] = useState<'basic' | 'advanced'>('basic');
   const [sortBy, setSortBy] = useState<SortField>('rank');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [isScrolledRight, setIsScrolledRight] = useState(false);
 
   const handleSort = (field: SortField) => {
     if (sortBy === field) {
@@ -289,14 +290,23 @@ export function LeagueStandingsAnalyticsTable({
       </CardHeader>
 
       <CardContent className="p-0">
-        <div className="overflow-x-auto w-full">
-          <Table className="w-full text-xs sm:text-sm">
+        <div className="relative w-full overflow-hidden">
+          <div
+            className="overflow-x-auto w-full scroll-smooth"
+            onScroll={(e) => {
+              const scrolled = e.currentTarget.scrollLeft > 15;
+              if (scrolled !== isScrolledRight) {
+                setIsScrolledRight(scrolled);
+              }
+            }}
+          >
+            <Table className="w-full text-xs sm:text-sm">
             <TableHeader className="bg-muted/40 text-[11px] uppercase tracking-wider font-semibold text-muted-foreground select-none">
               {viewMode === 'basic' ? (
                 <TableRow className="hover:bg-transparent">
                   <TableHead
                     onClick={() => handleSort('rank')}
-                    className="w-12 text-center cursor-pointer hover:text-foreground transition-colors group sticky left-0 z-20 bg-muted/95 backdrop-blur-sm"
+                    className="w-10 sm:w-12 text-center cursor-pointer hover:text-foreground transition-colors group sticky left-0 z-20 bg-muted/95 backdrop-blur-sm"
                   >
                     <span className="inline-flex items-center justify-center">
                       #
@@ -305,10 +315,22 @@ export function LeagueStandingsAnalyticsTable({
                   </TableHead>
                   <TableHead
                     onClick={() => handleSort('name')}
-                    className="min-w-[150px] cursor-pointer hover:text-foreground transition-colors group sticky left-12 z-20 bg-muted/95 backdrop-blur-sm border-r border-border/40 sm:border-r-0"
+                    className={cn(
+                      'cursor-pointer hover:text-foreground transition-all duration-300 ease-in-out group sticky left-10 sm:left-12 z-20 bg-muted/95 backdrop-blur-sm border-r border-border/40 sm:border-r-0',
+                      isScrolledRight
+                        ? 'w-14 min-w-[56px] px-2 shadow-[3px_0_10px_-2px_rgba(0,0,0,0.3)]'
+                        : 'min-w-[145px] sm:min-w-[160px] px-3 sm:px-4'
+                    )}
                   >
-                    <span className="inline-flex items-center">
-                      Tým
+                    <span className="inline-flex items-center gap-1">
+                      <span
+                        className={cn(
+                          'transition-all duration-300 ease-in-out overflow-hidden whitespace-nowrap',
+                          isScrolledRight ? 'max-w-0 opacity-0 sm:max-w-none sm:opacity-100' : 'max-w-[80px] opacity-100'
+                        )}
+                      >
+                        Tým
+                      </span>
                       {renderSortIcon('name')}
                     </span>
                   </TableHead>
@@ -373,7 +395,7 @@ export function LeagueStandingsAnalyticsTable({
                 <TableRow className="hover:bg-transparent">
                   <TableHead
                     onClick={() => handleSort('rank')}
-                    className="w-12 text-center cursor-pointer hover:text-foreground transition-colors group sticky left-0 z-20 bg-muted/95 backdrop-blur-sm"
+                    className="w-10 sm:w-12 text-center cursor-pointer hover:text-foreground transition-colors group sticky left-0 z-20 bg-muted/95 backdrop-blur-sm"
                   >
                     <span className="inline-flex items-center justify-center">
                       #
@@ -382,10 +404,22 @@ export function LeagueStandingsAnalyticsTable({
                   </TableHead>
                   <TableHead
                     onClick={() => handleSort('name')}
-                    className="min-w-[150px] cursor-pointer hover:text-foreground transition-colors group sticky left-12 z-20 bg-muted/95 backdrop-blur-sm border-r border-border/40 sm:border-r-0"
+                    className={cn(
+                      'cursor-pointer hover:text-foreground transition-all duration-300 ease-in-out group sticky left-10 sm:left-12 z-20 bg-muted/95 backdrop-blur-sm border-r border-border/40 sm:border-r-0',
+                      isScrolledRight
+                        ? 'w-14 min-w-[56px] px-2 shadow-[3px_0_10px_-2px_rgba(0,0,0,0.3)]'
+                        : 'min-w-[145px] sm:min-w-[160px] px-3 sm:px-4'
+                    )}
                   >
-                    <span className="inline-flex items-center">
-                      Tým
+                    <span className="inline-flex items-center gap-1">
+                      <span
+                        className={cn(
+                          'transition-all duration-300 ease-in-out overflow-hidden whitespace-nowrap',
+                          isScrolledRight ? 'max-w-0 opacity-0 sm:max-w-none sm:opacity-100' : 'max-w-[80px] opacity-100'
+                        )}
+                      >
+                        Tým
+                      </span>
                       {renderSortIcon('name')}
                     </span>
                   </TableHead>
@@ -489,15 +523,39 @@ export function LeagueStandingsAnalyticsTable({
                             : 'hover:bg-muted/40'
                         )}
                       >
-                        <TableCell className="text-center font-bold text-muted-foreground sticky left-0 z-10 bg-card/95 backdrop-blur-sm">
+                        <TableCell className="w-10 sm:w-12 text-center font-bold text-muted-foreground sticky left-0 z-10 bg-card/95 backdrop-blur-sm">
                           {renderRankBadge(team.rank)}
                         </TableCell>
-                        <TableCell className="font-semibold text-foreground sticky left-12 z-10 bg-card/95 backdrop-blur-sm border-r border-border/40 sm:border-r-0">
-                          <div className="flex items-center gap-2">
+                        <TableCell
+                          className={cn(
+                            'font-semibold text-foreground sticky left-10 sm:left-12 z-10 bg-card/95 backdrop-blur-sm border-r border-border/40 sm:border-r-0 transition-all duration-300 ease-in-out',
+                            isScrolledRight
+                              ? 'w-14 min-w-[56px] px-2 shadow-[3px_0_10px_-2px_rgba(0,0,0,0.3)]'
+                              : 'min-w-[145px] sm:min-w-[160px] px-3 sm:px-4'
+                          )}
+                        >
+                          <div className="flex items-center gap-2 min-w-0" title={team.name}>
                             <TeamBadge name={team.name} size="sm" />
-                            <span className="truncate">{team.name}</span>
+                            <span
+                              className={cn(
+                                'truncate transition-all duration-300 ease-in-out whitespace-nowrap overflow-hidden inline-block',
+                                isScrolledRight
+                                  ? 'max-w-0 opacity-0 pointer-events-none sm:max-w-[130px] sm:opacity-100 sm:pointer-events-auto'
+                                  : 'max-w-[120px] sm:max-w-[130px] opacity-100'
+                              )}
+                            >
+                              {team.name}
+                            </span>
                             {isAces && (
-                              <Badge variant="outline" className="text-[10px] h-4 px-1 border-primary/40 text-primary font-bold shrink-0">
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  'text-[10px] h-4 px-1 border-primary/40 text-primary font-bold shrink-0 transition-all duration-300 ease-in-out whitespace-nowrap overflow-hidden',
+                                  isScrolledRight
+                                    ? 'max-w-0 opacity-0 p-0 m-0 border-0 pointer-events-none sm:max-w-[50px] sm:opacity-100 sm:px-1 sm:border sm:pointer-events-auto'
+                                    : 'max-w-[50px] opacity-100'
+                                )}
+                              >
                                 ACES
                               </Badge>
                             )}
@@ -559,15 +617,39 @@ export function LeagueStandingsAnalyticsTable({
                           : 'hover:bg-muted/40'
                       )}
                     >
-                      <TableCell className="text-center font-bold text-muted-foreground sticky left-0 z-10 bg-card/95 backdrop-blur-sm">
+                      <TableCell className="w-10 sm:w-12 text-center font-bold text-muted-foreground sticky left-0 z-10 bg-card/95 backdrop-blur-sm">
                         {renderRankBadge(sortBy === 'rank' ? team.rank : idx + 1)}
                       </TableCell>
-                      <TableCell className="font-semibold text-foreground sticky left-12 z-10 bg-card/95 backdrop-blur-sm border-r border-border/40 sm:border-r-0">
-                        <div className="flex items-center gap-2">
+                      <TableCell
+                        className={cn(
+                          'font-semibold text-foreground sticky left-10 sm:left-12 z-10 bg-card/95 backdrop-blur-sm border-r border-border/40 sm:border-r-0 transition-all duration-300 ease-in-out',
+                          isScrolledRight
+                            ? 'w-14 min-w-[56px] px-2 shadow-[3px_0_10px_-2px_rgba(0,0,0,0.3)]'
+                            : 'min-w-[145px] sm:min-w-[160px] px-3 sm:px-4'
+                        )}
+                      >
+                        <div className="flex items-center gap-2 min-w-0" title={team.name}>
                           <TeamBadge name={team.name} size="sm" />
-                          <span className="truncate">{team.name}</span>
+                          <span
+                            className={cn(
+                              'truncate transition-all duration-300 ease-in-out whitespace-nowrap overflow-hidden inline-block',
+                              isScrolledRight
+                                ? 'max-w-0 opacity-0 pointer-events-none sm:max-w-[130px] sm:opacity-100 sm:pointer-events-auto'
+                                : 'max-w-[120px] sm:max-w-[130px] opacity-100'
+                            )}
+                          >
+                            {team.name}
+                          </span>
                           {isAces && (
-                            <Badge variant="outline" className="text-[10px] h-4 px-1 border-primary/40 text-primary font-bold shrink-0">
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                'text-[10px] h-4 px-1 border-primary/40 text-primary font-bold shrink-0 transition-all duration-300 ease-in-out whitespace-nowrap overflow-hidden',
+                                isScrolledRight
+                                  ? 'max-w-0 opacity-0 p-0 m-0 border-0 pointer-events-none sm:max-w-[50px] sm:opacity-100 sm:px-1 sm:border sm:pointer-events-auto'
+                                  : 'max-w-[50px] opacity-100'
+                              )}
+                            >
                               ACES
                             </Badge>
                           )}
@@ -627,7 +709,15 @@ export function LeagueStandingsAnalyticsTable({
             </TableBody>
           </Table>
         </div>
-      </CardContent>
+        {/* Jemný pravý fade gradient jako vizuální indikátor pro posun na mobilu */}
+        <div
+          className={cn(
+            'pointer-events-none absolute top-0 bottom-0 right-0 w-8 bg-gradient-to-l from-card via-card/60 to-transparent transition-opacity duration-300 sm:hidden z-10',
+            isScrolledRight ? 'opacity-0' : 'opacity-100'
+          )}
+        />
+      </div>
+    </CardContent>
     </Card>
   );
 }
