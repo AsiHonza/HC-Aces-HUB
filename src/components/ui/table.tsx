@@ -2,11 +2,21 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
+export interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
+  containerClassName?: string;
+  containerRef?: React.Ref<HTMLDivElement>;
+  onContainerScroll?: React.UIEventHandler<HTMLDivElement>;
+}
+
 const Table = React.forwardRef<
   HTMLTableElement,
-  React.HTMLAttributes<HTMLTableElement>
->(({ className, ...props }, ref) => (
-  <div className="relative w-full overflow-auto">
+  TableProps
+>(({ className, containerClassName, containerRef, onContainerScroll, onScroll, ...props }, ref) => (
+  <div
+    ref={containerRef}
+    className={cn("relative w-full overflow-auto", containerClassName)}
+    onScroll={onContainerScroll || (onScroll as unknown as React.UIEventHandler<HTMLDivElement>)}
+  >
     <table
       ref={ref}
       className={cn("w-full caption-bottom text-xs sm:text-sm", className)}

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -67,6 +67,24 @@ export function LeagueStandingsAnalyticsTable({
   const [sortBy, setSortBy] = useState<SortField>('rank');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [isScrolledRight, setIsScrolledRight] = useState(false);
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = tableContainerRef.current;
+    if (!el) return;
+
+    const handleScroll = () => {
+      const scrolled = el.scrollLeft > 10;
+      setIsScrolledRight(scrolled);
+    };
+
+    el.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
+
+    return () => {
+      el.removeEventListener('scroll', handleScroll);
+    };
+  }, []);
 
   const handleSort = (field: SortField) => {
     if (sortBy === field) {
@@ -291,16 +309,17 @@ export function LeagueStandingsAnalyticsTable({
 
       <CardContent className="p-0">
         <div className="relative w-full overflow-hidden">
-          <div
-            className="overflow-x-auto w-full scroll-smooth"
+          <Table
+            containerRef={tableContainerRef}
+            containerClassName="scroll-smooth"
             onScroll={(e) => {
-              const scrolled = e.currentTarget.scrollLeft > 15;
+              const scrolled = e.currentTarget.scrollLeft > 10;
               if (scrolled !== isScrolledRight) {
                 setIsScrolledRight(scrolled);
               }
             }}
+            className="w-full text-xs sm:text-sm"
           >
-            <Table className="w-full text-xs sm:text-sm">
             <TableHeader className="bg-muted/40 text-[11px] uppercase tracking-wider font-semibold text-muted-foreground select-none">
               {viewMode === 'basic' ? (
                 <TableRow className="hover:bg-transparent">
@@ -318,20 +337,28 @@ export function LeagueStandingsAnalyticsTable({
                     className={cn(
                       'cursor-pointer hover:text-foreground transition-all duration-300 ease-in-out group sticky left-10 sm:left-12 z-20 bg-muted/95 backdrop-blur-sm border-r border-border/40 sm:border-r-0',
                       isScrolledRight
-                        ? 'w-14 min-w-[56px] px-2 shadow-[3px_0_10px_-2px_rgba(0,0,0,0.3)]'
+                        ? 'w-14 min-w-[56px] max-w-[56px] px-1 text-center shadow-[3px_0_10px_-2px_rgba(0,0,0,0.3)]'
                         : 'min-w-[145px] sm:min-w-[160px] px-3 sm:px-4'
                     )}
                   >
-                    <span className="inline-flex items-center gap-1">
+                    <span className={cn(
+                      "inline-flex items-center",
+                      isScrolledRight ? "justify-center w-full gap-0 sm:justify-start sm:gap-1" : "gap-1"
+                    )}>
                       <span
                         className={cn(
                           'transition-all duration-300 ease-in-out overflow-hidden whitespace-nowrap',
-                          isScrolledRight ? 'max-w-0 opacity-0 sm:max-w-none sm:opacity-100' : 'max-w-[80px] opacity-100'
+                          isScrolledRight ? 'max-w-0 opacity-0 p-0 m-0 sm:max-w-none sm:opacity-100' : 'max-w-[80px] opacity-100'
                         )}
                       >
                         Tým
                       </span>
-                      {renderSortIcon('name')}
+                      <span className={cn(
+                        'transition-all duration-300',
+                        isScrolledRight && 'hidden sm:inline-flex'
+                      )}>
+                        {renderSortIcon('name')}
+                      </span>
                     </span>
                   </TableHead>
                   <TableHead
@@ -407,20 +434,28 @@ export function LeagueStandingsAnalyticsTable({
                     className={cn(
                       'cursor-pointer hover:text-foreground transition-all duration-300 ease-in-out group sticky left-10 sm:left-12 z-20 bg-muted/95 backdrop-blur-sm border-r border-border/40 sm:border-r-0',
                       isScrolledRight
-                        ? 'w-14 min-w-[56px] px-2 shadow-[3px_0_10px_-2px_rgba(0,0,0,0.3)]'
+                        ? 'w-14 min-w-[56px] max-w-[56px] px-1 text-center shadow-[3px_0_10px_-2px_rgba(0,0,0,0.3)]'
                         : 'min-w-[145px] sm:min-w-[160px] px-3 sm:px-4'
                     )}
                   >
-                    <span className="inline-flex items-center gap-1">
+                    <span className={cn(
+                      "inline-flex items-center",
+                      isScrolledRight ? "justify-center w-full gap-0 sm:justify-start sm:gap-1" : "gap-1"
+                    )}>
                       <span
                         className={cn(
                           'transition-all duration-300 ease-in-out overflow-hidden whitespace-nowrap',
-                          isScrolledRight ? 'max-w-0 opacity-0 sm:max-w-none sm:opacity-100' : 'max-w-[80px] opacity-100'
+                          isScrolledRight ? 'max-w-0 opacity-0 p-0 m-0 sm:max-w-none sm:opacity-100' : 'max-w-[80px] opacity-100'
                         )}
                       >
                         Tým
                       </span>
-                      {renderSortIcon('name')}
+                      <span className={cn(
+                        'transition-all duration-300',
+                        isScrolledRight && 'hidden sm:inline-flex'
+                      )}>
+                        {renderSortIcon('name')}
+                      </span>
                     </span>
                   </TableHead>
                   <TableHead
@@ -530,17 +565,23 @@ export function LeagueStandingsAnalyticsTable({
                           className={cn(
                             'font-semibold text-foreground sticky left-10 sm:left-12 z-10 bg-card/95 backdrop-blur-sm border-r border-border/40 sm:border-r-0 transition-all duration-300 ease-in-out',
                             isScrolledRight
-                              ? 'w-14 min-w-[56px] px-2 shadow-[3px_0_10px_-2px_rgba(0,0,0,0.3)]'
+                              ? 'w-14 min-w-[56px] max-w-[56px] px-1 shadow-[3px_0_10px_-2px_rgba(0,0,0,0.3)]'
                               : 'min-w-[145px] sm:min-w-[160px] px-3 sm:px-4'
                           )}
                         >
-                          <div className="flex items-center gap-2 min-w-0" title={team.name}>
+                          <div
+                            className={cn(
+                              "flex items-center min-w-0 transition-all duration-300",
+                              isScrolledRight ? "justify-center gap-0 sm:justify-start sm:gap-2" : "gap-2"
+                            )}
+                            title={team.name}
+                          >
                             <TeamBadge name={team.name} size="sm" />
                             <span
                               className={cn(
                                 'truncate transition-all duration-300 ease-in-out whitespace-nowrap overflow-hidden inline-block',
                                 isScrolledRight
-                                  ? 'max-w-0 opacity-0 pointer-events-none sm:max-w-[130px] sm:opacity-100 sm:pointer-events-auto'
+                                  ? 'max-w-0 opacity-0 p-0 m-0 pointer-events-none sm:max-w-[130px] sm:opacity-100 sm:pointer-events-auto'
                                   : 'max-w-[120px] sm:max-w-[130px] opacity-100'
                               )}
                             >
@@ -624,17 +665,23 @@ export function LeagueStandingsAnalyticsTable({
                         className={cn(
                           'font-semibold text-foreground sticky left-10 sm:left-12 z-10 bg-card/95 backdrop-blur-sm border-r border-border/40 sm:border-r-0 transition-all duration-300 ease-in-out',
                           isScrolledRight
-                            ? 'w-14 min-w-[56px] px-2 shadow-[3px_0_10px_-2px_rgba(0,0,0,0.3)]'
+                            ? 'w-14 min-w-[56px] max-w-[56px] px-1 shadow-[3px_0_10px_-2px_rgba(0,0,0,0.3)]'
                             : 'min-w-[145px] sm:min-w-[160px] px-3 sm:px-4'
                         )}
                       >
-                        <div className="flex items-center gap-2 min-w-0" title={team.name}>
+                        <div
+                          className={cn(
+                            "flex items-center min-w-0 transition-all duration-300",
+                            isScrolledRight ? "justify-center gap-0 sm:justify-start sm:gap-2" : "gap-2"
+                          )}
+                          title={team.name}
+                        >
                           <TeamBadge name={team.name} size="sm" />
                           <span
                             className={cn(
                               'truncate transition-all duration-300 ease-in-out whitespace-nowrap overflow-hidden inline-block',
                               isScrolledRight
-                                ? 'max-w-0 opacity-0 pointer-events-none sm:max-w-[130px] sm:opacity-100 sm:pointer-events-auto'
+                                ? 'max-w-0 opacity-0 p-0 m-0 pointer-events-none sm:max-w-[130px] sm:opacity-100 sm:pointer-events-auto'
                                 : 'max-w-[120px] sm:max-w-[130px] opacity-100'
                             )}
                           >
@@ -708,7 +755,6 @@ export function LeagueStandingsAnalyticsTable({
               )}
             </TableBody>
           </Table>
-        </div>
         {/* Jemný pravý fade gradient jako vizuální indikátor pro posun na mobilu */}
         <div
           className={cn(
