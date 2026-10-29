@@ -219,54 +219,6 @@ export function LeagueAwardsLeaders({ overview, onSelectTeam }: LeagueAwardsLead
           )}
         </Card>
       </div>
-
-      {/* Secondary Team Stats Bar */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-        <div className="p-2.5 rounded-xl bg-card/60 border border-border/60 flex items-center justify-between text-xs">
-          <div className="space-y-0.5 min-w-0">
-            <span className="text-[10px] text-muted-foreground font-semibold uppercase">Nejlepší útok</span>
-            <div className="flex items-center gap-1.5 min-w-0">
-              {bestOffenseTeam && <TeamBadge name={bestOffenseTeam.name} size="xs" />}
-              <p className="font-bold text-foreground truncate">
-                {bestOffenseTeam ? bestOffenseTeam.name : '—'}
-              </p>
-            </div>
-          </div>
-          <Badge variant="secondary" className="font-black tabular-nums text-primary shrink-0">
-            {bestOffenseTeam ? `${bestOffenseTeam.gfPerGame} gólů / Z` : '—'}
-          </Badge>
-        </div>
-
-        <div className="p-2.5 rounded-xl bg-card/60 border border-border/60 flex items-center justify-between text-xs">
-          <div className="space-y-0.5 min-w-0">
-            <span className="text-[10px] text-muted-foreground font-semibold uppercase">Nejpevnější obrana</span>
-            <div className="flex items-center gap-1.5 min-w-0">
-              {bestDefenseTeam && <TeamBadge name={bestDefenseTeam.name} size="xs" />}
-              <p className="font-bold text-foreground truncate">
-                {bestDefenseTeam ? bestDefenseTeam.name : '—'}
-              </p>
-            </div>
-          </div>
-          <Badge variant="secondary" className="font-black tabular-nums text-blue-500 shrink-0">
-            {bestDefenseTeam ? `${bestDefenseTeam.gaPerGame} OG / Z` : '—'}
-          </Badge>
-        </div>
-
-        <div className="p-2.5 rounded-xl bg-card/60 border border-border/60 flex items-center justify-between text-xs">
-          <div className="space-y-0.5 min-w-0">
-            <span className="text-[10px] text-muted-foreground font-semibold uppercase">Nejslušnější tým</span>
-            <div className="flex items-center gap-1.5 min-w-0">
-              {mostDisciplinedTeam && <TeamBadge name={mostDisciplinedTeam.name} size="xs" />}
-              <p className="font-bold text-foreground truncate">
-                {mostDisciplinedTeam ? mostDisciplinedTeam.name : '—'}
-              </p>
-            </div>
-          </div>
-          <Badge variant="secondary" className="font-black tabular-nums text-purple-500 shrink-0">
-            {mostDisciplinedTeam ? `${mostDisciplinedTeam.penaltiesPerGame} TM / Z` : '—'}
-          </Badge>
-        </div>
-      </div>
     </div>
   );
 }

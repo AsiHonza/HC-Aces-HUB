@@ -580,6 +580,9 @@ function LeagueDashboardContent() {
                 <LeagueStandingsAnalyticsTable
                   teams={teamSummaries}
                   onSelectTeam={handleSelectTeam}
+                  bestOffenseTeam={leagueOverview.bestOffenseTeam}
+                  bestDefenseTeam={leagueOverview.bestDefenseTeam}
+                  mostDisciplinedTeam={leagueOverview.mostDisciplinedTeam}
                 />
               </TabsContent>
 

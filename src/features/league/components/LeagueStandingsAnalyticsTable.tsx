@@ -34,6 +34,9 @@ import { TeamBadge } from './TeamBadge';
 interface LeagueStandingsAnalyticsTableProps {
   teams: TeamAnalyticsSummary[];
   onSelectTeam: (team: TeamAnalyticsSummary) => void;
+  bestOffenseTeam?: { name: string; gfPerGame: number } | null;
+  bestDefenseTeam?: { name: string; gaPerGame: number } | null;
+  mostDisciplinedTeam?: { name: string; penaltiesPerGame: number } | null;
 }
 
 type SortField =
@@ -56,9 +59,11 @@ type SortField =
 export function LeagueStandingsAnalyticsTable({
   teams,
   onSelectTeam,
+  bestOffenseTeam,
+  bestDefenseTeam,
+  mostDisciplinedTeam,
 }: LeagueStandingsAnalyticsTableProps) {
   const [viewMode, setViewMode] = useState<'basic' | 'advanced'>('basic');
-  const [searchFilter, setSearchFilter] = useState('');
   const [sortBy, setSortBy] = useState<SortField>('rank');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
@@ -83,16 +88,11 @@ export function LeagueStandingsAnalyticsTable({
     }
   };
 
-  // Filter and sort teams
+  // Sort teams
   const filteredTeams = useMemo(() => {
     const dir = sortDir === 'asc' ? 1 : -1;
 
-    return [...teams]
-      .filter((t) => {
-        if (!searchFilter) return true;
-        return t.name.toLowerCase().includes(searchFilter.toLowerCase());
-      })
-      .sort((a, b) => {
+    return [...teams].sort((a, b) => {
         let diff = 0;
         switch (sortBy) {
           case 'name':
@@ -148,7 +148,7 @@ export function LeagueStandingsAnalyticsTable({
         }
         return a.rank - b.rank;
       });
-  }, [teams, searchFilter, sortBy, sortDir]);
+  }, [teams, sortBy, sortDir]);
 
   const renderRankBadge = (rank: number) => {
     if (rank === 1) {
@@ -234,27 +234,43 @@ export function LeagueStandingsAnalyticsTable({
           </div>
         </div>
 
-        {/* Filter bar */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-1">
-          <div className="relative flex-1 sm:max-w-xs">
-            <Search className="h-4 w-4 absolute left-2.5 top-2.5 text-muted-foreground" />
-            <Input
-              type="text"
-              placeholder="Filtrovat tým podle názvu..."
-              value={searchFilter}
-              onChange={(e) => setSearchFilter(e.target.value)}
-              className="pl-8 h-8 text-xs bg-muted/30"
-            />
+        {/* Subheader: Team records & Advanced sort selector */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+            {bestOffenseTeam && (
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/40 border border-border/60 text-[11px]">
+                <span className="text-muted-foreground font-semibold">Útok:</span>
+                <TeamBadge name={bestOffenseTeam.name} size="xs" />
+                <span className="font-bold text-foreground truncate max-w-[90px]">{bestOffenseTeam.name}</span>
+                <span className="font-black text-primary tabular-nums">{bestOffenseTeam.gfPerGame} G/Z</span>
+              </div>
+            )}
+            {bestDefenseTeam && (
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/40 border border-border/60 text-[11px]">
+                <span className="text-muted-foreground font-semibold">Obrana:</span>
+                <TeamBadge name={bestDefenseTeam.name} size="xs" />
+                <span className="font-bold text-foreground truncate max-w-[90px]">{bestDefenseTeam.name}</span>
+                <span className="font-black text-blue-500 tabular-nums">{bestDefenseTeam.gaPerGame} OG/Z</span>
+              </div>
+            )}
+            {mostDisciplinedTeam && (
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/40 border border-border/60 text-[11px]">
+                <span className="text-muted-foreground font-semibold">Fair Play:</span>
+                <TeamBadge name={mostDisciplinedTeam.name} size="xs" />
+                <span className="font-bold text-foreground truncate max-w-[90px]">{mostDisciplinedTeam.name}</span>
+                <span className="font-black text-purple-500 tabular-nums">{mostDisciplinedTeam.penaltiesPerGame} TM/Z</span>
+              </div>
+            )}
           </div>
 
           {viewMode === 'advanced' && (
-            <div className="flex items-center gap-1.5 self-start sm:self-center">
+            <div className="flex items-center gap-1.5 self-start sm:self-center ml-auto">
               <span className="text-[11px] text-muted-foreground font-semibold flex items-center gap-1">
                 <ArrowUpDown className="h-3 w-3" />
                 Řadit:
               </span>
               <Select value={sortBy} onValueChange={(val) => setSortBy(val as SortField)}>
-                <SelectTrigger className="h-8 text-xs w-[180px] bg-muted/30">
+                <SelectTrigger className="h-7 text-xs w-[170px] bg-muted/30">
                   <SelectValue placeholder="Výběr řazení" />
                 </SelectTrigger>
                 <SelectContent>

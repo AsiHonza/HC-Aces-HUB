@@ -152,9 +152,9 @@ export function LeagueHeader({
           {isAdmin && onOpenArchiveDialog && isCurrent && (
             <Button
               size="sm"
-              variant="destructive"
+              variant="outline"
               onClick={onOpenArchiveDialog}
-              className="h-8 text-xs font-semibold"
+              className="h-8 text-xs font-semibold border-rose-500/40 text-rose-500 hover:bg-rose-500/10 hover:text-rose-400"
               title="Ukončit aktuální sezónu a uložit její kompletní data do archivu"
             >
               <History className="h-3.5 w-3.5 mr-1.5" />
@@ -164,47 +164,47 @@ export function LeagueHeader({
         </div>
       </div>
 
-      {/* Quick KPI Strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
-        <Card className="p-3 bg-card/70 border-border/60 flex items-center gap-3">
-          <div className="h-9 w-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-500 shrink-0">
-            <Calendar className="h-4.5 w-4.5" />
+      {/* Sleek Inline KPI Strip directly inside Hero Area */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 rounded-xl bg-card/60 border border-border/60 shadow-xs text-xs">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="h-8 w-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-500 shrink-0">
+            <Calendar className="h-4 w-4" />
           </div>
           <div className="min-w-0">
-            <p className="text-[11px] text-muted-foreground font-medium truncate">Odehráno zápasů</p>
-            <p className="text-lg sm:text-xl font-bold text-foreground leading-tight">{overview.totalMatchesPlayed}</p>
+            <p className="text-[10px] text-muted-foreground font-medium truncate">Odehráno zápasů</p>
+            <p className="text-base sm:text-lg font-bold text-foreground leading-tight tabular-nums">{overview.totalMatchesPlayed}</p>
           </div>
-        </Card>
+        </div>
 
-        <Card className="p-3 bg-card/70 border-border/60 flex items-center gap-3">
-          <div className="h-9 w-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500 shrink-0">
-            <Flame className="h-4.5 w-4.5" />
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="h-8 w-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500 shrink-0">
+            <Flame className="h-4 w-4" />
           </div>
           <div className="min-w-0">
-            <p className="text-[11px] text-muted-foreground font-medium truncate">Vstřeleno gólů</p>
-            <p className="text-lg sm:text-xl font-bold text-foreground leading-tight">{overview.totalGoalsScored}</p>
+            <p className="text-[10px] text-muted-foreground font-medium truncate">Vstřeleno gólů</p>
+            <p className="text-base sm:text-lg font-bold text-foreground leading-tight tabular-nums">{overview.totalGoalsScored}</p>
           </div>
-        </Card>
+        </div>
 
-        <Card className="p-3 bg-card/70 border-border/60 flex items-center gap-3">
-          <div className="h-9 w-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 shrink-0">
-            <Activity className="h-4.5 w-4.5" />
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="h-8 w-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 shrink-0">
+            <Activity className="h-4 w-4" />
           </div>
           <div className="min-w-0">
-            <p className="text-[11px] text-muted-foreground font-medium truncate">Průměr gólů / zápas</p>
-            <p className="text-lg sm:text-xl font-bold text-foreground leading-tight">{overview.averageGoalsPerGame}</p>
+            <p className="text-[10px] text-muted-foreground font-medium truncate">Průměr gólů / zápas</p>
+            <p className="text-base sm:text-lg font-bold text-foreground leading-tight tabular-nums">{overview.averageGoalsPerGame}</p>
           </div>
-        </Card>
+        </div>
 
-        <Card className="p-3 bg-card/70 border-border/60 flex items-center gap-3">
-          <div className="h-9 w-9 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-500 shrink-0">
-            <Shield className="h-4.5 w-4.5" />
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="h-8 w-8 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-500 shrink-0">
+            <Shield className="h-4 w-4" />
           </div>
           <div className="min-w-0">
-            <p className="text-[11px] text-muted-foreground font-medium truncate">Týmů v soutěži</p>
-            <p className="text-lg sm:text-xl font-bold text-foreground leading-tight">9</p>
+            <p className="text-[10px] text-muted-foreground font-medium truncate">Týmů v soutěži</p>
+            <p className="text-base sm:text-lg font-bold text-foreground leading-tight tabular-nums">9</p>
           </div>
-        </Card>
+        </div>
       </div>
     </div>
   );
