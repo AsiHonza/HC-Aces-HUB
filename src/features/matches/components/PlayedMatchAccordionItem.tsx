@@ -126,134 +126,107 @@ export function PlayedMatchAccordionItem({
       <div className="relative w-full min-w-0">
         <AccordionTrigger
           className={cn(
-            'w-full text-left hover:no-underline py-3 sm:py-3.5 px-3 sm:px-5 [&>svg]:ml-2 sm:[&>svg]:ml-3 [&>svg]:shrink-0 min-w-0 overflow-hidden',
+            'w-full text-left hover:no-underline py-2.5 sm:py-3 px-3 sm:px-4 [&>svg]:ml-2 sm:[&>svg]:ml-3 [&>svg]:shrink-0 min-w-0 overflow-hidden',
             isAdmin && (onEditResult || onEditLineup || onDeleteMatch) && 'pr-11 sm:pr-14'
           )}
         >
-          <div className="flex flex-col gap-2 w-full min-w-0">
-            {/* Meta řádek: Kolo, datum a místo vlevo, MVP status a stav utkání vpravo */}
-            <div className="flex items-center justify-between gap-2 w-full min-w-0">
-              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap min-w-0">
-                {prefix && (
-                  <Badge
-                    variant="outline"
-                    className="text-[10px] uppercase font-black bg-primary/10 border-primary/30 text-primary shrink-0"
-                  >
-                    {prefix}
-                  </Badge>
-                )}
-                <span className="text-[11px] text-muted-foreground flex items-center gap-1 font-medium shrink-0">
-                  <Calendar className="h-3 w-3 text-muted-foreground/70" />
-                  {dateFormatted}
-                </span>
-                {match.location && (
-                  <span className="text-[11px] text-muted-foreground hidden lg:flex items-center gap-1 font-medium shrink-0">
-                    <MapPin className="h-3 w-3 text-primary/70" />
-                    {match.location}
-                  </span>
-                )}
-              </div>
-
-              {/* Pravá strana: MVP status + Výsledek */}
-              <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-                {isVotingOpen ? (
-                  <Badge
-                    variant="outline"
-                    className="text-[10px] bg-amber-500/15 border-amber-500/40 text-amber-500 font-bold flex items-center gap-1 shrink-0"
-                  >
-                    <Clock className="h-2.5 w-2.5" />
-                    <span className="hidden sm:inline">Hlasování o MVP</span>
-                    <span className="sm:hidden">MVP</span>
-                  </Badge>
-                ) : mvpWinner ? (
-                  <Badge
-                    variant="outline"
-                    className="text-[10px] bg-primary/15 border-primary/40 text-primary font-bold flex items-center gap-1 shrink-0"
-                  >
-                    <Trophy className="h-2.5 w-2.5" />
-                    <span className="truncate max-w-[130px]">MVP: {formatName(mvpWinner.name)}</span>
-                  </Badge>
-                ) : null}
-
-                {/* Stav zápasu (Výhra / Prohra / Remíza) */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 w-full min-w-0">
+            {/* 1. Kolo & Datum */}
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 sm:w-[170px] min-w-0">
+              {prefix && (
                 <Badge
-                  className={cn(
-                    'h-5 px-2 flex items-center justify-center font-black text-[10px] uppercase tracking-wider rounded-md border shrink-0',
-                    isWin
-                      ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
-                      : isDraw
-                      ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
-                      : 'bg-rose-500/15 border-rose-500/30 text-rose-400'
-                  )}
+                  variant="outline"
+                  className="text-[10px] uppercase font-black bg-primary/10 border-primary/30 text-primary shrink-0"
                 >
-                  {isWin ? 'Výhra' : isDraw ? 'Remíza' : 'Prohra'}
+                  {prefix}
                 </Badge>
-              </div>
+              )}
+              <span className="text-[11px] text-muted-foreground flex items-center gap-1 font-medium truncate">
+                <Calendar className="h-3 w-3 text-muted-foreground/70 shrink-0" />
+                {dateFormatted}
+              </span>
             </div>
 
-            {/* Týmy pod sebou se skóre a třetinami v pevných sloupcích (Livesport styl) */}
-            <div className="grid grid-cols-[1fr_auto_76px] sm:grid-cols-[1fr_auto_110px] items-center gap-2.5 sm:gap-4 w-full pt-1">
-              {/* Sloupec 1: Týmy pod sebou */}
-              <div className="min-w-0 space-y-1 sm:space-y-1.5">
-                {/* Tým 1 (Domácí) */}
-                <div
-                  className={cn(
-                    'text-sm sm:text-base font-bold truncate tracking-tight flex items-center gap-2',
-                    isAcesHome ? 'text-primary font-extrabold' : 'text-foreground'
-                  )}
-                  title={match.team1}
-                >
-                  <TeamBadge name={match.team1} size="sm" />
-                  <span className="truncate">{match.team1}</span>
-                </div>
-
-                {/* Tým 2 (Hosté) */}
-                <div
-                  className={cn(
-                    'text-sm sm:text-base font-bold truncate tracking-tight flex items-center gap-2',
-                    !isAcesHome ? 'text-primary font-extrabold' : 'text-foreground'
-                  )}
-                  title={match.team2}
-                >
-                  <TeamBadge name={match.team2} size="sm" />
-                  <span className="truncate">{match.team2}</span>
-                </div>
-              </div>
-
-              {/* Sloupec 2: Skóre pod sebou (pevný zarovnaný sloupec) */}
-              <div className="w-8 sm:w-10 space-y-1 sm:space-y-1.5 text-center shrink-0">
-                <div
-                  className={cn(
-                    'text-sm sm:text-base font-black tabular-nums py-0.5 rounded-md border min-w-[28px] sm:min-w-[32px] text-center',
-                    Number(match.team1Score) > Number(match.team2Score)
-                      ? 'bg-primary/10 border-primary/30 text-primary font-black shadow-xs'
-                      : 'bg-muted/40 border-border/60 text-muted-foreground font-semibold'
-                  )}
-                >
-                  {match.team1Score}
-                </div>
-                <div
-                  className={cn(
-                    'text-sm sm:text-base font-black tabular-nums py-0.5 rounded-md border min-w-[28px] sm:min-w-[32px] text-center',
-                    Number(match.team2Score) > Number(match.team1Score)
-                      ? 'bg-primary/10 border-primary/30 text-primary font-black shadow-xs'
-                      : 'bg-muted/40 border-border/60 text-muted-foreground font-semibold'
-                  )}
-                >
-                  {match.team2Score}
-                </div>
-              </div>
-
-              {/* Sloupec 3: Třetiny (pevná šířka pro dokonalé zarovnání skóre ve všech kartách) */}
-              <div className="text-right sm:text-center shrink-0">
-                {match.periodScores ? (
-                  <span className="text-[10px] sm:text-xs font-semibold tabular-nums text-muted-foreground bg-muted/40 px-1.5 sm:px-2 py-0.5 rounded border border-border/40 inline-block">
-                    {match.periodScores}
-                  </span>
-                ) : (
-                  <span className="text-xs text-transparent select-none">-</span>
+            {/* 2. Horizontální Scoreboard (Domácí [Logo] Skóre [Logo] Hosté) */}
+            <div className="flex items-center justify-between sm:justify-center gap-2 sm:gap-3 flex-1 min-w-0 py-0.5">
+              {/* Tým 1 (Domácí) */}
+              <div
+                className={cn(
+                  'flex items-center justify-end gap-1.5 sm:gap-2 min-w-0 flex-1 text-right',
+                  isAcesHome ? 'text-primary font-black' : 'text-foreground font-bold'
                 )}
+                title={match.team1}
+              >
+                <span className="truncate text-xs sm:text-sm">{match.team1}</span>
+                <TeamBadge name={match.team1} size="xs" />
               </div>
+
+              {/* Skóre badge */}
+              <div className="flex items-center gap-1 shrink-0 px-2 py-0.5 rounded-md bg-muted/60 border border-border/80 text-xs sm:text-sm font-black tabular-nums shadow-xs">
+                <span className={cn(Number(match.team1Score) > Number(match.team2Score) ? 'text-primary' : 'text-foreground')}>
+                  {match.team1Score ?? '-'}
+                </span>
+                <span className="text-muted-foreground font-normal">:</span>
+                <span className={cn(Number(match.team2Score) > Number(match.team1Score) ? 'text-primary' : 'text-foreground')}>
+                  {match.team2Score ?? '-'}
+                </span>
+              </div>
+
+              {/* Tým 2 (Hosté) */}
+              <div
+                className={cn(
+                  'flex items-center justify-start gap-1.5 sm:gap-2 min-w-0 flex-1 text-left',
+                  !isAcesHome ? 'text-primary font-black' : 'text-foreground font-bold'
+                )}
+                title={match.team2}
+              >
+                <TeamBadge name={match.team2} size="xs" />
+                <span className="truncate text-xs sm:text-sm">{match.team2}</span>
+              </div>
+
+              {/* Třetiny */}
+              {match.periodScores && (
+                <span className="hidden md:inline-block text-[10px] text-muted-foreground/80 font-medium tabular-nums shrink-0">
+                  ({match.periodScores})
+                </span>
+              )}
+            </div>
+
+            {/* 3. MVP status & Stav zápasu */}
+            <div className="flex items-center justify-between sm:justify-end gap-1.5 sm:gap-2 shrink-0 sm:w-[170px]">
+              {isVotingOpen ? (
+                <Badge
+                  variant="outline"
+                  className="text-[10px] bg-amber-500/15 border-amber-500/40 text-amber-500 font-bold flex items-center gap-1 shrink-0"
+                >
+                  <Clock className="h-2.5 w-2.5" />
+                  <span className="hidden xl:inline">Hlasování</span>
+                  <span className="xl:hidden">MVP</span>
+                </Badge>
+              ) : mvpWinner ? (
+                <Badge
+                  variant="outline"
+                  className="text-[10px] bg-primary/10 border-primary/30 text-primary font-bold flex items-center gap-1 shrink-0"
+                  title={`MVP zápasu: ${formatName(mvpWinner.name)}`}
+                >
+                  <Trophy className="h-2.5 w-2.5" />
+                  <span className="truncate max-w-[85px] xl:max-w-[105px]">{formatName(mvpWinner.name)}</span>
+                </Badge>
+              ) : null}
+
+              {/* Stav zápasu (Výhra / Prohra / Remíza) */}
+              <Badge
+                className={cn(
+                  'h-5 px-2 flex items-center justify-center font-black text-[10px] uppercase tracking-wider rounded-md border shrink-0',
+                  isWin
+                    ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
+                    : isDraw
+                    ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
+                    : 'bg-rose-500/15 border-rose-500/30 text-rose-400'
+                )}
+              >
+                {isWin ? 'Výhra' : isDraw ? 'Remíza' : 'Prohra'}
+              </Badge>
             </div>
           </div>
         </AccordionTrigger>

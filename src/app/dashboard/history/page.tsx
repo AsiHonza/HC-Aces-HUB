@@ -1,7 +1,7 @@
 
 'use client'
 
-import { Suspense, useMemo, useState } from 'react'
+import { Suspense, useMemo, useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase'
@@ -120,6 +120,11 @@ function HistoryPageContent() {
 
     const [searchQuery, setSearchQuery] = useState('');
     const [resultFilter, setResultFilter] = useState<'all' | 'wins' | 'losses'>('all');
+    const [visibleCount, setVisibleCount] = useState(15);
+
+    useEffect(() => {
+        setVisibleCount(15);
+    }, [searchQuery, resultFilter]);
 
     const playedMatches = useMemo(() => allMatches?.filter(m => m.isPlayed) || null, [allMatches]);
     const usersMap = useMemo(() => new Map(users?.map(u => [u.id, u]) || []), [users]);
@@ -320,60 +325,75 @@ function HistoryPageContent() {
                     </div>
 
                     {filteredMatches.length ? (
-                        <Accordion type="single" collapsible className="w-full space-y-3">
-                            {filteredMatches.map(m => (
-                                <PlayedMatchAccordionItem
-                                    key={m.id}
-                                    match={m as any}
-                                    usersMap={usersMap}
-                                    isAdmin={userProfile?.role === 'admin'}
-                                    onViewLineup={() => {
-                                        let lineupToDisplay = m.lineup || null;
-                                        const hasExistingLineup = Boolean(lineupToDisplay && Object.values(lineupToDisplay).some((p: any) => p !== null));
-                                        if (!hasExistingLineup && m.gameRoster && m.gameRoster.length > 0) {
-                                            const skaterPlayers = m.gameRoster.map((skaterName, idx) => {
-                                                const u = users?.find(usr => areNamesMatching(usr.name, skaterName));
-                                                return u
-                                                    ? { id: u.id, name: u.name, email: u.email || '', jerseyNumber: u.jerseyNumber ?? null, photoURL: u.photoURL ?? null }
-                                                    : { id: `skater-${idx}`, name: skaterName, email: '', jerseyNumber: null, photoURL: null };
-                                            });
-                                            const goalieUser = m.goalieName ? users?.find(usr => areNamesMatching(usr.name, m.goalieName!)) : null;
-                                            const goaliePlayer = goalieUser
-                                                ? { id: goalieUser.id, name: goalieUser.name, email: goalieUser.email || '', jerseyNumber: goalieUser.jerseyNumber ?? null, photoURL: goalieUser.photoURL ?? null }
-                                                : (m.goalieName ? { id: 'goalie', name: m.goalieName, email: '', jerseyNumber: null, photoURL: null } : null);
-                                            lineupToDisplay = {
-                                                B1: goaliePlayer,
-                                                LK1: skaterPlayers[0] || null,
-                                                C1: skaterPlayers[1] || null,
-                                                PK1: skaterPlayers[2] || null,
-                                                LO1: skaterPlayers[3] || null,
-                                                PO1: skaterPlayers[4] || null,
-                                                LK2: skaterPlayers[5] || null,
-                                                C2: skaterPlayers[6] || null,
-                                                PK2: skaterPlayers[7] || null,
-                                                LO2: skaterPlayers[8] || null,
-                                                PO2: skaterPlayers[9] || null,
-                                                LK3: skaterPlayers[10] || null,
-                                                C3: skaterPlayers[11] || null,
-                                                PK3: skaterPlayers[12] || null,
-                                            } as any;
-                                        }
-                                        setViewLineupData(lineupToDisplay || m.lineup!);
-                                        setViewScorersData(m.scorers);
-                                        setViewMatchOpponent(getMatchDetails(m).opponent);
-                                        setIsLineupViewOpen(true);
-                                    }}
-                                    onShareMatch={() => {
-                                        const url = new URL(window.location.origin + '/dashboard');
-                                        url.searchParams.set('matchId', m.id);
-                                        navigator.clipboard.writeText(url.toString()).then(() => toast({ title: "Odkaz zkopírován" }));
-                                    }}
-                                    onEditResult={() => { setSelectedMatch(m); setIsEditDialogOpen(true); }}
-                                    onEditLineup={() => { setLineupMatch(m); setIsLineupBuilderOpen(true); }}
-                                    onDeleteMatch={() => { setSelectedMatch(m); setIsDeleteDialogOpen(true); }}
-                                />
-                            ))}
-                        </Accordion>
+                        <>
+                            <Accordion type="single" collapsible className="w-full space-y-2">
+                                {filteredMatches.slice(0, visibleCount).map(m => (
+                                    <PlayedMatchAccordionItem
+                                        key={m.id}
+                                        match={m as any}
+                                        usersMap={usersMap}
+                                        isAdmin={userProfile?.role === 'admin'}
+                                        onViewLineup={() => {
+                                            let lineupToDisplay = m.lineup || null;
+                                            const hasExistingLineup = Boolean(lineupToDisplay && Object.values(lineupToDisplay).some((p: any) => p !== null));
+                                            if (!hasExistingLineup && m.gameRoster && m.gameRoster.length > 0) {
+                                                const skaterPlayers = m.gameRoster.map((skaterName, idx) => {
+                                                    const u = users?.find(usr => areNamesMatching(usr.name, skaterName));
+                                                    return u
+                                                        ? { id: u.id, name: u.name, email: u.email || '', jerseyNumber: u.jerseyNumber ?? null, photoURL: u.photoURL ?? null }
+                                                        : { id: `skater-${idx}`, name: skaterName, email: '', jerseyNumber: null, photoURL: null };
+                                                });
+                                                const goalieUser = m.goalieName ? users?.find(usr => areNamesMatching(usr.name, m.goalieName!)) : null;
+                                                const goaliePlayer = goalieUser
+                                                    ? { id: goalieUser.id, name: goalieUser.name, email: goalieUser.email || '', jerseyNumber: goalieUser.jerseyNumber ?? null, photoURL: goalieUser.photoURL ?? null }
+                                                    : (m.goalieName ? { id: 'goalie', name: m.goalieName, email: '', jerseyNumber: null, photoURL: null } : null);
+                                                lineupToDisplay = {
+                                                    B1: goaliePlayer,
+                                                    LK1: skaterPlayers[0] || null,
+                                                    C1: skaterPlayers[1] || null,
+                                                    PK1: skaterPlayers[2] || null,
+                                                    LO1: skaterPlayers[3] || null,
+                                                    PO1: skaterPlayers[4] || null,
+                                                    LK2: skaterPlayers[5] || null,
+                                                    C2: skaterPlayers[6] || null,
+                                                    PK2: skaterPlayers[7] || null,
+                                                    LO2: skaterPlayers[8] || null,
+                                                    PO2: skaterPlayers[9] || null,
+                                                    LK3: skaterPlayers[10] || null,
+                                                    C3: skaterPlayers[11] || null,
+                                                    PK3: skaterPlayers[12] || null,
+                                                } as any;
+                                            }
+                                            setViewLineupData(lineupToDisplay || m.lineup!);
+                                            setViewScorersData(m.scorers);
+                                            setViewMatchOpponent(getMatchDetails(m).opponent);
+                                            setIsLineupViewOpen(true);
+                                        }}
+                                        onShareMatch={() => {
+                                            const url = new URL(window.location.origin + '/dashboard');
+                                            url.searchParams.set('matchId', m.id);
+                                            navigator.clipboard.writeText(url.toString()).then(() => toast({ title: "Odkaz zkopírován" }));
+                                        }}
+                                        onEditResult={() => { setSelectedMatch(m); setIsEditDialogOpen(true); }}
+                                        onEditLineup={() => { setLineupMatch(m); setIsLineupBuilderOpen(true); }}
+                                        onDeleteMatch={() => { setSelectedMatch(m); setIsDeleteDialogOpen(true); }}
+                                    />
+                                ))}
+                            </Accordion>
+
+                            {filteredMatches.length > visibleCount && (
+                                <div className="pt-2 flex justify-center">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setVisibleCount((prev) => prev + 15)}
+                                        className="text-xs font-bold px-6 border-border/80 shadow-xs"
+                                    >
+                                        Zobrazit další odehrané zápasy (zbývá {filteredMatches.length - visibleCount})
+                                    </Button>
+                                </div>
+                            )}
+                        </>
                     ) : (
                         <div className="text-center py-12 text-muted-foreground space-y-2">
                             <Trophy className="h-8 w-8 mx-auto opacity-30" />

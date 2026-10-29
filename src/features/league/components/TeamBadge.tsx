@@ -24,9 +24,11 @@ export const TEAM_LOGOS: Record<string, string> = {
   'Divočáci': '/teams/divocaci.png',
   'Predators': '/teams/predators.png',
   'ALL IN': '/teams/all-in.jpg',
+  'AllIn': '/teams/all-in.jpg',
   'HH Oldies': '/teams/hh-oldies.jpg',
   'HH Machines': '/teams/hh-machines.png',
   'Sjetý gumy': '/teams/sjety-gumy.png',
+  'Sjeté gumy': '/teams/sjety-gumy.png',
   'Raci': '/teams/raci.jpg',
   'Embedit': '/teams/embedit.png',
 };
@@ -36,9 +38,11 @@ export const TEAM_LOGO_BG: Record<string, string> = {
   'Divočáci': 'bg-black border-zinc-700',
   'Predators': 'bg-white border-zinc-200 dark:border-zinc-700',
   'ALL IN': 'bg-white border-zinc-200 dark:border-zinc-700',
+  'AllIn': 'bg-white border-zinc-200 dark:border-zinc-700',
   'HH Oldies': 'bg-white border-zinc-200 dark:border-zinc-700',
   'HH Machines': 'bg-black border-zinc-700',
   'Sjetý gumy': 'bg-white border-zinc-200 dark:border-zinc-700',
+  'Sjeté gumy': 'bg-white border-zinc-200 dark:border-zinc-700',
   'Raci': 'bg-white border-zinc-200 dark:border-zinc-700',
   'Embedit': 'bg-white border-zinc-200 dark:border-zinc-700',
 };

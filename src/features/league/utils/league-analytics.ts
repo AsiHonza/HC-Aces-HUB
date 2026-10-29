@@ -20,9 +20,9 @@ export function normalizeClubName(name: string): string {
   if (/machines/i.test(n)) return 'HH Machines';
   if (/divo/i.test(n)) return 'Divočáci';
   if (/predator/i.test(n)) return 'Predators';
-  if (/guma|gumy/i.test(n)) return 'Sjetý gumy';
+  if (/guma|gumy/i.test(n) || n === 'sg') return 'Sjetý gumy';
   if (/embed/i.test(n)) return 'Embedit';
-  if (/all\s*in/i.test(n)) return 'ALL IN';
+  if (/all[\s\-_]*in/i.test(n) || n === 'allin' || n === 'all in') return 'ALL IN';
   if (/raci/i.test(n)) return 'Raci';
   return name.trim();
 }
