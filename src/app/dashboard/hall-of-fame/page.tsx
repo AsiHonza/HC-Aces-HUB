@@ -245,22 +245,18 @@ function HallOfFameContent() {
       </div>
 
       {/* OBSAH SÍNĚ SLÁVY */}
-      <Card className="border-border/70 bg-card/95 shadow-sm">
-        <CardContent className="p-2 sm:p-6">
-          <HallOfFameTab
-            milestones={teamMilestonesData.allMilestones}
-            upcomingMilestones={teamMilestonesData.upcomingMilestones}
-            allUsers={allUsers || []}
-            currentUserId={user?.uid}
-            onOpenPlayerCareer={handleOpenCareerModal}
-            trophyLeaders={teamMilestonesData.trophyLeaders}
-            newMilestoneIds={newMilestoneIds}
-            initialPlayerId={tabPlayerFilter}
-            initialTab={activeTab}
-            teamChemistry={teamMilestonesData.teamChemistry}
-          />
-        </CardContent>
-      </Card>
+      <HallOfFameTab
+        milestones={teamMilestonesData.allMilestones}
+        upcomingMilestones={teamMilestonesData.upcomingMilestones}
+        allUsers={allUsers || []}
+        currentUserId={user?.uid}
+        onOpenPlayerCareer={handleOpenCareerModal}
+        trophyLeaders={teamMilestonesData.trophyLeaders}
+        newMilestoneIds={newMilestoneIds}
+        initialPlayerId={tabPlayerFilter}
+        initialTab={activeTab}
+        teamChemistry={teamMilestonesData.teamChemistry}
+      />
 
       {/* Kariérní karta hráče */}
       <PlayerCareerModal

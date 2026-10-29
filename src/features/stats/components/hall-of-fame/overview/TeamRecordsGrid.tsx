@@ -3,13 +3,14 @@
 import React from 'react';
 import { Crown, HeartHandshake, Shield, Trophy, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { TrophyLeader, MilestoneWithHolders } from '../../../utils/milestones';
+import type { TrophyLeader, MilestoneWithHolders, UpcomingMilestone } from '../../../utils/milestones';
 import type { TeamChemistryData } from '../../../utils/chemistry';
 
 export interface TeamRecordsGridProps {
   trophyLeaders?: TrophyLeader[];
   teamChemistry?: TeamChemistryData;
   milestones: MilestoneWithHolders[];
+  upcomingMilestones?: UpcomingMilestone[];
   onNavigateToLeaderboards: () => void;
   onNavigateToBadges: (playerId: string) => void;
 }
@@ -18,6 +19,7 @@ export function TeamRecordsGrid({
   trophyLeaders = [],
   teamChemistry,
   milestones,
+  upcomingMilestones = [],
   onNavigateToLeaderboards,
   onNavigateToBadges,
 }: TeamRecordsGridProps) {
@@ -27,11 +29,31 @@ export function TeamRecordsGrid({
   // Total unlocked across team
   const totalUnlockedAcrossTeam = milestones.reduce((sum, m) => sum + m.totalHolders, 0);
 
-  // Highest ironman / games holder
-  const gamesMilestone = milestones.find((m) => m.definition.id === 'milestone-games-5') ||
-    milestones.find((m) => m.definition.id === 'milestone-games-4') ||
-    milestones.find((m) => m.definition.id === 'milestone-games-3');
-  const ironmanLeader = gamesMilestone?.holders?.[0] || null;
+  // Highest ironman / games holder across all games milestones or upcoming milestones
+  const ironmanLeader = React.useMemo(() => {
+    // 1. Check all unlocked games milestone holders
+    const allGamesHolders = milestones
+      .filter((m) => m.definition.category === 'games')
+      .flatMap((m) => m.holders);
+
+    if (allGamesHolders.length > 0) {
+      const top = [...allGamesHolders].sort((a, b) => b.value - a.value)[0];
+      return { name: top.name, value: top.value };
+    }
+
+    // 2. Fallback: Check upcoming games milestones for highest current games count
+    if (upcomingMilestones && upcomingMilestones.length > 0) {
+      const upcomingGames = upcomingMilestones
+        .filter((u) => u.milestone.category === 'games')
+        .sort((a, b) => b.current - a.current);
+
+      if (upcomingGames.length > 0) {
+        return { name: upcomingGames[0].playerName, value: upcomingGames[0].current };
+      }
+    }
+
+    return null;
+  }, [milestones, upcomingMilestones]);
 
   return (
     <div className="space-y-2.5">

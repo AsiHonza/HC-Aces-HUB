@@ -430,6 +430,7 @@ export function HallOfFameTab({
             trophyLeaders={trophyLeaders}
             teamChemistry={teamChemistry}
             milestones={milestones}
+            upcomingMilestones={upcomingMilestones}
             onNavigateToLeaderboards={() => setActiveTab('leaderboards')}
             onNavigateToBadges={handleNavigateToBadges}
           />
