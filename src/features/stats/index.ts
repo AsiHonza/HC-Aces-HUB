@@ -9,6 +9,7 @@ export * from './components/FinalsCelebrationBanner';
 export * from './components/AdminStatsSettingsCard';
 export * from './components/LeagueSyncCard';
 export * from './components/HallOfFameTab';
+export * from './components/TeamMilestonesSpotlightCard';
 export * from './components/PlayerFormBadgeItem';
 export * from './components/MilestoneDetailModal';
 export * from './hooks/useTeamMilestonesData';

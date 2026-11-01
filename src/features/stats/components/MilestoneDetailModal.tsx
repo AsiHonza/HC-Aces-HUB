@@ -308,10 +308,13 @@ export function MilestoneDetailModal({
                           </div>
                         </div>
 
-                        {holder.matchContext && (
+                        {(holder.matchContext || holder.achievementDate) && (
                           <div className="pt-1.5 border-t border-border/40 flex items-center gap-1.5 text-[10px] text-muted-foreground font-medium pl-7 sm:pl-8 min-w-0">
                             <Calendar className="h-3 w-3 text-primary shrink-0" />
-                            <span className="truncate">{holder.matchContext}</span>
+                            <span className="truncate">
+                              {holder.achievementDate ? `${holder.achievementDate} • ` : ''}
+                              {holder.matchContext}
+                            </span>
                           </div>
                         )}
                       </div>

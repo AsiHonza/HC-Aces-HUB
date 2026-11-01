@@ -189,7 +189,7 @@ export function PlayerCareerModal({ player, isOpen, onClose, onOpenMilestoneDeta
                 <DialogTitle className="text-xl font-headline font-bold truncate">
                   {player.name}
                 </DialogTitle>
-                {player.positionInfo ? (
+                {player.positionInfo?.meta ? (
                   <Badge
                     variant="outline"
                     className={cn('text-xs font-bold', player.positionInfo.meta.badgeClass)}
@@ -201,7 +201,7 @@ export function PlayerCareerModal({ player, isOpen, onClose, onOpenMilestoneDeta
                     {isGoalie ? 'Brankář' : player.playerType === 'player' ? 'Hráč v poli' : 'Člen'}
                   </Badge>
                 )}
-                {player.positionInfo?.secondaryPosition && (
+                {player.positionInfo?.secondaryPosition && POSITION_METADATA[player.positionInfo.secondaryPosition] && (
                   <Badge variant="outline" className="text-[10px] text-muted-foreground">
                     + {POSITION_METADATA[player.positionInfo.secondaryPosition].label}
                   </Badge>
@@ -494,7 +494,7 @@ export function PlayerCareerModal({ player, isOpen, onClose, onOpenMilestoneDeta
               {unlocked.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                   {displayedUnlocked.map(p => {
-                    const cfg = TIER_CONFIG[p.milestone.tier];
+                    const cfg = TIER_CONFIG[p.milestone.tier] || TIER_CONFIG.bronze;
                     return (
                       <div
                         key={p.milestone.id}
@@ -520,11 +520,21 @@ export function PlayerCareerModal({ player, isOpen, onClose, onOpenMilestoneDeta
                             <span className={cn("text-[9px] px-1.5 py-0 rounded border font-bold uppercase tracking-wider", cfg.badgeClass)}>
                               {cfg.label}
                             </span>
+                            {p.achievementDate && (
+                              <span className="text-[9px] text-muted-foreground font-medium">
+                                • {p.achievementDate}
+                              </span>
+                            )}
                           </div>
                           <p className="text-xs font-bold leading-snug text-foreground break-words">{p.milestone.title}</p>
                           <p className="text-[10px] text-muted-foreground mt-0.5">
                             {p.current} {formatUnitWithCount(p.current, p.milestone.unit, p.milestone.id)}
                           </p>
+                          {p.matchContext && (
+                            <p className="text-[9px] text-muted-foreground/80 mt-0.5 line-clamp-1">
+                              {p.matchContext}
+                            </p>
+                          )}
                         </div>
                       </div>
                     );

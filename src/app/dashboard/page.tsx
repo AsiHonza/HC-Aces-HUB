@@ -27,7 +27,7 @@ import {
 import { Loader2 } from 'lucide-react';
 import { formatName, isGoaliePlayer, areNamesMatching } from '@/lib/utils';
 import { toJsDate } from '@/lib/dates';
-import { BirthdaysCard, rosterService } from '@/features/roster';
+import { BirthdaysCard, rosterService, resolvePlayerPosition } from '@/features/roster';
 import {
   getSeasonStartMs,
   calculateTeamMilestonesOverview,
@@ -35,6 +35,9 @@ import {
   statsService,
   historicalStatsBackupService,
   detectFinalsStatus,
+  TeamMilestonesSpotlightCard,
+  MilestoneDetailModal,
+  type MilestoneWithHolders,
 } from '@/features/stats';
 import { syncLeagueToFirestore } from '@/lib/sync/league-sync';
 import type { PlayoffSeries, LeagueStanding, Match, UserProfile, AppSettings } from '@/types';
@@ -973,13 +976,14 @@ function DashboardPageContent() {
       }
     }
 
+    const positionInfo = resolvePlayerPosition(profile, allMatches || []);
     const milestones = calculatePlayerMilestones(
       profile.id,
       profile.name,
       teamScoring,
       goalieLeaderboard,
       allMatches || [],
-      profile as any,
+      profile,
       attendancesByMatch
     );
 
@@ -992,7 +996,7 @@ function DashboardPageContent() {
       photoURL: profile.photoURL,
       jerseyNumber: profile.jerseyNumber,
       playerType: profile.playerType,
-      positionInfo: profile as any,
+      positionInfo,
       chemistry,
       formSummary,
       role: profile.role,
@@ -1618,6 +1622,24 @@ function DashboardPageContent() {
     />
   );
 
+  const [selectedMilestoneDetail, setSelectedMilestoneDetail] = useState<MilestoneWithHolders | null>(null);
+
+  const handleOpenMilestoneDetail = (milestoneId: string) => {
+    const m = teamMilestonesData.allMilestones.find((item) => item.definition.id === milestoneId);
+    if (m) {
+      setSelectedMilestoneDetail(m);
+    }
+  };
+
+  const milestonesSpotlightSection = selectedSeasonId === 'current' && (
+    <TeamMilestonesSpotlightCard
+      milestones={teamMilestonesData.allMilestones}
+      upcomingMilestones={teamMilestonesData.upcomingMilestones}
+      onOpenPlayerCareer={handleOpenCareerModal}
+      onOpenMilestoneDetail={handleOpenMilestoneDetail}
+    />
+  );
+
   const scoringSection = (
     <TeamScoringSection
       currentUserId={user?.uid}
@@ -1729,10 +1751,11 @@ function DashboardPageContent() {
             {scoringSection}
           </div>
 
-          {/* PRAVÝ SLOUPEC: Upozornění -> Poslední zápas & MVP -> Odehrané zápasy */}
+          {/* PRAVÝ SLOUPEC: Upozornění -> Poslední zápas & MVP -> Nově odemčené milníky -> Odehrané zápasy */}
           <div className="space-y-4 lg:space-y-5 w-full min-w-0">
             {oldMatchesAlert}
             {postMatchSection}
+            {milestonesSpotlightSection}
             {recentMatchesSection}
           </div>
         </div>
@@ -1741,6 +1764,7 @@ function DashboardPageContent() {
           {oldMatchesAlert}
           {nextMatchesSection}
           {postMatchSection}
+          {milestonesSpotlightSection}
           {leagueSection}
           {recentMatchesSection}
           {scoringSection}
@@ -1975,6 +1999,16 @@ function DashboardPageContent() {
         player={selectedCareerPlayer}
         isOpen={isCareerModalOpen}
         onClose={() => setIsCareerModalOpen(false)}
+        onOpenMilestoneDetail={handleOpenMilestoneDetail}
+      />
+
+      {/* Detail milníku / odznaku */}
+      <MilestoneDetailModal
+        milestone={selectedMilestoneDetail}
+        isOpen={Boolean(selectedMilestoneDetail)}
+        onClose={() => setSelectedMilestoneDetail(null)}
+        onOpenPlayerCareer={handleOpenCareerModal}
+        currentUserId={user?.uid}
       />
 
       {/* Modal 3 hvězd zápasu */}

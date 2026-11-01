@@ -22,7 +22,7 @@ import { cn } from '@/lib/utils';
 function HallOfFameContent() {
   const { user } = useUser();
   const searchParams = useSearchParams();
-  const queryTab = (searchParams?.get('tab') as 'overview' | 'badges' | 'leaderboards') || 'overview';
+  const queryTab = (searchParams?.get('tab') as 'overview' | 'unlocks' | 'badges' | 'leaderboards') || 'overview';
   const queryPlayer = searchParams?.get('player') || 'all';
 
   const { 
@@ -33,13 +33,15 @@ function HallOfFameContent() {
     allMatches, 
     isLoading, 
     newMilestoneIds,
-    markMilestonesAsSeen 
+    newUnlockKeys,
+    markMilestonesAsSeen,
+    clearNewHighlights,
   } = useTeamMilestonesData(user?.uid);
 
   const [selectedCareerPlayer, setSelectedCareerPlayer] = useState<PlayerCareerData | null>(null);
   const [isCareerModalOpen, setIsCareerModalOpen] = useState(false);
   const [tabPlayerFilter, setTabPlayerFilter] = useState<string>(queryPlayer);
-  const [activeTab, setActiveTab] = useState<'overview' | 'badges' | 'leaderboards'>(queryTab);
+  const [activeTab, setActiveTab] = useState<'overview' | 'unlocks' | 'badges' | 'leaderboards'>(queryTab);
   const [pageMilestoneDetail, setPageMilestoneDetail] = useState<MilestoneWithHolders | null>(null);
 
   // Automatically mark milestones as seen when user visits this page
@@ -253,6 +255,8 @@ function HallOfFameContent() {
         onOpenPlayerCareer={handleOpenCareerModal}
         trophyLeaders={teamMilestonesData.trophyLeaders}
         newMilestoneIds={newMilestoneIds}
+        newUnlockKeys={newUnlockKeys}
+        onClearNewHighlights={clearNewHighlights}
         initialPlayerId={tabPlayerFilter}
         initialTab={activeTab}
         teamChemistry={teamMilestonesData.teamChemistry}

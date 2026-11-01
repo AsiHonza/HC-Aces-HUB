@@ -13,8 +13,9 @@ import {
 import type { TeamChemistryData, DynamicDuoRecord } from '../utils/chemistry';
 import { MilestoneDetailModal } from './MilestoneDetailModal';
 import { DynamicDuoDetailModal } from './DynamicDuoDetailModal';
-import { Sparkles, Trophy, Award, Crown, Compass } from 'lucide-react';
+import { Sparkles, Trophy, Award, Crown, Compass, Flame } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { DEFAULT_SEASON_START_MS } from '../utils/season';
 
 // Redesigned modular components
 import { MyProgressCard } from './hall-of-fame/overview/MyProgressCard';
@@ -37,11 +38,13 @@ export interface HallOfFameTabProps {
   trophyLeaders?: TrophyLeader[];
   teamChemistry?: TeamChemistryData;
   newMilestoneIds?: Set<string>;
+  newUnlockKeys?: Set<string>;
+  onClearNewHighlights?: () => void;
   initialPlayerId?: string;
-  initialTab?: 'overview' | 'badges' | 'leaderboards';
+  initialTab?: 'overview' | 'unlocks' | 'badges' | 'leaderboards';
 }
 
-export type HoFTabType = 'overview' | 'badges' | 'leaderboards';
+export type HoFTabType = 'overview' | 'unlocks' | 'badges' | 'leaderboards';
 
 export const SPECIAL_FEAT_GROUPS = [
   {
@@ -119,6 +122,8 @@ export function HallOfFameTab({
   trophyLeaders = [],
   teamChemistry,
   newMilestoneIds,
+  newUnlockKeys,
+  onClearNewHighlights,
   initialPlayerId,
   initialTab = 'overview',
 }: HallOfFameTabProps) {
@@ -335,19 +340,31 @@ export function HallOfFameTab({
     setActiveTab('badges');
   };
 
+  const seasonUnlocksCount = useMemo(() => {
+    let count = 0;
+    milestones.forEach((m) => {
+      m.holders.forEach((h) => {
+        if (h.achievementTimestamp && h.achievementTimestamp >= DEFAULT_SEASON_START_MS) {
+          count += 1;
+        }
+      });
+    });
+    return count;
+  }, [milestones]);
+
   return (
     <div className="space-y-5 pt-1 pb-6">
       {/* ============================================================ */}
-      {/* HLAVNÍ 3-TAB NAVIGACE (PŘEHLED / ODZNAKY / ŽEBŘÍČKY)           */}
+      {/* HLAVNÍ 4-TAB NAVIGACE (PŘEHLED / NOVĚ ODEMČENO / ODZNAKY / ŽEBŘÍČKY) */}
       {/* ============================================================ */}
       <div className="flex items-center justify-center sm:justify-start">
-        <div className="inline-flex items-center p-1 rounded-2xl bg-muted/60 border border-border/80 shadow-xs max-w-full">
+        <div className="inline-flex items-center p-1 rounded-2xl bg-muted/60 border border-border/80 shadow-xs max-w-full overflow-x-auto no-scrollbar">
           {/* TAB 1: Přehled */}
           <button
             type="button"
             onClick={() => setActiveTab('overview')}
             className={cn(
-              'px-3.5 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all touch-manipulation',
+              'px-3 sm:px-4.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 sm:gap-2 transition-all touch-manipulation shrink-0',
               activeTab === 'overview'
                 ? 'bg-background text-foreground shadow-sm ring-1 ring-border/80'
                 : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
@@ -357,12 +374,36 @@ export function HallOfFameTab({
             <span>Přehled</span>
           </button>
 
-          {/* TAB 2: Odznaky */}
+          {/* TAB 2: Nově odemčeno */}
+          <button
+            type="button"
+            onClick={() => setActiveTab('unlocks')}
+            className={cn(
+              'px-3 sm:px-4.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 sm:gap-2 transition-all touch-manipulation shrink-0',
+              activeTab === 'unlocks'
+                ? 'bg-background text-foreground shadow-sm ring-1 ring-border/80'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
+            )}
+          >
+            <Flame className={cn('h-4 w-4', activeTab === 'unlocks' ? 'text-primary' : 'text-muted-foreground')} />
+            <span>Nově odemčeno</span>
+            {newUnlockKeys && newUnlockKeys.size > 0 ? (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500 text-white font-black animate-pulse">
+                {newUnlockKeys.size}
+              </span>
+            ) : seasonUnlocksCount > 0 ? (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/15 text-primary font-bold hidden xs:inline">
+                {seasonUnlocksCount}
+              </span>
+            ) : null}
+          </button>
+
+          {/* TAB 3: Odznaky */}
           <button
             type="button"
             onClick={() => setActiveTab('badges')}
             className={cn(
-              'px-3.5 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all touch-manipulation',
+              'px-3 sm:px-4.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 sm:gap-2 transition-all touch-manipulation shrink-0',
               activeTab === 'badges'
                 ? 'bg-background text-foreground shadow-sm ring-1 ring-border/80'
                 : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
@@ -375,12 +416,12 @@ export function HallOfFameTab({
             </span>
           </button>
 
-          {/* TAB 3: Žebříčky */}
+          {/* TAB 4: Žebříčky */}
           <button
             type="button"
             onClick={() => setActiveTab('leaderboards')}
             className={cn(
-              'px-3.5 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all touch-manipulation',
+              'px-3 sm:px-4.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 sm:gap-2 transition-all touch-manipulation shrink-0',
               activeTab === 'leaderboards'
                 ? 'bg-background text-foreground shadow-sm ring-1 ring-border/80'
                 : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
@@ -417,12 +458,16 @@ export function HallOfFameTab({
             onOpenPlayerCareer={onOpenPlayerCareer}
           />
 
-          {/* Nově odemčeno v týmu (Feed) */}
+          {/* Nově odemčeno v týmu (Compact Feed) */}
           <RecentUnlocksFeed
             milestones={milestones}
             newMilestoneIds={newMilestoneIds}
+            newUnlockKeys={newUnlockKeys}
+            currentUserId={currentUserId}
+            mode="compact"
             onOpenMilestoneDetail={(m) => setSelectedMilestoneDetail(m)}
             onOpenPlayerCareer={onOpenPlayerCareer}
+            onNavigateToUnlocksTab={() => setActiveTab('unlocks')}
           />
 
           {/* Klubová maxima & rekordy (2x2 grid) */}
@@ -433,6 +478,24 @@ export function HallOfFameTab({
             upcomingMilestones={upcomingMilestones}
             onNavigateToLeaderboards={() => setActiveTab('leaderboards')}
             onNavigateToBadges={handleNavigateToBadges}
+          />
+        </div>
+      )}
+
+      {/* ============================================================ */}
+      {/* TAB 2: NOVĚ ODEMČENO (ZÁPASOVÁ KRONIKA & HISTORIE ODEMČENÍ)    */}
+      {/* ============================================================ */}
+      {activeTab === 'unlocks' && (
+        <div className="space-y-5 animate-in fade-in duration-150">
+          <RecentUnlocksFeed
+            milestones={milestones}
+            newMilestoneIds={newMilestoneIds}
+            newUnlockKeys={newUnlockKeys}
+            currentUserId={currentUserId}
+            mode="full"
+            onOpenMilestoneDetail={(m) => setSelectedMilestoneDetail(m)}
+            onOpenPlayerCareer={onOpenPlayerCareer}
+            onClearNewHighlights={onClearNewHighlights}
           />
         </div>
       )}

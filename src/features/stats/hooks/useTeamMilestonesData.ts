@@ -13,6 +13,7 @@ import {
 
 const SEEN_MILESTONES_STORAGE_KEY = 'aces_seen_milestones_count';
 const SEEN_HOLDERS_STORAGE_KEY = 'aces_seen_milestone_holders_v2';
+const SESSION_NEW_HOLDERS_STORAGE_KEY = 'aces_session_new_unlocks_v2';
 
 export function useTeamMilestonesData(explicitUserId?: string | null) {
   const firestore = useFirestore();
@@ -109,43 +110,55 @@ export function useTeamMilestonesData(explicitUserId?: string | null) {
 
   const [hasNewMilestones, setHasNewMilestones] = useState(false);
   const [newMilestoneIds, setNewMilestoneIds] = useState<Set<string>>(new Set());
+  const [newUnlockKeys, setNewUnlockKeys] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (isLoading || allCurrentHolderKeys.length === 0) return;
 
     try {
       const stored = localStorage.getItem(SEEN_HOLDERS_STORAGE_KEY);
+      const sessionRaw = sessionStorage.getItem(SESSION_NEW_HOLDERS_STORAGE_KEY);
+      const sessionKeys: string[] = sessionRaw ? JSON.parse(sessionRaw) || [] : [];
+      const currentSet = new Set(allCurrentHolderKeys);
+
       if (stored === null) {
         // First load: store baseline without triggering unread badges
         localStorage.setItem(SEEN_HOLDERS_STORAGE_KEY, JSON.stringify(allCurrentHolderKeys));
         localStorage.setItem(SEEN_MILESTONES_STORAGE_KEY, String(totalHoldersCount));
         setHasNewMilestones(false);
         setNewMilestoneIds(new Set());
+        setNewUnlockKeys(new Set());
       } else {
         const parsed: string[] = JSON.parse(stored) || [];
-        const currentSet = new Set(allCurrentHolderKeys);
         // Prune any stale keys that are no longer unlocked so future real unlocks trigger notifications
         const cleanedSeen = parsed.filter((k) => currentSet.has(k));
         if (cleanedSeen.length !== parsed.length) {
           localStorage.setItem(SEEN_HOLDERS_STORAGE_KEY, JSON.stringify(cleanedSeen));
         }
         const seenSet = new Set(cleanedSeen);
-        const freshMilestoneIds = new Set<string>();
+        const freshKeys = new Set<string>(sessionKeys.filter((k) => currentSet.has(k)));
+        let hasUnreadInStorage = false;
 
         allCurrentHolderKeys.forEach((key) => {
           if (!seenSet.has(key)) {
-            const [mId] = key.split(':');
-            if (mId) freshMilestoneIds.add(mId);
+            hasUnreadInStorage = true;
+            freshKeys.add(key);
           }
         });
 
-        if (freshMilestoneIds.size > 0) {
-          setHasNewMilestones(true);
-          setNewMilestoneIds(freshMilestoneIds);
-        } else {
-          setHasNewMilestones(false);
-          setNewMilestoneIds(new Set());
+        if (freshKeys.size > 0) {
+          sessionStorage.setItem(SESSION_NEW_HOLDERS_STORAGE_KEY, JSON.stringify(Array.from(freshKeys)));
         }
+
+        const freshMilestoneIds = new Set<string>();
+        freshKeys.forEach((key) => {
+          const [mId] = key.split(':');
+          if (mId) freshMilestoneIds.add(mId);
+        });
+
+        setHasNewMilestones(hasUnreadInStorage);
+        setNewUnlockKeys(freshKeys);
+        setNewMilestoneIds(freshMilestoneIds);
       }
     } catch {
       // fallback to total holders count check if JSON fails
@@ -158,16 +171,41 @@ export function useTeamMilestonesData(explicitUserId?: string | null) {
     }
   }, [isLoading, allCurrentHolderKeys, totalHoldersCount]);
 
-  const markMilestonesAsSeen = useCallback(() => {
+  const markMilestonesAsSeen = useCallback((clearSessionHighlights = false) => {
     try {
+      if (allCurrentHolderKeys.length === 0) return;
+      // Before marking as seen in localStorage, preserve any newly discovered keys in sessionStorage
+      // so the Hall of Fame page still highlights them as "NOVÉ" during the current session!
+      const stored = localStorage.getItem(SEEN_HOLDERS_STORAGE_KEY);
+      if (stored !== null && !clearSessionHighlights) {
+        const seenSet = new Set<string>(JSON.parse(stored) || []);
+        const sessionRaw = sessionStorage.getItem(SESSION_NEW_HOLDERS_STORAGE_KEY);
+        const mergedSession = new Set<string>(sessionRaw ? JSON.parse(sessionRaw) || [] : []);
+        allCurrentHolderKeys.forEach((k) => {
+          if (!seenSet.has(k)) mergedSession.add(k);
+        });
+        if (mergedSession.size > 0) {
+          sessionStorage.setItem(SESSION_NEW_HOLDERS_STORAGE_KEY, JSON.stringify(Array.from(mergedSession)));
+        }
+      }
+
       localStorage.setItem(SEEN_HOLDERS_STORAGE_KEY, JSON.stringify(allCurrentHolderKeys));
       localStorage.setItem(SEEN_MILESTONES_STORAGE_KEY, String(totalHoldersCount));
       setHasNewMilestones(false);
-      setNewMilestoneIds(new Set());
+
+      if (clearSessionHighlights) {
+        sessionStorage.removeItem(SESSION_NEW_HOLDERS_STORAGE_KEY);
+        setNewMilestoneIds(new Set());
+        setNewUnlockKeys(new Set());
+      }
     } catch {
       // ignore
     }
   }, [allCurrentHolderKeys, totalHoldersCount]);
+
+  const clearNewHighlights = useCallback(() => {
+    markMilestonesAsSeen(true);
+  }, [markMilestonesAsSeen]);
 
   return {
     teamMilestonesData,
@@ -178,6 +216,8 @@ export function useTeamMilestonesData(explicitUserId?: string | null) {
     isLoading,
     hasNewMilestones,
     newMilestoneIds,
+    newUnlockKeys,
     markMilestonesAsSeen,
+    clearNewHighlights,
   };
 }

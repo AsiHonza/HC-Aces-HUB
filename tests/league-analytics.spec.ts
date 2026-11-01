@@ -9,6 +9,8 @@ import {
   calculateHeadToHeadComparison,
 } from '../src/features/league/utils/league-analytics';
 import { detectFinalsStatus } from '../src/features/stats/utils/season';
+import { calculatePlayerMilestones, calculateTeamMilestonesOverview } from '../src/features/stats/utils/milestones';
+import { resolvePlayerPosition } from '../src/features/roster/utils/positions';
 import type {
   LeagueStanding,
   LeagueMatchItem,
@@ -531,5 +533,93 @@ test.describe('Ligové centrum - Analytika a metriky', () => {
     expect(predSummary?.primaryGoalie?.name).toBe('Petr Zedník');
     expect(predSummary?.primaryGoalie?.savePercentage).toBe(90.0);
     expect(predSummary?.form.length).toBeGreaterThanOrEqual(2);
+  });
+
+  test('calculatePlayerMilestones a resolvePlayerPosition správně sledují datum a zápas odemčení postupových i zápasových milníků', () => {
+    const mockUser = {
+      id: 'u1',
+      name: 'Lukáš Kovařík',
+      playerType: 'player' as const,
+      fieldPosition: 'wing' as const,
+    };
+
+    const posInfo = resolvePlayerPosition(mockUser, []);
+    expect(posInfo.meta).toBeDefined();
+    expect(typeof posInfo.meta.badgeClass).toBe('string');
+
+    const mockMatches: Match[] = [
+      {
+        id: 'm1',
+        team1: 'HC Aces',
+        team2: 'Raci',
+        team1Score: 4,
+        team2Score: 2,
+        isPlayed: true,
+        round: 5,
+        dateTime: new Date('2026-10-12T18:00:00Z'),
+        gameRoster: ['u1'],
+        scorers: [{ goal: 'u1', assist: null }],
+      } as any,
+      {
+        id: 'm2',
+        team1: 'HH Oldies',
+        team2: 'HC Aces',
+        team1Score: 2,
+        team2Score: 4,
+        isPlayed: true,
+        round: 7,
+        dateTime: new Date('2026-10-25T17:45:00Z'),
+        gameRoster: ['u1'],
+        scorers: [
+          { goal: 'u1', assist: null },
+          { goal: 'u1', assist: null },
+        ],
+        mvpWinnerId: 'u1',
+      } as any,
+    ];
+
+    // Hráč má celkově v kariéře 25 odehraných zápasů a 10 gólů (v posledním zápase m2 vstřelil 2 góly -> 9. a 10. gól a odehrál 25. zápas)
+    const teamScoring = [
+      {
+        id: 'u1',
+        name: 'L. Kovařík',
+        history: {
+          gamesPlayed: 25,
+          goals: 10,
+          assists: 15,
+        },
+      },
+    ];
+
+    const progress = calculatePlayerMilestones('u1', 'Lukáš Kovařík', teamScoring, [], mockMatches, mockUser);
+    const gp25 = progress.find((p) => p.milestone.id === 'gp-25');
+    const g10 = progress.find((p) => p.milestone.id === 'g-10');
+    const pts25 = progress.find((p) => p.milestone.id === 'pts-25');
+    const mvp1 = progress.find((p) => p.milestone.id === 'mvp-1');
+    const feat2Goals = progress.find((p) => p.milestone.id === 'feat-2goals');
+
+    expect(gp25?.isUnlocked).toBe(true);
+    expect(gp25?.matchId).toBe('m2');
+    expect(gp25?.matchRound).toBe(7);
+    expect(gp25?.achievementTimestamp).toBe(new Date('2026-10-25T17:45:00Z').getTime());
+
+    expect(g10?.isUnlocked).toBe(true);
+    expect(g10?.matchId).toBe('m2');
+    expect(g10?.matchOpponent).toBe('HH Oldies');
+    expect(g10?.matchScore).toBe('4:2');
+
+    expect(pts25?.isUnlocked).toBe(true);
+    expect(pts25?.matchId).toBe('m2');
+
+    expect(mvp1?.isUnlocked).toBe(true);
+    expect(mvp1?.matchId).toBe('m2');
+
+    expect(feat2Goals?.isUnlocked).toBe(true);
+    expect(feat2Goals?.matchId).toBe('m2');
+
+    const overview = calculateTeamMilestonesOverview([mockUser as any], teamScoring, [], mockMatches, 'u1');
+    const g10Holder = overview.allMilestones.find((m) => m.definition.id === 'g-10')?.holders[0];
+    expect(g10Holder?.achievementTimestamp).toBe(new Date('2026-10-25T17:45:00Z').getTime());
+    expect(g10Holder?.matchRound).toBe(7);
   });
 });

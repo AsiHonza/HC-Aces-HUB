@@ -1,6 +1,6 @@
 import type { Match, UserProfile } from '@/types';
 import { countPlayerCareerStars, calculateMatchStarsResults } from '@/features/matches/utils/matchStars';
-import { countPlayerCareerMvpAwards, getMvpVotingStatus } from '@/features/matches/utils/mvpVoting';
+import { countPlayerCareerMvpAwards, getMvpVotingStatus, calculateMvpResults } from '@/features/matches/utils/mvpVoting';
 import { hasMatchStatsRecorded } from '@/features/matches/utils/match-details';
 import { calculateTeamChemistry, type TeamChemistryData } from './chemistry';
 import { calculateAllPlayersFormAndDefense, type PlayerFormSummary } from './playerForm';
@@ -49,6 +49,13 @@ export interface PlayerMilestoneProgress {
   isUnlocked: boolean;
   progressPct: number;
   remaining: number;
+  matchContext?: string;
+  achievementDate?: string;
+  achievementTimestamp?: number;
+  matchId?: string;
+  matchOpponent?: string;
+  matchRound?: number;
+  matchScore?: string;
 }
 
 export interface UpcomingMilestone {
@@ -73,6 +80,11 @@ export interface MilestoneHolder {
   value: number;
   matchContext?: string;
   achievementDate?: string;
+  achievementTimestamp?: number;
+  matchId?: string;
+  matchOpponent?: string;
+  matchRound?: number;
+  matchScore?: string;
 }
 
 export interface MilestoneCandidate {
@@ -1246,6 +1258,17 @@ export const MILESTONE_DEFINITIONS: MilestoneDefinition[] = RAW_MILESTONE_DEFINI
 }));
 
 
+export interface FeatMatchInfo {
+  context: string;
+  dateStr: string;
+  timestampMs?: number;
+  matchId?: string;
+  opponent?: string;
+  round?: number;
+  score?: string;
+  count?: number;
+}
+
 export interface PlayerSingleGameFeats {
   hattricks: number;
   twoGoalGames: number;
@@ -1273,18 +1296,28 @@ export interface PlayerSingleGameFeats {
   gamesAppeared: number;
   winsAppeared: number;
   winRatePct: number;
-  featMatches?: Record<string, { context: string; dateStr: string }>;
+  featMatches?: Record<string, FeatMatchInfo>;
+}
+
+export interface CareerRawTotalsInput {
+  games?: number;
+  goals?: number;
+  assists?: number;
+  points?: number;
+  goalie_wins?: number;
+  goalie_so?: number;
 }
 
 /**
- * Checks single-game and situational feats for a player from all played matches
+ * Checks single-game, situational, and progressive milestone unlocks for a player across all played matches
  */
 export function countPlayerSingleGameFeats(
   playerId: string,
   playerName: string,
   allMatches: Match[] = [],
   userProfile?: UserProfile | null,
-  attendancesByMatch?: Map<string, Array<{ userId: string; status?: string }>>
+  attendancesByMatch?: Map<string, Array<{ userId: string; status?: string }>>,
+  careerRawTotals?: CareerRawTotalsInput
 ): PlayerSingleGameFeats {
   let hattricks = 0;
   let twoGoalGames = 0;
@@ -1311,8 +1344,12 @@ export function countPlayerSingleGameFeats(
   let currentIronmanStreak = 0;
   let gamesAppeared = 0;
   let winsAppeared = 0;
+  let runningStarPoints = 0;
+  let runningPodiumStars = 0;
+  let runningFirstStars = 0;
+  let runningMvp = 0;
 
-  const featMatches: Record<string, { context: string; dateStr: string; count: number }> = {};
+  const featMatches: Record<string, FeatMatchInfo & { count: number }> = {};
 
   const matchesPlayer = (val: string | null | undefined): boolean => {
     if (!val) return false;
@@ -1332,6 +1369,21 @@ export function countPlayerSingleGameFeats(
     return da - db;
   });
 
+  const perMatchHistory: Array<{
+    matchId: string;
+    dateStr: string;
+    timestampMs: number;
+    opponent: string;
+    round?: number;
+    score: string;
+    incGames: number;
+    incGoals: number;
+    incAssists: number;
+    incPoints: number;
+    incGoalieWins: number;
+    incGoalieSo: number;
+  }> = [];
+
   sortedMatches.forEach((m) => {
     const isT1 = /aces/i.test(m.team1 || '');
     const isT2 = /aces/i.test(m.team2 || '');
@@ -1342,22 +1394,36 @@ export function countPlayerSingleGameFeats(
 
     const opponent = (isT1 ? m.team2 : m.team1) || 'soupeř';
     const matchDate = toJsDate(m.dateTime);
+    const timestampMs = matchDate ? matchDate.getTime() : 0;
     const dateStr = matchDate
       ? matchDate.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'numeric', year: 'numeric' })
       : '';
+    const scoreStr = `${acesScore}:${oppScore}`;
+    const roundNum = typeof m.round === 'number' ? m.round : undefined;
 
-    const recordFeat = (id: string, label: string) => {
+    const recordFeat = (id: string, label: string, onlyFirst = false) => {
+      if (onlyFirst && featMatches[id]) return;
       if (!featMatches[id]) {
         featMatches[id] = {
-          context: `proti ${opponent} (${dateStr}) - ${label}`,
+          context: `proti ${opponent} (${scoreStr}) – ${label}`,
           dateStr,
+          timestampMs,
+          matchId: m.id,
+          opponent,
+          round: roundNum,
+          score: scoreStr,
           count: 1,
         };
       } else {
         const prevCount = featMatches[id].count + 1;
         featMatches[id] = {
-          context: `naposledy proti ${opponent} (${dateStr}) - ${label}`,
+          context: `naposledy proti ${opponent} (${scoreStr}) – ${label} (celkem ${prevCount}×)`,
           dateStr,
+          timestampMs,
+          matchId: m.id,
+          opponent,
+          round: roundNum,
+          score: scoreStr,
           count: prevCount,
         };
       }
@@ -1512,15 +1578,85 @@ export function countPlayerSingleGameFeats(
       if (isAcesWin) {
         winsAppeared += 1;
       }
+      for (const target of [5, 10, 20, 35, 50]) {
+        if (currentIronmanStreak === target) {
+          recordFeat(`iron-${target}`, `šňůra ${target} zápasů v řadě bez absence`, true);
+        }
+      }
+      const curWr = Math.round((winsAppeared / gamesAppeared) * 100);
+      if (gamesAppeared >= 8 && curWr >= 65) {
+        recordFeat('feat-win-talisman', `týmová úspěšnost výher ${curWr} % (${winsAppeared}/${gamesAppeared} výher)`, true);
+      }
     } else {
       currentIronmanStreak = 0;
+    }
+
+    // Stars & MVP progressive tracking per match
+    const starsRes = calculateMatchStarsResults(m);
+    if (starsRes.totalVoters > 0) {
+      let starPtsInMatch = 0;
+      let isFirstStar = false;
+      let isPodium = false;
+      starsRes.standings.slice(0, 3).forEach((item) => {
+        if (item.candidateId === playerId && item.points > 0) {
+          if (item.rank === 1) {
+            starPtsInMatch += 3;
+            isFirstStar = true;
+            isPodium = true;
+          } else if (item.rank === 2) {
+            starPtsInMatch += 2;
+            isPodium = true;
+          } else if (item.rank === 3) {
+            starPtsInMatch += 1;
+            isPodium = true;
+          }
+        }
+      });
+
+      if (starPtsInMatch > 0) {
+        const prevStarPts = runningStarPoints;
+        runningStarPoints += starPtsInMatch;
+        for (const target of [10, 25, 50, 75, 100]) {
+          if (prevStarPts < target && runningStarPoints >= target) {
+            recordFeat(`star-${target}`, `pokořena hranice ${target} bodů v Hvězdách zápasu (+${starPtsInMatch} b.)`, true);
+          }
+        }
+      }
+      if (isPodium) {
+        runningPodiumStars += 1;
+        if (runningPodiumStars >= 5) {
+          recordFeat('feat-podium-stars', `${runningPodiumStars}× v TOP 3 hvězdách zápasu`, true);
+        }
+      }
+      if (isFirstStar) {
+        runningFirstStars += 1;
+        if (runningFirstStars >= 3) {
+          recordFeat('feat-star-hattrick', `${runningFirstStars}× vyhlášen 1. hvězdou zápasu`, true);
+        }
+      }
+    }
+
+    const mvpWonInMatch =
+      m.mvpWinnerId === playerId || calculateMvpResults(m).winner?.candidateId === playerId;
+    if (mvpWonInMatch) {
+      runningMvp += 1;
+      recordFeat('mvp-1', 'zvolen Hráčem zápasu (MVP)');
+      for (const target of [5, 10, 15, 25]) {
+        if (runningMvp === target) {
+          recordFeat(`mvp-${target}`, `${target}× zvolen Hráčem zápasu (MVP)`, true);
+        }
+      }
     }
 
     // Skater defensive & positional feats
     if (playerPlayedInMatch && !isGoalieThisMatch) {
       if (statsRecorded && oppScore <= 2) {
         lockdownGames += 1;
-        recordFeat('lock-5', `inkasováno jen ${oppScore} G`);
+        for (const target of [5, 15, 30, 50, 75]) {
+          if (lockdownGames === target) {
+            recordFeat(`lock-${target}`, `${target}. zápas s max. 2 inkasovanými góly (inkasováno ${oppScore} G)`, true);
+          }
+        }
       }
       if (statsRecorded && isAcesWin && oppScore === 0) {
         skaterShutouts += 1;
@@ -1558,7 +1694,6 @@ export function countPlayerSingleGameFeats(
       // a hlasování o Hvězdy zápasu je uzavřeno, aby při zpoždění zápisu na HobbyHokeji nevznikaly falešné odznaky.
       const votingState = getMvpVotingStatus(m);
       if (statsRecorded && votingState.status === 'closed' && matchGoals === 0 && matchAssists === 0) {
-        const starsRes = calculateMatchStarsResults(m);
         const onPodium =
           starsRes.totalVoters > 0 &&
           starsRes.standings.some((s) => s.candidateId === playerId && s.rank <= 3 && s.points > 0);
@@ -1630,15 +1765,178 @@ export function countPlayerSingleGameFeats(
       fourPointGames += 1;
       recordFeat('feat-4pts', `${matchGoals + matchAssists} bodů (${matchGoals}+${matchAssists}) v utkání`);
     }
+
+    const didGoaliePlay =
+      isGoalieThisMatch &&
+      (m.goalieId === playerId || matchesPlayer(m.goalieName) || m.lineup?.B1?.id === playerId || playerPlayedInMatch);
+
+    perMatchHistory.push({
+      matchId: m.id,
+      dateStr,
+      timestampMs,
+      opponent,
+      round: roundNum,
+      score: scoreStr,
+      incGames: playerPlayedInMatch ? 1 : 0,
+      incGoals: matchGoals,
+      incAssists: matchAssists,
+      incPoints: matchGoals + matchAssists,
+      incGoalieWins: didGoaliePlay && isAcesWin ? 1 : 0,
+      incGoalieSo: didGoaliePlay && isAcesWin && oppScore === 0 ? 1 : 0,
+    });
   });
+
+  // Progressive career milestones: anchor at careerRawTotals at the end of the latest match and step backwards
+  if (careerRawTotals && perMatchHistory.length > 0) {
+    let curGames = careerRawTotals.games ?? 0;
+    let curGoals = careerRawTotals.goals ?? 0;
+    let curAssists = careerRawTotals.assists ?? 0;
+    let curPoints = careerRawTotals.points ?? 0;
+    let curGWins = careerRawTotals.goalie_wins ?? 0;
+    let curGSo = careerRawTotals.goalie_so ?? 0;
+
+    const snapshots: Array<{
+      meta: (typeof perMatchHistory)[number];
+      beforeGames: number;
+      afterGames: number;
+      beforeGoals: number;
+      afterGoals: number;
+      beforeAssists: number;
+      afterAssists: number;
+      beforePoints: number;
+      afterPoints: number;
+      beforeGWins: number;
+      afterGWins: number;
+      beforeGSo: number;
+      afterGSo: number;
+    }> = new Array(perMatchHistory.length);
+
+    for (let i = perMatchHistory.length - 1; i >= 0; i--) {
+      const item = perMatchHistory[i];
+      const afterGames = curGames;
+      const beforeGames = Math.max(0, curGames - item.incGames);
+      curGames = beforeGames;
+
+      const afterGoals = curGoals;
+      const beforeGoals = Math.max(0, curGoals - item.incGoals);
+      curGoals = beforeGoals;
+
+      const afterAssists = curAssists;
+      const beforeAssists = Math.max(0, curAssists - item.incAssists);
+      curAssists = beforeAssists;
+
+      const afterPoints = curPoints;
+      const beforePoints = Math.max(0, curPoints - item.incPoints);
+      curPoints = beforePoints;
+
+      const afterGWins = curGWins;
+      const beforeGWins = Math.max(0, curGWins - item.incGoalieWins);
+      curGWins = beforeGWins;
+
+      const afterGSo = curGSo;
+      const beforeGSo = Math.max(0, curGSo - item.incGoalieSo);
+      curGSo = beforeGSo;
+
+      snapshots[i] = {
+        meta: item,
+        beforeGames,
+        afterGames,
+        beforeGoals,
+        afterGoals,
+        beforeAssists,
+        afterAssists,
+        beforePoints,
+        afterPoints,
+        beforeGWins,
+        afterGWins,
+        beforeGSo,
+        afterGSo,
+      };
+    }
+
+    const recordProgressive = (id: string, snap: (typeof snapshots)[number], label: string) => {
+      if (featMatches[id]) return;
+      featMatches[id] = {
+        context: `proti ${snap.meta.opponent} (${snap.meta.score}) – ${label}`,
+        dateStr: snap.meta.dateStr,
+        timestampMs: snap.meta.timestampMs,
+        matchId: snap.meta.matchId,
+        opponent: snap.meta.opponent,
+        round: snap.meta.round,
+        score: snap.meta.score,
+        count: 1,
+      };
+    };
+
+    for (let i = 0; i < snapshots.length; i++) {
+      const s = snapshots[i];
+      for (const target of [25, 50, 100, 150, 200]) {
+        if (s.beforeGames < target && s.afterGames >= target) {
+          recordProgressive(`gp-${target}`, s, `${target}. odehraný zápas za HC Aces`);
+        }
+        if (s.beforePoints < target && s.afterPoints >= target) {
+          recordProgressive(
+            `pts-${target}`,
+            s,
+            `pokořena hranice ${target} kanadských bodů (${s.meta.incGoals}+${s.meta.incAssists} v utkání)`
+          );
+        }
+      }
+      for (const target of [10, 25, 50, 75, 100]) {
+        if (s.beforeGoals < target && s.afterGoals >= target) {
+          recordProgressive(
+            `g-${target}`,
+            s,
+            `pokořena hranice ${target} vstřelených gólů (${s.meta.incGoals} G v utkání)`
+          );
+        }
+        if (s.beforeAssists < target && s.afterAssists >= target) {
+          recordProgressive(
+            `a-${target}`,
+            s,
+            `pokořena hranice ${target} asistencí (${s.meta.incAssists} A v utkání)`
+          );
+        }
+      }
+      for (const target of [5, 15, 30, 50, 75]) {
+        if (s.beforeGWins < target && s.afterGWins >= target) {
+          recordProgressive(`gw-${target}`, s, `${target}. vychytaná výhra za HC Aces`);
+        }
+      }
+      for (const target of [1, 3, 5, 10, 15]) {
+        if (s.beforeGSo < target && s.afterGSo >= target) {
+          recordProgressive(`gso-${target}`, s, `${target}. čisté konto v dresu HC Aces`);
+        }
+      }
+      if (
+        (careerRawTotals.games ?? 0) >= 10 &&
+        (careerRawTotals.points ?? 0) >= (careerRawTotals.games ?? 0) &&
+        s.afterGames >= 10 &&
+        s.afterPoints >= s.afterGames &&
+        (s.beforeGames < 10 || s.beforePoints < s.beforeGames)
+      ) {
+        recordProgressive(
+          'feat-ppg',
+          s,
+          `kariérní průměr ${(s.afterPoints / s.afterGames).toFixed(2)} bodu na zápas (${s.afterPoints} b. / ${s.afterGames} Z)`
+        );
+      }
+    }
+  }
 
   const winRatePct = gamesAppeared > 0 ? Math.round((winsAppeared / gamesAppeared) * 100) : 0;
 
-  const cleanedFeatMatches: Record<string, { context: string; dateStr: string }> = {};
+  const cleanedFeatMatches: Record<string, FeatMatchInfo> = {};
   Object.keys(featMatches).forEach((k) => {
     cleanedFeatMatches[k] = {
       context: featMatches[k].context,
       dateStr: featMatches[k].dateStr,
+      timestampMs: featMatches[k].timestampMs,
+      matchId: featMatches[k].matchId,
+      opponent: featMatches[k].opponent,
+      round: featMatches[k].round,
+      score: featMatches[k].score,
+      count: featMatches[k].count,
     };
   });
 
@@ -1707,7 +2005,8 @@ export function getPlayerRawStatsForMilestones(
     playerName,
     allMatches,
     userProfile,
-    attendancesByMatch
+    attendancesByMatch,
+    { games, goals, assists, points, goalie_wins: goalieWins, goalie_so: goalieSo }
   );
 
   return {
@@ -1737,23 +2036,44 @@ export function calculatePlayerMilestones(
   userProfile?: UserProfile | null,
   attendancesByMatch?: Map<string, Array<{ userId: string; status?: string }>>
 ): PlayerMilestoneProgress[] {
-  const rawStats = getPlayerRawStatsForMilestones(
-    playerId,
-    playerName,
-    teamScoring,
-    goalieLeaderboard,
-    allMatches,
-    userProfile,
-    attendancesByMatch
-  );
+  const skater = teamScoring.find((p) => p.id === playerId);
+  const goalie = goalieLeaderboard.find((g) => g.id === playerId);
+
+  const histSkater = skater?.history || { gamesPlayed: 0, goals: 0, assists: 0 };
+  const histGoalie = goalie?.history || { gamesPlayed: 0, wins: 0, so: 0 };
+
+  const games = (Number(histSkater.gamesPlayed) || 0) + (Number(histGoalie.gamesPlayed) || 0);
+  const goals = Number(histSkater.goals) || 0;
+  const assists = Number(histSkater.assists) || 0;
+  const points = goals + assists;
+  const goalieWins = Number(histGoalie.wins) || 0;
+  const goalieSo = Number(histGoalie.so) || 0;
+
+  const starsStats = countPlayerCareerStars(playerId, allMatches);
+  const mvp = countPlayerCareerMvpAwards(playerId, allMatches);
+
   const feats = countPlayerSingleGameFeats(
     playerId,
     playerName,
     allMatches,
     userProfile,
-    attendancesByMatch
+    attendancesByMatch,
+    { games, goals, assists, points, goalie_wins: goalieWins, goalie_so: goalieSo }
   );
-  const starsStats = countPlayerCareerStars(playerId, allMatches);
+
+  const rawStats: Record<MilestoneCategory, number> = {
+    games,
+    points,
+    goals,
+    assists,
+    goalie_wins: goalieWins,
+    goalie_so: goalieSo,
+    stars: starsStats.totalPoints,
+    mvp,
+    defense: feats.lockdownGames,
+    ironman: feats.maxIronmanStreak,
+    special: feats.hattricks + feats.fourPointGames + feats.fivePointGames + feats.quickGoals + feats.penaltyShotGoals,
+  };
 
   return MILESTONE_DEFINITIONS.map((def) => {
     let current = 0;
@@ -1869,6 +2189,8 @@ export function calculatePlayerMilestones(
       remaining = Math.max(0, def.target - current);
     }
 
+    const featInfo = isUnlocked ? feats.featMatches?.[def.id] : undefined;
+
     return {
       milestone: {
         ...def,
@@ -1879,6 +2201,13 @@ export function calculatePlayerMilestones(
       isUnlocked,
       progressPct,
       remaining,
+      matchContext: featInfo?.context,
+      achievementDate: featInfo?.dateStr,
+      achievementTimestamp: featInfo?.timestampMs,
+      matchId: featInfo?.matchId,
+      matchOpponent: featInfo?.opponent,
+      matchRound: featInfo?.round,
+      matchScore: featInfo?.score,
     };
   });
 }
@@ -1963,7 +2292,6 @@ export function calculateTeamMilestonesOverview(
           case 'bronze': userLeadersRecord.bronzeCount += 1; break;
         }
 
-        const featInfo = feats.featMatches?.[prog.milestone.id];
         holdersMap.get(prog.milestone.id)?.push({
           id: user.id,
           name: formatName(user.name),
@@ -1971,8 +2299,13 @@ export function calculateTeamMilestonesOverview(
           photoURL: user.photoURL,
           playerType: resolvedPlayerType,
           value: prog.current,
-          matchContext: featInfo?.context,
-          achievementDate: featInfo?.dateStr,
+          matchContext: prog.matchContext,
+          achievementDate: prog.achievementDate,
+          achievementTimestamp: prog.achievementTimestamp,
+          matchId: prog.matchId,
+          matchOpponent: prog.matchOpponent,
+          matchRound: prog.matchRound,
+          matchScore: prog.matchScore,
         });
 
         if (currentUserId && user.id === currentUserId) {
