@@ -6,7 +6,7 @@ import { FirebaseClientProvider } from '@/firebase';
 import { PwaRegister } from '@/components/pwa-register';
 
 export const metadata: Metadata = {
-  title: 'Aces Hockey Hub',
+  title: 'HC Aces Hockey Hub',
   description: 'Web pro hokejový tým Aces.',
   appleWebApp: {
     capable: true,
@@ -17,8 +17,14 @@ export const metadata: Metadata = {
     telephone: false,
   },
   icons: {
-    icon: '/icon-192.png',
-    apple: '/icon-512.png',
+    icon: [
+      { url: '/favicon.ico', sizes: '32x32' },
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: [
+      { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+    ],
   }
 };
 

@@ -7,7 +7,7 @@ export default function manifest(): MetadataRoute.Manifest {
     description: 'Oficiální aplikace hokejového týmu HC Aces',
     start_url: '/dashboard',
     display: 'standalone',
-    background_color: '#0d0a08',
+    background_color: '#0a0a0a',
     theme_color: '#ff8000',
     icons: [
       {
