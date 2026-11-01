@@ -280,6 +280,7 @@ function DashboardPageContent() {
 
   const [celebrationAward, setCelebrationAward] = useState<CelebrationAwardData | null>(null);
   const [isCelebrationModalOpen, setIsCelebrationModalOpen] = useState(false);
+  const [selectedMilestoneDetail, setSelectedMilestoneDetail] = useState<MilestoneWithHolders | null>(null);
 
   // --- Firestore Queries ---
   const userDocRef = useMemoFirebase(() => (user && firestore ? doc(firestore, 'users', user.uid) : null), [firestore, user]);
@@ -1622,8 +1623,7 @@ function DashboardPageContent() {
     />
   );
 
-  const [selectedMilestoneDetail, setSelectedMilestoneDetail] = useState<MilestoneWithHolders | null>(null);
-
+  
   const handleOpenMilestoneDetail = (milestoneId: string) => {
     const m = teamMilestonesData.allMilestones.find((item) => item.definition.id === milestoneId);
     if (m) {

@@ -591,7 +591,7 @@ test.describe('Ligové centrum - Analytika a metriky', () => {
       },
     ];
 
-    const progress = calculatePlayerMilestones('u1', 'Lukáš Kovařík', teamScoring, [], mockMatches, mockUser);
+    const progress = calculatePlayerMilestones('u1', 'Lukáš Kovařík', teamScoring, [], mockMatches, mockUser as any);
     const gp25 = progress.find((p) => p.milestone.id === 'gp-25');
     const g10 = progress.find((p) => p.milestone.id === 'g-10');
     const pts25 = progress.find((p) => p.milestone.id === 'pts-25');
