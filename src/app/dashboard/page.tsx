@@ -1744,19 +1744,19 @@ function DashboardPageContent() {
       {/* HLAVNÍ BLOKY: RESPONZIVNÍ 2 NEZÁVISLÉ SLOUPCE NA DESKTOPU VS JEDEN SLOUPEC NA MOBILU */}
       {isDesktop ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5 items-start w-full min-w-0">
-          {/* LEVÝ SLOUPEC: Příští zápasy -> Nově odemčené milníky -> Statistiky týmu */}
+          {/* LEVÝ SLOUPEC: Příští zápasy -> Odehrané zápasy -> Statistiky týmu */}
           <div className="space-y-4 lg:space-y-5 w-full min-w-0">
             {nextMatchesSection}
-            {milestonesSpotlightSection}
+            {recentMatchesSection}
             {scoringSection}
           </div>
 
-          {/* PRAVÝ SLOUPEC: Upozornění -> Poslední zápas & MVP -> Soutěž -> Odehrané zápasy */}
+          {/* PRAVÝ SLOUPEC: Upozornění -> Poslední zápas & MVP -> Soutěž -> Nově odemčené milníky */}
           <div className="space-y-4 lg:space-y-5 w-full min-w-0">
             {oldMatchesAlert}
             {postMatchSection}
             {leagueSection}
-            {recentMatchesSection}
+            {milestonesSpotlightSection}
           </div>
         </div>
       ) : (
@@ -1765,8 +1765,8 @@ function DashboardPageContent() {
           {nextMatchesSection}
           {postMatchSection}
           {leagueSection}
-          {milestonesSpotlightSection}
           {recentMatchesSection}
+          {milestonesSpotlightSection}
           {scoringSection}
         </div>
       )}
