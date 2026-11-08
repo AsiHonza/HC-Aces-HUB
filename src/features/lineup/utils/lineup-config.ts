@@ -91,7 +91,7 @@ export function getPlayersInLineup(lineup: Lineup): string[] {
 
 export function formatLineupClipboardText(lineup: Lineup): string {
   const hasThirdLine = !!(lineup.LK3 || lineup.C3 || lineup.PK3);
-  const lines: string[] = ['HC ACES BRNO – SESTAVA NA ZÁPAS', '──────────────────────────────'];
+  const lines: string[] = ['HC ACES – SESTAVA NA ZÁPAS', '──────────────────────────────'];
 
   const formatSlot = (key: keyof Lineup) => {
     const p = lineup[key];

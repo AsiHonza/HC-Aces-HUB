@@ -1959,7 +1959,7 @@ function DashboardPageContent() {
               </Badge>
             </div>
             <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-              HC Aces Brno • Zápasová nominace a herní formace
+              HC Aces • Zápasová nominace a herní formace
             </DialogDescription>
           </DialogHeader>
           {viewLineupData && (

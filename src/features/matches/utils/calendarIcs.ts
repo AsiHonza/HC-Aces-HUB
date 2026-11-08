@@ -46,7 +46,7 @@ export function generateMatchVEvent(match: Match): string {
       : '';
 
   const summary = `HC Aces: ${match.team1} vs ${match.team2} (${roundLabel})${scoreSuffix}`;
-  const location = match.location || match.place || 'Brno';
+  const location = match.location || match.place || 'Zimní stadion';
 
   const descriptionLines = [
     `Sraz v kabině: ${gatheringTimeStr} (45 min před úvodním buly)`,
@@ -92,12 +92,12 @@ export function generateCalendarIcs(matches: Match[]): string {
   return [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//HC Aces Brno//HC Aces HUB//CS',
+    'PRODID:-//HC Aces//HC Aces HUB//CS',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     'X-WR-CALNAME:HC Aces - Rozpis zápasů',
     'X-WR-TIMEZONE:Europe/Prague',
-    'X-WR-CALDESC:Oficiální rozpis zápasů HC Aces Brno (sraz v kabině 45 min předem, délka 75 min)',
+    'X-WR-CALDESC:Oficiální rozpis zápasů HC Aces (sraz v kabině 45 min předem, délka 75 min)',
     'REFRESH-INTERVAL;VALUE=DURATION:PT4H',
     'X-PUBLISHED-TTL:PT4H',
     ...events,
