@@ -80,14 +80,14 @@ export const UpcomingMatchesSection = React.memo(function UpcomingMatchesSection
 }: UpcomingMatchesSectionProps) {
   if (selectedSeasonId !== 'current') {
     return (
-      <div className="p-3.5 sm:p-4 rounded-xl border bg-muted/20 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left w-full min-w-0 overflow-hidden">
+      <div className="p-3.5 sm:p-4 rounded-2xl border border-border/70 bg-muted/20 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left w-full min-w-0 overflow-hidden">
         <div className="flex items-center gap-3">
           <History className="h-5 w-5 text-muted-foreground shrink-0" />
           <p className="text-xs text-muted-foreground">
             Prohlížíte uzavřený ročník <span className="font-semibold text-foreground">{activeSeasonName}</span>. Nadcházející zápasy a docházka jsou aktivní pouze v aktuální sezóně.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={onSelectCurrentSeason} className="text-xs h-7 shrink-0">
+        <Button variant="outline" size="sm" onClick={onSelectCurrentSeason} className="text-xs h-8 rounded-xl shrink-0">
           Přejít na aktuální sezónu
         </Button>
       </div>
@@ -141,15 +141,24 @@ export const UpcomingMatchesSection = React.memo(function UpcomingMatchesSection
   };
 
   return (
-    <div className="space-y-3 w-full min-w-0 overflow-hidden">
-      <div className="flex items-center justify-between px-1 sm:px-0">
-        <h2 className="text-base sm:text-lg font-bold flex items-center gap-2">
-          <Trophy className="text-primary h-4.5 w-4.5" />
-          Příští zápasy
-        </h2>
+    <div className="space-y-3.5 w-full min-w-0 overflow-hidden">
+      <div className="flex items-center justify-between px-0.5">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/15 text-primary border border-primary/25">
+            <Trophy className="h-4 w-4" />
+          </div>
+          <div>
+            <h2 className="text-base sm:text-lg font-black font-headline leading-none">
+              Příští zápasy
+            </h2>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Nejbližší utkání a potvrzení docházky kabiny
+            </p>
+          </div>
+        </div>
         {isAdmin && (
-          <Button size="sm" onClick={onAddMatchClick} className="h-7 text-xs font-semibold">
-            <Plus className="h-3 w-3 mr-1" />
+          <Button size="sm" onClick={onAddMatchClick} className="h-8 rounded-xl px-3 text-xs font-bold shadow-sm">
+            <Plus className="h-3.5 w-3.5 mr-1" />
             Přidat zápas
           </Button>
         )}
@@ -158,9 +167,11 @@ export const UpcomingMatchesSection = React.memo(function UpcomingMatchesSection
       {nextMatch ? (
         renderCard(nextMatch)
       ) : (
-        <p className="text-center py-6 text-muted-foreground text-xs sm:text-sm">
-          Žádné blížící se zápasy.
-        </p>
+        <div className="rounded-2xl border border-dashed border-border/70 bg-card/40 py-8 text-center">
+          <p className="text-muted-foreground text-xs sm:text-sm">
+            Žádné blížící se zápasy.
+          </p>
+        </div>
       )}
 
       {otherMatches.length > 0 && (
@@ -172,10 +183,10 @@ export const UpcomingMatchesSection = React.memo(function UpcomingMatchesSection
           onValueChange={onOpenAccordionChange}
         >
           <AccordionItem value="item-1" className="border-none">
-            <AccordionTrigger className="rounded-lg border px-3.5 py-2 bg-card hover:bg-card/80 text-xs font-semibold">
+            <AccordionTrigger className="rounded-2xl border border-border/70 px-4 py-2.5 bg-card/85 hover:bg-card hover:no-underline text-xs font-bold text-muted-foreground hover:text-foreground transition-colors">
               Další zápasy ({otherMatches.length})
             </AccordionTrigger>
-            <AccordionContent className="pt-2.5 space-y-3">
+            <AccordionContent className="pt-3 space-y-3">
               {otherMatches.map((m) => renderCard(m))}
             </AccordionContent>
           </AccordionItem>

@@ -266,25 +266,29 @@ function HistoryPageContent() {
     if (isLoading) return <div className="flex justify-center h-64"><Loader2 className="animate-spin text-primary" /></div>
 
     return (
-        <div className="py-8 space-y-8">
-            <Card className="border-border/60 bg-card/95 shadow-sm">
-                <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b bg-muted/10 pb-4">
-                    <div>
-                        <CardTitle className="text-xl sm:text-2xl font-headline flex items-center gap-2">
-                            <Trophy className="text-primary h-6 w-6" />
-                            Historie odehraných zápasů
-                        </CardTitle>
-                        <CardDescription>
-                            Oficiální výsledky, protokoly utkání, statistiky brankářů a časové osy gólů.
-                        </CardDescription>
+        <div className="py-5 sm:py-6 space-y-5">
+            <Card className="border-border/75 bg-card/95 shadow-sm overflow-hidden">
+                <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border/60 bg-gradient-to-r from-card via-card to-primary/[0.05] p-4 sm:p-5">
+                    <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary border border-primary/25">
+                            <Trophy className="h-5 w-5" />
+                        </div>
+                        <div>
+                            <CardTitle className="text-xl sm:text-2xl font-black font-headline leading-none">
+                                Historie odehraných zápasů
+                            </CardTitle>
+                            <CardDescription className="text-xs mt-1">
+                                Oficiální výsledky, protokoly utkání, statistiky brankářů a časové osy gólů HC Aces.
+                            </CardDescription>
+                        </div>
                     </div>
                     {userProfile?.role === 'admin' && (
-                        <Button onClick={() => setIsAddDialogOpen(true)} className="font-bold">
-                            <Plus className="mr-2 h-4 w-4" /> Přidat odehraný zápas
+                        <Button size="sm" onClick={() => setIsAddDialogOpen(true)} className="h-9 rounded-xl px-3.5 text-xs font-bold shadow-sm">
+                            <Plus className="mr-1.5 h-4 w-4" /> Přidat odehraný zápas
                         </Button>
                     )}
                 </CardHeader>
-                <CardContent className="p-4 sm:p-6 space-y-6">
+                <CardContent className="p-3.5 sm:p-5 space-y-5">
                     {/* Search and Filters Bar */}
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                         <div className="relative flex-1 max-w-sm">
@@ -293,34 +297,40 @@ function HistoryPageContent() {
                                 placeholder="Filtrovat podle soupeře..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="pl-9 h-9 text-xs sm:text-sm"
+                                className="pl-9 h-9 text-xs sm:text-sm rounded-xl bg-background/70"
                             />
                         </div>
-                        <div className="flex items-center gap-1.5 self-end sm:self-auto">
-                            <Button
-                                variant={resultFilter === 'all' ? 'default' : 'outline'}
-                                size="sm"
+                        <div className="inline-flex items-center rounded-xl bg-muted/60 p-1 border border-border/60 self-end sm:self-auto">
+                            <button
+                                type="button"
                                 onClick={() => setResultFilter('all')}
-                                className="text-xs h-8 px-3 font-semibold"
+                                className={cn(
+                                    "px-3 py-1 text-xs font-bold rounded-lg transition-all",
+                                    resultFilter === 'all' ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                                )}
                             >
                                 Všechny ({statsCounts.all})
-                            </Button>
-                            <Button
-                                variant={resultFilter === 'wins' ? 'default' : 'outline'}
-                                size="sm"
+                            </button>
+                            <button
+                                type="button"
                                 onClick={() => setResultFilter('wins')}
-                                className={cn("text-xs h-8 px-3 font-semibold", resultFilter !== 'wins' && "text-emerald-500 border-emerald-500/30 hover:bg-emerald-500/10")}
+                                className={cn(
+                                    "px-3 py-1 text-xs font-bold rounded-lg transition-all",
+                                    resultFilter === 'wins' ? "bg-emerald-600 text-white shadow-sm" : "text-emerald-500 hover:bg-emerald-500/10"
+                                )}
                             >
                                 Výhry ({statsCounts.wins})
-                            </Button>
-                            <Button
-                                variant={resultFilter === 'losses' ? 'default' : 'outline'}
-                                size="sm"
+                            </button>
+                            <button
+                                type="button"
                                 onClick={() => setResultFilter('losses')}
-                                className={cn("text-xs h-8 px-3 font-semibold", resultFilter !== 'losses' && "text-rose-500 border-rose-500/30 hover:bg-rose-500/10")}
+                                className={cn(
+                                    "px-3 py-1 text-xs font-bold rounded-lg transition-all",
+                                    resultFilter === 'losses' ? "bg-rose-600 text-white shadow-sm" : "text-rose-500 hover:bg-rose-500/10"
+                                )}
                             >
                                 Prohry ({statsCounts.losses})
-                            </Button>
+                            </button>
                         </div>
                     </div>
 

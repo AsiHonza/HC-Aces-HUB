@@ -5,18 +5,16 @@ import {
   Card,
   CardHeader,
   CardTitle,
-  CardDescription,
   CardContent,
   CardFooter,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Accordion } from '@/components/ui/accordion';
-import { History } from 'lucide-react';
+import { History, ArrowRight } from 'lucide-react';
 import {
   PlayedMatchAccordionItem,
   PlayedMatchData,
 } from './PlayedMatchAccordionItem';
-import type { UserProfile } from '@/types';
 
 export interface RecentMatchesSectionProps {
   matches: PlayedMatchData[];
@@ -34,19 +32,30 @@ export function RecentMatchesSection({
   className,
 }: RecentMatchesSectionProps) {
   return (
-    <Card className={cn("w-full min-w-0 overflow-hidden", className)}>
-      <CardHeader className="py-3 px-3.5 sm:px-5">
-        <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-          <History className="text-primary h-4 w-4 sm:h-5 sm:w-5" />
-          Odehrané zápasy
-        </CardTitle>
-        <CardDescription className="text-xs">
-          Poslední odehraná utkání s podrobnými zápisy z ligy, střelami a statistikami.
-        </CardDescription>
+    <Card className={cn('w-full min-w-0 overflow-hidden border-border/75', className)}>
+      <CardHeader className="p-4 sm:p-5 pb-3 flex flex-row items-center justify-between space-y-0">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary border border-primary/25">
+            <History className="h-4 w-4" />
+          </div>
+          <div>
+            <CardTitle className="text-base sm:text-lg font-black leading-none">
+              Odehrané zápasy
+            </CardTitle>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Poslední utkání s protokoly z ligy, střelami a statistikami
+            </p>
+          </div>
+        </div>
       </CardHeader>
-      <CardContent className="px-2 sm:px-4 pb-3.5 w-full min-w-0 overflow-hidden">
+
+      <CardContent className="px-3 sm:px-4 pb-3.5 w-full min-w-0 overflow-hidden">
         {matches.length > 0 ? (
-          <Accordion type="single" collapsible className="w-full min-w-0 space-y-2.5">
+          <Accordion
+            type="single"
+            collapsible
+            className="w-full min-w-0 space-y-2"
+          >
             {matches.map((m) => (
               <PlayedMatchAccordionItem
                 key={m.id}
@@ -57,18 +66,26 @@ export function RecentMatchesSection({
             ))}
           </Accordion>
         ) : (
-          <p className="text-center py-8 text-muted-foreground italic">
+          <p className="text-center py-8 text-muted-foreground italic text-xs">
             V této sezóně zatím nebyly odehrány žádné zápasy.
           </p>
         )}
       </CardContent>
-      <CardFooter className="pt-2 px-4 sm:px-6">
+
+      <CardFooter className="py-2.5 px-4 sm:px-5 border-t border-border/40 bg-muted/15 flex items-center justify-between">
+        <span className="text-[11px] text-muted-foreground">
+          Kompletní kronika sezóny a play-off
+        </span>
         <Button
-          variant="link"
+          variant="ghost"
+          size="sm"
           asChild
-          className="p-0 h-auto font-bold text-primary text-xs hover:text-primary/80 transition-colors"
+          className="h-7 px-2.5 font-bold text-primary text-xs hover:text-primary hover:bg-primary/10 rounded-lg"
         >
-          <Link href={historyHref}>Zobrazit celou historii →</Link>
+          <Link href={historyHref} className="flex items-center gap-1">
+            Celá historie
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
         </Button>
       </CardFooter>
     </Card>

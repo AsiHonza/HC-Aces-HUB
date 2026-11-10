@@ -108,21 +108,21 @@ function CalendarPageContent() {
     }).filter(Boolean) as Date[];
 
     return (
-        <div className="py-8 space-y-8">
+        <div className="py-5 sm:py-6 space-y-5">
             <CalendarSyncCard matches={allMatches || []} />
 
-            <div className="grid gap-8 md:grid-cols-12">
-                <Card className="md:col-span-5 lg:col-span-4 h-fit border-border/60 shadow-sm card-hover-effect">
-                    <CardHeader>
-                        <CardTitle>Kalendář událostí</CardTitle>
-                        <CardDescription>Vyberte den pro detaily nebo přidání zápasu.</CardDescription>
+            <div className="grid gap-6 md:grid-cols-12 items-start">
+                <Card className="md:col-span-5 lg:col-span-4 h-fit border-border/75 shadow-sm overflow-hidden">
+                    <CardHeader className="p-4 sm:p-5 pb-2">
+                        <CardTitle className="text-lg sm:text-xl font-black font-headline">Kalendář událostí</CardTitle>
+                        <CardDescription className="text-xs">Vyberte den pro detaily nebo přidání zápasu.</CardDescription>
                     </CardHeader>
-                    <CardContent className="flex justify-center px-2 sm:px-6">
+                    <CardContent className="flex justify-center px-3 sm:px-5 pb-4">
                         <Calendar
                             mode="single"
                             selected={selectedDate}
                             onSelect={handleDateSelect}
-                            className="rounded-md border shadow w-full"
+                            className="rounded-xl border border-border/50 bg-background/40 w-full flex justify-center"
                             locale={cs}
                             modifiers={{
                                 hasMatch: matchDates,
@@ -135,8 +135,8 @@ function CalendarPageContent() {
                         />
                     </CardContent>
                     {userProfile?.role === 'admin' && selectedDate && (
-                        <div className="p-6 pt-0">
-                            <Button className="w-full" onClick={() => setIsAddMatchDialogOpen(true)}>
+                        <div className="p-4 sm:p-5 pt-0">
+                            <Button className="w-full rounded-xl h-10 font-bold shadow-sm" onClick={() => setIsAddMatchDialogOpen(true)}>
                                 <Plus className="mr-2 h-4 w-4" />
                                 Přidat zápas na {format(selectedDate, 'd. M.', { locale: cs })}
                             </Button>
@@ -144,10 +144,15 @@ function CalendarPageContent() {
                     )}
                 </Card>
 
-                <div className="md:col-span-7 lg:col-span-8 space-y-4">
-                    <h3 className="text-xl font-bold font-headline flex items-center gap-2">
-                        {selectedDate ? format(selectedDate, 'EEEE, d. MMMM yyyy', { locale: cs }) : 'Vyberte datum'}
-                    </h3>
+                <div className="md:col-span-7 lg:col-span-8 space-y-3.5">
+                    <div className="px-0.5">
+                        <span className="text-[10px] font-extrabold uppercase tracking-widest text-primary block">
+                            Program vybraného dne
+                        </span>
+                        <h3 className="text-lg sm:text-xl font-black font-headline capitalize">
+                            {selectedDate ? format(selectedDate, 'EEEE, d. MMMM yyyy', { locale: cs }) : 'Vyberte datum'}
+                        </h3>
+                    </div>
                     
                     <div className="grid gap-4">
                         {birthdaysOnSelectedDate.length > 0 && (

@@ -114,7 +114,7 @@ export function PlayedMatchAccordionItem({
       value={match.id}
       key={match.id}
       className={cn(
-        'relative rounded-xl border bg-card/90 shadow-sm hover:border-primary/50 transition-colors overflow-hidden border-l-4',
+        'relative rounded-2xl border border-border/70 bg-card/85 hover:bg-card hover:border-border transition-all overflow-hidden border-l-[3px]',
         isWin
           ? 'border-l-emerald-500'
           : isDraw
@@ -135,12 +135,9 @@ export function PlayedMatchAccordionItem({
             <div className="flex items-center justify-between gap-2 w-full min-w-0">
               <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
                 {prefix && (
-                  <Badge
-                    variant="outline"
-                    className="text-[10px] uppercase font-black bg-primary/10 border-primary/30 text-primary shrink-0"
-                  >
+                  <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-md bg-muted text-foreground/85 border border-border/60 shrink-0">
                     {prefix}
-                  </Badge>
+                  </span>
                 )}
                 <span className="text-[11px] text-muted-foreground flex items-center gap-1 font-medium truncate">
                   <Calendar className="h-3 w-3 text-muted-foreground/70 shrink-0" />

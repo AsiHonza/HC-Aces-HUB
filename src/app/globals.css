@@ -4,88 +4,85 @@
 
 @layer base {
   :root {
-    --background: 220 20% 97.5%;
-    --foreground: 222 47% 11%;
+    --background: 220 20% 97%;
+    --foreground: 224 35% 10%;
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 224 35% 10%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    --primary: 24 95% 42%;
+    --popover-foreground: 224 35% 10%;
+    --primary: 27 100% 50%;
     --primary-foreground: 0 0% 100%;
     --secondary: 220 16% 93%;
-    --secondary-foreground: 222 47% 11%;
-    --muted: 220 16% 94%;
-    --muted-foreground: 220 14% 38%;
-    --accent: 220 16% 91%;
-    --accent-foreground: 222 47% 11%;
-    --destructive: 0 84.2% 55%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 220 16% 86%;
-    --input: 220 16% 86%;
-    --ring: 24 95% 42%;
-    --radius: 0.75rem;
-    --chart-1: 24 95% 42%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
+    --secondary-foreground: 224 35% 12%;
+    --muted: 220 16% 93%;
+    --muted-foreground: 220 10% 42%;
+    --accent: 27 95% 92%;
+    --accent-foreground: 27 90% 24%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 220 15% 88%;
+    --input: 220 15% 88%;
+    --ring: 27 100% 50%;
+    --chart-1: 27 100% 50%;
+    --chart-2: 38 95% 52%;
+    --chart-3: 15 88% 55%;
+    --chart-4: 45 93% 47%;
+    --chart-5: 200 85% 48%;
+    --radius: 1rem;
   }
 
   .dark {
-    --background: 224 24% 6%;
-    --foreground: 210 20% 98%;
-    --card: 222 20% 12%;
-    --card-foreground: 210 20% 98%;
-    --popover: 222 20% 12%;
-    --popover-foreground: 210 20% 98%;
-    --primary: 30 100% 50%;
-    --primary-foreground: 24 100% 8%;
-    --secondary: 222 18% 18%;
-    --secondary-foreground: 210 20% 98%;
-    --muted: 222 18% 17%;
-    --muted-foreground: 216 16% 72%;
-    --accent: 222 18% 20%;
-    --accent-foreground: 210 20% 98%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 220 16% 22%;
-    --input: 220 16% 22%;
-    --ring: 30 100% 50%;
-    --chart-1: 30 100% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 210 70% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
+    --background: 225 28% 5.5%;
+    --foreground: 210 25% 97%;
+    --card: 224 24% 8.5%;
+    --card-foreground: 210 25% 97%;
+    --popover: 224 26% 8%;
+    --popover-foreground: 210 25% 97%;
+    --primary: 28 100% 52%;
+    --primary-foreground: 225 30% 6%;
+    --secondary: 224 20% 13%;
+    --secondary-foreground: 210 20% 96%;
+    --muted: 224 20% 12.5%;
+    --muted-foreground: 218 14% 63%;
+    --accent: 28 85% 16%;
+    --accent-foreground: 28 100% 68%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 223 18% 15.5%;
+    --input: 223 18% 15.5%;
+    --ring: 28 100% 52%;
+    --chart-1: 28 100% 52%;
+    --chart-2: 38 95% 55%;
+    --chart-3: 15 90% 58%;
+    --chart-4: 45 93% 52%;
+    --chart-5: 200 90% 55%;
   }
 
-  /* Původní HC Aces (Teplý klubový tmavý motiv) */
-  .dark.theme-aces,
-  html.dark.theme-aces,
   .theme-aces {
-    --background: 27 31% 8%;
-    --foreground: 210 20% 98%;
-    --card: 27 31% 10%;
-    --card-foreground: 210 20% 98%;
-    --popover: 27 31% 8%;
-    --popover-foreground: 210 20% 98%;
-    --primary: 30 100% 50%;
-    --primary-foreground: 26 83% 12%;
-    --secondary: 27 31% 15%;
-    --secondary-foreground: 210 20% 98%;
-    --muted: 27 31% 15%;
-    --muted-foreground: 210 20% 60%;
-    --accent: 27 31% 18%;
-    --accent-foreground: 210 20% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 20% 98%;
-    --border: 27 31% 15%;
-    --input: 27 31% 15%;
-    --ring: 30 100% 50%;
-    --chart-1: 30 100% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
+    --background: 225 30% 4.5%;
+    --foreground: 36 25% 97%;
+    --card: 224 25% 7.8%;
+    --card-foreground: 36 25% 97%;
+    --popover: 224 28% 7.2%;
+    --popover-foreground: 36 25% 97%;
+    --primary: 28 100% 52%;
+    --primary-foreground: 225 35% 6%;
+    --secondary: 224 20% 12.5%;
+    --secondary-foreground: 36 20% 95%;
+    --muted: 224 18% 12%;
+    --muted-foreground: 220 12% 62%;
+    --accent: 28 90% 15%;
+    --accent-foreground: 32 100% 66%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 224 18% 15%;
+    --input: 224 18% 15%;
+    --ring: 28 100% 52%;
+    --chart-1: 28 100% 52%;
+    --chart-2: 38 100% 54%;
+    --chart-3: 16 92% 54%;
+    --chart-4: 45 96% 52%;
+    --chart-5: 198 88% 52%;
   }
 }
 
@@ -93,46 +90,44 @@
   * {
     @apply border-border;
   }
-  html,
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+    scroll-behavior: smooth;
+  }
+
   body {
-    @apply bg-background text-foreground;
-    /* Oprava pro stuck Radix UI overlays v Next.js 15 */
-    pointer-events: auto !important;
-    overflow-x: hidden;
-    max-width: 100vw;
-    transition: background-color 0.25s ease, color 0.25s ease;
+    @apply bg-background text-foreground antialiased selection:bg-primary/25 selection:text-primary;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -15%, hsl(var(--primary) / 0.08), transparent 70%),
+      radial-gradient(ellipse 50% 40% at 100% 0%, hsl(var(--primary) / 0.04), transparent 60%);
+    background-attachment: fixed;
   }
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
+@layer utilities {
+  .surface-glass {
+    @apply bg-card/85 backdrop-blur-xl border border-white/[0.07] shadow-[0_8px_32px_-8px_rgba(0,0,0,0.4)];
   }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
 
-@keyframes pulseGlow {
-  0%, 100% {
-    box-shadow: 0 0 15px -3px rgba(255, 128, 0, 0.35);
+  .surface-bento {
+    @apply rounded-2xl bg-card/95 border border-border/70 shadow-[0_4px_24px_-6px_rgba(0,0,0,0.28)] transition-all duration-200;
   }
-  50% {
-    box-shadow: 0 0 6px -2px rgba(255, 128, 0, 0.15);
+
+  .surface-hero {
+    @apply relative overflow-hidden rounded-3xl border border-primary/20 bg-gradient-to-br from-card via-card to-primary/[0.06] shadow-[0_12px_40px_-12px_rgba(0,0,0,0.45)];
   }
-}
 
-.animate-fade-in {
-  animation: fadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
+  .pill-segmented {
+    @apply inline-flex items-center rounded-xl bg-muted/70 p-1 border border-border/60;
+  }
 
-.card-hover-effect {
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
-}
-.card-hover-effect:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.25);
-  border-color: hsla(var(--primary) / 0.45);
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
 }

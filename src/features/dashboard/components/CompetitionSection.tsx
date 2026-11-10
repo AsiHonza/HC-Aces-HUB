@@ -46,21 +46,31 @@ export const CompetitionSection = React.memo(function CompetitionSection({
   activeSeasonData,
 }: CompetitionSectionProps) {
   return (
-    <Card className="h-fit border-border/70 bg-card/95 w-full min-w-0 overflow-hidden">
-      <CardHeader className="py-3 px-3.5 sm:px-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full gap-2">
-          <CardTitle className="flex items-center gap-2 text-base sm:text-lg whitespace-nowrap">
-            <ListOrdered className="text-primary" />
-            Soutěž
-          </CardTitle>
+    <Card className="h-fit border-border/75 bg-card/95 w-full min-w-0 overflow-hidden">
+      <CardHeader className="p-4 sm:p-5 pb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full gap-2.5">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary border border-primary/25">
+              <ListOrdered className="h-4 w-4" />
+            </div>
+            <div>
+              <CardTitle className="text-base sm:text-lg font-black leading-none whitespace-nowrap">
+                Soutěž
+              </CardTitle>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Pořadí týmů a výsledky play-off
+              </p>
+            </div>
+          </div>
+
           <div className="flex items-center gap-2 flex-wrap">
             <div className="flex items-center gap-1.5">
               <CalendarDays className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
               <Select value={selectedSeasonId} onValueChange={onSelectSeasonId}>
-                <SelectTrigger className="h-7 w-[150px] text-xs">
+                <SelectTrigger className="h-8 w-[150px] text-xs font-semibold rounded-xl bg-muted/50 border-border/60">
                   <SelectValue placeholder="Vyberte sezónu" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="rounded-xl">
                   <SelectItem value="current">
                     {currentSeasonName || 'Aktuální sezóna'}
                   </SelectItem>
@@ -79,14 +89,14 @@ export const CompetitionSection = React.memo(function CompetitionSection({
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-7 text-xs px-2 gap-1.5 border-dashed hover:border-primary/50"
+                    className="h-8 text-xs px-2.5 rounded-xl gap-1.5 border-border/70 hover:border-primary/50"
                     title="Správa soutěže a synchronizace"
                   >
                     <Settings2 className="h-3.5 w-3.5 text-muted-foreground" />
                     <span className="text-[11px] font-semibold">Správa</span>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuContent align="end" className="w-52 rounded-xl">
                   <DropdownMenuItem
                     onClick={onSyncLeague}
                     disabled={isSyncingLeague}
@@ -115,9 +125,9 @@ export const CompetitionSection = React.memo(function CompetitionSection({
       </CardHeader>
       <CardContent className="px-2 sm:px-4 pb-4">
         <Tabs defaultValue="standings">
-          <TabsList className="grid w-full grid-cols-2 mb-3">
-            <TabsTrigger value="standings" className="text-xs">Tabulka</TabsTrigger>
-            <TabsTrigger value="playoff" className="text-xs">Play-off série</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-2 mb-3 h-9 rounded-xl bg-muted/60 p-1">
+            <TabsTrigger value="standings" className="text-xs font-bold rounded-lg">Tabulka</TabsTrigger>
+            <TabsTrigger value="playoff" className="text-xs font-bold rounded-lg">Play-off série</TabsTrigger>
           </TabsList>
           <TabsContent value="standings">
             <LeagueStandingsTable standings={activeSeasonData.standings} />
@@ -125,7 +135,7 @@ export const CompetitionSection = React.memo(function CompetitionSection({
           <TabsContent value="playoff">
             <div className="grid gap-3 sm:grid-cols-2">
               {(activeSeasonData.playoffSeries || []).map((series, idx) => (
-                <Card key={idx} className="bg-muted/30">
+                <Card key={idx} className="bg-muted/30 rounded-xl">
                   <CardHeader className="pb-2 p-3">
                     <p className="text-[10px] font-bold text-primary uppercase">{series.round}</p>
                     <CardTitle className="text-sm text-left">{series.opponent}</CardTitle>
@@ -150,7 +160,7 @@ export const CompetitionSection = React.memo(function CompetitionSection({
         </Tabs>
 
         {selectedSeasonId === 'current' && (
-          <div className="mt-3 pt-3 border-t border-border/50 flex items-center justify-between gap-2">
+          <div className="mt-3 pt-3 border-t border-border/50 flex items-center justify-between gap-2 px-1">
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground min-w-0">
               <Shield className="h-3.5 w-3.5 text-primary shrink-0" />
               <span className="truncate">Statistiky ligy, střely a výsledky všech kol</span>
@@ -159,7 +169,7 @@ export const CompetitionSection = React.memo(function CompetitionSection({
               variant="ghost"
               size="sm"
               asChild
-              className="h-7 text-xs font-semibold text-primary hover:text-primary hover:bg-primary/10 shrink-0"
+              className="h-7 text-xs font-bold text-primary hover:text-primary hover:bg-primary/10 rounded-lg shrink-0"
             >
               <Link href="/dashboard/league" className="flex items-center gap-1">
                 Ligové centrum

@@ -492,26 +492,29 @@ export function PostMatchSection({
             </div>
           )}
 
-          {/* PÓDIUM 3 HVĚZD UTKÁNÍ */}
+          {/* PÓDIUM 3 HVĚZD UTKÁNÍ (Kompaktní 3 sloupce i na mobilu) */}
           {hasAnyVotes ? (
             <div className="space-y-4 w-full min-w-0 max-w-full">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4 w-full min-w-0 max-w-full">
+              <div className="grid grid-cols-3 gap-2 sm:gap-3.5 w-full min-w-0 max-w-full">
                 {/* 1. Hvězda (Zlato) */}
                 {starsResults.firstStar && (
-                  <div className="relative rounded-xl border-2 border-amber-500/60 bg-gradient-to-b from-amber-500/15 via-amber-500/5 to-card/95 p-3.5 sm:p-4 shadow-sm flex flex-col items-center justify-between text-center w-full min-w-0 max-w-full overflow-hidden">
-                    <Badge className="bg-amber-500 text-black font-black uppercase tracking-wider text-[11px] px-2.5 py-0.5 shadow shrink-0">
-                      <Star className="h-3 w-3 fill-black mr-1" />
-                      {starsResults.firstStar.isTied ? '1. Hvězda (Dělená)' : '1. Hvězda'}
+                  <div className="relative rounded-2xl border border-amber-500/50 bg-gradient-to-b from-amber-500/15 via-amber-500/5 to-card/95 p-2.5 sm:p-4 shadow-sm flex flex-col items-center justify-between text-center w-full min-w-0 max-w-full overflow-hidden">
+                    <Badge className="bg-amber-500 text-black font-black uppercase tracking-wider text-[9px] sm:text-[11px] px-1.5 sm:px-2.5 py-0.5 shadow shrink-0">
+                      <Star className="h-2.5 w-2.5 sm:h-3 sm:w-3 fill-black mr-0.5 sm:mr-1" />
+                      <span className="sm:hidden">1. ★</span>
+                      <span className="hidden sm:inline">
+                        {starsResults.firstStar.isTied ? '1. Hvězda (Dělená)' : '1. Hvězda'}
+                      </span>
                     </Badge>
 
-                    <div className="flex flex-col items-center my-2.5 w-full min-w-0 px-1">
+                    <div className="flex flex-col items-center my-2 sm:my-2.5 w-full min-w-0 px-0.5">
                       <div className="relative mb-1.5 shrink-0">
-                        <Avatar className="h-14 w-14 sm:h-16 sm:w-16 border-2 border-amber-500 shadow-sm">
+                        <Avatar className="h-11 w-11 sm:h-15 sm:w-15 border-2 border-amber-500 shadow-sm">
                           <AvatarImage
                             src={starsResults.firstStar.photoURL || undefined}
                             alt={starsResults.firstStar.name}
                           />
-                          <AvatarFallback className="font-bold text-sm">
+                          <AvatarFallback className="font-bold text-xs sm:text-sm">
                             {starsResults.firstStar.name
                               .split(' ')
                               .map((n) => n[0])
@@ -520,41 +523,34 @@ export function PostMatchSection({
                           </AvatarFallback>
                         </Avatar>
                         {starsResults.firstStar.jerseyNumber && (
-                          <span className="absolute -bottom-1 -right-1 bg-amber-500 text-black text-[10px] font-black px-1.5 py-0.2 rounded-full shadow">
+                          <span className="absolute -bottom-1 -right-1 bg-amber-500 text-black text-[9px] sm:text-[10px] font-black px-1 sm:px-1.5 py-0.2 rounded-full shadow">
                             #{starsResults.firstStar.jerseyNumber}
                           </span>
                         )}
                       </div>
 
-                      <p className="text-base sm:text-lg font-bold font-headline tracking-tight text-foreground leading-snug truncate max-w-full" title={starsResults.firstStar.name}>
-                        {starsResults.firstStar.name}
+                      <p className="text-xs sm:text-base font-bold font-headline tracking-tight text-foreground leading-snug truncate max-w-full" title={starsResults.firstStar.name}>
+                        {formatName(starsResults.firstStar.name)}
                       </p>
-                      <p className="text-[11px] text-muted-foreground mt-0.5 truncate max-w-full">
+                      <p className="hidden sm:block text-[11px] text-muted-foreground mt-0.5 truncate max-w-full">
                         {starsResults.firstStar.playerType === 'goalie' ? 'Brankář' : 'Útočník / Obránce'}
                       </p>
                     </div>
 
-                    <div className="pt-2 border-t border-amber-500/20 w-full min-w-0">
-                      <p className="text-lg sm:text-xl font-black text-amber-500 tabular-nums">
+                    <div className="pt-1.5 sm:pt-2 border-t border-amber-500/20 w-full min-w-0">
+                      <p className="text-sm sm:text-xl font-black text-amber-500 tabular-nums">
                         {starsResults.firstStar.points}{' '}
-                        <span className="text-[11px] font-bold text-muted-foreground uppercase">
-                          {starsResults.firstStar.points === 1
-                            ? 'bod'
-                            : starsResults.firstStar.points < 5
-                            ? 'body'
-                            : 'bodů'}
+                        <span className="text-[9px] sm:text-[11px] font-bold text-muted-foreground uppercase">
+                          b.
                         </span>
                       </p>
-                      <StarCountsStack
-                        star1Count={starsResults.firstStar.star1Count}
-                        star2Count={starsResults.firstStar.star2Count}
-                        star3Count={starsResults.firstStar.star3Count}
-                      />
-                      {starsResults.firstStar.tieBreakerReason && (
-                        <p className="text-[10px] text-amber-600/90 dark:text-amber-400/90 font-medium mt-1 truncate max-w-full" title={starsResults.firstStar.tieBreakerReason}>
-                          {starsResults.firstStar.tieBreakerReason}
-                        </p>
-                      )}
+                      <div className="hidden sm:block">
+                        <StarCountsStack
+                          star1Count={starsResults.firstStar.star1Count}
+                          star2Count={starsResults.firstStar.star2Count}
+                          star3Count={starsResults.firstStar.star3Count}
+                        />
+                      </div>
                     </div>
                   </div>
                 )}
@@ -564,31 +560,34 @@ export function PostMatchSection({
                   const isGoldTie = starsResults.secondStar.rank === 1;
                   return (
                     <div className={cn(
-                      "relative rounded-xl p-3.5 sm:p-4 shadow-sm flex flex-col items-center justify-between text-center w-full min-w-0 max-w-full overflow-hidden",
+                      "relative rounded-2xl p-2.5 sm:p-4 shadow-sm flex flex-col items-center justify-between text-center w-full min-w-0 max-w-full overflow-hidden",
                       isGoldTie
-                        ? "border-2 border-amber-500/60 bg-gradient-to-b from-amber-500/15 via-amber-500/5 to-card/95"
-                        : "border border-slate-400/40 bg-gradient-to-b from-slate-400/10 via-slate-400/5 to-card/95"
+                        ? "border border-amber-500/50 bg-gradient-to-b from-amber-500/15 via-amber-500/5 to-card/95"
+                        : "border border-slate-400/35 bg-gradient-to-b from-slate-400/10 via-slate-400/5 to-card/95"
                     )}>
                       <Badge
                         variant={isGoldTie ? "default" : "outline"}
                         className={cn(
-                          "font-extrabold uppercase tracking-wider text-[11px] px-2.5 py-0.5 shrink-0",
+                          "font-extrabold uppercase tracking-wider text-[9px] sm:text-[11px] px-1.5 sm:px-2.5 py-0.5 shrink-0",
                           isGoldTie
                             ? "bg-amber-500 text-black font-black shadow"
                             : "border-slate-300 dark:border-slate-400 text-slate-700 dark:text-slate-100 bg-slate-300/20"
                         )}
                       >
-                        <Star className={cn("h-3 w-3 mr-1", isGoldTie ? "fill-black" : "fill-slate-400 text-slate-400")} />
-                        {isGoldTie
-                          ? '1. Hvězda (Dělená)'
-                          : starsResults.secondStar.isTied
-                          ? '2. Hvězda (Dělená)'
-                          : '2. Hvězda'}
+                        <Star className={cn("h-2.5 w-2.5 sm:h-3 sm:w-3 mr-0.5 sm:mr-1", isGoldTie ? "fill-black" : "fill-slate-400 text-slate-400")} />
+                        <span className="sm:hidden">{isGoldTie ? '1. ★' : '2. ★'}</span>
+                        <span className="hidden sm:inline">
+                          {isGoldTie
+                            ? '1. Hvězda (Dělená)'
+                            : starsResults.secondStar.isTied
+                            ? '2. Hvězda (Dělená)'
+                            : '2. Hvězda'}
+                        </span>
                       </Badge>
 
-                      <div className="flex flex-col items-center my-2.5 w-full min-w-0 px-1">
+                      <div className="flex flex-col items-center my-2 sm:my-2.5 w-full min-w-0 px-0.5">
                         <div className="relative mb-1.5 shrink-0">
-                          <Avatar className={cn("h-12 w-12 sm:h-14 sm:w-14 shadow-sm", isGoldTie ? "border-2 border-amber-500" : "border border-slate-400")}>
+                          <Avatar className={cn("h-11 w-11 sm:h-14 sm:w-14 shadow-sm", isGoldTie ? "border-2 border-amber-500" : "border border-slate-400")}>
                             <AvatarImage
                               src={starsResults.secondStar.photoURL || undefined}
                               alt={starsResults.secondStar.name}
@@ -603,7 +602,7 @@ export function PostMatchSection({
                           </Avatar>
                           {starsResults.secondStar.jerseyNumber && (
                             <span className={cn(
-                              "absolute -bottom-1 -right-1 text-[9px] font-black px-1.5 py-0.2 rounded-full shadow",
+                              "absolute -bottom-1 -right-1 text-[9px] font-black px-1 sm:px-1.5 py-0.2 rounded-full shadow",
                               isGoldTie ? "bg-amber-500 text-black" : "bg-slate-300 dark:bg-slate-200 text-slate-900"
                             )}>
                               #{starsResults.secondStar.jerseyNumber}
@@ -611,35 +610,28 @@ export function PostMatchSection({
                           )}
                         </div>
 
-                        <p className="text-sm sm:text-base font-bold font-headline text-foreground leading-snug truncate max-w-full" title={starsResults.secondStar.name}>
-                          {starsResults.secondStar.name}
+                        <p className="text-xs sm:text-base font-bold font-headline text-foreground leading-snug truncate max-w-full" title={starsResults.secondStar.name}>
+                          {formatName(starsResults.secondStar.name)}
                         </p>
-                        <p className="text-[11px] text-muted-foreground mt-0.5 truncate max-w-full">
+                        <p className="hidden sm:block text-[11px] text-muted-foreground mt-0.5 truncate max-w-full">
                           {starsResults.secondStar.playerType === 'goalie' ? 'Brankář' : 'Útočník / Obránce'}
                         </p>
                       </div>
 
-                      <div className={cn("pt-2 border-t w-full min-w-0", isGoldTie ? "border-amber-500/20" : "border-slate-400/20")}>
-                        <p className={cn("text-base sm:text-lg font-black tabular-nums", isGoldTie ? "text-amber-500" : "text-slate-800 dark:text-slate-100")}>
+                      <div className={cn("pt-1.5 sm:pt-2 border-t w-full min-w-0", isGoldTie ? "border-amber-500/20" : "border-slate-400/20")}>
+                        <p className={cn("text-sm sm:text-lg font-black tabular-nums", isGoldTie ? "text-amber-500" : "text-slate-800 dark:text-slate-100")}>
                           {starsResults.secondStar.points}{' '}
-                          <span className="text-[11px] font-bold text-muted-foreground uppercase">
-                            {starsResults.secondStar.points === 1
-                              ? 'bod'
-                              : starsResults.secondStar.points < 5
-                              ? 'body'
-                              : 'bodů'}
+                          <span className="text-[9px] sm:text-[11px] font-bold text-muted-foreground uppercase">
+                            b.
                           </span>
                         </p>
-                        <StarCountsStack
-                          star1Count={starsResults.secondStar.star1Count}
-                          star2Count={starsResults.secondStar.star2Count}
-                          star3Count={starsResults.secondStar.star3Count}
-                        />
-                        {starsResults.secondStar.tieBreakerReason && (
-                          <p className="text-[10px] text-muted-foreground font-medium mt-1 truncate max-w-full" title={starsResults.secondStar.tieBreakerReason}>
-                            {starsResults.secondStar.tieBreakerReason}
-                          </p>
-                        )}
+                        <div className="hidden sm:block">
+                          <StarCountsStack
+                            star1Count={starsResults.secondStar.star1Count}
+                            star2Count={starsResults.secondStar.star2Count}
+                            star3Count={starsResults.secondStar.star3Count}
+                          />
+                        </div>
                       </div>
                     </div>
                   );
@@ -651,17 +643,17 @@ export function PostMatchSection({
                   const isGoldTie = starsResults.thirdStar.rank === 1;
                   return (
                     <div className={cn(
-                      "relative rounded-xl p-3.5 sm:p-4 shadow-sm flex flex-col items-center justify-between text-center w-full min-w-0 max-w-full overflow-hidden",
+                      "relative rounded-2xl p-2.5 sm:p-4 shadow-sm flex flex-col items-center justify-between text-center w-full min-w-0 max-w-full overflow-hidden",
                       isGoldTie
-                        ? "border-2 border-amber-500/60 bg-gradient-to-b from-amber-500/15 via-amber-500/5 to-card/95"
+                        ? "border border-amber-500/50 bg-gradient-to-b from-amber-500/15 via-amber-500/5 to-card/95"
                         : isSilverTie
-                        ? "border border-slate-400/40 bg-gradient-to-b from-slate-400/10 via-slate-400/5 to-card/95"
-                        : "border border-amber-600/40 bg-gradient-to-b from-amber-600/10 via-amber-600/5 to-card/95"
+                        ? "border border-slate-400/35 bg-gradient-to-b from-slate-400/10 via-slate-400/5 to-card/95"
+                        : "border border-amber-600/35 bg-gradient-to-b from-amber-600/10 via-amber-600/5 to-card/95"
                     )}>
                       <Badge
                         variant="outline"
                         className={cn(
-                          "font-extrabold uppercase tracking-wider text-[11px] px-2.5 py-0.5 shrink-0",
+                          "font-extrabold uppercase tracking-wider text-[9px] sm:text-[11px] px-1.5 sm:px-2.5 py-0.5 shrink-0",
                           isGoldTie
                             ? "bg-amber-500 text-black font-black"
                             : isSilverTie
@@ -669,19 +661,22 @@ export function PostMatchSection({
                             : "border-amber-600 dark:border-amber-500/70 text-amber-700 dark:text-amber-300 bg-amber-600/15"
                         )}
                       >
-                        <Star className={cn("h-3 w-3 mr-1", isGoldTie ? "fill-black" : isSilverTie ? "fill-slate-400 text-slate-400" : "fill-amber-600 text-amber-600")} />
-                        {isGoldTie
-                          ? '1. Hvězda (Dělená)'
-                          : isSilverTie
-                          ? '2. Hvězda (Dělená)'
-                          : starsResults.thirdStar.isTied
-                          ? '3. Hvězda (Dělená)'
-                          : '3. Hvězda'}
+                        <Star className={cn("h-2.5 w-2.5 sm:h-3 sm:w-3 mr-0.5 sm:mr-1", isGoldTie ? "fill-black" : isSilverTie ? "fill-slate-400 text-slate-400" : "fill-amber-600 text-amber-600")} />
+                        <span className="sm:hidden">{isGoldTie ? '1. ★' : isSilverTie ? '2. ★' : '3. ★'}</span>
+                        <span className="hidden sm:inline">
+                          {isGoldTie
+                            ? '1. Hvězda (Dělená)'
+                            : isSilverTie
+                            ? '2. Hvězda (Dělená)'
+                            : starsResults.thirdStar.isTied
+                            ? '3. Hvězda (Dělená)'
+                            : '3. Hvězda'}
+                        </span>
                       </Badge>
 
-                      <div className="flex flex-col items-center my-2.5 w-full min-w-0 px-1">
+                      <div className="flex flex-col items-center my-2 sm:my-2.5 w-full min-w-0 px-0.5">
                         <div className="relative mb-1.5 shrink-0">
-                          <Avatar className={cn("h-12 w-12 sm:h-14 sm:w-14 shadow-sm", isGoldTie ? "border-2 border-amber-500" : isSilverTie ? "border border-slate-400" : "border border-amber-600")}>
+                          <Avatar className={cn("h-11 w-11 sm:h-14 sm:w-14 shadow-sm", isGoldTie ? "border-2 border-amber-500" : isSilverTie ? "border border-slate-400" : "border border-amber-600")}>
                             <AvatarImage
                               src={starsResults.thirdStar.photoURL || undefined}
                               alt={starsResults.thirdStar.name}
@@ -696,7 +691,7 @@ export function PostMatchSection({
                           </Avatar>
                           {starsResults.thirdStar.jerseyNumber && (
                             <span className={cn(
-                              "absolute -bottom-1 -right-1 text-[9px] font-black px-1.5 py-0.2 rounded-full shadow",
+                              "absolute -bottom-1 -right-1 text-[9px] font-black px-1 sm:px-1.5 py-0.2 rounded-full shadow",
                               isGoldTie ? "bg-amber-500 text-black" : isSilverTie ? "bg-slate-300 dark:bg-slate-200 text-slate-900" : "bg-amber-600 text-white"
                             )}>
                               #{starsResults.thirdStar.jerseyNumber}
@@ -704,35 +699,28 @@ export function PostMatchSection({
                           )}
                         </div>
 
-                        <p className="text-sm sm:text-base font-bold font-headline text-foreground leading-snug truncate max-w-full" title={starsResults.thirdStar.name}>
-                          {starsResults.thirdStar.name}
+                        <p className="text-xs sm:text-base font-bold font-headline text-foreground leading-snug truncate max-w-full" title={starsResults.thirdStar.name}>
+                          {formatName(starsResults.thirdStar.name)}
                         </p>
-                        <p className="text-[11px] text-muted-foreground mt-0.5 truncate max-w-full">
+                        <p className="hidden sm:block text-[11px] text-muted-foreground mt-0.5 truncate max-w-full">
                           {starsResults.thirdStar.playerType === 'goalie' ? 'Brankář' : 'Útočník / Obránce'}
                         </p>
                       </div>
 
-                      <div className={cn("pt-2 border-t w-full min-w-0", isGoldTie ? "border-amber-500/20" : isSilverTie ? "border-slate-400/20" : "border-amber-600/20")}>
-                        <p className={cn("text-base sm:text-lg font-black tabular-nums", isGoldTie ? "text-amber-500" : isSilverTie ? "text-slate-800 dark:text-slate-100" : "text-amber-700 dark:text-amber-300")}>
+                      <div className={cn("pt-1.5 sm:pt-2 border-t w-full min-w-0", isGoldTie ? "border-amber-500/20" : isSilverTie ? "border-slate-400/20" : "border-amber-600/20")}>
+                        <p className={cn("text-sm sm:text-lg font-black tabular-nums", isGoldTie ? "text-amber-500" : isSilverTie ? "text-slate-800 dark:text-slate-100" : "text-amber-700 dark:text-amber-300")}>
                           {starsResults.thirdStar.points}{' '}
-                          <span className="text-[11px] font-bold text-muted-foreground uppercase">
-                            {starsResults.thirdStar.points === 1
-                              ? 'bod'
-                              : starsResults.thirdStar.points < 5
-                              ? 'body'
-                              : 'bodů'}
+                          <span className="text-[9px] sm:text-[11px] font-bold text-muted-foreground uppercase">
+                            b.
                           </span>
                         </p>
-                        <StarCountsStack
-                          star1Count={starsResults.thirdStar.star1Count}
-                          star2Count={starsResults.thirdStar.star2Count}
-                          star3Count={starsResults.thirdStar.star3Count}
-                        />
-                        {starsResults.thirdStar.tieBreakerReason && (
-                          <p className="text-[10px] text-muted-foreground font-medium mt-1 truncate max-w-full" title={starsResults.thirdStar.tieBreakerReason}>
-                            {starsResults.thirdStar.tieBreakerReason}
-                          </p>
-                        )}
+                        <div className="hidden sm:block">
+                          <StarCountsStack
+                            star1Count={starsResults.thirdStar.star1Count}
+                            star2Count={starsResults.thirdStar.star2Count}
+                            star3Count={starsResults.thirdStar.star3Count}
+                          />
+                        </div>
                       </div>
                     </div>
                   );

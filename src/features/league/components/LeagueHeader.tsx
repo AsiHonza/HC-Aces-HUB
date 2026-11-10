@@ -13,7 +13,6 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
@@ -59,21 +58,23 @@ export function LeagueHeader({
   const archived = archivedSeasons?.find((s) => s.id === selectedSeasonId);
 
   return (
-    <div className="space-y-4">
+    <div className="relative overflow-hidden rounded-2xl border border-border/75 bg-gradient-to-br from-card via-card to-primary/[0.06] p-4 sm:p-5 shadow-[0_8px_30px_-10px_rgba(0,0,0,0.35)] space-y-4">
+      <div className="pointer-events-none absolute -right-12 -top-12 h-40 w-60 rounded-full bg-primary/10 blur-3xl" />
+
       {/* Top Banner */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-card via-card/90 to-primary/5 border border-border/70 shadow-sm">
+      <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2 flex-wrap">
             <Badge
               variant="outline"
               className={cn(
-                'font-bold text-[10px] sm:text-xs uppercase tracking-wider',
+                'font-bold text-[10px] sm:text-xs uppercase tracking-wider rounded-lg',
                 isCurrent && 'border-primary/40 bg-primary/10 text-primary',
                 isUpcoming && 'border-blue-500/40 bg-blue-500/10 text-blue-500',
                 archived && 'border-amber-500/40 bg-amber-500/10 text-amber-500'
               )}
             >
-              {isCurrent && (currentSeasonName || 'HobbyHokej Brno • 2025/2026')}
+              {isCurrent && (currentSeasonName || 'HobbyHokej • 2025/2026')}
               {isUpcoming && 'Nadcházející sezóna • 2026/2027'}
               {archived && `Archivovaná sezóna • ${archived.name} (${archived.year})`}
             </Badge>
@@ -91,11 +92,13 @@ export function LeagueHeader({
             )}
           </div>
 
-          <h1 className="text-2xl sm:text-3xl font-black font-headline tracking-tight text-foreground flex items-center gap-2">
-            <Trophy className="h-7 w-7 text-primary shrink-0" />
+          <h1 className="text-xl sm:text-2xl font-black font-headline tracking-tight text-foreground flex items-center gap-2.5 pt-0.5">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary border border-primary/25">
+              <Trophy className="h-5 w-5" />
+            </div>
             Ligové centrum
           </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground max-w-2xl">
+          <p className="text-xs text-muted-foreground max-w-2xl">
             Kompletní statistický servis soutěže HobbyHokej – výsledky všech kol, účinnost střelby, tresty, kanadské bodování i profily soupeřů HC Aces.
           </p>
         </div>
@@ -106,10 +109,10 @@ export function LeagueHeader({
             <div className="flex items-center gap-1.5">
               <CalendarDays className="h-4 w-4 text-muted-foreground shrink-0 hidden sm:inline" />
               <Select value={selectedSeasonId} onValueChange={onSelectSeasonId}>
-                <SelectTrigger className="h-8 w-[190px] sm:w-[210px] text-xs font-semibold bg-card border-border/80 shadow-sm">
+                <SelectTrigger className="h-8 w-[190px] sm:w-[210px] text-xs font-semibold rounded-xl bg-background/80 border-border/70 shadow-sm">
                   <SelectValue placeholder="Výběr sezóny" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="rounded-xl">
                   <SelectItem value="current" className="font-bold">
                     ★ Nynější sezóna (2025/2026)
                   </SelectItem>
@@ -140,7 +143,7 @@ export function LeagueHeader({
               variant="outline"
               onClick={onSync}
               disabled={isSyncing}
-              className="h-8 text-xs font-semibold border-primary/40 text-primary hover:bg-primary/10"
+              className="h-8 rounded-xl text-xs font-semibold border-primary/40 text-primary hover:bg-primary/10"
               title="Aktualizovat data z webu hobbyhokejbrno.cz"
             >
               <RefreshCw className={cn('h-3.5 w-3.5 mr-1.5', isSyncing && 'animate-spin')} />
@@ -154,7 +157,7 @@ export function LeagueHeader({
               size="sm"
               variant="outline"
               onClick={onOpenArchiveDialog}
-              className="h-8 text-xs font-semibold border-rose-500/40 text-rose-500 hover:bg-rose-500/10 hover:text-rose-400"
+              className="h-8 rounded-xl text-xs font-semibold border-rose-500/40 text-rose-500 hover:bg-rose-500/10 hover:text-rose-400"
               title="Ukončit aktuální sezónu a uložit její kompletní data do archivu"
             >
               <History className="h-3.5 w-3.5 mr-1.5" />
@@ -165,44 +168,44 @@ export function LeagueHeader({
       </div>
 
       {/* Sleek Inline KPI Strip directly inside Hero Area */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 rounded-xl bg-card/60 border border-border/60 shadow-xs text-xs">
-        <div className="flex items-center gap-2.5 min-w-0">
+      <div className="relative grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 pt-1 text-xs">
+        <div className="flex items-center gap-2.5 rounded-xl bg-background/60 border border-border/60 px-3 py-2 min-w-0">
           <div className="h-8 w-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-500 shrink-0">
             <Calendar className="h-4 w-4" />
           </div>
           <div className="min-w-0">
             <p className="text-[10px] text-muted-foreground font-medium truncate">Odehráno zápasů</p>
-            <p className="text-base sm:text-lg font-bold text-foreground leading-tight tabular-nums">{overview.totalMatchesPlayed}</p>
+            <p className="text-sm sm:text-base font-black text-foreground leading-tight tabular-nums">{overview.totalMatchesPlayed}</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 min-w-0">
+        <div className="flex items-center gap-2.5 rounded-xl bg-background/60 border border-border/60 px-3 py-2 min-w-0">
           <div className="h-8 w-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500 shrink-0">
             <Flame className="h-4 w-4" />
           </div>
           <div className="min-w-0">
             <p className="text-[10px] text-muted-foreground font-medium truncate">Vstřeleno gólů</p>
-            <p className="text-base sm:text-lg font-bold text-foreground leading-tight tabular-nums">{overview.totalGoalsScored}</p>
+            <p className="text-sm sm:text-base font-black text-foreground leading-tight tabular-nums">{overview.totalGoalsScored}</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 min-w-0">
+        <div className="flex items-center gap-2.5 rounded-xl bg-background/60 border border-border/60 px-3 py-2 min-w-0">
           <div className="h-8 w-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 shrink-0">
             <Activity className="h-4 w-4" />
           </div>
           <div className="min-w-0">
             <p className="text-[10px] text-muted-foreground font-medium truncate">Průměr gólů / zápas</p>
-            <p className="text-base sm:text-lg font-bold text-foreground leading-tight tabular-nums">{overview.averageGoalsPerGame}</p>
+            <p className="text-sm sm:text-base font-black text-foreground leading-tight tabular-nums">{overview.averageGoalsPerGame}</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 min-w-0">
+        <div className="flex items-center gap-2.5 rounded-xl bg-background/60 border border-border/60 px-3 py-2 min-w-0">
           <div className="h-8 w-8 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-500 shrink-0">
             <Shield className="h-4 w-4" />
           </div>
           <div className="min-w-0">
             <p className="text-[10px] text-muted-foreground font-medium truncate">Týmů v soutěži</p>
-            <p className="text-base sm:text-lg font-bold text-foreground leading-tight tabular-nums">9</p>
+            <p className="text-sm sm:text-base font-black text-foreground leading-tight tabular-nums">9</p>
           </div>
         </div>
       </div>

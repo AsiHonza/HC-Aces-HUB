@@ -185,27 +185,34 @@ export function UpcomingMatchCard({
     <Card
       id={`match-${match.id}`}
       className={cn(
-        'w-full transition-all border shadow-sm',
+        'w-full transition-all border border-primary/30 bg-gradient-to-br from-card via-card to-primary/[0.04] shadow-[0_8px_30px_-10px_rgba(0,0,0,0.35)] overflow-hidden',
         isCardHighlighted && 'animate-highlight-card',
         className
       )}
     >
-      <CardHeader className="flex-row items-start justify-between pb-2 pt-4 px-4 sm:px-6">
-        <div className="space-y-1.5 min-w-0">
+      <div className="h-1 w-full bg-gradient-to-r from-primary via-amber-400 to-transparent" />
+      <CardHeader className="flex-row items-start justify-between pb-2.5 pt-4 px-4 sm:px-5">
+        <div className="space-y-2.5 min-w-0 flex-1 pr-2">
           <div className="flex items-center gap-2 flex-wrap">
             {prefix && (
-              <Badge variant="outline" className="text-[10px] font-bold text-primary uppercase border-primary/30 bg-primary/10">
+              <Badge variant="outline" className="text-[10px] font-extrabold text-primary uppercase border-primary/35 bg-primary/10 rounded-lg px-2 py-0.5">
                 {prefix}
               </Badge>
             )}
-            <span className="text-xs text-muted-foreground font-semibold flex items-center gap-1">
-              {format(toJsDate(match.dateTime), 'EEEE d. M. yyyy, HH:mm', { locale: cs })}
+            <span className="text-xs text-foreground/90 font-semibold capitalize flex items-center gap-1">
+              {format(toJsDate(match.dateTime), 'EEEE d. M. yyyy • HH:mm', { locale: cs })}
             </span>
+            {match.location && (
+              <span className="inline-flex items-center gap-1 rounded-lg bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-muted-foreground border border-border/50">
+                <MapPin className="h-3 w-3 text-primary shrink-0" />
+                {match.location}
+              </span>
+            )}
           </div>
-          <div className="space-y-1.5 pt-1">
+          <div className="rounded-2xl bg-muted/35 border border-border/50 p-3 space-y-2">
             <div
               className={cn(
-                'text-lg sm:text-2xl font-bold font-headline tracking-tight truncate flex items-center gap-2.5',
+                'text-base sm:text-xl font-bold font-headline tracking-tight truncate flex items-center gap-2.5',
                 isAcesHome ? 'text-primary font-black' : 'text-foreground'
               )}
               title={homeTeam}
@@ -215,7 +222,7 @@ export function UpcomingMatchCard({
             </div>
             <div
               className={cn(
-                'text-lg sm:text-2xl font-bold font-headline tracking-tight truncate flex items-center gap-2.5',
+                'text-base sm:text-xl font-bold font-headline tracking-tight truncate flex items-center gap-2.5 pt-1.5 border-t border-border/40',
                 !isAcesHome ? 'text-primary font-black' : 'text-foreground'
               )}
               title={awayTeam}
@@ -283,12 +290,7 @@ export function UpcomingMatchCard({
         </div>
       </CardHeader>
 
-      <CardContent className="text-sm pb-2 px-4 sm:px-6 space-y-3">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <MapPin className="h-3.5 w-3.5 text-primary shrink-0" />
-          <span>{match.location}</span>
-        </div>
-
+      <CardContent className="text-sm pb-2 px-4 sm:px-5 space-y-2.5">
         <HeadToHeadSection
           match={match as Match}
           allMatches={allMatches}
