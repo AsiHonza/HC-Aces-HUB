@@ -56,6 +56,7 @@ import {
   PostMatchSection,
   getMvpVotingStatus,
   calculateMatchStarsResults,
+  isCoachJanicek,
   type CelebrationAwardData,
   countPlayerCareerMvpAwards,
   countPlayerCareerStars,
@@ -1343,11 +1344,12 @@ function DashboardPageContent() {
     if (hasVoted) return;
 
     const matchAttendees = attendancesByMatch.get(targetMatch.id) || [];
+    const isCoach = isCoachJanicek(user.uid, userProfile, usersMap);
     const isParticipant =
       (targetMatch.lineup && Object.values(targetMatch.lineup).some((p) => p?.id === user.uid)) ||
       matchAttendees.some((a) => a.userId === user.uid && a.status === 'going');
 
-    if (!isParticipant) return;
+    if (!isParticipant && !isCoach) return;
 
     const storageKey = `dismissed_stars_modal_${targetMatch.id}_${user.uid}`;
     if (typeof window !== 'undefined' && sessionStorage.getItem(storageKey)) {

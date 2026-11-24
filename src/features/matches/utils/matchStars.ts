@@ -10,10 +10,14 @@ export interface MatchStarsStandingItem {
   jerseyNumber?: number | null;
   photoURL?: string | null;
   playerType?: 'player' | 'goalie' | 'member';
-  points: number; // star1 = 3pts, star2 = 2pts, star3 = 1pt
+  points: number; // star1 = 3pts (or 6pts coach), star2 = 2pts (or 4pts coach), star3 = 1pt (or 2pts coach)
   star1Count: number;
   star2Count: number;
   star3Count: number;
+  coachStar1Count?: number;
+  coachStar2Count?: number;
+  coachStar3Count?: number;
+  hasCoachVote?: boolean;
   totalVotesCount: number;
   percentage: number;
   rank: number; // 1, 2, 3...
@@ -29,6 +33,8 @@ export interface MatchStarsStandingItem {
 export interface MatchStarsResults {
   totalVoters: number;
   totalPoints: number;
+  hasCoachVote?: boolean;
+  coachVoterName?: string;
   standings: MatchStarsStandingItem[];
   firstStar: MatchStarsStandingItem | null;
   secondStar: MatchStarsStandingItem | null;
@@ -36,11 +42,94 @@ export interface MatchStarsResults {
 }
 
 /**
+ * Checks if a user is coach Jiří Janíček (by name, coach role, or profile).
+ */
+export function isCoachJanicek(
+  userIdOrName?: string | null,
+  user?: UserProfile | null,
+  usersMap?: Map<string, UserProfile>
+): boolean {
+  if (user) {
+    if (areNamesMatching(user.name, 'Jiří Janíček')) return true;
+    if ((user as any).role === 'coach' || (user as any).isCoach) return true;
+    if (user.email && /janicek/i.test(user.email)) return true;
+  }
+  if (userIdOrName) {
+    if (areNamesMatching(userIdOrName, 'Jiří Janíček')) return true;
+    const profile = usersMap?.get(userIdOrName);
+    if (profile) {
+      if (areNamesMatching(profile.name, 'Jiří Janíček')) return true;
+      if ((profile as any).role === 'coach' || (profile as any).isCoach) return true;
+      if (profile.email && /janicek/i.test(profile.email)) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Determines whether a given player participated in the match roster (lineup, gameRoster, or scorers).
+ */
+export function isPlayerInMatchRoster(
+  userIdOrName: string,
+  match: Match,
+  usersMap?: Map<string, UserProfile>
+): boolean {
+  if (!userIdOrName || !match) return false;
+  const profile = usersMap?.get(userIdOrName);
+  const playerName = profile?.name || userIdOrName;
+
+  // 1. Lineup slots
+  if (match.lineup && typeof match.lineup === 'object') {
+    const inLineup = Object.values(match.lineup).some((p: any) => {
+      if (!p) return false;
+      if (p.id && (p.id === userIdOrName || (profile && p.id === profile.id))) return true;
+      if (p.name && areNamesMatching(p.name, playerName)) return true;
+      return false;
+    });
+    if (inLineup) return true;
+  }
+
+  // 2. gameRoster if present
+  if (Array.isArray(match.gameRoster) && match.gameRoster.length > 0) {
+    const inRoster = match.gameRoster.some((r) => {
+      if (typeof r === 'string') return areNamesMatching(r, playerName);
+      if ((r as any)?.name) return areNamesMatching((r as any).name, playerName);
+      if ((r as any)?.id) return (r as any).id === userIdOrName;
+      return false;
+    });
+    if (inRoster) return true;
+  }
+
+  // 3. Match scorers or assists
+  if (Array.isArray(match.scorers)) {
+    const played = match.scorers.some(
+      (s) =>
+        (s.goal && (s.goal === userIdOrName || areNamesMatching(s.goal, playerName))) ||
+        (s.assist && (s.assist === userIdOrName || areNamesMatching(s.assist, playerName)))
+    );
+    if (played) return true;
+  }
+  if (Array.isArray(match.detailedScorers)) {
+    const played = match.detailedScorers.some(
+      (ds) =>
+        (ds.scorer && (ds.scorer === userIdOrName || areNamesMatching(ds.scorer, playerName))) ||
+        (ds.assist && (ds.assist === userIdOrName || areNamesMatching(ds.assist, playerName)))
+    );
+    if (played) return true;
+  }
+
+  return false;
+}
+
+/**
  * Calculates 3-Stars results for a match based on `match.starsVotes` (and fallbacks to `match.mvpVotes`).
  * 
  * Pravidla výpočtu a řešení shod (Tie-Breaking Protocol):
  * 1. Celkový počet bodů (1. hvězda = 3 b, 2. hvězda = 2 b, 3. hvězda = 1 b)
- * 2. Vyšší počet 1. hvězd (kvalita hlasů: 1x 1. hvězda [3b] předčí 1x 2. + 1x 3. [3b])
+ *    - Speciální trenérské pravidlo: Pokud hlasuje trenér Jiří Janíček a NENÍ na soupisce hráčů daného zápasu,
+ *      jeho hlasy mají DVOJNÁSOBNOU VÁHU (1. hvězda = 6 b, 2. hvězda = 4 b, 3. hvězda = 2 b).
+ *      Pokud je na soupisce jako hráč, mají jeho hlasy standardní váhu (3, 2, 1).
+ * 2. Vyšší počet 1. hvězd (kvalita hlasů)
  * 3. Vyšší počet 2. hvězd
  * 4. Vyšší počet 3. hvězd
  * 5. Zápasový výkon:
@@ -62,6 +151,10 @@ export function calculateMatchStarsResults(
       star1Count: number;
       star2Count: number;
       star3Count: number;
+      coachStar1Count: number;
+      coachStar2Count: number;
+      coachStar3Count: number;
+      hasCoachVote: boolean;
       totalVotesCount: number;
     }
   >();
@@ -69,49 +162,102 @@ export function calculateMatchStarsResults(
   const getRecord = (id: string) => {
     let rec = pointsMap.get(id);
     if (!rec) {
-      rec = { points: 0, star1Count: 0, star2Count: 0, star3Count: 0, totalVotesCount: 0 };
+      rec = {
+        points: 0,
+        star1Count: 0,
+        star2Count: 0,
+        star3Count: 0,
+        coachStar1Count: 0,
+        coachStar2Count: 0,
+        coachStar3Count: 0,
+        hasCoachVote: false,
+        totalVotesCount: 0,
+      };
       pointsMap.set(id, rec);
     }
     return rec;
   };
 
   let totalVoters = 0;
+  let hasMatchCoachVote = false;
+  let coachVoterName: string | undefined;
 
   // 1. Process 3-stars votes (new format)
   if (match.starsVotes && typeof match.starsVotes === 'object') {
     const entries = Object.entries(match.starsVotes);
     totalVoters = entries.length;
 
-    entries.forEach(([, vote]) => {
+    entries.forEach(([voterId, vote]) => {
       if (!vote || typeof vote !== 'object') return;
+
+      const voterProfile = usersMap?.get(voterId);
+      const voterIsCoach = isCoachJanicek(voterId, voterProfile, usersMap);
+      const voterInRoster = isPlayerInMatchRoster(voterId, match, usersMap);
+      const isDoubledCoachVote = voterIsCoach && !voterInRoster;
+
+      if (isDoubledCoachVote) {
+        hasMatchCoachVote = true;
+        coachVoterName = voterProfile?.name || 'Jiří Janíček (trenér)';
+      }
+
+      const w1 = isDoubledCoachVote ? 6 : 3;
+      const w2 = isDoubledCoachVote ? 4 : 2;
+      const w3 = isDoubledCoachVote ? 2 : 1;
+
       if (vote.star1) {
         const r1 = getRecord(vote.star1);
-        r1.points += 3;
+        r1.points += w1;
         r1.star1Count += 1;
+        if (isDoubledCoachVote) {
+          r1.coachStar1Count += 1;
+          r1.hasCoachVote = true;
+        }
         r1.totalVotesCount += 1;
       }
       if (vote.star2) {
         const r2 = getRecord(vote.star2);
-        r2.points += 2;
+        r2.points += w2;
         r2.star2Count += 1;
+        if (isDoubledCoachVote) {
+          r2.coachStar2Count += 1;
+          r2.hasCoachVote = true;
+        }
         r2.totalVotesCount += 1;
       }
       if (vote.star3) {
         const r3 = getRecord(vote.star3);
-        r3.points += 1;
+        r3.points += w3;
         r3.star3Count += 1;
+        if (isDoubledCoachVote) {
+          r3.coachStar3Count += 1;
+          r3.hasCoachVote = true;
+        }
         r3.totalVotesCount += 1;
       }
     });
   } else if (match.mvpVotes && typeof match.mvpVotes === 'object') {
-    // Fallback: Legacy mvpVotes (each vote counts as 3 points / 1st star)
+    // Fallback: Legacy mvpVotes (each vote counts as 3 points / 1st star, or 6 points if coach out of roster)
     const entries = Object.entries(match.mvpVotes);
     totalVoters = entries.length;
-    entries.forEach(([, candidateId]) => {
+    entries.forEach(([voterId, candidateId]) => {
       if (candidateId) {
+        const voterProfile = usersMap?.get(voterId);
+        const voterIsCoach = isCoachJanicek(voterId, voterProfile, usersMap);
+        const voterInRoster = isPlayerInMatchRoster(voterId, match, usersMap);
+        const isDoubledCoachVote = voterIsCoach && !voterInRoster;
+
+        if (isDoubledCoachVote) {
+          hasMatchCoachVote = true;
+          coachVoterName = voterProfile?.name || 'Jiří Janíček (trenér)';
+        }
+
         const r = getRecord(candidateId);
-        r.points += 3;
+        r.points += isDoubledCoachVote ? 6 : 3;
         r.star1Count += 1;
+        if (isDoubledCoachVote) {
+          r.coachStar1Count += 1;
+          r.hasCoachVote = true;
+        }
         r.totalVotesCount += 1;
       }
     });
@@ -214,6 +360,10 @@ export function calculateMatchStarsResults(
       star1Count: counts.star1Count,
       star2Count: counts.star2Count,
       star3Count: counts.star3Count,
+      coachStar1Count: counts.coachStar1Count,
+      coachStar2Count: counts.coachStar2Count,
+      coachStar3Count: counts.coachStar3Count,
+      hasCoachVote: counts.hasCoachVote,
       totalVotesCount: counts.totalVotesCount,
       percentage,
       rank: 1,
@@ -293,6 +443,8 @@ export function calculateMatchStarsResults(
   return {
     totalVoters,
     totalPoints,
+    hasCoachVote: hasMatchCoachVote,
+    coachVoterName,
     standings: sortedStandings,
     firstStar,
     secondStar,

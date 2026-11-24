@@ -84,22 +84,6 @@ export function OpponentScoutingWidget({
     );
   }, [isAcesOrTraining, allMatches, normOpponent]);
 
-  if (isAcesOrTraining || (!opponentSummary && h2hMatches.length === 0)) {
-    return null;
-  }
-
-  let acesWins = 0;
-  let draws = 0;
-  let oppWins = 0;
-  for (const m of h2hMatches) {
-    const isAcesTeam1 = areClubNamesMatching(m.team1, 'HC Aces');
-    const acesScore = isAcesTeam1 ? (m.team1Score ?? 0) : (m.team2Score ?? 0);
-    const oppScore = isAcesTeam1 ? (m.team2Score ?? 0) : (m.team1Score ?? 0);
-    if (acesScore > oppScore) acesWins++;
-    else if (oppScore > acesScore) oppWins++;
-    else draws++;
-  }
-
   // Key player threat from opponent against Aces (goals scored in past mutual matches)
   const threatsAgainstAces = useMemo(() => {
     let pts = 0;
@@ -117,6 +101,22 @@ export function OpponentScoutingWidget({
     }
     return { pts, goals };
   }, [h2hMatches, normOpponent]);
+
+  if (isAcesOrTraining || (!opponentSummary && h2hMatches.length === 0)) {
+    return null;
+  }
+
+  let acesWins = 0;
+  let draws = 0;
+  let oppWins = 0;
+  for (const m of h2hMatches) {
+    const isAcesTeam1 = areClubNamesMatching(m.team1, 'HC Aces');
+    const acesScore = isAcesTeam1 ? (m.team1Score ?? 0) : (m.team2Score ?? 0);
+    const oppScore = isAcesTeam1 ? (m.team2Score ?? 0) : (m.team1Score ?? 0);
+    if (acesScore > oppScore) acesWins++;
+    else if (oppScore > acesScore) oppWins++;
+    else draws++;
+  }
 
   return (
     <div

@@ -25,7 +25,11 @@ import { cs } from 'date-fns/locale';
 import { cn, formatName } from '@/lib/utils';
 import { formatMatchDate } from '@/lib/dates';
 import { getMvpVotingStatus, getMatchMvpCandidates } from '../utils/mvpVoting';
-import { calculateMatchStarsResults } from '../utils/matchStars';
+import {
+  calculateMatchStarsResults,
+  isCoachJanicek,
+  isPlayerInMatchRoster,
+} from '../utils/matchStars';
 import { getMatchOpponentName } from '../utils/headToHead';
 import { TeamBadge } from '@/features/league';
 import type { Match, UserProfile } from '@/types';
@@ -144,6 +148,19 @@ export function PostMatchSection({
       currentAttendees.some((a) => a.userId === currentUserId && a.status === 'going')
     );
   }, [currentUserId, candidates, currentAttendees]);
+
+  const currentUserProfile = currentUserId ? usersMap?.get(currentUserId) : undefined;
+  const isCoach = useMemo(() => {
+    return isCoachJanicek(currentUserId, currentUserProfile, usersMap);
+  }, [currentUserId, currentUserProfile, usersMap]);
+
+  const isCoachOnRoster = useMemo(() => {
+    if (!isCoach || !currentUserId) return false;
+    return isPlayerInMatchRoster(currentUserId, currentMatch, usersMap);
+  }, [isCoach, currentUserId, currentMatch, usersMap]);
+
+  // Can the current user vote? Eligible players from roster/attendance OR coach Jiří Janíček
+  const canVote = isParticipant || isCoach;
 
   // Determine if current user has already voted
   const userStarsVote = currentUserId ? currentMatch.starsVotes?.[currentUserId] : undefined;
@@ -431,16 +448,20 @@ export function PostMatchSection({
           {/* VÝZVA K HLASOVÁNÍ / POTVRZENÍ HLASU */}
           {isVotingOpen && (
             <div className="rounded-xl border border-border/80 bg-muted/20 p-3 sm:p-4 w-full min-w-0 max-w-full">
-              {isParticipant ? (
+              {canVote ? (
                 !hasVoted ? (
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 min-w-0">
                     <div className="space-y-0.5 min-w-0 flex-1">
                       <p className="text-sm font-bold flex items-center gap-1.5 text-foreground">
                         <Star className="h-4 w-4 fill-amber-500 text-amber-500 shrink-0" />
-                        Nastoupil jsi k tomuto utkání!
+                        {isParticipant
+                          ? 'Nastoupil jsi k tomuto utkání!'
+                          : 'Trenérské hlasování (mimo soupisku)'}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        Ohodnoť výkon svých spoluhráčů ze sestavy a uděl 1., 2. a 3. hvězdu zápasu.
+                        {isParticipant
+                          ? 'Ohodnoť výkon svých spoluhráčů ze sestavy a uděl 1., 2. a 3. hvězdu zápasu.'
+                          : 'Jako nehrající trenér mají tvé hlasy dvojitou váhu (6 bodů za 1., 4 body za 2. a 2 body za 3. hvězdu).'}
                       </p>
                     </div>
                     {onOpenStarsModal && (
@@ -461,10 +482,14 @@ export function PostMatchSection({
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-xs sm:text-sm font-bold text-foreground">
-                          Váš hlas byl úspěšně zaznamenán
+                          {isCoach && !isCoachOnRoster
+                            ? 'Váš trenérský hlas (dvojitá váha) byl zaznamenán'
+                            : 'Váš hlas byl úspěšně zaznamenán'}
                         </p>
                         <p className="text-[11px] text-muted-foreground leading-relaxed break-words">
-                          Díky za účast v kabinovém hlasování. Průběžné pořadí hvězd vidíte níže.
+                          {isCoach && !isCoachOnRoster
+                            ? 'Díky za trenérské hodnocení se zvýšenou váhou 6, 4 a 2 body. Průběžné pořadí hvězd vidíte níže.'
+                            : 'Díky za účast v kabinovém hlasování. Průběžné pořadí hvězd vidíte níže.'}
                         </p>
                       </div>
                     </div>
@@ -484,8 +509,7 @@ export function PostMatchSection({
                 <p className="text-xs text-muted-foreground flex items-center gap-2 min-w-0 break-words">
                   <Lock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                   <span>
-                    Průběžné výsledky hlasování. Hlasovat o hvězdách mohou pouze hráči, kteří k zápasu
-                    nastoupili.
+                    Průběžné výsledky hlasování. Hlasovat o hvězdách mohou hráči ze soupisky a trenér týmu.
                   </span>
                 </p>
               )}
@@ -739,7 +763,7 @@ export function PostMatchSection({
                     <span className="break-words max-w-full">
                       {showFullStandings
                         ? 'Skrýt detailní přehled všech hlasů'
-                        : `Zobrazit detailní přehled všech hlasů (${starsResults.totalVoters} hlasujících kabiny)`}
+                        : `Zobrazit detailní přehled všech hlasů (${starsResults.totalVoters} hlasujících kabiny${starsResults.hasCoachVote ? ' vč. trenéra' : ''})`}
                     </span>
                     {showFullStandings ? (
                       <ChevronUp className="h-3.5 w-3.5 shrink-0" />
@@ -782,6 +806,14 @@ export function PostMatchSection({
                                     >
                                       Tvůj výběr{' '}
                                       {isMyStar1 ? '(1.)' : isMyStar2 ? '(2.)' : '(3.)'}
+                                    </Badge>
+                                  )}
+                                  {item.hasCoachVote && (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-[10px] h-4 px-1.5 border-amber-500/50 text-amber-500 bg-amber-500/10 font-semibold shrink-0"
+                                    >
+                                      Volba trenéra
                                     </Badge>
                                   )}
                                 </div>
@@ -832,7 +864,7 @@ export function PostMatchSection({
                     : 'K tomuto utkání nebyly v hlasování uděleny žádné hlasy.'}
                 </p>
               </div>
-              {isVotingOpen && isParticipant && onOpenStarsModal && (
+              {isVotingOpen && canVote && onOpenStarsModal && (
                 <Button
                   size="sm"
                   onClick={() => onOpenStarsModal(currentMatch)}

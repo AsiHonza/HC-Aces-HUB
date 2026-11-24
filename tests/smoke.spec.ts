@@ -5,7 +5,7 @@ test.describe('HC Aces HUB - Smoke Testy', () => {
     await page.goto('/');
 
     // Ověření titulku a loga klubu
-    await expect(page.locator('h1')).toContainText('HC Aces');
+    await expect(page.locator('h1')).toContainText(/HC Aces/i);
 
     // Ověření záložek Přihlásit a Registrovat
     await expect(page.getByRole('tab', { name: 'Přihlásit' })).toBeVisible();

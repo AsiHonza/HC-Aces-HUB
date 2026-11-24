@@ -12,11 +12,15 @@ import {
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Star, Loader2, Check } from 'lucide-react';
+import { Star, Loader2, Check, Shield } from 'lucide-react';
 import { useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { cn, formatName } from '@/lib/utils';
 import { getMvpVotingStatus, getMatchMvpCandidates, MvpCandidate } from '../utils/mvpVoting';
+import {
+  isCoachJanicek,
+  isPlayerInMatchRoster,
+} from '../utils/matchStars';
 import { matchesService } from '../services/matchesService';
 import { getMatchOpponentName } from '../utils/headToHead';
 import type { Match, UserProfile } from '@/types';
@@ -76,7 +80,25 @@ export function MatchStarsModal({
     }
   }, [match, currentUserId]);
 
-  // Check if current user is eligible (was on the roster/going) and hasn't voted
+  const usersMap = useMemo(() => {
+    const map = new Map<string, UserProfile>();
+    users.forEach((u) => map.set(u.id, u));
+    return map;
+  }, [users]);
+
+  const currentUserProfile = currentUserId ? usersMap.get(currentUserId) : undefined;
+  const isCoach = useMemo(() => {
+    return isCoachJanicek(currentUserId, currentUserProfile, usersMap);
+  }, [currentUserId, currentUserProfile, usersMap]);
+
+  const isCoachOnRoster = useMemo(() => {
+    if (!isCoach || !match || !currentUserId) return false;
+    return isPlayerInMatchRoster(currentUserId, match, usersMap);
+  }, [isCoach, match, currentUserId, usersMap]);
+
+  const isDoubledCoachVote = isCoach && !isCoachOnRoster;
+
+  // Check if current user is eligible (was on the roster/going or coach) and hasn't voted
   useEffect(() => {
     if (!match || !currentUserId) {
       if (!isControlled) setInternalIsOpen(false);
@@ -97,12 +119,14 @@ export function MatchStarsModal({
       return;
     }
 
-    // Check if user participated in this match
+    // Check if user participated in this match or is coach
     const isParticipant =
       candidates.some((c) => c.id === currentUserId) ||
       attendees.some((a) => a.userId === currentUserId && a.status === 'going');
 
-    if (!isParticipant) {
+    const canVote = isParticipant || isCoach;
+
+    if (!canVote) {
       if (!isControlled) setInternalIsOpen(false);
       return;
     }
@@ -115,7 +139,7 @@ export function MatchStarsModal({
     }
 
     setModalOpen(true);
-  }, [match, currentUserId, candidates, attendees, isControlled]);
+  }, [match, currentUserId, candidates, attendees, isControlled, isCoach]);
 
   const handleDismiss = () => {
     if (match && currentUserId && typeof window !== 'undefined') {
@@ -219,14 +243,24 @@ export function MatchStarsModal({
             Vyhlášení 3 hvězd utkání
           </DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">
-            Zhodnoťte výkon spoluhráčů v utkání proti{' '}
+            Zhodnoťte výkon hráčů v utkání proti{' '}
             <strong className="text-foreground">{opponentName}</strong> a udělte 3 hvězdy zápasu.
-            1. hvězda = 3 body, 2. hvězda = 2 body, 3. hvězda = 1 bod.
+            {isDoubledCoachVote
+              ? ' Jako nehrající trenér mají tvé hlasy dvojitou váhu (6, 4 a 2 body).'
+              : ' 1. hvězda = 3 body, 2. hvězda = 2 body, 3. hvězda = 1 bod.'}
           </DialogDescription>
+          {isDoubledCoachVote && (
+            <div className="flex items-center gap-2 p-2 rounded-lg bg-amber-500/15 border border-amber-500/35 text-amber-600 dark:text-amber-400 font-semibold text-xs mt-1">
+              <Shield className="h-4 w-4 shrink-0 text-amber-500" />
+              <span>
+                Trenérský hlas mimo soupisku: 1. hvězda = <strong>6 b.</strong>, 2. hvězda = <strong>4 b.</strong>, 3. hvězda = <strong>2 b.</strong>
+              </span>
+            </div>
+          )}
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          {/* Slot 1: 1. Hvězda (Zlato - 3b) */}
+          {/* Slot 1: 1. Hvězda (Zlato - 3b / 6b) */}
           <div className="p-3.5 rounded-xl border border-amber-500/40 bg-amber-500/5 space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -235,7 +269,7 @@ export function MatchStarsModal({
                 </div>
                 <div>
                   <p className="text-xs font-bold uppercase tracking-wide text-amber-600 dark:text-amber-400">
-                    1. Hvězda (3 body)
+                    1. Hvězda ({isDoubledCoachVote ? '6 bodů – Trenér' : '3 body'})
                   </p>
                   <p className="text-[11px] text-muted-foreground">Nejlepší hráč utkání</p>
                 </div>
@@ -291,7 +325,7 @@ export function MatchStarsModal({
                 </div>
                 <div>
                   <p className="text-xs font-bold uppercase tracking-wide text-slate-700 dark:text-slate-300">
-                    2. Hvězda (2 body)
+                    2. Hvězda ({isDoubledCoachVote ? '4 body – Trenér' : '2 body'})
                   </p>
                   <p className="text-[11px] text-muted-foreground">Druhý nejlepší výkon</p>
                 </div>
@@ -347,7 +381,7 @@ export function MatchStarsModal({
                 </div>
                 <div>
                   <p className="text-xs font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">
-                    3. Hvězda (1 bod)
+                    3. Hvězda ({isDoubledCoachVote ? '2 body – Trenér' : '1 bod'})
                   </p>
                   <p className="text-[11px] text-muted-foreground">Třetí nejlepší výkon</p>
                 </div>
