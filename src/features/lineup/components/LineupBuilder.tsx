@@ -4,12 +4,12 @@ import { Player, Lineup } from '../types';
 import { initialLineup, positionNames } from '../utils/lineup-config';
 import { RinkBackground } from './TacticalRinkBoard';
 import { PlayerCard } from './PlayerCard';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useIsDesktop } from '@/hooks/use-mobile';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -32,7 +32,6 @@ import {
   Check,
   ArrowLeftRight,
   Shield,
-  Users,
 } from 'lucide-react';
 import { cn, formatName } from '@/lib/utils';
 import type { TeamChemistryData } from '@/features/stats/utils/chemistry';
@@ -115,7 +114,7 @@ export function LineupBuilder({
   onCancel,
 }: LineupBuilderProps) {
   const [lineup, setLineup] = useState<Lineup>(() => initialData || initialLineup);
-  const isMobile = useIsMobile();
+  const isDesktop = useIsDesktop();
   const { toast } = useToast();
 
   const [formationCount, setFormationCount] = useState<'2' | '3'>(() =>
@@ -128,8 +127,7 @@ export function LineupBuilder({
   );
   const hasConfirmedAttendance = confirmedSet.size > 0;
 
-  // Players from the club roster who did NOT confirm attendance, but were manually added to this match
-  // (or were already present in initialData when opening the editor)
+  // Club roster players who didn't confirm attendance, but were manually added (or already in initialData)
   const [manuallyAddedIds, setManuallyAddedIds] = useState<Set<string>>(() => {
     const set = new Set<string>();
     const knownPlayerIds = new Set(players.map((p) => p.id));
@@ -143,7 +141,7 @@ export function LineupBuilder({
     return set;
   });
 
-  // External / guest players created manually for this match
+  // Custom guest players not in the club roster
   const [customGuests, setCustomGuests] = useState<Player[]>(() => {
     const guests: Player[] = [];
     const knownPlayerIds = new Set(players.map((p) => p.id));
@@ -159,13 +157,13 @@ export function LineupBuilder({
     return guests;
   });
 
-  // Slot picker dialog state (when user clicks any position on the ice/board)
+  // Slot picker dialog state
   const [activeSlot, setActiveSlot] = useState<keyof Lineup | null>(null);
   const [pickerTab, setPickerTab] = useState<'confirmed' | 'unconfirmed' | 'guest'>('confirmed');
   const [pickerSearch, setPickerSearch] = useState('');
   const [showMembersInUnconfirmed, setShowMembersInUnconfirmed] = useState(false);
 
-  // Add unconfirmed / guest modal (triggered from top toolbar "+ Dopsat hráče")
+  // Add unconfirmed / guest modal ("+ Dopsat hráče")
   const [isAddPoolModalOpen, setIsAddPoolModalOpen] = useState(false);
   const [addPoolTab, setAddPoolTab] = useState<'roster' | 'guest'>('roster');
   const [addPoolSearch, setAddPoolSearch] = useState('');
@@ -174,7 +172,7 @@ export function LineupBuilder({
   const [sidebarTab, setSidebarTab] = useState<'pool' | 'unconfirmed' | 'guest'>('pool');
   const [sidebarSearch, setSidebarSearch] = useState('');
 
-  // Quick-assign selected player chip (click player chip -> click position slot)
+  // Quick-assign selected player chip
   const [selectedQuickPlayerId, setSelectedQuickPlayerId] = useState<string | null>(null);
 
   // Guest creation form states
@@ -191,7 +189,7 @@ export function LineupBuilder({
     return set;
   }, [lineup]);
 
-  // Complete list of all known players + custom guests
+  // Complete map of all known players + custom guests
   const allKnownPlayersMap = useMemo(() => {
     const map = new Map<string, Player>();
     players.forEach((p) => map.set(p.id, p));
@@ -203,7 +201,6 @@ export function LineupBuilder({
   }, [players, customGuests, lineup]);
 
   // Active Match Pool: ONLY confirmed players + manually added players + custom guests
-  // (Or all active players if no attendance records exist yet for this match)
   const matchPoolPlayers = useMemo(() => {
     const list: Player[] = [];
     const seen = new Set<string>();
@@ -215,7 +212,6 @@ export function LineupBuilder({
           seen.add(p.id);
         }
       } else {
-        // Fallback when 0 players confirmed attendance yet: show active skaters & goalies
         if (p.playerType !== 'member' || manuallyAddedIds.has(p.id)) {
           list.push(p);
           seen.add(p.id);
@@ -238,12 +234,12 @@ export function LineupBuilder({
     });
   }, [players, hasConfirmedAttendance, confirmedSet, manuallyAddedIds, customGuests]);
 
-  // Unassigned players from the active match pool (waiting to be placed on the ice)
+  // Unassigned players from the active match pool
   const unassignedPoolPlayers = useMemo(() => {
     return matchPoolPlayers.filter((p) => !assignedPlayerIds.has(p.id));
   }, [matchPoolPlayers, assignedPlayerIds]);
 
-  // Unconfirmed players from the club roster who are not yet in the match pool and not on the ice
+  // Unconfirmed players from the club roster
   const unconfirmedRosterPlayers = useMemo(() => {
     return players
       .filter((p) => {
@@ -261,7 +257,6 @@ export function LineupBuilder({
       });
   }, [players, confirmedSet, manuallyAddedIds, assignedPlayerIds, showMembersInUnconfirmed]);
 
-  // Helper to get mutual chemistry score between a candidate and line partners
   const getChemistryWithUnit = (candidateId: string, unitPlayers: (Player | null)[]) => {
     if (!teamChemistry) return 0;
     let score = 0;
@@ -289,7 +284,6 @@ export function LineupBuilder({
     return totalSharedGoals;
   };
 
-  // Filtered list for desktop left sidebar
   const desktopSidebarPlayers = useMemo(() => {
     const baseList = sidebarTab === 'pool' ? unassignedPoolPlayers : unconfirmedRosterPlayers;
     if (!sidebarSearch.trim()) return baseList;
@@ -300,6 +294,63 @@ export function LineupBuilder({
         (p.jerseyNumber != null && String(p.jerseyNumber).includes(q))
     );
   }, [sidebarTab, unassignedPoolPlayers, unconfirmedRosterPlayers, sidebarSearch]);
+
+  const activeSlotMeta = activeSlot ? positionNames[activeSlot] : null;
+  const activeSlotOccupant = activeSlot ? lineup[activeSlot] : null;
+  const activeSlotPeers = activeSlot ? getLinePeersForSlot(activeSlot, lineup) : [];
+
+  const sortedSlotPoolCandidates = useMemo(() => {
+    if (!activeSlot) return [];
+    const q = pickerSearch.toLowerCase().trim();
+    return [...unassignedPoolPlayers]
+      .filter(
+        (p) =>
+          !q ||
+          (p.name || '').toLowerCase().includes(q) ||
+          (p.jerseyNumber != null && String(p.jerseyNumber).includes(q))
+      )
+      .sort((a, b) => {
+        const aMatch = isPlayerMatchingSlotRole(a, activeSlot) ? 1 : 0;
+        const bMatch = isPlayerMatchingSlotRole(b, activeSlot) ? 1 : 0;
+        if (bMatch !== aMatch) return bMatch - aMatch;
+
+        const aChem = getChemistryWithUnit(a.id, activeSlotPeers);
+        const bChem = getChemistryWithUnit(b.id, activeSlotPeers);
+        if (bChem !== aChem) return bChem - aChem;
+
+        return (a.name || '').localeCompare(b.name || '', 'cs');
+      });
+  }, [activeSlot, unassignedPoolPlayers, pickerSearch, activeSlotPeers]);
+
+  const sortedSlotUnconfirmedCandidates = useMemo(() => {
+    if (!activeSlot) return [];
+    const q = pickerSearch.toLowerCase().trim();
+    return [...unconfirmedRosterPlayers]
+      .filter(
+        (p) =>
+          !q ||
+          (p.name || '').toLowerCase().includes(q) ||
+          (p.jerseyNumber != null && String(p.jerseyNumber).includes(q))
+      )
+      .sort((a, b) => {
+        const aMatch = isPlayerMatchingSlotRole(a, activeSlot) ? 1 : 0;
+        const bMatch = isPlayerMatchingSlotRole(b, activeSlot) ? 1 : 0;
+        if (bMatch !== aMatch) return bMatch - aMatch;
+        return (a.name || '').localeCompare(b.name || '', 'cs');
+      });
+  }, [activeSlot, unconfirmedRosterPlayers, pickerSearch]);
+
+  const placedElsewherePlayers = useMemo(() => {
+    if (!activeSlot) return [];
+    const list: Array<{ slotKey: keyof Lineup; player: Player }> = [];
+    for (const key of ALL_SLOT_KEYS) {
+      if (key === activeSlot) continue;
+      if (formationCount === '2' && (key === 'LK3' || key === 'C3' || key === 'PK3')) continue;
+      const p = lineup[key];
+      if (p) list.push({ slotKey: key, player: p });
+    }
+    return list;
+  }, [activeSlot, lineup, formationCount]);
 
   const handleFormationChange = (val: string) => {
     const newCount = val as '2' | '3';
@@ -312,9 +363,7 @@ export function LineupBuilder({
     setFormationCount(newCount);
   };
 
-  // Assign a player to a specific position (handles swapping if player was already in another slot)
   const assignPlayerToSlot = (slotKey: keyof Lineup, player: Player) => {
-    // If player wasn't in confirmedSet and is from club roster, make sure they are tracked in manuallyAddedIds
     if (!confirmedSet.has(player.id) && !String(player.id).startsWith('guest-')) {
       setManuallyAddedIds((prev) => {
         const next = new Set(prev);
@@ -329,7 +378,6 @@ export function LineupBuilder({
       const currentOccupant = next[slotKey];
 
       if (existingSlotOfPlayer) {
-        // Swap positions
         next[existingSlotOfPlayer] = currentOccupant;
       }
       next[slotKey] = player;
@@ -411,11 +459,6 @@ export function LineupBuilder({
     }
   };
 
-  /**
-   * Smart Auto-fill:
-   * Strictly uses ONLY unassigned players from the active match pool (confirmed + manually added).
-   * Never pulls unconfirmed players who didn't sign up!
-   */
   const handleAutoFill = () => {
     const unassigned = [...unassignedPoolPlayers];
     if (unassigned.length === 0) {
@@ -426,7 +469,6 @@ export function LineupBuilder({
       return;
     }
 
-    // Automatically switch to 3 forward lines if there are more than 11 total players in the match pool
     const totalMatchPlayers = matchPoolPlayers.length;
     let targetFormation = formationCount;
     if (totalMatchPlayers > 11 && formationCount === '2') {
@@ -437,7 +479,6 @@ export function LineupBuilder({
     const newLineup = { ...lineup };
     let placedCount = 0;
 
-    // 1. Assign Goalie to B1 if empty
     if (!newLineup.B1) {
       const goalieIdx = unassigned.findIndex(
         (p) => p.playerType === 'goalie' || /brank/i.test(p.name || '')
@@ -471,7 +512,6 @@ export function LineupBuilder({
       return unassigned.splice(chosenIdx, 1)[0];
     };
 
-    // 2. Defense pairs (LO+PO)
     const defUnits: Array<[keyof Lineup, keyof Lineup]> = [
       ['LO1', 'PO1'],
       ['LO2', 'PO2'],
@@ -500,7 +540,6 @@ export function LineupBuilder({
       }
     }
 
-    // 3. Attack lines (LK+C+PK)
     const attackUnits: Array<[keyof Lineup, keyof Lineup, keyof Lineup]> =
       targetFormation === '3'
         ? [
@@ -546,7 +585,6 @@ export function LineupBuilder({
       }
     }
 
-    // 4. Fill remaining empty skater slots with remaining unassigned non-goalie pool players
     const skaterKeys: (keyof Lineup)[] =
       targetFormation === '3'
         ? ['LK1', 'C1', 'PK1', 'LO1', 'PO1', 'LK2', 'C2', 'PK2', 'LO2', 'PO2', 'LK3', 'C3', 'PK3']
@@ -562,7 +600,6 @@ export function LineupBuilder({
       }
     }
 
-    // 5. If B1 is still empty and we still have someone left
     if (!newLineup.B1 && unassigned.length > 0) {
       newLineup.B1 = unassigned.shift()!;
       placedCount++;
@@ -572,7 +609,7 @@ export function LineupBuilder({
     setSelectedQuickPlayerId(null);
     toast({
       title: 'Sestava předvyplněna z přihlášených hráčů',
-      description: `Automaticky bylo rozmístěno ${placedCount} přihlášených hráčů podle jejich postů a souhry.`,
+      description: `Automaticky bylo rozmístěno ${placedCount} přihlášených hráčů podle postů a souhry.`,
     });
   };
 
@@ -612,7 +649,6 @@ export function LineupBuilder({
   };
 
   const openSlotPicker = (slotKey: keyof Lineup) => {
-    // If a player is selected in Quick-Place mode, place them directly!
     if (selectedQuickPlayerId) {
       const quickPlayer = allKnownPlayersMap.get(selectedQuickPlayerId);
       if (quickPlayer) {
@@ -626,7 +662,6 @@ export function LineupBuilder({
     setGuestName('');
     setGuestJersey('');
     setGuestRole(getSlotTargetRole(slotKey));
-    // Default to confirmed tab if there are unassigned confirmed players, else unconfirmed tab
     if (unassignedPoolPlayers.length > 0 || lineup[slotKey]) {
       setPickerTab('confirmed');
     } else {
@@ -639,82 +674,10 @@ export function LineupBuilder({
     ? allKnownPlayersMap.get(selectedQuickPlayerId) || null
     : null;
 
-  // Candidates for the active slot picker modal (MUST be called before any conditional return!)
-  const activeSlotMeta = activeSlot ? positionNames[activeSlot] : null;
-  const activeSlotOccupant = activeSlot ? lineup[activeSlot] : null;
-  const activeSlotPeers = activeSlot ? getLinePeersForSlot(activeSlot, lineup) : [];
-
-  const sortedSlotPoolCandidates = useMemo(() => {
-    if (!activeSlot) return [];
-    const q = pickerSearch.toLowerCase().trim();
-    return [...unassignedPoolPlayers]
-      .filter(
-        (p) =>
-          !q ||
-          (p.name || '').toLowerCase().includes(q) ||
-          (p.jerseyNumber != null && String(p.jerseyNumber).includes(q))
-      )
-      .sort((a, b) => {
-        const aMatch = isPlayerMatchingSlotRole(a, activeSlot) ? 1 : 0;
-        const bMatch = isPlayerMatchingSlotRole(b, activeSlot) ? 1 : 0;
-        if (bMatch !== aMatch) return bMatch - aMatch;
-
-        const aChem = getChemistryWithUnit(a.id, activeSlotPeers);
-        const bChem = getChemistryWithUnit(b.id, activeSlotPeers);
-        if (bChem !== aChem) return bChem - aChem;
-
-        return (a.name || '').localeCompare(b.name || '', 'cs');
-      });
-  }, [activeSlot, unassignedPoolPlayers, pickerSearch, activeSlotPeers]);
-
-  const sortedSlotUnconfirmedCandidates = useMemo(() => {
-    if (!activeSlot) return [];
-    const q = pickerSearch.toLowerCase().trim();
-    return [...unconfirmedRosterPlayers]
-      .filter(
-        (p) =>
-          !q ||
-          (p.name || '').toLowerCase().includes(q) ||
-          (p.jerseyNumber != null && String(p.jerseyNumber).includes(q))
-      )
-      .sort((a, b) => {
-        const aMatch = isPlayerMatchingSlotRole(a, activeSlot) ? 1 : 0;
-        const bMatch = isPlayerMatchingSlotRole(b, activeSlot) ? 1 : 0;
-        if (bMatch !== aMatch) return bMatch - aMatch;
-        return (a.name || '').localeCompare(b.name || '', 'cs');
-      });
-  }, [activeSlot, unconfirmedRosterPlayers, pickerSearch]);
-
-  const placedElsewherePlayers = useMemo(() => {
-    if (!activeSlot) return [];
-    const list: Array<{ slotKey: keyof Lineup; player: Player }> = [];
-    for (const key of ALL_SLOT_KEYS) {
-      if (key === activeSlot) continue;
-      if (formationCount === '2' && (key === 'LK3' || key === 'C3' || key === 'PK3')) continue;
-      const p = lineup[key];
-      if (p) list.push({ slotKey: key, player: p });
-    }
-    return list;
-  }, [activeSlot, lineup, formationCount]);
-
-  if (isMobile === null) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center p-8">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
   /**
-   * Tactical Slot Tile used in the Formation Grid (works great on Mobile, Tablet, and Compact Desktop)
+   * Render helper for a single tactical slot tile (< 1024px view)
    */
-  const TacticalSlotTile = ({
-    positionKey,
-    isGoalieSlot = false,
-  }: {
-    positionKey: keyof Lineup;
-    isGoalieSlot?: boolean;
-  }) => {
+  const renderTacticalSlotTile = (positionKey: keyof Lineup, isGoalieSlot = false) => {
     const player = lineup[positionKey];
     const posMeta = positionNames[positionKey];
     const isConfirmed = player ? confirmedSet.has(player.id) : false;
@@ -724,6 +687,7 @@ export function LineupBuilder({
 
     return (
       <div
+        key={positionKey}
         role="button"
         tabIndex={0}
         onClick={() => openSlotPicker(positionKey)}
@@ -734,20 +698,20 @@ export function LineupBuilder({
           }
         }}
         className={cn(
-          'group relative flex flex-col justify-between rounded-xl border p-2 sm:p-2.5 text-left transition-all select-none cursor-pointer min-h-[78px] sm:min-h-[84px]',
+          'group relative flex flex-col justify-between rounded-xl border p-2 sm:p-2.5 text-left transition-all select-none cursor-pointer min-w-0',
           player
             ? isGoalieSlot
-              ? 'border-amber-500/40 bg-gradient-to-b from-amber-500/10 via-card/95 to-card shadow-sm hover:border-amber-500'
+              ? 'border-amber-500/45 bg-gradient-to-b from-amber-500/10 via-card/95 to-card shadow-sm hover:border-amber-500'
               : 'border-border/90 bg-gradient-to-b from-card via-card/95 to-muted/20 shadow-sm hover:border-primary/70'
             : selectedQuickPlayer
-            ? 'border-2 border-dashed border-primary bg-primary/10 animate-pulse shadow-md shadow-primary/10'
+            ? 'border-2 border-dashed border-primary bg-primary/10 shadow-md shadow-primary/10'
             : isGoalieSlot
             ? 'border-2 border-dashed border-amber-500/35 bg-amber-500/5 hover:border-amber-500/60 hover:bg-amber-500/10'
             : 'border-2 border-dashed border-slate-700/80 bg-slate-900/40 hover:border-primary/50 hover:bg-primary/5'
         )}
       >
-        {/* Top Row: Slot Short Code + Player Role/Status or Empty Prompt */}
-        <div className="flex items-center justify-between gap-1 w-full">
+        {/* Top Row: Position Short Badge + Role/Remove */}
+        <div className="flex items-center justify-between gap-1 w-full min-w-0">
           <span
             className={cn(
               'inline-flex items-center justify-center rounded-md px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider shrink-0',
@@ -762,11 +726,11 @@ export function LineupBuilder({
           </span>
 
           {player ? (
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 shrink-0">
               {roleBadge && (
                 <span
                   className={cn(
-                    'text-[8px] font-bold px-1 py-0.2 rounded border uppercase',
+                    'hidden xs:inline-block sm:inline-block text-[8px] font-bold px-1 py-0.2 rounded border uppercase',
                     roleBadge.className
                   )}
                 >
@@ -786,43 +750,42 @@ export function LineupBuilder({
               </button>
             </div>
           ) : (
-            <span className="text-[9px] text-muted-foreground/70 font-medium truncate">
+            <span className="hidden sm:inline text-[10px] text-muted-foreground/70 font-medium truncate">
               {posMeta.full.split(' (')[0]}
             </span>
           )}
         </div>
 
-        {/* Main Content: Player Avatar & Name OR Empty Plus Trigger */}
+        {/* Body: Player Info OR Empty Prompt */}
         {player ? (
-          <div className="flex items-center gap-2 mt-1.5 min-w-0">
-            <div className="relative shrink-0">
-              <Avatar className="h-7 w-7 sm:h-8 sm:w-8 border border-border/80">
-                <AvatarImage
-                  src={player.photoURL ?? `https://picsum.photos/seed/${player.email || player.name}/80/80`}
-                  alt={player.name}
-                />
-                <AvatarFallback className="text-[10px] font-bold bg-muted">
-                  {(player.name || '')
-                    .split(' ')
-                    .map((n) => n[0])
-                    .join('')}
-                </AvatarFallback>
-              </Avatar>
-              {player.jerseyNumber != null && (
-                <span className="absolute -bottom-1 -right-1 bg-primary text-primary-foreground text-[8px] font-black px-1 rounded-full border border-background leading-tight">
-                  #{player.jerseyNumber}
-                </span>
-              )}
-            </div>
+          <div className="flex items-center gap-1.5 sm:gap-2 mt-1.5 min-w-0">
+            <Avatar className="hidden sm:flex h-7 w-7 border border-border/80 shrink-0">
+              <AvatarImage
+                src={player.photoURL ?? `https://picsum.photos/seed/${player.email || player.name}/80/80`}
+                alt={player.name}
+              />
+              <AvatarFallback className="text-[10px] font-bold bg-muted">
+                {(player.name || '')
+                  .split(' ')
+                  .map((n) => n[0])
+                  .join('')}
+              </AvatarFallback>
+            </Avatar>
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold text-foreground truncate leading-tight" title={player.name}>
+              <p
+                className="text-[11px] sm:text-xs font-bold text-foreground truncate leading-tight"
+                title={player.name}
+              >
+                {player.jerseyNumber != null && (
+                  <span className="text-primary font-black font-mono mr-1">
+                    #{player.jerseyNumber}
+                  </span>
+                )}
                 {formatName(player.name)}
               </p>
-              <div className="flex items-center gap-1 mt-0.5">
+              <div className="flex items-center gap-1 mt-0.5 truncate">
                 {isConfirmed ? (
-                  <span className="text-[9px] font-semibold text-emerald-400 flex items-center gap-0.5">
-                    ✓ Přihlášen
-                  </span>
+                  <span className="text-[9px] font-semibold text-emerald-400">✓ Přihlášen</span>
                 ) : isGuest ? (
                   <span className="text-[9px] font-semibold text-amber-400">Host</span>
                 ) : isManuallyAdded ? (
@@ -832,10 +795,10 @@ export function LineupBuilder({
             </div>
           </div>
         ) : (
-          <div className="flex items-center justify-center gap-1 py-1.5 text-muted-foreground group-hover:text-primary transition-colors">
-            <Plus className="h-3.5 w-3.5" />
-            <span className="text-[11px] font-semibold">
-              {selectedQuickPlayer ? 'Umístit sem' : 'Vybrat'}
+          <div className="flex items-center justify-center gap-1 pt-2 pb-1 text-muted-foreground group-hover:text-primary transition-colors">
+            <Plus className="h-3.5 w-3.5 shrink-0" />
+            <span className="text-[11px] font-semibold truncate">
+              {selectedQuickPlayer ? 'Sem' : 'Vybrat'}
             </span>
           </div>
         )}
@@ -844,15 +807,9 @@ export function LineupBuilder({
   };
 
   /**
-   * Desktop Rink Dropzone (supports both Drag-and-Drop AND Click-to-open Slot Picker)
+   * Render helper for a Desktop Ice Rink Dropzone (>= 1024px view)
    */
-  const PositionDropzone = ({
-    positionKey,
-    isSmall,
-  }: {
-    positionKey: keyof Lineup;
-    isSmall?: boolean;
-  }) => {
+  const renderDesktopDropzone = (positionKey: keyof Lineup, isSmall?: boolean) => {
     const player = lineup[positionKey];
     const posMeta = positionNames[positionKey];
     const isConfirmed = player ? confirmedSet.has(player.id) : false;
@@ -860,22 +817,22 @@ export function LineupBuilder({
     const isManuallyAdded = player ? !isConfirmed && !isGuest : false;
 
     return (
-      <Droppable droppableId={`pos-${positionKey}`}>
+      <Droppable key={positionKey} droppableId={`pos-${positionKey}`}>
         {(provided, snapshot) => (
           <div
             ref={provided.innerRef}
             {...provided.droppableProps}
             onClick={() => openSlotPicker(positionKey)}
             className={cn(
-              'relative flex flex-col items-center justify-center rounded-xl border-2 border-dashed transition-all cursor-pointer',
+              'relative flex flex-col items-center justify-center rounded-xl border-2 border-dashed transition-all cursor-pointer w-full max-w-[230px] min-w-0 mx-auto',
               snapshot.isDraggingOver
-                ? 'border-primary bg-primary/20 scale-105 shadow-lg shadow-primary/30'
+                ? 'border-primary bg-primary/20 scale-[1.03] shadow-lg shadow-primary/30'
                 : player
                 ? 'border-transparent bg-transparent'
                 : selectedQuickPlayer
-                ? 'border-primary bg-primary/15 animate-pulse shadow-md'
+                ? 'border-primary bg-primary/15 shadow-md'
                 : 'border-slate-500/40 bg-slate-900/65 hover:border-primary/60 hover:bg-slate-900/80 backdrop-blur-sm',
-              isSmall ? 'h-16 w-40 sm:w-48 lg:w-52' : 'h-20 w-48 sm:w-56 lg:w-64'
+              isSmall ? 'min-h-[62px]' : 'min-h-[72px]'
             )}
           >
             {player ? (
@@ -885,9 +842,11 @@ export function LineupBuilder({
                     ref={dragProvided.innerRef}
                     {...dragProvided.draggableProps}
                     {...dragProvided.dragHandleProps}
+                    className="w-full"
                   >
                     <PlayerCard
                       player={player}
+                      fullWidth
                       isDragging={dragSnapshot.isDragging}
                       isSmall={isSmall}
                       positionBadge={posMeta.short}
@@ -900,15 +859,17 @@ export function LineupBuilder({
                 )}
               </Draggable>
             ) : (
-              <div className="flex flex-col items-center justify-center p-1 text-center pointer-events-none">
+              <div className="flex flex-col items-center justify-center p-1.5 text-center pointer-events-none">
                 <div className="flex items-center gap-1">
                   <Plus className="h-3 w-3 text-primary" />
-                  <span className="text-[11px] sm:text-xs font-black text-slate-200 uppercase tracking-wider">
+                  <span className="text-xs font-black text-slate-200 uppercase tracking-wider">
                     {posMeta.short}
                   </span>
                 </div>
-                <span className="text-[9px] sm:text-[10px] text-slate-400 font-medium">
-                  {selectedQuickPlayer ? `Umístit: ${formatName(selectedQuickPlayer.name)}` : posMeta.full.split(' (')[0]}
+                <span className="text-[10px] text-slate-400 font-medium truncate max-w-full">
+                  {selectedQuickPlayer
+                    ? `Umístit: ${formatName(selectedQuickPlayer.name)}`
+                    : posMeta.full.split(' (')[0]}
                 </span>
               </div>
             )}
@@ -920,136 +881,10 @@ export function LineupBuilder({
   };
 
   /**
-   * Unassigned Pool Strip (Interactive horizontal bar showing confirmed players waiting for a slot)
+   * Render Mobile & Tablet Tactical Formation View (< 1024px)
+   * Uses a pure block scroll container (`overflow-y-auto overscroll-contain`) so cards NEVER shrink or clip!
    */
-  const WaitingPlayersStrip = () => {
-    return (
-      <div className="rounded-xl border border-border/80 bg-card/70 p-2.5 sm:p-3 space-y-2 shadow-xs">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-xs">
-            <Badge
-              variant="outline"
-              className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 font-bold text-[11px]"
-            >
-              ✓ Přihlášeno: {confirmedSet.size}
-            </Badge>
-            {(manuallyAddedIds.size > 0 || customGuests.length > 0) && (
-              <Badge
-                variant="outline"
-                className="bg-amber-500/10 text-amber-400 border-amber-500/30 font-bold text-[11px]"
-              >
-                + Dopsáno: {manuallyAddedIds.size + customGuests.length}
-              </Badge>
-            )}
-            <span className="text-muted-foreground text-[11px]">
-              V sestavě: <strong className="text-foreground">{assignedCount}</strong>
-            </span>
-          </div>
-
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setAddPoolSearch('');
-              setAddPoolTab('roster');
-              setIsAddPoolModalOpen(true);
-            }}
-            className="h-7 text-[11px] font-bold border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 px-2.5"
-          >
-            <UserPlus className="h-3.5 w-3.5 mr-1.5" />
-            Dopsat nenahlášeného / hosta
-          </Button>
-        </div>
-
-        {unassignedPoolPlayers.length > 0 ? (
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-              <span>
-                Čekají na zařazení do sestavy (<strong className="text-foreground">{unassignedPoolPlayers.length}</strong>):
-              </span>
-              <span className="text-[10px] text-primary font-medium">
-                {selectedQuickPlayer
-                  ? `Vybrán ${formatName(selectedQuickPlayer.name)} — klepni na post níže`
-                  : 'Klepni na hráče nebo rovnou na post v lajně'}
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-0.5 no-scrollbar">
-              {unassignedPoolPlayers.map((p) => {
-                const isSelected = selectedQuickPlayerId === p.id;
-                const roleBadge = getPositionBadgeMeta(p);
-                const isConfirmed = confirmedSet.has(p.id);
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() =>
-                      setSelectedQuickPlayerId((prev) => (prev === p.id ? null : p.id))
-                    }
-                    className={cn(
-                      'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold shrink-0 transition-all',
-                      isSelected
-                        ? 'border-primary bg-primary text-primary-foreground shadow-md scale-[1.02]'
-                        : 'border-border/80 bg-background/80 hover:border-primary/50 text-foreground'
-                    )}
-                  >
-                    {p.jerseyNumber != null && (
-                      <span
-                        className={cn(
-                          'text-[10px] font-black font-mono',
-                          isSelected ? 'text-primary-foreground' : 'text-primary'
-                        )}
-                      >
-                        #{p.jerseyNumber}
-                      </span>
-                    )}
-                    <span>{formatName(p.name)}</span>
-                    {roleBadge && (
-                      <span
-                        className={cn(
-                          'text-[9px] font-bold px-1 rounded border',
-                          isSelected
-                            ? 'border-primary-foreground/40 bg-primary-foreground/20 text-primary-foreground'
-                            : roleBadge.className
-                        )}
-                      >
-                        {roleBadge.label}
-                      </span>
-                    )}
-                    {!isConfirmed && (
-                      <span
-                        className={cn(
-                          'text-[8px] font-bold px-1 rounded',
-                          isSelected
-                            ? 'bg-black/20 text-white'
-                            : 'bg-amber-500/15 text-amber-400'
-                        )}
-                      >
-                        Dopsán
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ) : (
-          <div className="flex items-center justify-between rounded-lg bg-emerald-500/10 border border-emerald-500/25 px-3 py-1.5 text-xs text-emerald-400">
-            <span className="font-semibold flex items-center gap-1.5">
-              <Check className="h-3.5 w-3.5 shrink-0" />
-              Všichni přihlášení hráči ({matchPoolPlayers.length}) jsou zařazeni v sestavě!
-            </span>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  /**
-   * Tactical Formation View (Used on Mobile / Tablet)
-   * Displays real 3-forward + 2-defense hockey formation cards instead of long dropdown lists
-   */
-  const TacticalFormationBoard = () => {
+  const renderTacticalFormationBoard = () => {
     const line1Chem = getLineChemistryGoals([lineup.LK1, lineup.C1, lineup.PK1, lineup.LO1, lineup.PO1]);
     const line2Chem = getLineChemistryGoals([lineup.LK2, lineup.C2, lineup.PK2, lineup.LO2, lineup.PO2]);
     const line3Chem = getLineChemistryGoals([lineup.LK3, lineup.C3, lineup.PK3]);
@@ -1059,89 +894,212 @@ export function LineupBuilder({
     const line3Count = [lineup.LK3, lineup.C3, lineup.PK3].filter(Boolean).length;
 
     return (
-      <div className="flex flex-col h-full overflow-y-auto p-3 sm:p-4 space-y-3.5 pb-16">
-        <WaitingPlayersStrip />
+      <div
+        data-testid="lineup-mobile-scroll"
+        className="flex-1 min-h-0 w-full overflow-y-auto overscroll-contain touch-pan-y p-2.5 sm:p-4 space-y-3 pb-6"
+      >
+        {/* Waiting Players Strip */}
+        <div className="rounded-xl border border-border/80 bg-card/70 p-2.5 sm:p-3 space-y-2 shadow-xs">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-xs">
+              <Badge
+                variant="outline"
+                className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 font-bold text-[11px]"
+              >
+                ✓ Přihlášeno: {confirmedSet.size}
+              </Badge>
+              {(manuallyAddedIds.size > 0 || customGuests.length > 0) && (
+                <Badge
+                  variant="outline"
+                  className="bg-amber-500/10 text-amber-400 border-amber-500/30 font-bold text-[11px]"
+                >
+                  + Dopsáno: {manuallyAddedIds.size + customGuests.length}
+                </Badge>
+              )}
+              <span className="text-muted-foreground text-[11px]">
+                V sestavě: <strong className="text-foreground">{assignedCount}</strong>
+              </span>
+            </div>
 
-        {/* 1. PĚTKA (ÚTOK + OBRANA) */}
-        <div className="rounded-2xl border border-primary/30 bg-gradient-to-b from-slate-900/90 via-card/90 to-slate-950/90 overflow-hidden shadow-md">
-          <div className="px-3.5 py-2.5 bg-primary/10 border-b border-primary/20 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-primary" />
-              <h3 className="text-xs font-black uppercase tracking-wider text-primary">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setAddPoolSearch('');
+                setAddPoolTab('roster');
+                setIsAddPoolModalOpen(true);
+              }}
+              className="h-7 text-[11px] font-bold border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 px-2.5"
+            >
+              <UserPlus className="h-3.5 w-3.5 mr-1" />
+              Dopsat hráče
+            </Button>
+          </div>
+
+          {unassignedPoolPlayers.length > 0 ? (
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-center justify-between gap-1 text-[11px] text-muted-foreground">
+                <span>
+                  Čekají na zařazení (<strong className="text-foreground">{unassignedPoolPlayers.length}</strong>):
+                </span>
+                <span className="text-[10px] text-primary font-medium">
+                  {selectedQuickPlayer
+                    ? `Vybrán ${formatName(selectedQuickPlayer.name)} — klepni na post níže`
+                    : 'Klepni na hráče nebo rovnou na post'}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-0.5">
+                {unassignedPoolPlayers.map((p) => {
+                  const isSelected = selectedQuickPlayerId === p.id;
+                  const roleBadge = getPositionBadgeMeta(p);
+                  const isConfirmed = confirmedSet.has(p.id);
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() =>
+                        setSelectedQuickPlayerId((prev) => (prev === p.id ? null : p.id))
+                      }
+                      className={cn(
+                        'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold shrink-0 transition-all',
+                        isSelected
+                          ? 'border-primary bg-primary text-primary-foreground shadow-md'
+                          : 'border-border/80 bg-background/80 hover:border-primary/50 text-foreground'
+                      )}
+                    >
+                      {p.jerseyNumber != null && (
+                        <span
+                          className={cn(
+                            'text-[10px] font-black font-mono',
+                            isSelected ? 'text-primary-foreground' : 'text-primary'
+                          )}
+                        >
+                          #{p.jerseyNumber}
+                        </span>
+                      )}
+                      <span>{formatName(p.name)}</span>
+                      {roleBadge && (
+                        <span
+                          className={cn(
+                            'text-[9px] font-bold px-1 rounded border',
+                            isSelected
+                              ? 'border-primary-foreground/40 bg-primary-foreground/20 text-primary-foreground'
+                              : roleBadge.className
+                          )}
+                        >
+                          {roleBadge.label}
+                        </span>
+                      )}
+                      {!isConfirmed && (
+                        <span
+                          className={cn(
+                            'text-[8px] font-bold px-1 rounded',
+                            isSelected
+                              ? 'bg-black/20 text-white'
+                              : 'bg-amber-500/15 text-amber-400'
+                          )}
+                        >
+                          Dopsán
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between rounded-lg bg-emerald-500/10 border border-emerald-500/25 px-3 py-1.5 text-xs text-emerald-400">
+              <span className="font-semibold flex items-center gap-1.5">
+                <Check className="h-3.5 w-3.5 shrink-0" />
+                Všichni přihlášení hráči ({matchPoolPlayers.length}) jsou v sestavě!
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* 1. FORMACE (ÚTOK & OBRANA) */}
+        <div className="rounded-2xl border border-primary/30 bg-gradient-to-b from-slate-900/90 via-card/90 to-slate-950/90 shadow-md">
+          <div className="px-3.5 py-2 rounded-t-2xl bg-primary/10 border-b border-primary/20 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
+              <h3 className="text-xs font-black uppercase tracking-wider text-primary truncate">
                 1. Formace (Útok & Obrana)
               </h3>
-              <span className="text-[11px] font-mono text-muted-foreground">({line1Count}/5)</span>
+              <span className="text-[11px] font-mono text-muted-foreground shrink-0">
+                ({line1Count}/5)
+              </span>
             </div>
             {line1Chem > 0 && (
               <Badge
                 variant="outline"
-                className="text-[10px] font-bold bg-orange-500/15 text-orange-400 border-orange-500/40 inline-flex items-center gap-1"
+                className="text-[10px] font-bold bg-orange-500/15 text-orange-400 border-orange-500/40 inline-flex items-center gap-1 shrink-0"
               >
                 <Flame className="h-3 w-3 fill-orange-400 text-orange-400" />
-                <span>Chemie +{line1Chem} G</span>
+                <span>+{line1Chem} G</span>
               </Badge>
             )}
           </div>
 
-          <div className="p-3 space-y-2.5">
-            {/* Útočná trojice: LW - C - RW */}
+          <div className="p-2.5 sm:p-3 space-y-2.5">
             <div>
               <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 mb-1.5 flex items-center justify-between px-0.5">
                 <span>1. Útočná lajna</span>
                 <span>LW • C • RW</span>
               </div>
-              <div className="grid grid-cols-3 gap-2">
-                <TacticalSlotTile positionKey="LK1" />
-                <TacticalSlotTile positionKey="C1" />
-                <TacticalSlotTile positionKey="PK1" />
+              <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+                {renderTacticalSlotTile('LK1')}
+                {renderTacticalSlotTile('C1')}
+                {renderTacticalSlotTile('PK1')}
               </div>
             </div>
 
-            {/* Obranná dvojice: LD - RD */}
             <div className="pt-2 border-t border-border/40">
               <div className="text-[10px] font-bold uppercase tracking-wider text-blue-400/80 mb-1.5 flex items-center justify-between px-0.5">
                 <span>1. Obranný pár</span>
                 <span>LD • RD</span>
               </div>
-              <div className="grid grid-cols-2 gap-2 sm:max-w-[80%] mx-auto">
-                <TacticalSlotTile positionKey="LO1" />
-                <TacticalSlotTile positionKey="PO1" />
+              <div className="grid grid-cols-2 gap-1.5 sm:gap-2 sm:max-w-[82%] mx-auto">
+                {renderTacticalSlotTile('LO1')}
+                {renderTacticalSlotTile('PO1')}
               </div>
             </div>
           </div>
         </div>
 
-        {/* 2. PĚTKA (ÚTOK + OBRANA) */}
-        <div className="rounded-2xl border border-border/80 bg-gradient-to-b from-slate-900/80 via-card/90 to-slate-950/90 overflow-hidden shadow-md">
-          <div className="px-3.5 py-2.5 bg-muted/30 border-b border-border/60 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-blue-400" />
-              <h3 className="text-xs font-black uppercase tracking-wider text-foreground">
+        {/* 2. FORMACE (ÚTOK & OBRANA) */}
+        <div className="rounded-2xl border border-border/80 bg-gradient-to-b from-slate-900/80 via-card/90 to-slate-950/90 shadow-md">
+          <div className="px-3.5 py-2 rounded-t-2xl bg-muted/30 border-b border-border/60 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="h-2 w-2 rounded-full bg-blue-400 shrink-0" />
+              <h3 className="text-xs font-black uppercase tracking-wider text-foreground truncate">
                 2. Formace (Útok & Obrana)
               </h3>
-              <span className="text-[11px] font-mono text-muted-foreground">({line2Count}/5)</span>
+              <span className="text-[11px] font-mono text-muted-foreground shrink-0">
+                ({line2Count}/5)
+              </span>
             </div>
             {line2Chem > 0 && (
               <Badge
                 variant="outline"
-                className="text-[10px] font-bold bg-orange-500/15 text-orange-400 border-orange-500/40 inline-flex items-center gap-1"
+                className="text-[10px] font-bold bg-orange-500/15 text-orange-400 border-orange-500/40 inline-flex items-center gap-1 shrink-0"
               >
                 <Flame className="h-3 w-3 fill-orange-400 text-orange-400" />
-                <span>Chemie +{line2Chem} G</span>
+                <span>+{line2Chem} G</span>
               </Badge>
             )}
           </div>
 
-          <div className="p-3 space-y-2.5">
+          <div className="p-2.5 sm:p-3 space-y-2.5">
             <div>
               <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 mb-1.5 flex items-center justify-between px-0.5">
                 <span>2. Útočná lajna</span>
                 <span>LW • C • RW</span>
               </div>
-              <div className="grid grid-cols-3 gap-2">
-                <TacticalSlotTile positionKey="LK2" />
-                <TacticalSlotTile positionKey="C2" />
-                <TacticalSlotTile positionKey="PK2" />
+              <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+                {renderTacticalSlotTile('LK2')}
+                {renderTacticalSlotTile('C2')}
+                {renderTacticalSlotTile('PK2')}
               </div>
             </div>
 
@@ -1150,9 +1108,9 @@ export function LineupBuilder({
                 <span>2. Obranný pár</span>
                 <span>LD • RD</span>
               </div>
-              <div className="grid grid-cols-2 gap-2 sm:max-w-[80%] mx-auto">
-                <TacticalSlotTile positionKey="LO2" />
-                <TacticalSlotTile positionKey="PO2" />
+              <div className="grid grid-cols-2 gap-1.5 sm:gap-2 sm:max-w-[82%] mx-auto">
+                {renderTacticalSlotTile('LO2')}
+                {renderTacticalSlotTile('PO2')}
               </div>
             </div>
           </div>
@@ -1160,41 +1118,43 @@ export function LineupBuilder({
 
         {/* 3. ÚTOČNÁ LAJNA (Volitelná) */}
         {formationCount === '3' && (
-          <div className="rounded-2xl border border-border/80 bg-gradient-to-b from-slate-900/80 via-card/90 to-slate-950/90 overflow-hidden shadow-md">
-            <div className="px-3.5 py-2.5 bg-muted/30 border-b border-border/60 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                <h3 className="text-xs font-black uppercase tracking-wider text-foreground">
+          <div className="rounded-2xl border border-border/80 bg-gradient-to-b from-slate-900/80 via-card/90 to-slate-950/90 shadow-md">
+            <div className="px-3.5 py-2 rounded-t-2xl bg-muted/30 border-b border-border/60 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="h-2 w-2 rounded-full bg-emerald-400 shrink-0" />
+                <h3 className="text-xs font-black uppercase tracking-wider text-foreground truncate">
                   3. Útočná lajna
                 </h3>
-                <span className="text-[11px] font-mono text-muted-foreground">({line3Count}/3)</span>
+                <span className="text-[11px] font-mono text-muted-foreground shrink-0">
+                  ({line3Count}/3)
+                </span>
               </div>
               {line3Chem > 0 && (
                 <Badge
                   variant="outline"
-                  className="text-[10px] font-bold bg-orange-500/15 text-orange-400 border-orange-500/40 inline-flex items-center gap-1"
+                  className="text-[10px] font-bold bg-orange-500/15 text-orange-400 border-orange-500/40 inline-flex items-center gap-1 shrink-0"
                 >
                   <Flame className="h-3 w-3 fill-orange-400 text-orange-400" />
-                  <span>Chemie +{line3Chem} G</span>
+                  <span>+{line3Chem} G</span>
                 </Badge>
               )}
             </div>
 
-            <div className="p-3">
-              <div className="grid grid-cols-3 gap-2">
-                <TacticalSlotTile positionKey="LK3" />
-                <TacticalSlotTile positionKey="C3" />
-                <TacticalSlotTile positionKey="PK3" />
+            <div className="p-2.5 sm:p-3">
+              <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+                {renderTacticalSlotTile('LK3')}
+                {renderTacticalSlotTile('C3')}
+                {renderTacticalSlotTile('PK3')}
               </div>
             </div>
           </div>
         )}
 
         {/* BRANKOVIŠTĚ (BRANKÁŘ) */}
-        <div className="rounded-2xl border border-amber-500/35 bg-gradient-to-b from-amber-500/10 via-card/90 to-slate-950/90 overflow-hidden shadow-md">
-          <div className="px-3.5 py-2.5 bg-amber-500/10 border-b border-amber-500/20 flex items-center justify-between">
+        <div className="rounded-2xl border border-amber-500/35 bg-gradient-to-b from-amber-500/10 via-card/90 to-slate-950/90 shadow-md">
+          <div className="px-3.5 py-2 rounded-t-2xl bg-amber-500/10 border-b border-amber-500/20 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Shield className="h-3.5 w-3.5 text-amber-400" />
+              <Shield className="h-3.5 w-3.5 text-amber-400 shrink-0" />
               <h3 className="text-xs font-black uppercase tracking-wider text-amber-400">
                 Brankoviště (Brankář)
               </h3>
@@ -1203,9 +1163,9 @@ export function LineupBuilder({
               ({lineup.B1 ? '1/1' : '0/1'})
             </span>
           </div>
-          <div className="p-3 flex justify-center">
+          <div className="p-2.5 sm:p-3 flex justify-center">
             <div className="w-full max-w-xs">
-              <TacticalSlotTile positionKey="B1" isGoalieSlot />
+              {renderTacticalSlotTile('B1', true)}
             </div>
           </div>
         </div>
@@ -1214,17 +1174,18 @@ export function LineupBuilder({
   };
 
   /**
-   * Desktop Split View (Left: Confirmed Roster & Add Unconfirmed / Guest, Right: Interactive Ice Rink)
+   * Render Desktop Split View (>= 1024px)
+   * Both Left Roster Sidebar and Right Ice Rink scroll cleanly when content exceeds viewport height!
    */
-  const DesktopBuilder = () => {
+  const renderDesktopBuilder = () => {
     const isSmall = formationCount === '3';
 
     return (
       <DragDropContext onDragEnd={onDragEnd}>
-        <div className="flex h-full gap-4 p-4 min-h-0">
+        <div className="flex flex-1 h-full min-h-0 gap-4 p-4 overflow-hidden">
           {/* Left Panel: Match Roster Pool */}
-          <Card className="w-72 xl:w-80 flex flex-col shrink-0 border-border bg-card/70 backdrop-blur-sm">
-            <div className="p-3 border-b space-y-2.5">
+          <Card className="w-72 xl:w-80 flex flex-col shrink-0 h-full min-h-0 border-border bg-card/70 backdrop-blur-sm overflow-hidden">
+            <div className="p-3 border-b space-y-2.5 flex-shrink-0">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-sm flex items-center gap-2">
                   <UserCheck className="h-4 w-4 text-primary" />
@@ -1235,7 +1196,6 @@ export function LineupBuilder({
                 </Badge>
               </div>
 
-              {/* 3-Tab Switcher: Přihlášení (default) | + Z týmu | + Host */}
               <Tabs
                 value={sidebarTab}
                 onValueChange={(v) => setSidebarTab(v as any)}
@@ -1284,9 +1244,9 @@ export function LineupBuilder({
               )}
             </div>
 
-            <CardContent className="p-2 flex-1 overflow-hidden min-h-0">
+            <div className="p-2 flex-1 min-h-0 overflow-hidden flex flex-col">
               {sidebarTab === 'guest' ? (
-                <div className="p-2.5 space-y-3 bg-muted/30 rounded-xl border border-border/60">
+                <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-2.5 space-y-3 bg-muted/30 rounded-xl border border-border/60">
                   <div className="space-y-1">
                     <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
                       <UserPlus className="h-3.5 w-3.5 text-primary" />
@@ -1360,7 +1320,7 @@ export function LineupBuilder({
                       ref={provided.innerRef}
                       {...provided.droppableProps}
                       className={cn(
-                        'p-2 rounded-lg bg-muted/40 h-full overflow-y-auto space-y-2 transition-colors',
+                        'p-2 rounded-lg bg-muted/40 flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-2 transition-colors',
                         snapshot.isDraggingOver && 'bg-primary/10 border-primary border'
                       )}
                     >
@@ -1378,6 +1338,7 @@ export function LineupBuilder({
                               >
                                 <PlayerCard
                                   player={player}
+                                  fullWidth
                                   isDragging={dragSnapshot.isDragging}
                                   isGhost={dragSnapshot.isDragging}
                                   isConfirmed={isConfirmed}
@@ -1426,22 +1387,19 @@ export function LineupBuilder({
                   )}
                 </Droppable>
               )}
-            </CardContent>
+            </div>
           </Card>
 
-          {/* Right Panel: Ice Rink Tactics Board */}
-          <div className="flex-1 relative rounded-2xl overflow-hidden border border-slate-700/60 shadow-2xl min-h-[560px]">
-            <RinkBackground />
+          {/* Right Panel: Scrollable Ice Rink Tactics Board */}
+          <div
+            data-testid="lineup-desktop-rink-scroll"
+            className="flex-1 min-h-0 h-full overflow-y-auto overscroll-contain rounded-2xl border border-slate-700/60 shadow-2xl bg-[#0b0f17]"
+          >
+            <div className="relative min-h-full flex flex-col justify-between gap-3 p-4 xl:p-6">
+              <RinkBackground />
 
-            {/* Tactical Grid Overlay */}
-            <div
-              className={cn(
-                'relative z-10 h-full flex flex-col justify-between p-4 sm:p-6',
-                isSmall && 'p-2 sm:p-3'
-              )}
-            >
               {/* 1. Attack Line */}
-              <div className="space-y-1">
+              <div className="relative z-10 space-y-1.5">
                 <div className="flex items-center justify-center gap-2">
                   <span className="text-[10px] font-bold text-primary uppercase tracking-wider bg-card/90 px-3 py-0.5 rounded-full border border-primary/30 shadow-xs">
                     1. Útok
@@ -1455,15 +1413,15 @@ export function LineupBuilder({
                     </span>
                   )}
                 </div>
-                <div className="flex justify-around items-center">
-                  <PositionDropzone positionKey="LK1" isSmall={isSmall} />
-                  <PositionDropzone positionKey="C1" isSmall={isSmall} />
-                  <PositionDropzone positionKey="PK1" isSmall={isSmall} />
+                <div className="grid grid-cols-3 gap-2.5 xl:gap-4 items-center">
+                  {renderDesktopDropzone('LK1', isSmall)}
+                  {renderDesktopDropzone('C1', isSmall)}
+                  {renderDesktopDropzone('PK1', isSmall)}
                 </div>
               </div>
 
               {/* 2. Attack Line */}
-              <div className="space-y-1">
+              <div className="relative z-10 space-y-1.5">
                 <div className="flex items-center justify-center gap-2">
                   <span className="text-[10px] font-bold text-foreground/80 uppercase tracking-wider bg-card/90 px-3 py-0.5 rounded-full border border-border shadow-xs">
                     2. Útok
@@ -1477,16 +1435,16 @@ export function LineupBuilder({
                     </span>
                   )}
                 </div>
-                <div className="flex justify-around items-center">
-                  <PositionDropzone positionKey="LK2" isSmall={isSmall} />
-                  <PositionDropzone positionKey="C2" isSmall={isSmall} />
-                  <PositionDropzone positionKey="PK2" isSmall={isSmall} />
+                <div className="grid grid-cols-3 gap-2.5 xl:gap-4 items-center">
+                  {renderDesktopDropzone('LK2', isSmall)}
+                  {renderDesktopDropzone('C2', isSmall)}
+                  {renderDesktopDropzone('PK2', isSmall)}
                 </div>
               </div>
 
               {/* Optional 3. Attack Line */}
               {formationCount === '3' && (
-                <div className="space-y-1">
+                <div className="relative z-10 space-y-1.5">
                   <div className="flex items-center justify-center gap-2">
                     <span className="text-[10px] font-bold text-foreground/80 uppercase tracking-wider bg-card/90 px-3 py-0.5 rounded-full border border-border shadow-xs">
                       3. Útok
@@ -1500,29 +1458,31 @@ export function LineupBuilder({
                       </span>
                     )}
                   </div>
-                  <div className="flex justify-around items-center">
-                    <PositionDropzone positionKey="LK3" isSmall={isSmall} />
-                    <PositionDropzone positionKey="C3" isSmall={isSmall} />
-                    <PositionDropzone positionKey="PK3" isSmall={isSmall} />
+                  <div className="grid grid-cols-3 gap-2.5 xl:gap-4 items-center">
+                    {renderDesktopDropzone('LK3', isSmall)}
+                    {renderDesktopDropzone('C3', isSmall)}
+                    {renderDesktopDropzone('PK3', isSmall)}
                   </div>
                 </div>
               )}
 
               {/* Defense Pairs */}
-              <div className="space-y-2">
-                <div className="flex justify-around items-center">
-                  <PositionDropzone positionKey="LO1" isSmall={isSmall} />
-                  <PositionDropzone positionKey="PO1" isSmall={isSmall} />
+              <div className="relative z-10 space-y-2.5 pt-1">
+                <div className="grid grid-cols-2 gap-3 xl:gap-6 max-w-xl mx-auto w-full items-center">
+                  {renderDesktopDropzone('LO1', isSmall)}
+                  {renderDesktopDropzone('PO1', isSmall)}
                 </div>
-                <div className="flex justify-around items-center">
-                  <PositionDropzone positionKey="LO2" isSmall={isSmall} />
-                  <PositionDropzone positionKey="PO2" isSmall={isSmall} />
+                <div className="grid grid-cols-2 gap-3 xl:gap-6 max-w-xl mx-auto w-full items-center">
+                  {renderDesktopDropzone('LO2', isSmall)}
+                  {renderDesktopDropzone('PO2', isSmall)}
                 </div>
               </div>
 
               {/* Goalie */}
-              <div className="flex justify-center items-center pt-2">
-                <PositionDropzone positionKey="B1" isSmall={isSmall} />
+              <div className="relative z-10 flex justify-center items-center pt-1 pb-1">
+                <div className="w-full max-w-[230px]">
+                  {renderDesktopDropzone('B1', isSmall)}
+                </div>
               </div>
             </div>
           </div>
@@ -1532,13 +1492,13 @@ export function LineupBuilder({
   };
 
   return (
-    <div className="flex flex-1 flex-col h-full min-h-0 bg-background">
-      {/* Unified Header Controls (No duplicate buttons!) */}
-      <div className="px-3 py-2.5 sm:px-4 sm:py-3 border-b flex-shrink-0 flex flex-wrap items-center justify-between gap-2.5 bg-muted/20">
+    <div className="flex flex-1 flex-col w-full min-h-0 overflow-hidden bg-background">
+      {/* Compact Header Controls */}
+      <div className="px-3 py-2 sm:px-4 sm:py-2.5 border-b flex-shrink-0 flex flex-wrap items-center justify-between gap-2 bg-muted/20">
         <Tabs
           value={formationCount}
           onValueChange={handleFormationChange}
-          className="w-full sm:w-[260px]"
+          className="w-full sm:w-[250px]"
         >
           <TabsList className="grid w-full grid-cols-2 h-8">
             <TabsTrigger value="2" className="text-xs font-semibold">
@@ -1566,7 +1526,7 @@ export function LineupBuilder({
             variant="ghost"
             size="sm"
             onClick={handleClear}
-            className="text-xs text-muted-foreground hover:text-destructive h-8 px-2.5"
+            className="text-xs text-muted-foreground hover:text-destructive h-8 px-2.5 shrink-0"
           >
             <RotateCcw className="h-3.5 w-3.5 mr-1" />
             Vyčistit
@@ -1574,13 +1534,13 @@ export function LineupBuilder({
         </div>
       </div>
 
-      {/* Main Interactive Board */}
-      <div className="flex-1 overflow-hidden min-h-0">
-        {isMobile ? <TacticalFormationBoard /> : <DesktopBuilder />}
+      {/* Main Interactive Area (Flex-1 + min-h-0 guarantees proper child scrolling!) */}
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+        {isDesktop ? renderDesktopBuilder() : renderTacticalFormationBoard()}
       </div>
 
       {/* Footer Actions */}
-      <div className="flex-shrink-0 flex items-center justify-between p-3 sm:p-4 border-t bg-card/80 backdrop-blur-md">
+      <div className="flex-shrink-0 flex items-center justify-between px-3 py-2.5 sm:px-4 sm:py-3 border-t bg-card/80 backdrop-blur-md">
         <div className="text-xs text-muted-foreground hidden sm:block">
           Nasazeno hráčů: <span className="font-bold text-foreground">{assignedCount}</span> (
           {lineup.B1 ? '1 brankář' : 'bez brankáře'},{' '}
@@ -1592,7 +1552,7 @@ export function LineupBuilder({
             variant="outline"
             onClick={onCancel}
             disabled={isSaving}
-            className="flex-1 sm:flex-none"
+            className="flex-1 sm:flex-none h-9"
           >
             Zrušit
           </Button>
@@ -1600,7 +1560,7 @@ export function LineupBuilder({
             type="button"
             onClick={() => onSave(lineup)}
             disabled={isSaving}
-            className="flex-1 sm:flex-none font-bold min-w-[140px]"
+            className="flex-1 sm:flex-none font-bold min-w-[140px] h-9"
           >
             {isSaving ? (
               <>
@@ -1614,10 +1574,10 @@ export function LineupBuilder({
         </div>
       </div>
 
-      {/* 1. SMART POSITION SLOT PICKER DIALOG (Opens when tapping any position slot) */}
+      {/* 1. SMART POSITION SLOT PICKER DIALOG */}
       <Dialog open={Boolean(activeSlot)} onOpenChange={(open) => !open && setActiveSlot(null)}>
-        <DialogContent className="sm:max-w-md w-[94vw] max-h-[85vh] flex flex-col p-0 overflow-hidden">
-          <DialogHeader className="p-4 pb-3 border-b bg-muted/20">
+        <DialogContent className="sm:max-w-md w-[94vw] max-h-[86dvh] flex flex-col gap-0 p-0 overflow-hidden">
+          <DialogHeader className="p-3.5 sm:p-4 pb-3 border-b bg-muted/20 flex-shrink-0 text-left">
             <div className="flex items-center justify-between pr-6">
               <div className="flex items-center gap-2">
                 {activeSlotMeta && (
@@ -1625,7 +1585,7 @@ export function LineupBuilder({
                     {activeSlotMeta.short}
                   </Badge>
                 )}
-                <DialogTitle className="text-base font-headline font-bold">
+                <DialogTitle className="text-sm sm:text-base font-headline font-bold">
                   {activeSlotMeta?.full}
                 </DialogTitle>
               </div>
@@ -1635,13 +1595,11 @@ export function LineupBuilder({
             </DialogDescription>
 
             {activeSlotOccupant && activeSlot && (
-              <div className="mt-2 flex items-center justify-between rounded-lg border border-primary/30 bg-primary/10 px-3 py-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-xs font-bold text-foreground truncate">
-                    Nyní na postu: {activeSlotOccupant.jerseyNumber != null ? `#${activeSlotOccupant.jerseyNumber} ` : ''}
-                    {activeSlotOccupant.name}
-                  </span>
-                </div>
+              <div className="mt-2 flex items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2">
+                <span className="text-xs font-bold text-foreground truncate">
+                  Nyní: {activeSlotOccupant.jerseyNumber != null ? `#${activeSlotOccupant.jerseyNumber} ` : ''}
+                  {activeSlotOccupant.name}
+                </span>
                 <Button
                   type="button"
                   variant="destructive"
@@ -1650,7 +1608,7 @@ export function LineupBuilder({
                     handleRemoveFromPosition(activeSlot);
                     setActiveSlot(null);
                   }}
-                  className="h-7 text-xs px-2.5"
+                  className="h-7 text-xs px-2.5 shrink-0"
                 >
                   Uvolnit post
                 </Button>
@@ -1658,17 +1616,17 @@ export function LineupBuilder({
             )}
           </DialogHeader>
 
-          <div className="p-3 border-b space-y-2.5 bg-background">
+          <div className="p-3 border-b space-y-2.5 bg-background flex-shrink-0">
             <Tabs value={pickerTab} onValueChange={(v) => setPickerTab(v as any)}>
               <TabsList className="grid w-full grid-cols-3 h-8 p-0.5">
-                <TabsTrigger value="confirmed" className="text-xs font-bold">
+                <TabsTrigger value="confirmed" className="text-[11px] sm:text-xs font-bold">
                   Přihlášení ({unassignedPoolPlayers.length})
                 </TabsTrigger>
-                <TabsTrigger value="unconfirmed" className="text-xs">
+                <TabsTrigger value="unconfirmed" className="text-[11px] sm:text-xs">
                   + Z týmu ({unconfirmedRosterPlayers.length})
                 </TabsTrigger>
-                <TabsTrigger value="guest" className="text-xs">
-                  + Vlastní host
+                <TabsTrigger value="guest" className="text-[11px] sm:text-xs">
+                  + Host
                 </TabsTrigger>
               </TabsList>
             </Tabs>
@@ -1690,7 +1648,7 @@ export function LineupBuilder({
             )}
           </div>
 
-          <div className="flex-1 overflow-y-auto p-3 space-y-3 min-h-[240px] max-h-[52vh]">
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 space-y-3">
             {pickerTab === 'confirmed' && activeSlot && (
               <>
                 {sortedSlotPoolCandidates.length > 0 ? (
@@ -1814,7 +1772,6 @@ export function LineupBuilder({
                   </div>
                 )}
 
-                {/* Swap with already assigned players */}
                 {placedElsewherePlayers.length > 0 && (
                   <div className="pt-2 border-t border-border/60 space-y-1.5">
                     <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground px-1 flex items-center gap-1.5">
@@ -1851,14 +1808,14 @@ export function LineupBuilder({
               <div className="space-y-2">
                 <div className="flex items-center justify-between px-1">
                   <p className="text-[11px] font-bold uppercase tracking-wider text-amber-400">
-                    Nenahlášení hráči z kádru ({sortedSlotUnconfirmedCandidates.length})
+                    Nenahlášení z kádru ({sortedSlotUnconfirmedCandidates.length})
                   </p>
                   <button
                     type="button"
                     onClick={() => setShowMembersInUnconfirmed((prev) => !prev)}
                     className="text-[11px] text-primary hover:underline font-medium"
                   >
-                    {showMembersInUnconfirmed ? 'Skrýt nehrající členy' : '+ Zobrazit i členy'}
+                    {showMembersInUnconfirmed ? 'Skrýt členy' : '+ Zobrazit i členy'}
                   </button>
                 </div>
 
@@ -1900,7 +1857,7 @@ export function LineupBuilder({
                           </div>
                           <div className="flex items-center gap-1.5 mt-0.5">
                             <span className="text-[10px] text-amber-400 font-medium">
-                              + Dopsat na zápas a nasadit
+                              + Dopsat a nasadit
                             </span>
                             {isRecommended && (
                               <Badge
@@ -1954,7 +1911,6 @@ export function LineupBuilder({
                       value={guestName}
                       onChange={(e) => setGuestName(e.target.value)}
                       className="h-9 text-xs mt-1"
-                      autoFocus
                     />
                   </div>
 
@@ -1986,11 +1942,11 @@ export function LineupBuilder({
         </DialogContent>
       </Dialog>
 
-      {/* 2. ADD UNCONFIRMED OR GUEST TO MATCH POOL MODAL ("+ Dopsat nenahlášeného / hosta") */}
+      {/* 2. ADD UNCONFIRMED OR GUEST TO MATCH POOL MODAL */}
       <Dialog open={isAddPoolModalOpen} onOpenChange={setIsAddPoolModalOpen}>
-        <DialogContent className="sm:max-w-md w-[94vw] max-h-[85vh] flex flex-col p-0 overflow-hidden">
-          <DialogHeader className="p-4 pb-3 border-b bg-muted/20">
-            <DialogTitle className="text-base font-headline font-bold flex items-center gap-2">
+        <DialogContent className="sm:max-w-md w-[94vw] max-h-[86dvh] flex flex-col gap-0 p-0 overflow-hidden">
+          <DialogHeader className="p-3.5 sm:p-4 pb-3 border-b bg-muted/20 flex-shrink-0 text-left">
+            <DialogTitle className="text-sm sm:text-base font-headline font-bold flex items-center gap-2">
               <UserPlus className="h-4 w-4 text-primary" />
               Dopsat hráče na zápas
             </DialogTitle>
@@ -1999,14 +1955,14 @@ export function LineupBuilder({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="p-3 border-b space-y-2.5">
+          <div className="p-3 border-b space-y-2.5 flex-shrink-0">
             <Tabs value={addPoolTab} onValueChange={(v) => setAddPoolTab(v as any)}>
               <TabsList className="grid w-full grid-cols-2 h-8 p-0.5">
                 <TabsTrigger value="roster" className="text-xs font-bold">
                   Nenahlášení z týmu ({unconfirmedRosterPlayers.length})
                 </TabsTrigger>
                 <TabsTrigger value="guest" className="text-xs font-bold">
-                  + Vlastní host (mimo kádr)
+                  + Vlastní host
                 </TabsTrigger>
               </TabsList>
             </Tabs>
@@ -2024,12 +1980,12 @@ export function LineupBuilder({
             )}
           </div>
 
-          <div className="flex-1 overflow-y-auto p-3 space-y-2 max-h-[52vh]">
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 space-y-2">
             {addPoolTab === 'roster' ? (
               <>
                 <div className="flex items-center justify-between px-1 mb-1">
                   <span className="text-[11px] text-muted-foreground">
-                    Klepnutím zařadíte hráče mezi dostupné pro tento zápas
+                    Klepnutím zařadíte hráče do dnešní nominace
                   </span>
                   <button
                     type="button"
@@ -2040,7 +1996,6 @@ export function LineupBuilder({
                   </button>
                 </div>
 
-                {/* Already manually added players */}
                 {(manuallyAddedIds.size > 0 || customGuests.length > 0) && (
                   <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-1.5 mb-2">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-amber-400">

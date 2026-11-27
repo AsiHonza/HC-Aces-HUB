@@ -10,6 +10,7 @@ interface PlayerCardProps {
   isDragging?: boolean;
   isGhost?: boolean;
   isSmall?: boolean;
+  fullWidth?: boolean;
   isConfirmed?: boolean;
   isManuallyAdded?: boolean;
   isSelected?: boolean;
@@ -24,6 +25,7 @@ export const PlayerCard = ({
   isDragging,
   isGhost,
   isSmall,
+  fullWidth,
   isConfirmed,
   isManuallyAdded,
   isSelected,
@@ -38,12 +40,12 @@ export const PlayerCard = ({
     <div
       onClick={onClick}
       className={cn(
-        "group relative flex items-center gap-2.5 rounded-xl border border-border/80 bg-card/95 backdrop-blur-md p-1.5 sm:p-2 text-foreground shadow-sm transition-all select-none",
+        "group relative flex items-center gap-2 rounded-xl border border-border/80 bg-card/95 backdrop-blur-md p-1.5 sm:p-2 text-foreground shadow-sm transition-all select-none",
         onClick && "cursor-pointer hover:border-primary/60",
         isSelected && "border-primary bg-primary/10 ring-2 ring-primary/50 shadow-md",
         isDragging && "scale-105 border-primary shadow-xl shadow-primary/20 ring-2 ring-primary bg-card z-50",
         isGhost && "opacity-40",
-        isSmall ? "w-40 sm:w-48 lg:w-52 p-1" : "w-48 sm:w-56 lg:w-64"
+        fullWidth ? "w-full" : isSmall ? "w-40 sm:w-48 lg:w-52 p-1" : "w-48 sm:w-56 lg:w-64"
       )}
     >
       {/* Scorer / Assist Badges */}
