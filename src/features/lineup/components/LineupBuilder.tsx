@@ -639,6 +639,64 @@ export function LineupBuilder({
     ? allKnownPlayersMap.get(selectedQuickPlayerId) || null
     : null;
 
+  // Candidates for the active slot picker modal (MUST be called before any conditional return!)
+  const activeSlotMeta = activeSlot ? positionNames[activeSlot] : null;
+  const activeSlotOccupant = activeSlot ? lineup[activeSlot] : null;
+  const activeSlotPeers = activeSlot ? getLinePeersForSlot(activeSlot, lineup) : [];
+
+  const sortedSlotPoolCandidates = useMemo(() => {
+    if (!activeSlot) return [];
+    const q = pickerSearch.toLowerCase().trim();
+    return [...unassignedPoolPlayers]
+      .filter(
+        (p) =>
+          !q ||
+          (p.name || '').toLowerCase().includes(q) ||
+          (p.jerseyNumber != null && String(p.jerseyNumber).includes(q))
+      )
+      .sort((a, b) => {
+        const aMatch = isPlayerMatchingSlotRole(a, activeSlot) ? 1 : 0;
+        const bMatch = isPlayerMatchingSlotRole(b, activeSlot) ? 1 : 0;
+        if (bMatch !== aMatch) return bMatch - aMatch;
+
+        const aChem = getChemistryWithUnit(a.id, activeSlotPeers);
+        const bChem = getChemistryWithUnit(b.id, activeSlotPeers);
+        if (bChem !== aChem) return bChem - aChem;
+
+        return (a.name || '').localeCompare(b.name || '', 'cs');
+      });
+  }, [activeSlot, unassignedPoolPlayers, pickerSearch, activeSlotPeers]);
+
+  const sortedSlotUnconfirmedCandidates = useMemo(() => {
+    if (!activeSlot) return [];
+    const q = pickerSearch.toLowerCase().trim();
+    return [...unconfirmedRosterPlayers]
+      .filter(
+        (p) =>
+          !q ||
+          (p.name || '').toLowerCase().includes(q) ||
+          (p.jerseyNumber != null && String(p.jerseyNumber).includes(q))
+      )
+      .sort((a, b) => {
+        const aMatch = isPlayerMatchingSlotRole(a, activeSlot) ? 1 : 0;
+        const bMatch = isPlayerMatchingSlotRole(b, activeSlot) ? 1 : 0;
+        if (bMatch !== aMatch) return bMatch - aMatch;
+        return (a.name || '').localeCompare(b.name || '', 'cs');
+      });
+  }, [activeSlot, unconfirmedRosterPlayers, pickerSearch]);
+
+  const placedElsewherePlayers = useMemo(() => {
+    if (!activeSlot) return [];
+    const list: Array<{ slotKey: keyof Lineup; player: Player }> = [];
+    for (const key of ALL_SLOT_KEYS) {
+      if (key === activeSlot) continue;
+      if (formationCount === '2' && (key === 'LK3' || key === 'C3' || key === 'PK3')) continue;
+      const p = lineup[key];
+      if (p) list.push({ slotKey: key, player: p });
+    }
+    return list;
+  }, [activeSlot, lineup, formationCount]);
+
   if (isMobile === null) {
     return (
       <div className="flex h-full flex-col items-center justify-center p-8">
@@ -1472,64 +1530,6 @@ export function LineupBuilder({
       </DragDropContext>
     );
   };
-
-  // Candidates for the active slot picker modal
-  const activeSlotMeta = activeSlot ? positionNames[activeSlot] : null;
-  const activeSlotOccupant = activeSlot ? lineup[activeSlot] : null;
-  const activeSlotPeers = activeSlot ? getLinePeersForSlot(activeSlot, lineup) : [];
-
-  const sortedSlotPoolCandidates = useMemo(() => {
-    if (!activeSlot) return [];
-    const q = pickerSearch.toLowerCase().trim();
-    return [...unassignedPoolPlayers]
-      .filter(
-        (p) =>
-          !q ||
-          (p.name || '').toLowerCase().includes(q) ||
-          (p.jerseyNumber != null && String(p.jerseyNumber).includes(q))
-      )
-      .sort((a, b) => {
-        const aMatch = isPlayerMatchingSlotRole(a, activeSlot) ? 1 : 0;
-        const bMatch = isPlayerMatchingSlotRole(b, activeSlot) ? 1 : 0;
-        if (bMatch !== aMatch) return bMatch - aMatch;
-
-        const aChem = getChemistryWithUnit(a.id, activeSlotPeers);
-        const bChem = getChemistryWithUnit(b.id, activeSlotPeers);
-        if (bChem !== aChem) return bChem - aChem;
-
-        return (a.name || '').localeCompare(b.name || '', 'cs');
-      });
-  }, [activeSlot, unassignedPoolPlayers, pickerSearch, activeSlotPeers]);
-
-  const sortedSlotUnconfirmedCandidates = useMemo(() => {
-    if (!activeSlot) return [];
-    const q = pickerSearch.toLowerCase().trim();
-    return [...unconfirmedRosterPlayers]
-      .filter(
-        (p) =>
-          !q ||
-          (p.name || '').toLowerCase().includes(q) ||
-          (p.jerseyNumber != null && String(p.jerseyNumber).includes(q))
-      )
-      .sort((a, b) => {
-        const aMatch = isPlayerMatchingSlotRole(a, activeSlot) ? 1 : 0;
-        const bMatch = isPlayerMatchingSlotRole(b, activeSlot) ? 1 : 0;
-        if (bMatch !== aMatch) return bMatch - aMatch;
-        return (a.name || '').localeCompare(b.name || '', 'cs');
-      });
-  }, [activeSlot, unconfirmedRosterPlayers, pickerSearch]);
-
-  const placedElsewherePlayers = useMemo(() => {
-    if (!activeSlot) return [];
-    const list: Array<{ slotKey: keyof Lineup; player: Player }> = [];
-    for (const key of ALL_SLOT_KEYS) {
-      if (key === activeSlot) continue;
-      if (formationCount === '2' && (key === 'LK3' || key === 'C3' || key === 'PK3')) continue;
-      const p = lineup[key];
-      if (p) list.push({ slotKey: key, player: p });
-    }
-    return list;
-  }, [activeSlot, lineup, formationCount]);
 
   return (
     <div className="flex flex-1 flex-col h-full min-h-0 bg-background">
