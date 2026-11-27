@@ -1865,8 +1865,15 @@ function DashboardPageContent() {
       {/* Editor sestavy */}
       <Dialog open={isLineupBuilderOpen} onOpenChange={setIsLineupBuilderOpen}>
         <DialogContent className="max-w-5xl xl:max-w-6xl w-[95vw] h-[92vh] flex flex-col p-0 overflow-hidden text-left">
-          <DialogHeader className="p-6 pb-0 flex-shrink-0">
-            <DialogTitle>Editor sestavy</DialogTitle>
+          <DialogHeader className="px-4 py-3 sm:px-6 sm:py-3.5 border-b bg-card/50 flex-shrink-0">
+            <div className="flex flex-wrap items-center gap-2 pr-6">
+              <DialogTitle className="text-base sm:text-lg font-headline font-black">Editor sestavy</DialogTitle>
+              {lineupMatch && (
+                <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30 font-bold text-xs">
+                  vs {getMatchDetails(lineupMatch).opponent}
+                </Badge>
+              )}
+            </div>
           </DialogHeader>
           {lineupMatch && (
             <LineupBuilder

@@ -22,6 +22,10 @@ export function sanitizePlayer(player: Player | null | undefined): Player | null
     sanitized.jerseyNumber = Number(player.jerseyNumber);
   }
 
+  if (player.isGuest || String(player.id).startsWith('guest-')) {
+    sanitized.isGuest = true;
+  }
+
   return sanitized;
 }
 

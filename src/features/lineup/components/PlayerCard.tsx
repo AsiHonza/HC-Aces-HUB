@@ -11,9 +11,12 @@ interface PlayerCardProps {
   isGhost?: boolean;
   isSmall?: boolean;
   isConfirmed?: boolean;
+  isManuallyAdded?: boolean;
+  isSelected?: boolean;
   stats?: PlayerStats;
   positionBadge?: string;
   onRemove?: () => void;
+  onClick?: () => void;
 }
 
 export const PlayerCard = ({
@@ -22,101 +25,119 @@ export const PlayerCard = ({
   isGhost,
   isSmall,
   isConfirmed,
+  isManuallyAdded,
+  isSelected,
   stats,
   positionBadge,
   onRemove,
-}: PlayerCardProps) => (
-  <div
-    className={cn(
-      "group relative flex items-center gap-2.5 rounded-xl border border-border/80 bg-card/95 backdrop-blur-md p-1.5 sm:p-2 text-foreground shadow-sm transition-all select-none",
-      isDragging && "scale-105 border-primary shadow-xl shadow-primary/20 ring-2 ring-primary bg-card z-50",
-      isGhost && "opacity-40",
-      isSmall ? "w-40 sm:w-48 lg:w-52 p-1" : "w-48 sm:w-56 lg:w-64"
-    )}
-  >
-    {/* Scorer / Assist Badges */}
-    {stats && (stats.goals > 0 || stats.assists > 0) && (
-      <div className="absolute -top-2.5 -right-1.5 flex items-center gap-1 z-20">
-        {stats.goals > 0 && (
-          <span className="flex items-center gap-1 bg-primary text-primary-foreground text-[10px] font-black px-1.5 py-0.5 rounded-full shadow-md">
-            <Goal className="h-3 w-3" /> {stats.goals}
-          </span>
-        )}
-        {stats.assists > 0 && (
-          <span className="flex items-center gap-1 bg-muted border border-border text-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-md">
-            A {stats.assists}
+  onClick,
+}: PlayerCardProps) => {
+  const isGuest = String(player.id).startsWith('guest-') || player.isGuest;
+
+  return (
+    <div
+      onClick={onClick}
+      className={cn(
+        "group relative flex items-center gap-2.5 rounded-xl border border-border/80 bg-card/95 backdrop-blur-md p-1.5 sm:p-2 text-foreground shadow-sm transition-all select-none",
+        onClick && "cursor-pointer hover:border-primary/60",
+        isSelected && "border-primary bg-primary/10 ring-2 ring-primary/50 shadow-md",
+        isDragging && "scale-105 border-primary shadow-xl shadow-primary/20 ring-2 ring-primary bg-card z-50",
+        isGhost && "opacity-40",
+        isSmall ? "w-40 sm:w-48 lg:w-52 p-1" : "w-48 sm:w-56 lg:w-64"
+      )}
+    >
+      {/* Scorer / Assist Badges */}
+      {stats && (stats.goals > 0 || stats.assists > 0) && (
+        <div className="absolute -top-2.5 -right-1.5 flex items-center gap-1 z-20">
+          {stats.goals > 0 && (
+            <span className="flex items-center gap-1 bg-primary text-primary-foreground text-[10px] font-black px-1.5 py-0.5 rounded-full shadow-md">
+              <Goal className="h-3 w-3" /> {stats.goals}
+            </span>
+          )}
+          {stats.assists > 0 && (
+            <span className="flex items-center gap-1 bg-muted border border-border text-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-md">
+              A {stats.assists}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Avatar s číslem dresu v rohu */}
+      <div className="relative shrink-0">
+        <Avatar className={cn("h-7 w-7 sm:h-8 sm:w-8 border border-primary/40 shadow-xs", isSmall && "h-6 w-6")}>
+          <AvatarImage src={player.photoURL ?? `https://picsum.photos/seed/${player.email || player.name}/100/100`} alt={player.name} />
+          <AvatarFallback className="text-[10px] font-bold bg-muted text-foreground">
+            {(player.name || '').split(' ').map(n => n[0]).join('')}
+          </AvatarFallback>
+        </Avatar>
+        {player.jerseyNumber != null && (
+          <span className="absolute -bottom-1 -right-1 bg-primary text-primary-foreground text-[8px] sm:text-[9px] font-black px-1 py-0.2 rounded-full shadow leading-none border border-background">
+            #{player.jerseyNumber}
           </span>
         )}
       </div>
-    )}
 
-    {/* Avatar s číslem dresu v rohu */}
-    <div className="relative shrink-0">
-      <Avatar className={cn("h-7 w-7 sm:h-8 sm:w-8 border border-primary/40 shadow-xs", isSmall && "h-6 w-6")}>
-        <AvatarImage src={player.photoURL ?? `https://picsum.photos/seed/${player.email || player.name}/100/100`} alt={player.name} />
-        <AvatarFallback className="text-[10px] font-bold bg-muted text-foreground">
-          {(player.name || '').split(' ').map(n => n[0]).join('')}
-        </AvatarFallback>
-      </Avatar>
-      {player.jerseyNumber != null && (
-        <span className="absolute -bottom-1 -right-1 bg-primary text-primary-foreground text-[8px] sm:text-[9px] font-black px-1 py-0.2 rounded-full shadow leading-none border border-background">
-          #{player.jerseyNumber}
-        </span>
+      {/* Info o hráči */}
+      <div className="flex-1 min-w-0 pr-1 text-left">
+        <p
+          className={cn("font-bold text-xs sm:text-sm leading-tight truncate text-foreground", isSmall && "text-[11px]")}
+          title={player.name}
+        >
+          {player.name || 'Neznámý'}
+        </p>
+        <div className="flex items-center gap-1 flex-wrap mt-0.5">
+          {positionBadge && (
+            <span className="text-[9px] font-bold text-primary uppercase tracking-wider">
+              {positionBadge}
+            </span>
+          )}
+          {isConfirmed ? (
+            <Badge variant="outline" className="text-[8px] py-0 px-1 border-emerald-500/50 text-emerald-500 bg-emerald-500/10 font-bold">
+              ✓ Přihlášen
+            </Badge>
+          ) : isGuest ? (
+            <Badge variant="outline" className="text-[8px] py-0 px-1 border-amber-500/50 text-amber-500 bg-amber-500/10 font-bold">
+              Host
+            </Badge>
+          ) : isManuallyAdded ? (
+            <Badge variant="outline" className="text-[8px] py-0 px-1 border-amber-500/50 text-amber-500 bg-amber-500/10 font-bold">
+              Dopsán
+            </Badge>
+          ) : null}
+          {player.playerType === 'goalie' ? (
+            <Badge variant="outline" className="text-[8px] py-0 px-1 border-amber-500/40 text-amber-500 bg-amber-500/10 font-bold">
+              BRA
+            </Badge>
+          ) : player.fieldPosition === 'defense' ? (
+            <Badge variant="outline" className="text-[8px] py-0 px-1 border-blue-500/40 text-blue-500 bg-blue-500/10 font-bold">
+              OBR
+            </Badge>
+          ) : player.fieldPosition === 'center' ? (
+            <Badge variant="outline" className="text-[8px] py-0 px-1 border-purple-500/40 text-purple-500 bg-purple-500/10 font-bold">
+              CEN
+            </Badge>
+          ) : player.fieldPosition === 'wing' ? (
+            <Badge variant="outline" className="text-[8px] py-0 px-1 border-emerald-500/40 text-emerald-500 bg-emerald-500/10 font-bold">
+              KŘÍ
+            </Badge>
+          ) : null}
+        </div>
+      </div>
+
+      {/* Remove button (přiřazený na hřišti) - umístěný jako plovoucí křížek v rohu */}
+      {onRemove && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          className="absolute -top-1.5 -right-1.5 opacity-80 sm:opacity-0 group-hover:opacity-100 h-5 w-5 rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90 flex items-center justify-center transition-all shadow-md z-30"
+          title="Odebrat z pozice"
+        >
+          <X className="h-3 w-3" />
+        </button>
       )}
     </div>
-
-    {/* Info o hráči */}
-    <div className="flex-1 min-w-0 pr-1 text-left">
-      <p
-        className={cn("font-bold text-xs sm:text-sm leading-tight truncate text-foreground", isSmall && "text-[11px]")}
-        title={player.name}
-      >
-        {player.name || 'Neznámý'}
-      </p>
-      <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
-        {positionBadge && (
-          <span className="text-[9px] font-bold text-primary uppercase tracking-wider">
-            {positionBadge}
-          </span>
-        )}
-        {isConfirmed && (
-          <Badge variant="outline" className="text-[8px] py-0 px-1 border-emerald-500/50 text-emerald-500 bg-emerald-500/10 font-bold">
-            ✓ Účast
-          </Badge>
-        )}
-        {player.playerType === 'goalie' ? (
-          <Badge variant="outline" className="text-[8px] py-0 px-1 border-amber-500/40 text-amber-500 bg-amber-500/10 font-bold">
-            BRA
-          </Badge>
-        ) : player.fieldPosition === 'defense' ? (
-          <Badge variant="outline" className="text-[8px] py-0 px-1 border-blue-500/40 text-blue-500 bg-blue-500/10 font-bold">
-            OBR
-          </Badge>
-        ) : player.fieldPosition === 'center' ? (
-          <Badge variant="outline" className="text-[8px] py-0 px-1 border-purple-500/40 text-purple-500 bg-purple-500/10 font-bold">
-            CEN
-          </Badge>
-        ) : player.fieldPosition === 'wing' ? (
-          <Badge variant="outline" className="text-[8px] py-0 px-1 border-emerald-500/40 text-emerald-500 bg-emerald-500/10 font-bold">
-            KŘÍ
-          </Badge>
-        ) : null}
-      </div>
-    </div>
-
-    {/* Remove button (přiřazený na hřišti) - umístěný jako plovoucí křížek v rohu */}
-    {onRemove && (
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          onRemove();
-        }}
-        className="absolute -top-1.5 -right-1.5 opacity-0 group-hover:opacity-100 h-5 w-5 rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90 flex items-center justify-center transition-all shadow-md z-30"
-        title="Odebrat z pozice"
-      >
-        <X className="h-3 w-3" />
-      </button>
-    )}
-  </div>
-);
+  );
+};
